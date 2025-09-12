@@ -75,7 +75,8 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                         <DialogContent>
                             <DialogHeader><DialogTitle>버스 CSV 일괄 등록</DialogTitle></DialogHeader>
                             <div className="p-4 text-center">
-                                <p className="mb-4">버스 대량 등록을 위해 CSV 파일을 선택하세요.</p>
+                                <p className="mb-2">버스 대량 등록을 위해 CSV 파일을 선택하세요.</p>
+                                <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
                                 <Button variant="link" onClick={handleDownloadBusTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
                                 <Input type="file" accept=".csv" className="mt-2" />
                                 <Button className="mt-4">업로드</Button>
@@ -140,6 +141,19 @@ const BusConfigurationTab = ({
     // For simplicity, we'll just use the first route for a bus to get its stops
     const route = routes.find(r => r.busId === busId);
     return route ? route.stops.map(stopId => destinations.find(d => d.id === stopId)!) : [];
+  };
+  
+  const handleDownloadDestinationTemplate = () => {
+    const headers = "목적지 이름";
+    const example = "강남역";
+    const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "destination_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -222,6 +236,19 @@ const BusConfigurationTab = ({
                         <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
                         <Input placeholder="예: 강남역" />
                         <Button className="mt-2">추가</Button>
+                    </DialogContent>
+                </Dialog>
+                <Dialog>
+                    <DialogTrigger asChild><Button><Upload className="mr-2" /> CSV 일괄 등록</Button></DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>목적지 CSV 일괄 등록</DialogTitle></DialogHeader>
+                        <div className="p-4 text-center">
+                            <p className="mb-2">목적지 대량 등록을 위해 CSV 파일을 선택하세요.</p>
+                            <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
+                            <Button variant="link" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
+                            <Input type="file" accept=".csv" className="mt-2" />
+                            <Button className="mt-4">업로드</Button>
+                        </div>
                     </DialogContent>
                 </Dialog>
             </div>
@@ -455,7 +482,8 @@ const StudentManagementTab = ({
                         <DialogContent>
                             <DialogHeader><DialogTitle>학생 CSV 업로드</DialogTitle></DialogHeader>
                             <div className="p-4 text-center">
-                                <p className="mb-4">학생 대량 업로드를 위해 CSV 파일을 선택하세요.</p>
+                                <p className="mb-2">학생 대량 업로드를 위해 CSV 파일을 선택하세요.</p>
+                                <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
                                 <Button variant="link" onClick={handleDownloadStudentTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
                                 <Input type="file" accept=".csv" className="mt-2" />
                                 <Button className="mt-4">업로드</Button>
@@ -524,6 +552,8 @@ export default function AdminPage() {
         </Tabs>
     );
 }
+
+    
 
     
 
