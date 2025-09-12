@@ -106,7 +106,7 @@ export function BusSeatMap({
              );
 
             return (
-              <Tooltip key={seat.seatNumber}>
+              <Tooltip key={`seat-${seat.seatNumber}`}>
                 <TooltipTrigger asChild>
                   <div
                     onDragOver={handleDragOver}
