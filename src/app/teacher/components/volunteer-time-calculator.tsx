@@ -60,23 +60,23 @@ export function VolunteerTimeCalculator({ student, setStudents }: VolunteerTimeC
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base font-headline">
           <Sparkles className="w-5 h-5 text-accent-foreground" />
-          Volunteer Time Calculator
+          봉사 시간 계산기
         </CardTitle>
-        <CardDescription>Time is calculated at 20 minutes per day.</CardDescription>
+        <CardDescription>시간은 하루에 20분으로 계산됩니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-            <Label htmlFor="daysAsLeader">Days as Group Leader</Label>
+            <Label htmlFor="daysAsLeader">조장 활동 일수</Label>
             <Input id="daysAsLeader" type="number" value={days} onChange={handleDaysChange} />
         </div>
         <div className="text-center p-4 bg-background rounded-md">
-            <p className="text-sm text-muted-foreground">Total Volunteer Time</p>
+            <p className="text-sm text-muted-foreground">총 봉사 시간</p>
             <p className="text-3xl font-bold font-headline flex items-center justify-center gap-2">
               {isPending ? <RotateCw className="w-6 h-6 animate-spin" /> : `${totalMinutes}`}
-              <span className="text-lg font-medium text-muted-foreground">minutes</span>
+              <span className="text-lg font-medium text-muted-foreground">분</span>
             </p>
         </div>
-        <Button variant="outline" className="w-full" onClick={handleReset}>Reset Time</Button>
+        <Button variant="outline" className="w-full" onClick={handleReset}>시간 초기화</Button>
       </CardContent>
     </Card>
   );

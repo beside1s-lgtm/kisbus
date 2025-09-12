@@ -31,25 +31,32 @@ export function DashboardShell({
   mainContent,
   sidePanel,
   topActions,
-  sidePanelTitle = "Details"
+  sidePanelTitle = "세부 정보"
 }: DashboardShellProps) {
   const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const dayLabels: { [key in DayOfWeek]: string } = {
+    Monday: '월요일',
+    Tuesday: '화요일',
+    Wednesday: '수요일',
+    Thursday: '목요일',
+    Friday: '금요일',
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle className="font-headline">Route Configuration</CardTitle>
+          <CardTitle className="font-headline">노선 설정</CardTitle>
           <div className="flex items-center gap-2">
             {topActions}
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label className="text-sm font-medium">Bus</label>
+            <label className="text-sm font-medium">버스</label>
             <Select value={selectedBusId} onValueChange={setSelectedBusId}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a bus" />
+                <SelectValue placeholder="버스를 선택하세요" />
               </SelectTrigger>
               <SelectContent>
                 {buses.map((bus) => (
@@ -61,26 +68,26 @@ export function DashboardShell({
             </Select>
           </div>
           <div>
-            <label className="text-sm font-medium">Day of Week</label>
+            <label className="text-sm font-medium">요일</label>
             <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a day" />
+                <SelectValue placeholder="요일을 선택하세요" />
               </SelectTrigger>
               <SelectContent>
                 {days.map((day) => (
                   <SelectItem key={day} value={day}>
-                    {day}
+                    {dayLabels[day]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label className="text-sm font-medium">Route</label>
+            <label className="text-sm font-medium">경로</label>
             <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="Morning">Morning</TabsTrigger>
-                <TabsTrigger value="Afternoon">Afternoon</TabsTrigger>
+                <TabsTrigger value="Morning">등교</TabsTrigger>
+                <TabsTrigger value="Afternoon">하교</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>

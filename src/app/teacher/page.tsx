@@ -80,14 +80,14 @@ export default function TeacherPage() {
   };
 
   if (!selectedBus || !currentRoute) {
-    return <div className="p-4">Loading or select a bus...</div>;
+    return <div className="p-4">로딩 중 또는 버스를 선택하세요...</div>;
   }
 
   const mainContent = (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Bus Seating</CardTitle>
-        <CardDescription>Click on a student to see details and actions.</CardDescription>
+        <CardTitle className="font-headline">버스 좌석</CardTitle>
+        <CardDescription>학생을 클릭하여 세부 정보 및 작업을 확인하세요.</CardDescription>
       </CardHeader>
       <CardContent>
         <BusSeatMap 
@@ -110,7 +110,7 @@ export default function TeacherPage() {
             </Avatar>
             <h3 className="text-xl font-bold font-headline">{selectedStudent.name}</h3>
             <p className="text-sm text-muted-foreground">
-                Destination: {destinations.find(d => d.id === selectedStudent.destinationId)?.name || 'N/A'}
+                목적지: {destinations.find(d => d.id === selectedStudent.destinationId)?.name || '해당 없음'}
             </p>
         </div>
         <Separator className="my-4" />
@@ -120,17 +120,17 @@ export default function TeacherPage() {
                 className="w-full"
                 onClick={() => toggleAbsence(selectedStudent.id)}
             >
-                <UserX className="mr-2" /> Mark as Absent
+                <UserX className="mr-2" /> 결석 처리
             </Button>
             <Button
                 variant={selectedStudent.isGroupLeader ? "default" : "outline"}
                 className="w-full"
                 onClick={() => toggleGroupLeader(selectedStudent.id)}
             >
-                <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? 'Unset as Leader' : 'Set as Group Leader'}
+                <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 설정'}
             </Button>
              <Button variant="outline" className="w-full">
-                <ArrowLeftRight className="mr-2" /> Swap Seat
+                <ArrowLeftRight className="mr-2" /> 좌석 교체
             </Button>
         </div>
         {selectedStudent.isGroupLeader && (
@@ -142,7 +142,7 @@ export default function TeacherPage() {
     </div>
   ) : (
     <div className="text-center text-muted-foreground py-10">
-        <p>Select a student to see more details.</p>
+        <p>학생을 선택하여 더 많은 정보를 확인하세요.</p>
     </div>
   );
 
@@ -157,7 +157,7 @@ export default function TeacherPage() {
       setSelectedRouteType={setSelectedRouteType}
       mainContent={mainContent}
       sidePanel={sidePanel}
-      sidePanelTitle="Student Details"
+      sidePanelTitle="학생 정보"
     />
   );
 }

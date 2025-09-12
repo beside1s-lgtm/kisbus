@@ -76,7 +76,7 @@ export function BusSeatMap({
       <div className="p-4 border rounded-lg bg-muted/20">
         <div className="w-full mb-4 text-center">
           <div className="inline-block px-4 py-2 font-bold border-2 rounded-md bg-secondary text-secondary-foreground">
-            {bus.name} - Driver
+            {bus.name} - 운전석
           </div>
         </div>
         <div className={cn('grid', getGridLayout(bus.capacity))}>
@@ -135,8 +135,8 @@ export function BusSeatMap({
                 </TooltipTrigger>
                 {student && (
                   <TooltipContent>
-                    <p>Name: {student.name}</p>
-                    <p>Destination: {getStudentById(student.id)?.destinationId}</p>
+                    <p>이름: {student.name}</p>
+                    <p>목적지: {getStudentById(student.id)?.destinationId}</p>
                   </TooltipContent>
                 )}
               </Tooltip>

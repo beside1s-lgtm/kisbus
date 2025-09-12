@@ -149,13 +149,13 @@ export default function AdminPage() {
 
 
   if (!selectedBus || !currentRoute) {
-    return <div className="p-4">Loading or select a bus...</div>;
+    return <div className="p-4">로딩 중 또는 버스를 선택하세요...</div>;
   }
 
   const mainContent = (
     <Card>
         <CardHeader>
-            <CardTitle className="font-headline">Seating Map</CardTitle>
+            <CardTitle className="font-headline">좌석표</CardTitle>
         </CardHeader>
         <CardContent>
             <BusSeatMap 
@@ -180,31 +180,31 @@ export default function AdminPage() {
   
   const topActions = (
     <div className="flex items-center gap-2">
-      <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> Randomize</Button>
+      <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
       <Dialog>
         <DialogTrigger asChild>
-          <Button variant="outline"><UserPlus className="mr-2" /> Add Student</Button>
+          <Button variant="outline"><UserPlus className="mr-2" /> 학생 추가</Button>
         </DialogTrigger>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add New Student</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>새 학생 추가</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">Name</Label>
-              <Input id="name" defaultValue="New Student" className="col-span-3" />
+              <Label htmlFor="name" className="text-right">이름</Label>
+              <Input id="name" defaultValue="새 학생" className="col-span-3" />
             </div>
           </div>
         </DialogContent>
       </Dialog>
       <Dialog>
         <DialogTrigger asChild>
-          <Button><Upload className="mr-2" /> Upload CSV</Button>
+          <Button><Upload className="mr-2" /> CSV 업로드</Button>
         </DialogTrigger>
         <DialogContent>
-          <DialogHeader><DialogTitle>Upload Student CSV</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>학생 CSV 업로드</DialogTitle></DialogHeader>
            <div className="p-4 text-center">
-                <p className="mb-4">Select a CSV file to bulk upload students.</p>
+                <p className="mb-4">학생 대량 업로드를 위해 CSV 파일을 선택하세요.</p>
                 <Input type="file" accept=".csv" />
-                <Button className="mt-4">Upload</Button>
+                <Button className="mt-4">업로드</Button>
             </div>
         </DialogContent>
       </Dialog>
@@ -223,7 +223,7 @@ export default function AdminPage() {
       mainContent={mainContent}
       sidePanel={sidePanel}
       topActions={topActions}
-      sidePanelTitle="Unassigned Students"
+      sidePanelTitle="미배정 학생"
     />
   );
 }

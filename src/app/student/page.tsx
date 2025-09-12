@@ -63,14 +63,14 @@ export default function StudentPage() {
 
 
   if (!selectedBus || !currentRoute) {
-    return <div className="p-4">Loading or select a bus...</div>;
+    return <div className="p-4">로딩 중 또는 버스를 선택하세요...</div>;
   }
 
   const mainContent = (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Your Bus Seating</CardTitle>
-        <CardDescription>Find your seat and tap it to mark yourself as boarded.</CardDescription>
+        <CardTitle className="font-headline">내 버스 좌석</CardTitle>
+        <CardDescription>내 좌석을 찾아 탭하여 탑승 완료 표시를 하세요.</CardDescription>
       </CardHeader>
       <CardContent>
         {loggedInStudentOnThisBus ? (
@@ -84,8 +84,8 @@ export default function StudentPage() {
              />
         ) : (
             <Alert>
-                <AlertTitle>You are not on this bus route.</AlertTitle>
-                <AlertDescription>Please check your schedule or select a different bus/day.</AlertDescription>
+                <AlertTitle>이 버스 노선에 배정되지 않았습니다.</AlertTitle>
+                <AlertDescription>일정을 확인하거나 다른 버스/요일을 선택하세요.</AlertDescription>
             </Alert>
         )}
       </CardContent>
@@ -94,18 +94,18 @@ export default function StudentPage() {
 
   const sidePanel = (
     <div>
-        <h3 className="text-lg font-semibold mb-2 font-headline">Instructions</h3>
+        <h3 className="text-lg font-semibold mb-2 font-headline">이용 안내</h3>
         <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-            <li>Find your name on the seating map.</li>
-            <li>Tap your seat when you board the bus. Your seat will turn green.</li>
-            <li>Tap your seat again when you get off the bus.</li>
-            <li>Only you can change the status of your own seat.</li>
+            <li>좌석표에서 내 이름을 찾으세요.</li>
+            <li>버스에 타면 내 좌석을 탭하세요. 좌석이 녹색으로 바뀝니다.</li>
+            <li>버스에서 내릴 때 다시 좌석을 탭하세요.</li>
+            <li>본인만 좌석 상태를 변경할 수 있습니다.</li>
         </ul>
         <Alert className="mt-6 bg-accent/50 border-accent">
             <PartyPopper className="h-4 w-4" />
-            <AlertTitle className="font-headline">You are logged in as:</AlertTitle>
+            <AlertTitle className="font-headline">현재 로그인한 학생:</AlertTitle>
             <AlertDescription className="font-semibold text-accent-foreground">
-                {students.find(s=>s.id === LOGGED_IN_STUDENT_ID)?.name || 'Student'}
+                {students.find(s=>s.id === LOGGED_IN_STUDENT_ID)?.name || '학생'}
             </AlertDescription>
         </Alert>
     </div>
@@ -122,7 +122,7 @@ export default function StudentPage() {
       setSelectedRouteType={setSelectedRouteType}
       mainContent={mainContent}
       sidePanel={sidePanel}
-      sidePanelTitle="How to Use"
+      sidePanelTitle="사용 방법"
     />
   );
 }

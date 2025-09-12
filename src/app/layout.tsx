@@ -4,8 +4,8 @@ import { Toaster } from '@/components/ui/toaster';
 import { MainLayout } from '@/components/layout/main-layout';
 
 export const metadata: Metadata = {
-  title: 'KIS School Bus Manager',
-  description: 'Manage school bus routes, students, and attendance.',
+  title: 'KIS 스쿨버스 관리자',
+  description: '스쿨버스 노선, 학생 및 출결을 관리합니다.',
 };
 
 export default function RootLayout({

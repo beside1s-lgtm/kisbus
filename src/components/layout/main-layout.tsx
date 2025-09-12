@@ -27,13 +27,23 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/admin', label: 'Admin', icon: UserCog },
-  { href: '/teacher', label: 'Teacher', icon: UserCog },
-  { href: '/student', label: 'Student', icon: User },
+  { href: '/admin', label: '관리자', icon: UserCog },
+  { href: '/teacher', label: '선생님', icon: UserCog },
+  { href: '/student', label: '학생', icon: User },
 ];
 
 export const MainLayout: FC<{ children: ReactNode }> = ({ children }) => {
   const pathname = usePathname();
+
+  const getPageTitle = () => {
+    const currentPath = pathname.split('/')[1];
+    switch(currentPath) {
+        case 'admin': return '관리자';
+        case 'teacher': return '선생님';
+        case 'student': return '학생';
+        default: return '대시보드';
+    }
+  }
 
   return (
     <SidebarProvider>
@@ -44,7 +54,7 @@ export const MainLayout: FC<{ children: ReactNode }> = ({ children }) => {
               <Bus className="text-primary-foreground size-6" />
             </div>
             <h1 className="text-xl font-headline font-bold text-foreground">
-              KIS Bus Manager
+              KIS 버스 관리자
             </h1>
           </div>
         </SidebarHeader>
@@ -75,7 +85,7 @@ export const MainLayout: FC<{ children: ReactNode }> = ({ children }) => {
           <SidebarTrigger className="md:hidden" />
           <div className="hidden md:block">
             <h2 className="text-lg font-semibold capitalize font-headline">
-              {pathname.split('/')[1] || 'Dashboard'}
+              {getPageTitle()}
             </h2>
           </div>
           <DropdownMenu>
@@ -90,17 +100,17 @@ export const MainLayout: FC<{ children: ReactNode }> = ({ children }) => {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">Admin User</p>
+                  <p className="text-sm font-medium leading-none">관리자</p>
                   <p className="text-xs leading-none text-muted-foreground">
                     admin@kis.ac
                   </p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Settings</DropdownMenuItem>
+              <DropdownMenuItem>프로필</DropdownMenuItem>
+              <DropdownMenuItem>설정</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Log out</DropdownMenuItem>
+              <DropdownMenuItem>로그아웃</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
