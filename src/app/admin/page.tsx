@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
     
@@ -138,7 +139,6 @@ const BusConfigurationTab = ({
   }, [buses, selectedBusId]);
 
   const getStopsForBus = (busId: string) => {
-    // For simplicity, we'll just use the first route for a bus to get its stops
     const route = routes.find(r => r.busId === busId);
     return route ? route.stops.map(stopId => destinations.find(d => d.id === stopId)!) : [];
   };
@@ -207,12 +207,12 @@ const BusConfigurationTab = ({
                     <p className="text-sm text-muted-foreground mb-2">
                         아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
                     </p>
-                    <div className="space-y-2 p-2 border rounded-md min-h-[150px] bg-muted/50">
+                    <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-muted/50">
                       {getStopsForBus(selectedBus.id).filter(Boolean).map(dest => (
-                         <Card key={dest.id} className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                           <GripVertical className="h-5 w-5 text-muted-foreground" />
+                         <Badge key={dest.id} variant="secondary" className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                           <GripVertical className="h-4 w-4 text-muted-foreground" />
                            {dest.name}
-                         </Card>
+                         </Badge>
                       ))}
                     </div>
                 </div>
@@ -252,12 +252,12 @@ const BusConfigurationTab = ({
                     </DialogContent>
                 </Dialog>
             </div>
-            <div className="space-y-2 p-2 border rounded-md min-h-[200px] bg-muted/50">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50">
                 {destinations.map(dest => (
-                    <Card key={dest.id} className="p-2 flex justify-between items-center">
-                        <span>{dest.name}</span>
-                        <Button variant="ghost" size="icon">
-                            <Trash2 className="w-4 h-4 text-destructive" />
+                    <Card key={dest.id} className="p-2 text-sm flex justify-between items-center">
+                        <span className="truncate">{dest.name}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
                         </Button>
                     </Card>
                 ))}
@@ -552,6 +552,8 @@ export default function AdminPage() {
         </Tabs>
     );
 }
+
+    
 
     
 
