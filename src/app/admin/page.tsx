@@ -123,12 +123,24 @@ const BusConfigurationTab = ({
   destinations: Destination[];
   setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
 }) => {
+  const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (buses.length > 0 && !selectedBusId) {
+      setSelectedBusId(buses[0].id);
+    }
+  }, [buses, selectedBusId]);
+  
+  const selectedBus = useMemo(() => {
+    if (!selectedBusId) return null;
+    return buses.find(b => b.id === selectedBusId);
+  }, [buses, selectedBusId]);
+
   const getStopsForBus = (busId: string) => {
     // For simplicity, we'll just use the first route for a bus to get its stops
     const route = routes.find(r => r.busId === busId);
     return route ? route.stops.map(stopId => destinations.find(d => d.id === stopId)!) : [];
   };
-
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -165,16 +177,27 @@ const BusConfigurationTab = ({
 
       <div className="space-y-6">
         <h2 className="text-xl font-bold">버스별 노선 설정</h2>
-        {buses.map(bus => (
-          <Card key={bus.id}>
+        <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
+            <SelectTrigger>
+                <SelectValue placeholder="버스를 선택하세요" />
+            </SelectTrigger>
+            <SelectContent>
+                {buses.map(bus => (
+                    <SelectItem key={bus.id} value={bus.id}>{bus.name}</SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+
+        {selectedBus && (
+          <Card key={selectedBus.id}>
             <CardHeader>
-              <CardTitle>{bus.name}</CardTitle>
+              <CardTitle>{selectedBus.name}</CardTitle>
               <CardDescription>버스의 정보를 수정하고 노선 순서를 정합니다.</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="flex items-center gap-4 p-2 border rounded-md mb-4">
-                    <Input defaultValue={bus.name} className="flex-1" />
-                    <Select defaultValue={bus.type}>
+                    <Input defaultValue={selectedBus.name} className="flex-1" />
+                    <Select defaultValue={selectedBus.type}>
                         <SelectTrigger className="w-[150px]">
                             <SelectValue />
                         </SelectTrigger>
@@ -195,7 +218,7 @@ const BusConfigurationTab = ({
                         아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
                     </p>
                     <div className="space-y-2 p-2 border rounded-md min-h-[150px] bg-muted/50">
-                      {getStopsForBus(bus.id).filter(Boolean).map(dest => (
+                      {getStopsForBus(selectedBus.id).filter(Boolean).map(dest => (
                          <Card key={dest.id} className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
                            <GripVertical className="h-5 w-5 text-muted-foreground" />
                            {dest.name}
@@ -205,7 +228,7 @@ const BusConfigurationTab = ({
                 </div>
             </CardContent>
           </Card>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -494,3 +517,5 @@ export default function AdminPage() {
         </Tabs>
     );
 }
+
+    
