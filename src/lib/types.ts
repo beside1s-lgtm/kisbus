@@ -2,6 +2,9 @@ export type Student = {
   id: string;
   name: string;
   destinationId: string;
+  grade: string;
+  class: string;
+  gender: 'Male' | 'Female';
   isGroupLeader: boolean;
   daysAsGroupLeader: number;
 };

@@ -394,8 +394,8 @@ const StudentManagementTab = ({
     }, [currentRoute, selectedBus, unassignedStudents, students, setRoutes]);
     
     const handleDownloadStudentTemplate = () => {
-        const headers = "버스 번호,학생 이름,목적지";
-        const example = "Bus 01,김민준,강남역";
+        const headers = "버스 번호,학생 이름,목적지,학년,반,성별";
+        const example = "Bus 01,김민준,강남역,G1,C1,Male";
         const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -460,6 +460,26 @@ const StudentManagementTab = ({
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="name" className="text-right">이름</Label>
                                     <Input id="name" defaultValue="새 학생" className="col-span-3" />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="grade" className="text-right">학년</Label>
+                                    <Input id="grade" placeholder="예: G1" className="col-span-3" />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="class" className="text-right">반</Label>
+                                    <Input id="class" placeholder="예: C1" className="col-span-3" />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="gender" className="text-right">성별</Label>
+                                    <Select>
+                                        <SelectTrigger className="col-span-3">
+                                            <SelectValue placeholder="성별 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Male">Male</SelectItem>
+                                            <SelectItem value="Female">Female</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="destination" className="text-right">목적지</Label>

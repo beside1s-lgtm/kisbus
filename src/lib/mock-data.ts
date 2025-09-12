@@ -12,6 +12,9 @@ const students: Student[] = Array.from({ length: 50 }, (_, i) => ({
   id: `student${i + 1}`,
   name: `Student ${i + 1}`,
   destinationId: destinations[i % destinations.length].id,
+  grade: `G${(i % 12) + 1}`,
+  class: `C${(i % 5) + 1}`,
+  gender: i % 2 === 0 ? 'Male' : 'Female',
   isGroupLeader: false,
   daysAsGroupLeader: 0,
 }));
