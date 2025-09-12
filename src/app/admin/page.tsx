@@ -208,8 +208,9 @@ const BusConfigurationTab = ({
                         아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
                     </p>
                     <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-muted/50">
-                      {getStopsForBus(selectedBus.id).filter(Boolean).map(dest => (
+                      {getStopsForBus(selectedBus.id).filter(Boolean).map((dest, index) => (
                          <Badge key={dest.id} variant="secondary" className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                           <span className="text-xs font-bold text-muted-foreground">{index + 1}</span>
                            <GripVertical className="h-4 w-4 text-muted-foreground" />
                            {dest.name}
                          </Badge>
