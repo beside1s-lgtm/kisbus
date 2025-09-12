@@ -309,8 +309,13 @@ const StudentManagementTab = ({
     }, [currentRoute]);
 
     const unassignedStudents = useMemo(() => {
-        return students.filter(s => !assignedStudentIds.has(s.id));
-    }, [students, assignedStudentIds]);
+        if (!currentRoute) return [];
+        const routeStops = new Set(currentRoute.stops);
+        return students.filter(s => 
+            !assignedStudentIds.has(s.id) && 
+            routeStops.has(s.destinationId)
+        );
+    }, [students, assignedStudentIds, currentRoute]);
 
     const handleSeatDrop = useCallback((seatNumber: number, studentId: string) => {
         setRoutes(prevRoutes => {
@@ -573,6 +578,8 @@ export default function AdminPage() {
         </Tabs>
     );
 }
+
+    
 
     
 
