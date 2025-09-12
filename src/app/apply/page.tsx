@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, PlusCircle } from 'lucide-react';
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function ApplyPage() {
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
+    const [newDestinationName, setNewDestinationName] = useState('');
     const { toast } = useToast();
 
     useEffect(() => {
@@ -28,7 +30,7 @@ export default function ApplyPage() {
         fetchData();
     }, []);
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleApplicationSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         const newStudent: Student = {
@@ -54,6 +56,34 @@ export default function ApplyPage() {
         (event.target as HTMLFormElement).reset();
     };
 
+    const handleSuggestionSubmit = () => {
+        if (!newDestinationName.trim()) {
+            toast({ title: "오류", description: "목적지 이름을 입력해주세요.", variant: "destructive" });
+            return;
+        }
+
+        const newSuggestion: Destination = {
+            id: `sugg_${Date.now()}`,
+            name: newDestinationName.trim(),
+        };
+
+        // In a real app, this would be sent to a database.
+        // We'll simulate by storing it in session storage to be picked up by the admin page.
+        if(typeof window !== "undefined") {
+            const currentSuggestions = JSON.parse(window.sessionStorage.getItem('suggestedDestinations') || '[]');
+            window.sessionStorage.setItem('suggestedDestinations', JSON.stringify([...currentSuggestions, newSuggestion]));
+        }
+
+        toast({
+          title: "제안 완료!",
+          description: `'${newSuggestion.name}' 목적지 제안이 관리자에게 전달되었습니다.`,
+        });
+        setNewDestinationName('');
+        // This closes the dialog, but we need to find the trigger and click it.
+        // A better approach would be to manage dialog's open state.
+        document.getElementById('suggest-dest-dialog-close')?.click();
+    }
+
     return (
         <div className="flex justify-center items-start pt-8">
             <Card className="w-full max-w-2xl">
@@ -67,7 +97,7 @@ export default function ApplyPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit} className="grid gap-6">
+                    <form onSubmit={handleApplicationSubmit} className="grid gap-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="name">이름</Label>
@@ -75,14 +105,40 @@ export default function ApplyPage() {
                             </div>
                              <div className="space-y-2">
                                 <Label htmlFor="destination">목적지</Label>
-                                <Select name="destination" required>
-                                    <SelectTrigger id="destination">
-                                        <SelectValue placeholder="목적지 선택" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                <div className="flex gap-2">
+                                    <Select name="destination" required>
+                                        <SelectTrigger id="destination">
+                                            <SelectValue placeholder="목적지 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" type="button" className="shrink-0">
+                                                <PlusCircle className="mr-2 h-4 w-4" /> 제안
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>신규 목적지 제안</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="grid gap-4 py-4">
+                                                <p className="text-sm text-muted-foreground">
+                                                    목록에 원하는 목적지가 없나요? 새로운 목적지를 제안해주세요. 관리자 승인 후 목록에 추가됩니다.
+                                                </p>
+                                                <Input 
+                                                    placeholder="예: 서초역" 
+                                                    value={newDestinationName}
+                                                    onChange={(e) => setNewDestinationName(e.target.value)}
+                                                />
+                                            </div>
+                                            <Button onClick={handleSuggestionSubmit}>제안하기</Button>
+                                            <div id="suggest-dest-dialog-close" />
+                                        </DialogContent>
+                                    </Dialog>
+                                </div>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -114,3 +170,5 @@ export default function ApplyPage() {
         </div>
     );
 }
+
+    

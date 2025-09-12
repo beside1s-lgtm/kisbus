@@ -118,6 +118,8 @@ const BusConfigurationTab = ({
   setRoutes,
   destinations,
   setDestinations,
+  suggestedDestinations,
+  setSuggestedDestinations,
   selectedBusId,
   selectedDay,
   selectedRouteType
@@ -127,6 +129,8 @@ const BusConfigurationTab = ({
   setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
   setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
+  suggestedDestinations: Destination[],
+  setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   selectedBusId: string | null;
   selectedDay: DayOfWeek;
   selectedRouteType: RouteType;
@@ -161,6 +165,11 @@ const BusConfigurationTab = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+  
+  const approveSuggestedDestination = (suggestion: Destination) => {
+    setDestinations(prev => [...prev, suggestion]);
+    setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
   };
   
   if (!selectedBus) {
@@ -251,6 +260,29 @@ const BusConfigurationTab = ({
                     </Badge>
                 ))}
             </div>
+             {suggestedDestinations.length > 0 && (
+              <>
+                <Separator className="my-6" />
+                <div>
+                  <h4 className="font-semibold mb-2">신규 목적지 신청</h4>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    학생들이 제안한 새로운 목적지입니다. 클릭하여 전체 목적지 목록에 추가하세요.
+                  </p>
+                  <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
+                    {suggestedDestinations.map(suggestion => (
+                      <Badge 
+                        key={suggestion.id}
+                        variant="outline" 
+                        onClick={() => approveSuggestedDestination(suggestion)}
+                        className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
+                      >
+                        {suggestion.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
         </CardContent>
       </Card>
     </div>
@@ -511,6 +543,7 @@ export default function AdminPage() {
     const [students, setStudents] = useState<Student[]>([]);
     const [routes, setRoutes] = useState<Route[]>([]);
     const [destinations, setDestinations] = useState<Destination[]>([]);
+    const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
     const [selectedBusId, setSelectedBusId] = useState<string>('');
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
@@ -534,6 +567,29 @@ export default function AdminPage() {
         };
         fetchData();
     }, []);
+
+    // This is a mock for suggested destinations from the apply page
+    // In a real app, this would come from a database.
+    useEffect(() => {
+        const mockSuggestions: Destination[] = [
+            { id: 'sugg_dest_1', name: 'Yangjae Station' },
+            { id: 'sugg_dest_2', name: 'Sadang Station' },
+        ];
+        if (typeof window !== "undefined") {
+            const storedSuggestions = window.sessionStorage.getItem('suggestedDestinations');
+            if (storedSuggestions) {
+                 setSuggestedDestinations(JSON.parse(storedSuggestions));
+            } else {
+                 setSuggestedDestinations(mockSuggestions);
+            }
+        }
+    }, []);
+    
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            window.sessionStorage.setItem('suggestedDestinations', JSON.stringify(suggestedDestinations));
+        }
+    }, [suggestedDestinations]);
 
     return (
         <div className="flex flex-col gap-6">
@@ -562,6 +618,8 @@ export default function AdminPage() {
                                 setRoutes={setRoutes}
                                 destinations={destinations}
                                 setDestinations={setDestinations}
+                                suggestedDestinations={suggestedDestinations}
+                                setSuggestedDestinations={setSuggestedDestinations}
                                 selectedBusId={selectedBusId}
                                 selectedDay={selectedDay}
                                 selectedRouteType={selectedRouteType}
@@ -585,3 +643,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
