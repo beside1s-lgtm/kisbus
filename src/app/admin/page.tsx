@@ -252,14 +252,14 @@ const BusConfigurationTab = ({
                     </DialogContent>
                 </Dialog>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50">
+            <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50">
                 {destinations.map(dest => (
-                    <Card key={dest.id} className="p-2 text-sm flex justify-between items-center">
-                        <span className="truncate">{dest.name}</span>
-                        <Button variant="ghost" size="icon" className="h-6 w-6">
-                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                    <Badge key={dest.id} variant="outline" className="flex justify-between items-center max-w-fit">
+                        <span>{dest.name}</span>
+                        <Button variant="ghost" size="icon" className="h-5 w-5 ml-1">
+                            <Trash2 className="w-3 h-3 text-destructive" />
                         </Button>
-                    </Card>
+                    </Badge>
                 ))}
             </div>
         </CardContent>
