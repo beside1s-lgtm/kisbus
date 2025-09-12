@@ -39,12 +39,14 @@ const routes: Route[] = buses.flatMap(bus =>
   days.flatMap(day =>
     types.map(type => {
       const routeId = `route-${bus.id}-${day.toLowerCase()}-${type.toLowerCase()}`;
+      const morningStops = destinations.map(d => d.id);
+      const stops = type === 'Morning' ? morningStops : [...morningStops].reverse();
       return {
         id: routeId,
         busId: bus.id,
         dayOfWeek: day,
         type: type,
-        stops: destinations.map(d => d.id),
+        stops: stops,
         seating: generateInitialSeating(bus.capacity),
       };
     })

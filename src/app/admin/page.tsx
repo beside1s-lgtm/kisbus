@@ -118,29 +118,36 @@ const BusConfigurationTab = ({
   setRoutes,
   destinations,
   setDestinations,
+  selectedBusId,
+  selectedDay,
+  selectedRouteType
 }: {
   buses: Bus[];
   routes: Route[];
   setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
   setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
+  selectedBusId: string | null;
+  selectedDay: DayOfWeek;
+  selectedRouteType: RouteType;
 }) => {
-  const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (buses.length > 0 && !selectedBusId) {
-      setSelectedBusId(buses[0].id);
-    }
-  }, [buses, selectedBusId]);
-  
   const selectedBus = useMemo(() => {
     if (!selectedBusId) return null;
     return buses.find(b => b.id === selectedBusId);
   }, [buses, selectedBusId]);
+  
+  const currentRoute = useMemo(() => {
+    return routes.find(r =>
+        r.busId === selectedBusId &&
+        r.dayOfWeek === selectedDay &&
+        r.type === selectedRouteType
+    );
+  }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
-  const getStopsForBus = (busId: string) => {
-    const route = routes.find(r => r.busId === busId);
-    return route ? route.stops.map(stopId => destinations.find(d => d.id === stopId)!) : [];
+  const getStopsForCurrentRoute = () => {
+    if (!currentRoute) return [];
+    return currentRoute.stops.map(stopId => destinations.find(d => d.id === stopId)!).filter(Boolean);
   };
   
   const handleDownloadDestinationTemplate = () => {
@@ -155,73 +162,54 @@ const BusConfigurationTab = ({
     link.click();
     document.body.removeChild(link);
   };
+  
+  if (!selectedBus) {
+    return <Card><CardContent><p className="p-4 text-center text-muted-foreground">버스를 선택하여 노선을 설정하세요.</p></CardContent></Card>;
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 items-start">
-      <div className="space-y-6">
         <Card>
-            <CardHeader>
-                <CardTitle>버스별 노선 설정</CardTitle>
-                <CardDescription>버스를 선택하고 노선 순서 및 정보를 수정합니다.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="버스를 선택하세요" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {buses.map(bus => (
-                            <SelectItem key={bus.id} value={bus.id}>{bus.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </CardContent>
+          <CardHeader>
+            <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : '하교'} 노선</CardTitle>
+            <CardDescription>버스의 정보를 수정하고 노선 순서를 정합니다.</CardDescription>
+          </CardHeader>
+          <CardContent>
+              <div className="flex items-center gap-4 p-2 border rounded-md mb-4">
+                  <Input defaultValue={selectedBus.name} className="flex-1" />
+                  <Select defaultValue={selectedBus.type}>
+                      <SelectTrigger className="w-[150px]">
+                          <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="15-seater">15인승</SelectItem>
+                          <SelectItem value="25-seater">25인승</SelectItem>
+                          <SelectItem value="45-seater">45인승</SelectItem>
+                      </SelectContent>
+                  </Select>
+                  <Button>저장</Button>
+              </div>
+
+              <Separator className="my-4" />
+
+              <div>
+                  <h4 className="font-semibold mb-2">노선 순서 (드래그하여 순서 변경)</h4>
+                  <p className="text-sm text-muted-foreground mb-2">
+                      아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
+                  </p>
+                  <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-muted/50">
+                    {getStopsForCurrentRoute().map((dest, index) => (
+                       <Badge key={`${dest.id}-${index}`} variant="secondary" className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                         <span className="text-xs font-bold text-muted-foreground">{index + 1}</span>
+                         <GripVertical className="h-4 w-4 text-muted-foreground" />
+                         {dest.name}
+                       </Badge>
+                    ))}
+                  </div>
+              </div>
+          </CardContent>
         </Card>
-
-        {selectedBus && (
-          <Card key={selectedBus.id}>
-            <CardHeader>
-              <CardTitle>{selectedBus.name}</CardTitle>
-              <CardDescription>버스의 정보를 수정하고 노선 순서를 정합니다.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-center gap-4 p-2 border rounded-md mb-4">
-                    <Input defaultValue={selectedBus.name} className="flex-1" />
-                    <Select defaultValue={selectedBus.type}>
-                        <SelectTrigger className="w-[150px]">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="15-seater">15인승</SelectItem>
-                            <SelectItem value="25-seater">25인승</SelectItem>
-                            <SelectItem value="45-seater">45인승</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Button>저장</Button>
-                </div>
-
-                <Separator className="my-4" />
-
-                <div>
-                    <h4 className="font-semibold mb-2">노선 순서 (드래그하여 순서 변경)</h4>
-                    <p className="text-sm text-muted-foreground mb-2">
-                        아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
-                    </p>
-                    <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-muted/50">
-                      {getStopsForBus(selectedBus.id).filter(Boolean).map((dest, index) => (
-                         <Badge key={dest.id} variant="secondary" className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                           <span className="text-xs font-bold text-muted-foreground">{index + 1}</span>
-                           <GripVertical className="h-4 w-4 text-muted-foreground" />
-                           {dest.name}
-                         </Badge>
-                      ))}
-                    </div>
-                </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
+      
        <Card>
         <CardHeader>
           <CardTitle>전체 목적지 목록</CardTitle>
@@ -275,24 +263,20 @@ const StudentManagementTab = ({
     students,
     routes,
     setRoutes,
-    destinations
+    destinations,
+    selectedBusId,
+    selectedDay,
+    selectedRouteType
 }:{
     buses: Bus[],
     students: Student[],
     routes: Route[],
     setRoutes: React.Dispatch<React.SetStateAction<Route[]>>,
-    destinations: Destination[]
+    destinations: Destination[],
+    selectedBusId: string;
+    selectedDay: DayOfWeek;
+    selectedRouteType: RouteType;
 }) => {
-    const [selectedBusId, setSelectedBusId] = useState<string>('');
-    const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
-    const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
-
-     useEffect(() => {
-      if (buses.length > 0 && !selectedBusId) {
-        setSelectedBusId(buses[0].id);
-      }
-    }, [buses, selectedBusId]);
-
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
     const currentRoute = useMemo(() => {
@@ -412,22 +396,22 @@ const StudentManagementTab = ({
     };
     
     if (!selectedBus) {
-       return <div className="p-4">버스를 선택해주세요.</div>;
+       return <div className="p-4 text-center text-muted-foreground">버스를 선택하여 학생을 관리하세요.</div>;
     }
     
      if (!currentRoute) {
-        return <div className="p-4">해당 노선 정보를 찾을 수 없습니다.</div>;
+        return <div className="p-4 text-center text-muted-foreground">선택된 조건에 해당하는 노선 정보를 찾을 수 없습니다.</div>;
     }
 
     return (
         <DashboardShell
             buses={buses}
             selectedBusId={selectedBusId}
-            setSelectedBusId={setSelectedBusId}
+            setSelectedBusId={()=>{}} // This is handled by the main page component
             selectedDay={selectedDay}
-            setSelectedDay={setSelectedDay}
+            setSelectedDay={()=>{}} // This is handled by the main page component
             selectedRouteType={selectedRouteType}
-            setSelectedRouteType={setSelectedRouteType}
+            setSelectedRouteType={()=>{}} // This is handled by the main page component
             mainContent={
                 <Card>
                     <CardHeader>
@@ -529,6 +513,9 @@ export default function AdminPage() {
     const [students, setStudents] = useState<Student[]>([]);
     const [routes, setRoutes] = useState<Route[]>([]);
     const [destinations, setDestinations] = useState<Destination[]>([]);
+    const [selectedBusId, setSelectedBusId] = useState<string>('');
+    const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
+    const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -542,49 +529,70 @@ export default function AdminPage() {
             setStudents(studentsData);
             setRoutes(routesData);
             setDestinations(destinationsData);
+            if (busesData.length > 0) {
+              setSelectedBusId(busesData[0].id);
+            }
         };
         fetchData();
     }, []);
 
+    const dashboard = (
+        <DashboardShell
+            buses={buses}
+            selectedBusId={selectedBusId}
+            setSelectedBusId={setSelectedBusId}
+            selectedDay={selectedDay}
+            setSelectedDay={setSelectedDay}
+            selectedRouteType={selectedRouteType}
+            setSelectedRouteType={setSelectedRouteType}
+            mainContent={<></>} 
+        />
+    );
 
     return (
-        <Tabs defaultValue="student-management">
-            <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
-                <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
-                <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
-            </TabsList>
-            <TabsContent value="bus-registration" className="mt-6">
-                <BusRegistrationTab buses={buses} setBuses={setBuses} />
-            </TabsContent>
-            <TabsContent value="bus-configuration" className="mt-6">
-                <BusConfigurationTab
-                    buses={buses}
-                    routes={routes}
-                    setRoutes={setRoutes}
-                    destinations={destinations}
-                    setDestinations={setDestinations}
-                />
-            </TabsContent>
-            <TabsContent value="student-management" className="mt-6">
-                <StudentManagementTab 
-                    buses={buses} 
-                    students={students} 
-                    routes={routes} 
-                    setRoutes={setRoutes}
-                    destinations={destinations}
-                />
-            </TabsContent>
-        </Tabs>
+        <>
+            {/* This is a shared header for all tabs */}
+            <div className="mb-6">
+                {React.cloneElement(dashboard, {
+                    mainContent: null,
+                    sidePanel: null,
+                })}
+            </div>
+
+            <Tabs defaultValue="student-management">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
+                    <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
+                    <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
+                </TabsList>
+                <TabsContent value="bus-registration" className="mt-6">
+                    <BusRegistrationTab buses={buses} setBuses={setBuses} />
+                </TabsContent>
+                <TabsContent value="bus-configuration" className="mt-6">
+                    <BusConfigurationTab
+                        buses={buses}
+                        routes={routes}
+                        setRoutes={setRoutes}
+                        destinations={destinations}
+                        setDestinations={setDestinations}
+                        selectedBusId={selectedBusId}
+                        selectedDay={selectedDay}
+                        selectedRouteType={selectedRouteType}
+                    />
+                </TabsContent>
+                <TabsContent value="student-management" className="mt-6">
+                    <StudentManagementTab 
+                        buses={buses} 
+                        students={students} 
+                        routes={routes} 
+                        setRoutes={setRoutes}
+                        destinations={destinations}
+                        selectedBusId={selectedBusId}
+                        selectedDay={selectedDay}
+                        selectedRouteType={selectedRouteType}
+                    />
+                </TabsContent>
+            </Tabs>
+        </>
     );
 }
-
-    
-
-    
-
-    
-
-    
-
-    
