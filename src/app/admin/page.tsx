@@ -233,56 +233,6 @@ const BusConfigurationTab = ({
             )}
         </CardContent>
       </Card>
-
-      <Accordion type="single" collapsible defaultValue="all-destinations">
-        <AccordionItem value="all-destinations">
-            <AccordionTrigger className="text-lg font-semibold">전체 목적지 목록</AccordionTrigger>
-            <AccordionContent>
-                <Card>
-                    <CardHeader>
-                      <CardDescription>
-                        모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex justify-end gap-2 mb-4">
-                            <Dialog>
-                                <DialogTrigger asChild><Button variant="outline"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
-                                    <Input placeholder="예: 강남역" />
-                                    <Button className="mt-2">추가</Button>
-                                </DialogContent>
-                            </Dialog>
-                            <Dialog>
-                                <DialogTrigger asChild><Button><Upload className="mr-2" /> CSV 일괄 등록</Button></DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader><DialogTitle>목적지 CSV 일괄 등록</DialogTitle></DialogHeader>
-                                    <div className="p-4 text-center">
-                                        <p className="mb-2">목적지 대량 등록을 위해 CSV 파일을 선택하세요.</p>
-                                        <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
-                                        <Button variant="link" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
-                                        <Input type="file" accept=".csv" className="mt-2" />
-                                        <Button className="mt-4">업로드</Button>
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50">
-                            {destinations.map(dest => (
-                                <Badge key={dest.id} variant="outline" className="flex justify-between items-center max-w-fit">
-                                    <span>{dest.name}</span>
-                                    <Button variant="ghost" size="icon" className="h-5 w-5 ml-1">
-                                        <Trash2 className="w-3 h-3 text-destructive" />
-                                    </Button>
-                                </Badge>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            </AccordionContent>
-        </AccordionItem>
-      </Accordion>
       
        {suggestedDestinations.length > 0 && (
           <Card>
@@ -308,6 +258,50 @@ const BusConfigurationTab = ({
             </CardContent>
           </Card>
         )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>전체 목적지 목록</CardTitle>
+          <CardDescription>
+            모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="flex justify-end gap-2 mb-4">
+                <Dialog>
+                    <DialogTrigger asChild><Button variant="outline"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
+                        <Input placeholder="예: 강남역" />
+                        <Button className="mt-2">추가</Button>
+                    </DialogContent>
+                </Dialog>
+                <Dialog>
+                    <DialogTrigger asChild><Button><Upload className="mr-2" /> CSV 일괄 등록</Button></DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>목적지 CSV 일괄 등록</DialogTitle></DialogHeader>
+                        <div className="p-4 text-center">
+                            <p className="mb-2">목적지 대량 등록을 위해 CSV 파일을 선택하세요.</p>
+                            <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
+                            <Button variant="link" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
+                            <Input type="file" accept=".csv" className="mt-2" />
+                            <Button className="mt-4">업로드</Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
+            <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50">
+                {destinations.map(dest => (
+                    <Badge key={dest.id} variant="outline" className="flex justify-between items-center max-w-fit">
+                        <span>{dest.name}</span>
+                        <Button variant="ghost" size="icon" className="h-5 w-5 ml-1">
+                            <Trash2 className="w-3 h-3 text-destructive" />
+                        </Button>
+                    </Badge>
+                ))}
+            </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
@@ -665,7 +659,5 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
 
     
