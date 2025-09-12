@@ -143,50 +143,26 @@ const BusConfigurationTab = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-      <Card>
-        <CardHeader>
-          <CardTitle>전체 목적지 목록</CardTitle>
-          <CardDescription>
-            모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-            <div className="flex justify-end gap-2 mb-4">
-                <Dialog>
-                    <DialogTrigger asChild><Button variant="outline"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
-                        <Input placeholder="예: 강남역" />
-                        <Button className="mt-2">추가</Button>
-                    </DialogContent>
-                </Dialog>
-            </div>
-            <div className="space-y-2 p-2 border rounded-md min-h-[200px] bg-muted/50">
-                {destinations.map(dest => (
-                    <Card key={dest.id} className="p-2 flex justify-between items-center">
-                        <span>{dest.name}</span>
-                        <Button variant="ghost" size="icon">
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                    </Card>
-                ))}
-            </div>
-        </CardContent>
-      </Card>
-
+    <div className="grid grid-cols-1 gap-6 items-start">
       <div className="space-y-6">
-        <h2 className="text-xl font-bold">버스별 노선 설정</h2>
-        <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
-            <SelectTrigger>
-                <SelectValue placeholder="버스를 선택하세요" />
-            </SelectTrigger>
-            <SelectContent>
-                {buses.map(bus => (
-                    <SelectItem key={bus.id} value={bus.id}>{bus.name}</SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
+        <Card>
+            <CardHeader>
+                <CardTitle>버스별 노선 설정</CardTitle>
+                <CardDescription>버스를 선택하고 노선 순서 및 정보를 수정합니다.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="버스를 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {buses.map(bus => (
+                            <SelectItem key={bus.id} value={bus.id}>{bus.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </CardContent>
+        </Card>
 
         {selectedBus && (
           <Card key={selectedBus.id}>
@@ -230,6 +206,37 @@ const BusConfigurationTab = ({
           </Card>
         )}
       </div>
+
+       <Card>
+        <CardHeader>
+          <CardTitle>전체 목적지 목록</CardTitle>
+          <CardDescription>
+            모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="flex justify-end gap-2 mb-4">
+                <Dialog>
+                    <DialogTrigger asChild><Button variant="outline"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
+                        <Input placeholder="예: 강남역" />
+                        <Button className="mt-2">추가</Button>
+                    </DialogContent>
+                </Dialog>
+            </div>
+            <div className="space-y-2 p-2 border rounded-md min-h-[200px] bg-muted/50">
+                {destinations.map(dest => (
+                    <Card key={dest.id} className="p-2 flex justify-between items-center">
+                        <span>{dest.name}</span>
+                        <Button variant="ghost" size="icon">
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                    </Card>
+                ))}
+            </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
@@ -517,5 +524,7 @@ export default function AdminPage() {
         </Tabs>
     );
 }
+
+    
 
     
