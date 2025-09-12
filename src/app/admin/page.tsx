@@ -8,13 +8,14 @@ import { DashboardShell } from '@/components/bus/dashboard-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
 
 const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
     
@@ -107,62 +108,108 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
             </CardContent>
         </Card>
     );
-}
+};
 
-const BusConfigurationTab = ({ buses, destinations, setDestinations }: { buses: Bus[], destinations: Destination[], setDestinations: React.Dispatch<React.SetStateAction<Destination[]>> }) => {
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>버스 정보 수정</CardTitle>
-                    <CardDescription>버스의 번호와 타입을 수정합니다.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                     {buses.map(bus=>(
-                        <div key={bus.id} className="flex items-center gap-4 p-2 border rounded-md">
-                           <Input defaultValue={bus.name} className="flex-1" />
-                           <Select defaultValue={bus.type}>
-                                <SelectTrigger className="w-[150px]">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="15-seater">15인승</SelectItem>
-                                    <SelectItem value="25-seater">25인승</SelectItem>
-                                    <SelectItem value="45-seater">45인승</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Button>저장</Button>
-                        </div>
-                    ))}
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader>
-                    <CardTitle>목적지 관리</CardTitle>
-                    <CardDescription>목적지를 추가하고 노선 순서를 정합니다.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex justify-end gap-2 mb-4">
-                        <Dialog>
-                            <DialogTrigger asChild><Button variant="outline"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
-                            <DialogContent>
-                               <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
-                               <Input placeholder="예: 강남역" />
-                               <Button className="mt-2">추가</Button>
-                            </DialogContent>
-                        </Dialog>
+const BusConfigurationTab = ({
+  buses,
+  routes,
+  setRoutes,
+  destinations,
+  setDestinations,
+}: {
+  buses: Bus[];
+  routes: Route[];
+  setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
+  destinations: Destination[];
+  setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
+}) => {
+  const getStopsForBus = (busId: string) => {
+    // For simplicity, we'll just use the first route for a bus to get its stops
+    const route = routes.find(r => r.busId === busId);
+    return route ? route.stops.map(stopId => destinations.find(d => d.id === stopId)!) : [];
+  };
+
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <Card>
+        <CardHeader>
+          <CardTitle>전체 목적지 목록</CardTitle>
+          <CardDescription>
+            모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="flex justify-end gap-2 mb-4">
+                <Dialog>
+                    <DialogTrigger asChild><Button variant="outline"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
+                        <Input placeholder="예: 강남역" />
+                        <Button className="mt-2">추가</Button>
+                    </DialogContent>
+                </Dialog>
+            </div>
+            <div className="space-y-2 p-2 border rounded-md min-h-[200px] bg-muted/50">
+                {destinations.map(dest => (
+                    <Card key={dest.id} className="p-2 flex justify-between items-center">
+                        <span>{dest.name}</span>
+                        <Button variant="ghost" size="icon">
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                    </Card>
+                ))}
+            </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-6">
+        <h2 className="text-xl font-bold">버스별 노선 설정</h2>
+        {buses.map(bus => (
+          <Card key={bus.id}>
+            <CardHeader>
+              <CardTitle>{bus.name}</CardTitle>
+              <CardDescription>버스의 정보를 수정하고 노선 순서를 정합니다.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center gap-4 p-2 border rounded-md mb-4">
+                    <Input defaultValue={bus.name} className="flex-1" />
+                    <Select defaultValue={bus.type}>
+                        <SelectTrigger className="w-[150px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="15-seater">15인승</SelectItem>
+                            <SelectItem value="25-seater">25인승</SelectItem>
+                            <SelectItem value="45-seater">45인승</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button>저장</Button>
+                </div>
+
+                <Separator className="my-4" />
+
+                <div>
+                    <h4 className="font-semibold mb-2">노선 순서 (드래그하여 순서 변경)</h4>
+                    <p className="text-sm text-muted-foreground mb-2">
+                        아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
+                    </p>
+                    <div className="space-y-2 p-2 border rounded-md min-h-[150px] bg-muted/50">
+                      {getStopsForBus(bus.id).filter(Boolean).map(dest => (
+                         <Card key={dest.id} className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                           <GripVertical className="h-5 w-5 text-muted-foreground" />
+                           {dest.name}
+                         </Card>
+                      ))}
                     </div>
-                    <div className="space-y-2 p-2 border rounded-md min-h-[200px] bg-muted/50">
-                        <p className="text-sm font-medium mb-2">노선 순서 (드래그하여 순서 변경)</p>
-                         {destinations.map(dest => (
-                             <Card key={dest.id} className="p-2 cursor-grab active:cursor-grabbing">{dest.name}</Card>
-                         ))}
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-    );
-}
+                </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 
 const StudentManagementTab = ({
@@ -299,7 +346,7 @@ const StudentManagementTab = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }
+    };
     
     if (!selectedBus) {
        return <div className="p-4">버스를 선택해주세요.</div>;
@@ -389,8 +436,8 @@ const StudentManagementTab = ({
             }
             sidePanelTitle="미배정 학생"
         />
-    )
-}
+    );
+};
 
 
 export default function AdminPage() {
@@ -427,7 +474,13 @@ export default function AdminPage() {
                 <BusRegistrationTab buses={buses} setBuses={setBuses} />
             </TabsContent>
             <TabsContent value="bus-configuration" className="mt-6">
-                <BusConfigurationTab buses={buses} destinations={destinations} setDestinations={setDestinations} />
+                <BusConfigurationTab
+                    buses={buses}
+                    routes={routes}
+                    setRoutes={setRoutes}
+                    destinations={destinations}
+                    setDestinations={setDestinations}
+                />
             </TabsContent>
             <TabsContent value="student-management" className="mt-6">
                 <StudentManagementTab 
@@ -441,5 +494,3 @@ export default function AdminPage() {
         </Tabs>
     );
 }
-
-    
