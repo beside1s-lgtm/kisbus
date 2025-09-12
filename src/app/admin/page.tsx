@@ -403,114 +403,106 @@ const StudentManagementTab = ({
         return <div className="p-4 text-center text-muted-foreground">선택된 조건에 해당하는 노선 정보를 찾을 수 없습니다.</div>;
     }
 
-    const mainContent = (
-         <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">좌석표</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <BusSeatMap
-                    bus={selectedBus}
-                    seating={currentRoute.seating}
-                    students={students}
-                    onSeatDrop={handleSeatDrop}
-                    onSeatClick={(seatNumber) => unassignStudent(seatNumber)}
-                    draggable={true}
-                />
-            </CardContent>
-        </Card>
-    );
-
-    const sidePanel = (
-        <>
-            {unassignedStudents.map(student => (
-                <DraggableStudentCard key={student.id} student={student} />
-            ))}
-        </>
-    );
-
-    const topActions = (
-         <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button variant="outline"><UserPlus className="mr-2" /> 학생 추가</Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>새 학생 추가</DialogTitle></DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="name" className="text-right">이름</Label>
-                            <Input id="name" defaultValue="새 학생" className="col-span-3" />
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+                <Card>
+                    <CardHeader className="flex-row items-center justify-between">
+                        <CardTitle className="font-headline">좌석표</CardTitle>
+                        <div className="flex items-center gap-2">
+                             <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline"><UserPlus className="mr-2" /> 학생 추가</Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader><DialogTitle>새 학생 추가</DialogTitle></DialogHeader>
+                                    <div className="grid gap-4 py-4">
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="name" className="text-right">이름</Label>
+                                            <Input id="name" defaultValue="새 학생" className="col-span-3" />
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="grade" className="text-right">학년</Label>
+                                            <Input id="grade" placeholder="예: G1" className="col-span-3" />
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="class" className="text-right">반</Label>
+                                            <Input id="class" placeholder="예: C1" className="col-span-3" />
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="gender" className="text-right">성별</Label>
+                                            <Select>
+                                                <SelectTrigger className="col-span-3">
+                                                    <SelectValue placeholder="성별 선택" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Male">Male</SelectItem>
+                                                    <SelectItem value="Female">Female</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="destination" className="text-right">목적지</Label>
+                                            <Select>
+                                                <SelectTrigger className="col-span-3">
+                                                    <SelectValue placeholder="목적지 선택" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <Button>추가</Button>
+                                </DialogContent>
+                            </Dialog>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button><Upload className="mr-2" /> CSV 업로드</Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader><DialogTitle>학생 CSV 업로드</DialogTitle></DialogHeader>
+                                    <div className="p-4 text-center">
+                                        <p className="mb-2">학생 대량 업로드를 위해 CSV 파일을 선택하세요.</p>
+                                        <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
+                                        <Button variant="link" onClick={handleDownloadStudentTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
+                                        <Input type="file" accept=".csv" className="mt-2" />
+                                        <Button className="mt-4">업로드</Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="grade" className="text-right">학년</Label>
-                            <Input id="grade" placeholder="예: G1" className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="class" className="text-right">반</Label>
-                            <Input id="class" placeholder="예: C1" className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="gender" className="text-right">성별</Label>
-                            <Select>
-                                <SelectTrigger className="col-span-3">
-                                    <SelectValue placeholder="성별 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Male">Male</SelectItem>
-                                    <SelectItem value="Female">Female</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="destination" className="text-right">목적지</Label>
-                            <Select>
-                                <SelectTrigger className="col-span-3">
-                                    <SelectValue placeholder="목적지 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <Button>추가</Button>
-                </DialogContent>
-            </Dialog>
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button><Upload className="mr-2" /> CSV 업로드</Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>학생 CSV 업로드</DialogTitle></DialogHeader>
-                    <div className="p-4 text-center">
-                        <p className="mb-2">학생 대량 업로드를 위해 CSV 파일을 선택하세요.</p>
-                        <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
-                        <Button variant="link" onClick={handleDownloadStudentTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
-                        <Input type="file" accept=".csv" className="mt-2" />
-                        <Button className="mt-4">업로드</Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                    </CardHeader>
+                    <CardContent>
+                        <BusSeatMap
+                            bus={selectedBus}
+                            seating={currentRoute.seating}
+                            students={students}
+                            onSeatDrop={handleSeatDrop}
+                            onSeatClick={(seatNumber) => unassignStudent(seatNumber)}
+                            draggable={true}
+                        />
+                    </CardContent>
+                </Card>
+            </div>
+            <div className="lg:col-span-1">
+                 <Card className="sticky top-20">
+                    <CardHeader>
+                        <CardTitle className="font-headline">미배정 학생</CardTitle>
+                    </CardHeader>
+                    <Separator />
+                    <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
+                        {unassignedStudents.length > 0 ? unassignedStudents.map(student => (
+                            <DraggableStudentCard key={student.id} student={student} />
+                        )) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">이 노선에 배정할 학생이 없습니다.</p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
-    
-    return (
-        <DashboardShell
-            buses={buses}
-            selectedBusId={selectedBusId}
-            setSelectedBusId={()=>{}}
-            selectedDay={selectedDay}
-            setSelectedDay={()=>{}}
-            selectedRouteType={selectedRouteType}
-            setSelectedRouteType={()=>{}}
-            mainContent={mainContent}
-            sidePanel={sidePanel}
-            topActions={topActions}
-            sidePanelTitle="미배정 학생"
-        />
-    )
 };
 
 
@@ -543,73 +535,6 @@ export default function AdminPage() {
         fetchData();
     }, []);
 
-    const studentManagementTopActions = (
-         <div className="flex items-center gap-2">
-            <Button variant="outline"><Shuffle className="mr-2" /> 랜덤 배정</Button>
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button variant="outline"><UserPlus className="mr-2" /> 학생 추가</Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>새 학생 추가</DialogTitle></DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="name" className="text-right">이름</Label>
-                            <Input id="name" defaultValue="새 학생" className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="grade" className="text-right">학년</Label>
-                            <Input id="grade" placeholder="예: G1" className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="class" className="text-right">반</Label>
-                            <Input id="class" placeholder="예: C1" className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="gender" className="text-right">성별</Label>
-                            <Select>
-                                <SelectTrigger className="col-span-3">
-                                    <SelectValue placeholder="성별 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Male">Male</SelectItem>
-                                    <SelectItem value="Female">Female</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="destination" className="text-right">목적지</Label>
-                            <Select>
-                                <SelectTrigger className="col-span-3">
-                                    <SelectValue placeholder="목적지 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <Button>추가</Button>
-                </DialogContent>
-            </Dialog>
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button><Upload className="mr-2" /> CSV 업로드</Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>학생 CSV 업로드</DialogTitle></DialogHeader>
-                    <div className="p-4 text-center">
-                        <p className="mb-2">학생 대량 업로드를 위해 CSV 파일을 선택하세요.</p>
-                        <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
-                        <Button variant="link"><Download className="mr-2" />예시 양식 다운로드</Button>
-                        <Input type="file" accept=".csv" className="mt-2" />
-                        <Button className="mt-4">업로드</Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-        </div>
-    );
-
     return (
         <div className="flex flex-col gap-6">
             <DashboardShell
@@ -620,7 +545,6 @@ export default function AdminPage() {
                 setSelectedDay={setSelectedDay}
                 selectedRouteType={selectedRouteType}
                 setSelectedRouteType={setSelectedRouteType}
-                topActions={activeTab === 'student-management' ? studentManagementTopActions : null}
                 mainContent={
                     <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
                         <TabsList className="grid w-full grid-cols-3">
@@ -661,5 +585,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
