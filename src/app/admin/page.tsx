@@ -407,33 +407,131 @@ const StudentManagementTab = ({
 
     const randomizeSeating = useCallback(() => {
         if (!currentRoute || !selectedBus) return;
-    
-        const studentsToAssign = [...unassignedStudents, ...currentRoute.seating.map(s => s.studentId).filter(Boolean).map(id => students.find(s => s.id === id)!)];
+
+        const studentsToAssign = [
+            ...unassignedStudents,
+            ...currentRoute.seating.map(s => s.studentId).filter(Boolean).map(id => students.find(s => s.id === id)!)
+        ].filter(Boolean);
+
+        const gradeToValue = (grade: string): number => {
+            if (grade.toLowerCase().includes('k')) return 0;
+            const num = parseInt(grade.replace('G', ''));
+            if (isNaN(num)) return 99; // For middle/high school, place at end
+            return num;
+        };
+
+        const sortedStudents = [...studentsToAssign].sort((a, b) => gradeToValue(a.grade) - gradeToValue(b.grade));
+
+        const getSeatPairs = (capacity: number): [number, number][] => {
+            const pairs: [number, number][] = [];
+            if (capacity === 45) {
+                 // 2-2 layout
+                for(let i=1; i<=45; i+=5) {
+                    if (i+1 <= 45) pairs.push([i, i+1]);
+                    if (i+3 <= 45 && i+4 <= 45) pairs.push([i+3, i+4]);
+                }
+            } else { // 15 and 25 seaters
+                // 1-2 layout
+                 for(let i=1; i<=25; i+=4) {
+                    if (i+1 <= 25) pairs.push([i, i+1]);
+                }
+            }
+            return pairs;
+        };
         
+        const getSeatType = (seatNumber: number, capacity: number): 'window' | 'aisle' => {
+             if (capacity === 45) {
+                const col = (seatNumber - 1) % 5;
+                return col === 0 || col === 4 ? 'window' : 'aisle';
+            } else { // 15 and 25 seaters
+                const col = (seatNumber-1) % 4;
+                return col === 0 || col === 3 ? 'window' : 'aisle';
+            }
+        };
+
+        const routeStopOrder = currentRoute.stops;
+
+        let males = sortedStudents.filter(s => s.gender === 'Male');
+        let females = sortedStudents.filter(s => s.gender === 'Female');
+
+        const newSeating = [...currentRoute.seating].map(s => ({...s, studentId: null}));
+        const occupiedSeats = new Set<number>();
+
+        const seatPairs = getSeatPairs(selectedBus.capacity);
+
+        // Try to form boy-girl pairs
+        while (males.length > 0 && females.length > 0) {
+            const male = males.shift()!;
+            const female = females.shift()!;
+            
+            let placed = false;
+            for (const pair of seatPairs) {
+                if (!occupiedSeats.has(pair[0]) && !occupiedSeats.has(pair[1])) {
+                    const [seat1, seat2] = pair;
+                    const seat1Type = getSeatType(seat1, selectedBus.capacity);
+                    const seat2Type = getSeatType(seat2, selectedBus.capacity);
+                    
+                    const maleStopIndex = routeStopOrder.indexOf(male.destinationId);
+                    const femaleStopIndex = routeStopOrder.indexOf(female.destinationId);
+
+                    let studentA, studentB, seatA, seatB;
+                    // Student getting off later gets window
+                    if(maleStopIndex > femaleStopIndex) { // male gets off later
+                        studentA = male; studentB = female;
+                    } else { // female gets off later or same
+                        studentA = female; studentB = male;
+                    }
+
+                    // Assign student A to window, B to aisle
+                    if (seat1Type === 'window') {
+                        seatA = seat1; seatB = seat2;
+                    } else {
+                        seatA = seat2; seatB = seat1;
+                    }
+                    
+                    const seatAIndex = newSeating.findIndex(s => s.seatNumber === seatA);
+                    const seatBIndex = newSeating.findIndex(s => s.seatNumber === seatB);
+                    if (seatAIndex !== -1) newSeating[seatAIndex].studentId = studentA.id;
+                    if (seatBIndex !== -1) newSeating[seatBIndex].studentId = studentB.id;
+
+                    occupiedSeats.add(seat1);
+                    occupiedSeats.add(seat2);
+                    placed = true;
+                    break;
+                }
+            }
+            if(!placed) { // could not place pair, put back
+                males.unshift(male);
+                females.unshift(female);
+                break;
+            }
+        }
+        
+        // Assign remaining students (same-sex or singles)
+        const remainingStudents = [...males, ...females];
+        for(const student of remainingStudents) {
+             for (let i = 0; i < newSeating.length; i++) {
+                if (!newSeating[i].studentId) {
+                    newSeating[i].studentId = student.id;
+                    break;
+                }
+            }
+        }
+
         setRoutes(prevRoutes => {
             const newRoutes = [...prevRoutes];
-            const routeIndex = newRoutes.findIndex(r => r.id === currentRoute?.id);
+            const routeIndex = newRoutes.findIndex(r => r.id === currentRoute.id);
             if (routeIndex === -1) return prevRoutes;
-            const newRoute = { ...newRoutes[routeIndex] };
-            
-            const shuffledStudents = [...studentsToAssign].sort(() => 0.5 - Math.random());
-            
-            const newSeating = newRoute.seating.map((seat, index) => {
-                if (index < shuffledStudents.length) {
-                    return { ...seat, studentId: shuffledStudents[index].id };
-                }
-                return { ...seat, studentId: null };
-            });
-            
-            newRoute.seating = newSeating;
+            const newRoute = { ...newRoutes[routeIndex], seating: newSeating };
             newRoutes[routeIndex] = newRoute;
             return newRoutes;
         });
+
     }, [currentRoute, selectedBus, unassignedStudents, students, setRoutes]);
     
     const handleDownloadStudentTemplate = () => {
-        const headers = "버스 번호,학생 이름,목적지,학년,반,성별";
-        const example = "Bus 01,김민준,강남역,G1,C1,Male";
+        const headers = "학생 이름,학년,반,성별,목적지";
+        const example = "김민준,G1,C1,Male,강남역";
         const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
