@@ -342,140 +342,84 @@ const StudentManagementTab = ({
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
     const unassignedStudents = useMemo(() => {
-        const assignedStudentIds = new Set<string>();
+        const assignedStudentIdsOnThisBus = new Set<string>();
         routes.forEach(r => {
-             r.seating.forEach(s => {
-                 if (s.studentId) assignedStudentIds.add(s.studentId);
-             });
+             if (r.busId === selectedBusId) {
+                r.seating.forEach(s => {
+                    if (s.studentId) assignedStudentIdsOnThisBus.add(s.studentId);
+                });
+             }
          });
 
         return students.filter(
-            s => !assignedStudentIds.has(s.id)
+            s => !assignedStudentIdsOnThisBus.has(s.id)
         );
-    }, [students, routes]);
+    }, [students, routes, selectedBusId]);
 
     const handleSeatDrop = useCallback((seatNumber: number, studentId: string) => {
+        if (!currentRoute) return;
+
         setRoutes(prevRoutes => {
             const newRoutes = [...prevRoutes];
+            const currentRouteIndex = newRoutes.findIndex(r => r.id === currentRoute.id);
+            if (currentRouteIndex === -1) return prevRoutes;
 
-            days.forEach(day => {
-                routeTypes.forEach(routeType => {
-                     const targetRouteIndex = newRoutes.findIndex(
-                        r => r.busId === selectedBusId && r.dayOfWeek === day && r.type === routeType
-                    );
+            const newCurrentRoute = { ...newRoutes[currentRouteIndex] };
+            const newSeating = [...newCurrentRoute.seating];
 
-                    if (targetRouteIndex > -1) {
-                        const targetRoute = { ...newRoutes[targetRouteIndex] };
-                        const targetSeating = [...targetRoute.seating];
-                        
-                        // If the student is already assigned to a different seat on this route, don't auto-assign.
-                        // The user can move them manually later.
-                        const studentAlreadyAssignedOnThisRoute = targetSeating.some(s => s.studentId === studentId);
-                        if (studentAlreadyAssignedOnThisRoute) {
-                            return; 
-                        }
+            // Un-assign from any old seat on this specific route
+            const oldSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
+            if (oldSeatIndex > -1) {
+                newSeating[oldSeatIndex].studentId = null;
+            }
 
-                        // Find the target seat and check if it's occupied by another student.
-                        const targetSeatIndex = targetSeating.findIndex(s => s.seatNumber === seatNumber);
-                        if (targetSeatIndex > -1) {
-                            const occupantId = targetSeating[targetSeatIndex].studentId;
-                            
-                            // If the seat is occupied by another student, don't auto-assign.
-                            // The user can resolve the conflict manually.
-                            if (occupantId && occupantId !== studentId) {
-                                return;
-                            }
-                            
-                            // Assign the new student
-                            targetSeating[targetSeatIndex].studentId = studentId;
-                        }
-                        targetRoute.seating = targetSeating;
-                        newRoutes[targetRouteIndex] = targetRoute;
-                    }
-                });
-            });
-            
-            // Explicitly assign to the dropped seat to override any conflicts on the current view
-             const currentRouteIndex = newRoutes.findIndex(r => r.id === currentRoute?.id);
-             if (currentRouteIndex > -1) {
-                 const currentRouteCopy = { ...newRoutes[currentRouteIndex] };
-                 const currentSeating = [...currentRouteCopy.seating];
-
-                // Un-assign from any old seat on this specific route
-                const oldSeatIndex = currentSeating.findIndex(s => s.studentId === studentId);
-                if (oldSeatIndex > -1) {
-                    currentSeating[oldSeatIndex].studentId = null;
+            // If another student is in the target seat, unassign them (from this route only)
+            const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+            if (targetSeatIndex > -1) {
+                const occupantId = newSeating[targetSeatIndex].studentId;
+                if(occupantId && occupantId !== studentId) {
+                   // This student is now unassigned from this route, will appear in unassigned list if not on other routes.
                 }
+                newSeating[targetSeatIndex].studentId = studentId;
+            }
 
-                 const targetSeatIndex = currentSeating.findIndex(s => s.seatNumber === seatNumber);
-                 if (targetSeatIndex > -1) {
-                    const occupantId = currentSeating[targetSeatIndex].studentId;
-                    // If another student is in the target seat on this route, unassign them from all routes for this bus
-                    if(occupantId && occupantId !== studentId) {
-                       unassignStudent(seatNumber, occupantId, newRoutes);
-                    }
-                    currentSeating[targetSeatIndex].studentId = studentId;
-                 }
-                 currentRouteCopy.seating = currentSeating;
-                 newRoutes[currentRouteIndex] = currentRouteCopy;
-             }
+            newCurrentRoute.seating = newSeating;
+            newRoutes[currentRouteIndex] = newCurrentRoute;
 
             return newRoutes;
         });
-    }, [currentRoute, setRoutes, days, routeTypes, selectedBusId]);
+    }, [currentRoute, setRoutes]);
 
-    const unassignStudent = useCallback((seatNumber: number, studentIdToUnassign?: string, routesToUpdate?: Route[]) => {
+    const unassignStudent = useCallback((seatNumber: number) => {
+        if (!currentRoute) return;
+
         setRoutes(prevRoutes => {
-            let newRoutes = routesToUpdate ? [...routesToUpdate] : [...prevRoutes];
-            if (!currentRoute) return newRoutes;
+            const newRoutes = [...prevRoutes];
+            const routeIndex = newRoutes.findIndex(r => r.id === currentRoute.id);
+            if (routeIndex === -1) return newRoutes;
+    
+            const newRoute = { ...newRoutes[routeIndex] };
+            const newSeating = [...newRoute.seating];
+            const seatToEmptyIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
-            const studentId = studentIdToUnassign || currentRoute.seating.find(s => s.seatNumber === seatNumber)?.studentId;
-            if (!studentId) return newRoutes;
-
-            days.forEach(day => {
-                routeTypes.forEach(routeType => {
-                    const routeIndex = newRoutes.findIndex(
-                        r => r.busId === selectedBusId && r.dayOfWeek === day && r.type === routeType
-                    );
-                    if (routeIndex > -1) {
-                        const newRoute = { ...newRoutes[routeIndex] };
-                        const newSeating = [...newRoute.seating];
-                        const seatToEmptyIndex = newSeating.findIndex(
-                            s => s.studentId === studentId
-                        );
-                        if (seatToEmptyIndex !== -1) {
-                            newSeating[seatToEmptyIndex].studentId = null;
-                        }
-                        newRoute.seating = newSeating;
-                        newRoutes[routeIndex] = newRoute;
-                    }
-                });
-            });
-
+            if (seatToEmptyIndex !== -1) {
+                newSeating[seatToEmptyIndex].studentId = null;
+            }
+    
+            newRoute.seating = newSeating;
+            newRoutes[routeIndex] = newRoute;
             return newRoutes;
         });
-    }, [currentRoute, setRoutes, days, routeTypes, selectedBusId]);
+    }, [currentRoute, setRoutes]);
 
 
     const randomizeSeating = useCallback(() => {
-        if (!currentRoute || !selectedBus) return;
+        if (!selectedBus) return;
 
-        const studentsOnThisRouteStops = students.filter(s => currentRoute.stops.includes(s.destinationId));
-        
-        const currentlyAssignedOnThisRoute = currentRoute.seating
-            .map(s => s.studentId)
-            .filter(Boolean) as string[];
-        
-        const studentAssignedInAnyRoute = new Set<string>();
-        routes.forEach(r => {
-             r.seating.forEach(s => {
-                 if (s.studentId) studentAssignedInAnyRoute.add(s.studentId);
-             });
-         });
-
-        const studentsAvailableForThisRoute = studentsOnThisRouteStops.filter(
-             s => !studentAssignedInAnyRoute.has(s.id) || currentlyAssignedOnThisRoute.includes(s.id)
-        );
+        const studentsOnThisBusStops = students.filter(s => {
+            const routeForThisBus = routes.find(r => r.busId === selectedBus.id);
+            return routeForThisBus?.stops.includes(s.destinationId);
+        });
 
         const gradeToValue = (grade: string): number => {
             if (grade.toLowerCase().startsWith('k')) return 0;
@@ -484,13 +428,12 @@ const StudentManagementTab = ({
             return num;
         };
 
-        const sortedStudents = [...studentsAvailableForThisRoute].sort((a, b) => gradeToValue(a.grade) - gradeToValue(b.grade));
+        const sortedStudents = [...studentsOnThisBusStops].sort((a, b) => gradeToValue(a.grade) - gradeToValue(b.grade));
 
         const getSeatPairs = (capacity: number): [number, number][] => {
             const pairs: [number, number][] = [];
              if (capacity === 15) {
-                // First row is 1-2, rest are 2-1
-                pairs.push([1, 2]); // Special pair for first row
+                pairs.push([1, 2]);
                 for (let i = 3; i < 15; i += 3) {
                     if (i + 1 <= 15) pairs.push([i, i + 1]);
                 }
@@ -528,15 +471,17 @@ const StudentManagementTab = ({
             return colInPair === 0 || colInPair === 3 ? 'window' : 'aisle';
         };
 
-        const routeStopOrder = currentRoute.stops;
-
         let males = sortedStudents.filter(s => s.gender === 'Male');
         let females = sortedStudents.filter(s => s.gender === 'Female');
 
-        const newSeating = generateInitialSeating(selectedBus.capacity);
+        const newSeatingPlan = generateInitialSeating(selectedBus.capacity);
         const occupiedSeats = new Set<number>();
-
         const seatPairs = getSeatPairs(selectedBus.capacity);
+        
+        // This is a temporary seating plan for one route, to be copied to all.
+        // We'll use the morning route stops for pairing logic.
+        const referenceRoute = routes.find(r => r.busId === selectedBus.id && r.dayOfWeek === 'Monday' && r.type === 'Morning');
+        const routeStopOrder = referenceRoute ? referenceRoute.stops : [];
 
         // Try to form boy-girl pairs
         while (males.length > 0 && females.length > 0) {
@@ -552,24 +497,23 @@ const StudentManagementTab = ({
                     const femaleStopIndex = routeStopOrder.indexOf(female.destinationId);
 
                     let studentA, studentB, seatA, seatB;
-                    // Student getting off later gets window
-                    if(maleStopIndex > femaleStopIndex) { // male gets off later
+                    // Student getting off later gets window (for morning route)
+                    if(maleStopIndex > femaleStopIndex) {
                         studentA = male; studentB = female;
-                    } else { // female gets off later or same
+                    } else {
                         studentA = female; studentB = male;
                     }
 
-                    // Assign student A to window, B to aisle
                     if (getSeatType(seat1, selectedBus.capacity) === 'window') {
                         seatA = seat1; seatB = seat2;
                     } else {
                         seatA = seat2; seatB = seat1;
                     }
                     
-                    const seatAIndex = newSeating.findIndex(s => s.seatNumber === seatA);
-                    const seatBIndex = newSeating.findIndex(s => s.seatNumber === seatB);
-                    if (seatAIndex !== -1) newSeating[seatAIndex].studentId = studentA.id;
-                    if (seatBIndex !== -1) newSeating[seatBIndex].studentId = studentB.id;
+                    const seatAIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatA);
+                    const seatBIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatB);
+                    if (seatAIndex !== -1) newSeatingPlan[seatAIndex].studentId = studentA.id;
+                    if (seatBIndex !== -1) newSeatingPlan[seatBIndex].studentId = studentB.id;
 
                     occupiedSeats.add(seat1);
                     occupiedSeats.add(seat2);
@@ -577,38 +521,36 @@ const StudentManagementTab = ({
                     break;
                 }
             }
-            if(!placed) { // could not place pair, put back
+            if(!placed) {
                 males.unshift(male);
                 females.unshift(female);
                 break;
             }
         }
         
-        // Assign remaining students (same-sex or singles)
         const remainingStudents = [...males, ...females].sort((a,b) => gradeToValue(a.grade) - gradeToValue(b.grade));
-
-        const emptySeats = newSeating.filter(s => !s.studentId).map(s => s.seatNumber);
+        const emptySeats = newSeatingPlan.filter(s => !s.studentId).map(s => s.seatNumber);
 
         for (const student of remainingStudents) {
             if (emptySeats.length > 0) {
                 const seatNumber = emptySeats.shift()!;
-                const seatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+                const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNumber);
                 if (seatIndex !== -1) {
-                    newSeating[seatIndex].studentId = student.id;
+                    newSeatingPlan[seatIndex].studentId = student.id;
                 }
             }
         }
 
         setRoutes(prevRoutes => {
-            const newRoutes = [...prevRoutes];
-            const routeIndex = newRoutes.findIndex(r => r.id === currentRoute.id);
-            if (routeIndex === -1) return prevRoutes;
-            const newRoute = { ...newRoutes[routeIndex], seating: newSeating };
-            newRoutes[routeIndex] = newRoute;
-            return newRoutes;
+            return prevRoutes.map(route => {
+                if (route.busId === selectedBus.id) {
+                    return { ...route, seating: newSeatingPlan };
+                }
+                return route;
+            });
         });
 
-    }, [currentRoute, selectedBus, students, setRoutes, routes]);
+    }, [selectedBus, students, setRoutes, routes, days, routeTypes]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,목적지";
@@ -887,6 +829,8 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
 
     
 
