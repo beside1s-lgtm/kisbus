@@ -25,8 +25,7 @@ const getGridLayout = (capacity: number) => {
   switch (capacity) {
     case 45:
       return 'grid-cols-5 gap-2 md:gap-4';
-    case 25:
-      return 'grid-cols-4 gap-2 md:gap-4';
+    case 29:
     case 15:
       return 'grid-cols-4 gap-2 md:gap-4';
     default:
@@ -39,7 +38,7 @@ const isAisle = (seatIndex: number, capacity: number) => {
   switch (capacity) {
     case 45:
       return (seatNumber - 3) % 5 === 0;
-    case 25:
+    case 29:
     case 15:
       return (seatNumber - 3) % 4 === 0;
     default:

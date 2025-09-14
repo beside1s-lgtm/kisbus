@@ -21,7 +21,7 @@ const students: Student[] = Array.from({ length: 50 }, (_, i) => ({
 
 const buses: Bus[] = [
   { id: 'bus1', name: 'Bus 01', capacity: 45, type: '45-seater' },
-  { id: 'bus2', name: 'Bus 02', capacity: 25, type: '25-seater' },
+  { id: 'bus2', name: 'Bus 02', capacity: 29, type: '29-seater' },
   { id: 'bus3', name: 'Bus 03', capacity: 15, type: '15-seater' },
 ];
 

@@ -69,7 +69,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="15-seater">15인승</SelectItem>
-                                            <SelectItem value="25-seater">25인승</SelectItem>
+                                            <SelectItem value="29-seater">29인승</SelectItem>
                                             <SelectItem value="45-seater">45인승</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -212,7 +212,7 @@ const BusConfigurationTab = ({
                               </SelectTrigger>
                               <SelectContent>
                                   <SelectItem value="15-seater">15인승</SelectItem>
-                                  <SelectItem value="25-seater">25인승</SelectItem>
+                                  <SelectItem value="29-seater">29인승</SelectItem>
                                   <SelectItem value="45-seater">45인승</SelectItem>
                               </SelectContent>
                           </Select>
@@ -445,10 +445,10 @@ const StudentManagementTab = ({
                     if (i+1 <= 45) pairs.push([i, i+1]);
                     if (i+3 <= 45 && i+4 <= 45) pairs.push([i+3, i+4]);
                 }
-            } else { // 15 and 25 seaters
+            } else { // 15 and 29 seaters
                 // 1-2 layout
-                 for(let i=1; i<=25; i+=4) {
-                    if (i+1 <= 25) pairs.push([i, i+1]);
+                 for(let i=1; i<=29; i+=4) {
+                    if (i+1 <= 29) pairs.push([i, i+1]);
                 }
             }
             return pairs;
@@ -458,7 +458,7 @@ const StudentManagementTab = ({
              if (capacity === 45) {
                 const col = (seatNumber - 1) % 5;
                 return col === 0 || col === 4 ? 'window' : 'aisle';
-            } else { // 15 and 25 seaters
+            } else { // 15 and 29 seaters
                 const col = (seatNumber-1) % 4;
                 return col === 0 || col === 3 ? 'window' : 'aisle';
             }

@@ -12,8 +12,8 @@ export type Student = {
 export type Bus = {
   id: string;
   name: string;
-  capacity: 15 | 25 | 45;
-  type: '15-seater' | '25-seater' | '45-seater';
+  capacity: 15 | 29 | 45;
+  type: '15-seater' | '29-seater' | '45-seater';
 };
 
 export type Destination = {
