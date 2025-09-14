@@ -141,12 +141,11 @@ export default function TeacherPage() {
       ? absentStudentIds.filter(id => id !== studentId)
       : [...absentStudentIds, studentId];
     
-    setAbsentStudentIds(newAbsentIds); // Optimistic update
+    // Optimistic update is handled by the real-time listener
     try {
       await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: boardedStudentIds });
     } catch (error) {
       console.error("Error updating absence:", error);
-      setAbsentStudentIds(absentStudentIds); // Revert on error
       toast({ title: "오류", description: "결석 처리 실패", variant: "destructive"});
     }
   }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast]);
@@ -198,14 +197,11 @@ export default function TeacherPage() {
         ? boardedStudentIds.filter(id => id !== studentId)
         : [...boardedStudentIds, studentId];
 
-      setBoardedStudentIds(newBoardedIds); // Optimistic update
-
       if (currentRoute) {
         try {
           await updateAttendance(currentRoute.id, today, { absent: absentStudentIds, boarded: newBoardedIds });
         } catch (error) {
           console.error("Error updating boarding status:", error);
-          setBoardedStudentIds(boardedStudentIds); // Revert on error
           toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
         }
       }
