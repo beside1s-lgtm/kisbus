@@ -439,36 +439,31 @@ const StudentManagementTab = ({
 
         const getSeatPairs = (capacity: number): [number, number][] => {
             const pairs: [number, number][] = [];
-            if (capacity === 45) {
-                 // 2-2 layout for first 10 rows
-                for(let i = 1; i <= 40; i+=4) {
-                    if (i+1 <= 40) pairs.push([i, i+1]);
-                    if (i+2 <= 40 && i+3 <= 40) pairs.push([i+2, i+3]);
-                }
-            } else if (capacity === 29 || capacity === 15) {
-                 // 1-2 layout
-                for(let i=1; i <= capacity; i+=3) {
-                    // Pair seats 2 and 3 of each 3-seat row
-                    if (i+1 <= capacity && i+2 <= capacity) {
-                        pairs.push([i+1, i+2]);
-                    }
+            const numRows = Math.ceil(capacity / 4);
+            const hasLastRowOfFive = capacity === 45;
+
+            for (let row = 0; row < numRows; row++) {
+                const base = row * 4 + 1;
+                if (base + 1 <= capacity) pairs.push([base, base + 1]);
+                if (base + 2 <= capacity && base + 3 <= capacity) {
+                     // For 45 seater, seat 45 is the 5th seat in the last row, don't pair it.
+                     if(hasLastRowOfFive && base + 3 === 44) {
+                         pairs.push([base + 2, base + 3]);
+                         break;
+                     }
+                     pairs.push([base + 2, base + 3]);
                 }
             }
             return pairs;
         };
         
         const getSeatType = (seatNumber: number, capacity: number): 'window' | 'aisle' => {
-             if (capacity === 45) {
-                if (seatNumber > 40) return 'aisle'; // Back row
-                const colInPair = (seatNumber - 1) % 4;
-                return colInPair === 0 || colInPair === 3 ? 'window' : 'aisle';
-            } else if (capacity === 29 || capacity === 15) {
-                const col = (seatNumber - 1) % 3;
-                if (col === 0) return 'window'; // Left side
-                if (col === 2) return 'window'; // Right side window
-                return 'aisle'; // Right side aisle
+            if (capacity === 45 && seatNumber > 40) { // Back row of 5
+                 if(seatNumber === 41 || seatNumber === 45) return 'window';
+                 return 'aisle';
             }
-            return 'aisle';
+            const colInPair = (seatNumber - 1) % 4;
+            return colInPair === 0 || colInPair === 3 ? 'window' : 'aisle';
         };
 
         const routeStopOrder = currentRoute.stops;
