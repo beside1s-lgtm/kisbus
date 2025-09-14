@@ -4,13 +4,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
-    getAttendance, onAttendanceUpdate 
+    getAttendance, onAttendanceUpdate, getRoutesByStop
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, AttendanceRecord } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, UserX, ArrowLeftRight } from 'lucide-react';
+import { Crown, UserX, ArrowLeftRight, Search } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -19,9 +19,10 @@ import { Badge } from '@/components/ui/badge';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {format, differenceInDays} from 'date-fns';
+import {format, differenceInDays, getDay} from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { updateAttendance } from '@/lib/firebase-data';
+import { Input } from '@/components/ui/input';
 
 
 export default function TeacherPage() {
@@ -39,6 +40,8 @@ export default function TeacherPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const { toast } = useToast();
 
   const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -51,7 +54,7 @@ export default function TeacherPage() {
   }
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  const formatStudentName = (student: Student) => {
+  const formatStudentName = (student: Student | null) => {
     if (!student) return '';
     const grade = student.grade.replace(/\D/g, '');
     const studentClass = student.class.replace(/\D/g, '');
@@ -59,6 +62,16 @@ export default function TeacherPage() {
   }
 
   useEffect(() => {
+    // Set selectedDay to today's day of the week
+    const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
+    const weekDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    // Sunday (0) or Saturday (6) will default to Monday
+    if (dayIndex > 0 && dayIndex < 6) {
+        setSelectedDay(weekDays[dayIndex - 1]);
+    } else {
+        setSelectedDay('Monday');
+    }
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -145,21 +158,48 @@ export default function TeacherPage() {
           .filter((s): s is Student => !!s)
           .sort((a,b) => a.name.localeCompare(b.name));
   }, [currentRoute, students]);
-
-  const toggleAbsence = useCallback(async (studentId: string) => {
-    if (!currentRoute) return;
-    const newAbsentIds = absentStudentIds.includes(studentId)
-      ? absentStudentIds.filter(id => id !== studentId)
-      : [...absentStudentIds, studentId];
+  
+  const findRoutesForStudent = async (student: Student): Promise<Route[]> => {
+    if (!student.destinationId) return [];
     
-    // Optimistic update is handled by the real-time listener
-    try {
-      await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: boardedStudentIds });
-    } catch (error) {
-      console.error("Error updating absence:", error);
-      toast({ title: "오류", description: "결석 처리 실패", variant: "destructive"});
+    // Find routes that include the student's destination
+    const relevantRoutes = await getRoutesByStop(student.destinationId);
+    
+    // Filter for today's day of the week
+    const dayIndex = getDay(new Date()); // 0-6
+    if (dayIndex === 0 || dayIndex === 6) return []; // No routes on weekends
+    const todayDayOfWeek = days[dayIndex - 1];
+
+    return relevantRoutes.filter(r => r.dayOfWeek === todayDayOfWeek);
+  }
+
+  const toggleAbsence = useCallback(async (student: Student) => {
+    const studentRoutes = await findRoutesForStudent(student);
+    if (studentRoutes.length === 0) {
+      toast({ title: "알림", description: "해당 학생의 오늘 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
+      return;
     }
-  }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast]);
+    
+    studentRoutes.forEach(async (route) => {
+      const attendance = await getAttendance(route.id, today);
+      const currentBoarded = attendance?.boarded || [];
+      const currentAbsent = attendance?.absent || [];
+      
+      const isAbsent = currentAbsent.includes(student.id);
+
+      const newAbsentIds = isAbsent
+        ? currentAbsent.filter(id => id !== student.id)
+        : [...currentAbsent, student.id];
+
+      try {
+        await updateAttendance(route.id, today, { absent: newAbsentIds, boarded: currentBoarded });
+        toast({ title: "성공", description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
+      } catch (error) {
+        console.error("Error updating absence:", error);
+        toast({ title: "오류", description: `${route.id} 노선 결석 처리 실패`, variant: "destructive"});
+      }
+    });
+  }, [today, toast]);
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
@@ -193,7 +233,6 @@ export default function TeacherPage() {
     setSelectedStudent(prev => prev && prev.id === studentId ? {...prev, isGroupLeader: isNowLeader} : prev);
   };
 
-  
   const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
     if (studentId) {
       const student = students.find(s => s.id === studentId);
@@ -220,6 +259,17 @@ export default function TeacherPage() {
       setSelectedStudent(null);
     }
   }, [students, groupLeaderRecords, boardedStudentIds, currentRoute, today, absentStudentIds, toast]);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery) return [];
+    return students.filter(s => formatStudentName(s).toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [searchQuery, students]);
+
+  const handleSelectStudentFromSearch = (student: Student) => {
+    const isNowLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
+    setSelectedStudent({...student, isGroupLeader: isNowLeader });
+    setSearchQuery('');
+  }
 
   const headerContent = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -265,41 +315,70 @@ export default function TeacherPage() {
     </div>
   );
 
-  const sidePanel = selectedStudent ? (
+  const sidePanel = (
     <div>
-        <div className="flex flex-col items-center text-center">
-            <Avatar className="w-24 h-24 mb-4 border-4 border-primary/50">
-                <AvatarFallback className="text-4xl">{selectedStudent.name.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
-            <p className="text-sm text-muted-foreground">
-                목적지: {destinations.find(d => d.id === selectedStudent.destinationId)?.name || '해당 없음'}
-            </p>
+        <div className="relative mb-4">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input 
+                type="search"
+                placeholder="학생 이름으로 검색..."
+                className="pl-8 w-full"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchResults.length > 0 && (
+                <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
+                    <CardContent className="p-2">
+                        {searchResults.map(student => (
+                            <div key={student.id} 
+                                 className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
+                                 onClick={() => handleSelectStudentFromSearch(student)}>
+                                {formatStudentName(student)}
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
         </div>
-        <Separator className="my-4" />
-        <div className="space-y-3">
-            <Button
-                variant={absentStudentIds.includes(selectedStudent.id) ? "destructive" : "outline"}
-                className="w-full"
-                onClick={() => toggleAbsence(selectedStudent.id)}
-            >
-                <UserX className="mr-2" /> 결석 처리
-            </Button>
-            <Button
-                variant={selectedStudent.isGroupLeader ? "default" : "outline"}
-                className="w-full"
-                onClick={() => toggleGroupLeader(selectedStudent)}
-            >
-                <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
-            </Button>
-             <Button variant="outline" className="w-full">
-                <ArrowLeftRight className="mr-2" /> 좌석 교체
-            </Button>
-        </div>
-    </div>
-  ) : (
-    <div className="text-center text-muted-foreground py-10">
-        <p>학생을 선택하여 더 많은 정보를 확인하세요.</p>
+
+        {selectedStudent ? (
+            <div>
+                <div className="flex flex-col items-center text-center">
+                    <Avatar className="w-24 h-24 mb-4 border-4 border-primary/50">
+                        <AvatarFallback className="text-4xl">{selectedStudent.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
+                    <p className="text-sm text-muted-foreground">
+                        목적지: {destinations.find(d => d.id === selectedStudent.destinationId)?.name || '해당 없음'}
+                    </p>
+                </div>
+                <Separator className="my-4" />
+                <div className="space-y-3">
+                    <Button
+                        variant={absentStudentIds.includes(selectedStudent.id) ? "destructive" : "outline"}
+                        className="w-full"
+                        onClick={() => toggleAbsence(selectedStudent)}
+                    >
+                        <UserX className="mr-2" /> 결석 처리
+                    </Button>
+                    <Button
+                        variant={selectedStudent.isGroupLeader ? "default" : "outline"}
+                        className="w-full"
+                        onClick={() => toggleGroupLeader(selectedStudent)}
+                        disabled={!currentRoute} // Disable if no route context
+                    >
+                        <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
+                    </Button>
+                     <Button variant="outline" className="w-full">
+                        <ArrowLeftRight className="mr-2" /> 좌석 교체
+                    </Button>
+                </div>
+            </div>
+        ) : (
+            <div className="text-center text-muted-foreground py-10">
+                <p>학생을 선택하거나 검색하여 정보를 확인하세요.</p>
+            </div>
+        )}
     </div>
   );
 
@@ -337,6 +416,14 @@ export default function TeacherPage() {
         </div>
         <div className="lg:col-span-1 space-y-6">
             <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">학생 정보</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {sidePanel}
+                </CardContent>
+            </Card>
+            <Card>
             <CardHeader>
                 <CardTitle className="font-headline">탑승 학생 명단</CardTitle>
             </CardHeader>
@@ -368,14 +455,6 @@ export default function TeacherPage() {
             </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">학생 정보</CardTitle>
-                </CardHeader>
-                <CardContent className='max-h-[75vh] overflow-y-auto'>
-                    {sidePanel}
-                </CardContent>
-                </Card>
              <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
@@ -383,5 +462,3 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
-
-    

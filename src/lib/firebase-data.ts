@@ -96,6 +96,11 @@ export const getRoutesForBus = (busId: string) => {
     const q = query(collection(db, "routes"), where("busId", "==", busId));
     return getDocs(q).then(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route)));
 }
+export const getRoutesByStop = async (stopId: string): Promise<Route[]> => {
+    const q = query(collection(db, "routes"), where("stops", "array-contains", stopId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route));
+}
 export const addRoute = async (route: Omit<Route, 'id'>) => {
     const docRef = await addDoc(collection(db, 'routes'), route);
     return docRef.id;
