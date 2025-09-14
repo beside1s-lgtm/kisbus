@@ -331,6 +331,7 @@ const StudentManagementTab = ({
     days: DayOfWeek[];
 }) => {
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
+    const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
 
     const currentRoute = useMemo(() => {
         return routes.find(r =>
@@ -341,107 +342,119 @@ const StudentManagementTab = ({
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
     const unassignedStudents = useMemo(() => {
-        const assignedStudentIdsInCurrentRoute = new Set<string>();
-        if (currentRoute) {
-            currentRoute.seating.forEach(seat => {
-                if (seat.studentId) {
-                    assignedStudentIdsInCurrentRoute.add(seat.studentId);
-                }
-            });
-        }
-
-        const studentAssignedInAnyRoute = new Set<string>();
-         routes.forEach(r => {
+        const assignedStudentIds = new Set<string>();
+        routes.forEach(r => {
              r.seating.forEach(s => {
-                 if (s.studentId) studentAssignedInAnyRoute.add(s.studentId);
+                 if (s.studentId) assignedStudentIds.add(s.studentId);
              });
          });
 
         return students.filter(
-            s => !studentAssignedInAnyRoute.has(s.id) && !assignedStudentIdsInCurrentRoute.has(s.id)
+            s => !assignedStudentIds.has(s.id)
         );
-    }, [students, routes, currentRoute]);
+    }, [students, routes]);
 
     const handleSeatDrop = useCallback((seatNumber: number, studentId: string) => {
         setRoutes(prevRoutes => {
             const newRoutes = [...prevRoutes];
 
-            // 1. Un-assign the student from any other seat they might be in on the same day's route
-            const routeIdx = newRoutes.findIndex(r => r.id === currentRoute?.id);
-            if (routeIdx > -1) {
-                const oldSeatIdx = newRoutes[routeIdx].seating.findIndex(s => s.studentId === studentId);
-                if (oldSeatIdx > -1) {
-                    newRoutes[routeIdx].seating[oldSeatIdx].studentId = null;
-                }
-            }
-
-            // 2. Assign the student to the new seat for all days of the week for the same bus and route type
             days.forEach(day => {
-                const targetRouteIndex = newRoutes.findIndex(
-                    r => r.busId === selectedBusId && r.dayOfWeek === day && r.type === selectedRouteType
-                );
-                if (targetRouteIndex > -1) {
-                    const targetRoute = { ...newRoutes[targetRouteIndex] };
-                    const targetSeating = [...targetRoute.seating];
-                    
-                    // Check if the student is already assigned on this day, if so, skip auto-assignment for this day
-                    const studentAlreadyAssignedOnThisDay = targetSeating.some(s => s.studentId === studentId);
-                    if (studentAlreadyAssignedOnThisDay && day !== selectedDay) {
-                        return; 
-                    }
+                routeTypes.forEach(routeType => {
+                     const targetRouteIndex = newRoutes.findIndex(
+                        r => r.busId === selectedBusId && r.dayOfWeek === day && r.type === routeType
+                    );
 
-                    // Find the target seat and check if it's occupied
-                    const targetSeatIndex = targetSeating.findIndex(s => s.seatNumber === seatNumber);
-                    if (targetSeatIndex > -1) {
-                        const occupantId = targetSeating[targetSeatIndex].studentId;
+                    if (targetRouteIndex > -1) {
+                        const targetRoute = { ...newRoutes[targetRouteIndex] };
+                        const targetSeating = [...targetRoute.seating];
                         
-                        // If the seat is occupied by another student, remove them from all days
-                        if (occupantId && occupantId !== studentId) {
-                            unassignStudent(seatNumber, occupantId); 
+                        // If the student is already assigned to a different seat on this route, don't auto-assign.
+                        // The user can move them manually later.
+                        const studentAlreadyAssignedOnThisRoute = targetSeating.some(s => s.studentId === studentId);
+                        if (studentAlreadyAssignedOnThisRoute) {
+                            return; 
                         }
-                        
-                        // Assign the new student
-                        targetSeating[targetSeatIndex].studentId = studentId;
+
+                        // Find the target seat and check if it's occupied by another student.
+                        const targetSeatIndex = targetSeating.findIndex(s => s.seatNumber === seatNumber);
+                        if (targetSeatIndex > -1) {
+                            const occupantId = targetSeating[targetSeatIndex].studentId;
+                            
+                            // If the seat is occupied by another student, don't auto-assign.
+                            // The user can resolve the conflict manually.
+                            if (occupantId && occupantId !== studentId) {
+                                return;
+                            }
+                            
+                            // Assign the new student
+                            targetSeating[targetSeatIndex].studentId = studentId;
+                        }
+                        targetRoute.seating = targetSeating;
+                        newRoutes[targetRouteIndex] = targetRoute;
                     }
-                    targetRoute.seating = targetSeating;
-                    newRoutes[targetRouteIndex] = targetRoute;
-                }
+                });
             });
             
+            // Explicitly assign to the dropped seat to override any conflicts on the current view
+             const currentRouteIndex = newRoutes.findIndex(r => r.id === currentRoute?.id);
+             if (currentRouteIndex > -1) {
+                 const currentRouteCopy = { ...newRoutes[currentRouteIndex] };
+                 const currentSeating = [...currentRouteCopy.seating];
+
+                // Un-assign from any old seat on this specific route
+                const oldSeatIndex = currentSeating.findIndex(s => s.studentId === studentId);
+                if (oldSeatIndex > -1) {
+                    currentSeating[oldSeatIndex].studentId = null;
+                }
+
+                 const targetSeatIndex = currentSeating.findIndex(s => s.seatNumber === seatNumber);
+                 if (targetSeatIndex > -1) {
+                    const occupantId = currentSeating[targetSeatIndex].studentId;
+                    // If another student is in the target seat on this route, unassign them from all routes for this bus
+                    if(occupantId && occupantId !== studentId) {
+                       unassignStudent(seatNumber, occupantId, newRoutes);
+                    }
+                    currentSeating[targetSeatIndex].studentId = studentId;
+                 }
+                 currentRouteCopy.seating = currentSeating;
+                 newRoutes[currentRouteIndex] = currentRouteCopy;
+             }
+
             return newRoutes;
         });
-    }, [currentRoute, setRoutes, days, selectedBusId, selectedRouteType, selectedDay]);
+    }, [currentRoute, setRoutes, days, routeTypes, selectedBusId]);
 
-    const unassignStudent = useCallback((seatNumber: number, studentIdToUnassign?: string) => {
+    const unassignStudent = useCallback((seatNumber: number, studentIdToUnassign?: string, routesToUpdate?: Route[]) => {
         setRoutes(prevRoutes => {
-            let newRoutes = [...prevRoutes];
+            let newRoutes = routesToUpdate ? [...routesToUpdate] : [...prevRoutes];
             if (!currentRoute) return newRoutes;
 
             const studentId = studentIdToUnassign || currentRoute.seating.find(s => s.seatNumber === seatNumber)?.studentId;
             if (!studentId) return newRoutes;
 
-            // Un-assign the student from this seat for all days of the week
             days.forEach(day => {
-                const routeIndex = newRoutes.findIndex(
-                    r => r.busId === selectedBusId && r.dayOfWeek === day && r.type === selectedRouteType
-                );
-                if (routeIndex > -1) {
-                    const newRoute = { ...newRoutes[routeIndex] };
-                    const newSeating = [...newRoute.seating];
-                    const seatToEmptyIndex = newSeating.findIndex(
-                        s => s.seatNumber === seatNumber && s.studentId === studentId
+                routeTypes.forEach(routeType => {
+                    const routeIndex = newRoutes.findIndex(
+                        r => r.busId === selectedBusId && r.dayOfWeek === day && r.type === routeType
                     );
-                    if (seatToEmptyIndex !== -1) {
-                        newSeating[seatToEmptyIndex].studentId = null;
+                    if (routeIndex > -1) {
+                        const newRoute = { ...newRoutes[routeIndex] };
+                        const newSeating = [...newRoute.seating];
+                        const seatToEmptyIndex = newSeating.findIndex(
+                            s => s.studentId === studentId
+                        );
+                        if (seatToEmptyIndex !== -1) {
+                            newSeating[seatToEmptyIndex].studentId = null;
+                        }
+                        newRoute.seating = newSeating;
+                        newRoutes[routeIndex] = newRoute;
                     }
-                    newRoute.seating = newSeating;
-                    newRoutes[routeIndex] = newRoute;
-                }
+                });
             });
 
             return newRoutes;
         });
-    }, [currentRoute, setRoutes, days, selectedBusId, selectedRouteType]);
+    }, [currentRoute, setRoutes, days, routeTypes, selectedBusId]);
 
 
     const randomizeSeating = useCallback(() => {
@@ -874,5 +887,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
 
     
