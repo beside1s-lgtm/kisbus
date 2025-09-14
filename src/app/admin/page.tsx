@@ -317,7 +317,8 @@ const StudentManagementTab = ({
     destinations,
     selectedBusId,
     selectedDay,
-    selectedRouteType
+    selectedRouteType,
+    days
 }:{
     buses: Bus[],
     students: Student[],
@@ -327,6 +328,7 @@ const StudentManagementTab = ({
     selectedBusId: string;
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
+    days: DayOfWeek[];
 }) => {
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
@@ -338,76 +340,109 @@ const StudentManagementTab = ({
         );
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
-    const assignedStudentIdsInAllRoutes = useMemo(() => {
-        const studentIds = new Set<string>();
-        routes.forEach(route => {
-            route.seating.forEach(seat => {
+    const unassignedStudents = useMemo(() => {
+        const assignedStudentIdsInCurrentRoute = new Set<string>();
+        if (currentRoute) {
+            currentRoute.seating.forEach(seat => {
                 if (seat.studentId) {
-                    studentIds.add(seat.studentId);
+                    assignedStudentIdsInCurrentRoute.add(seat.studentId);
                 }
             });
-        });
-        return studentIds;
-    }, [routes]);
+        }
 
-    const unassignedStudents = useMemo(() => {
-        return students.filter(s => !assignedStudentIdsInAllRoutes.has(s.id));
-    }, [students, assignedStudentIdsInAllRoutes]);
+        const studentAssignedInAnyRoute = new Set<string>();
+         routes.forEach(r => {
+             r.seating.forEach(s => {
+                 if (s.studentId) studentAssignedInAnyRoute.add(s.studentId);
+             });
+         });
+
+        return students.filter(
+            s => !studentAssignedInAnyRoute.has(s.id) && !assignedStudentIdsInCurrentRoute.has(s.id)
+        );
+    }, [students, routes, currentRoute]);
 
     const handleSeatDrop = useCallback((seatNumber: number, studentId: string) => {
         setRoutes(prevRoutes => {
             const newRoutes = [...prevRoutes];
-            const routeIndex = newRoutes.findIndex(r => r.id === currentRoute?.id);
-            if (routeIndex === -1) return prevRoutes;
 
-            const newRoute = { ...newRoutes[routeIndex] };
-            const newSeating = [...newRoute.seating];
-            
-            // 학생이 원래 있던 자리를 비웁니다.
-            const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
-            if(sourceSeatIndex > -1){
-                newSeating[sourceSeatIndex] = { ...newSeating[sourceSeatIndex], studentId: null };
-            }
-
-            // 대상 좌석에 학생을 배정합니다.
-            const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
-            if (targetSeatIndex !== -1) {
-                const studentOnTargetSeat = newSeating[targetSeatIndex].studentId;
-                newSeating[targetSeatIndex] = { ...newSeating[targetSeatIndex], studentId };
-
-                // 만약 대상 좌석에 다른 학생이 있었다면, 그 학생을 원래 자리로 옮기거나 미배정 처리합니다.
-                if (studentOnTargetSeat) {
-                    if (sourceSeatIndex !== -1) {
-                         newSeating[sourceSeatIndex] = { ...newSeating[sourceSeatIndex], studentId: studentOnTargetSeat };
-                    }
+            // 1. Un-assign the student from any other seat they might be in on the same day's route
+            const routeIdx = newRoutes.findIndex(r => r.id === currentRoute?.id);
+            if (routeIdx > -1) {
+                const oldSeatIdx = newRoutes[routeIdx].seating.findIndex(s => s.studentId === studentId);
+                if (oldSeatIdx > -1) {
+                    newRoutes[routeIdx].seating[oldSeatIdx].studentId = null;
                 }
             }
+
+            // 2. Assign the student to the new seat for all days of the week for the same bus and route type
+            days.forEach(day => {
+                const targetRouteIndex = newRoutes.findIndex(
+                    r => r.busId === selectedBusId && r.dayOfWeek === day && r.type === selectedRouteType
+                );
+                if (targetRouteIndex > -1) {
+                    const targetRoute = { ...newRoutes[targetRouteIndex] };
+                    const targetSeating = [...targetRoute.seating];
+                    
+                    // Check if the student is already assigned on this day, if so, skip auto-assignment for this day
+                    const studentAlreadyAssignedOnThisDay = targetSeating.some(s => s.studentId === studentId);
+                    if (studentAlreadyAssignedOnThisDay && day !== selectedDay) {
+                        return; 
+                    }
+
+                    // Find the target seat and check if it's occupied
+                    const targetSeatIndex = targetSeating.findIndex(s => s.seatNumber === seatNumber);
+                    if (targetSeatIndex > -1) {
+                        const occupantId = targetSeating[targetSeatIndex].studentId;
+                        
+                        // If the seat is occupied by another student, remove them from all days
+                        if (occupantId && occupantId !== studentId) {
+                            unassignStudent(seatNumber, occupantId); 
+                        }
+                        
+                        // Assign the new student
+                        targetSeating[targetSeatIndex].studentId = studentId;
+                    }
+                    targetRoute.seating = targetSeating;
+                    newRoutes[targetRouteIndex] = targetRoute;
+                }
+            });
             
-            newRoute.seating = newSeating;
-            newRoutes[routeIndex] = newRoute;
             return newRoutes;
         });
-    }, [currentRoute, setRoutes]);
+    }, [currentRoute, setRoutes, days, selectedBusId, selectedRouteType, selectedDay]);
 
-    const unassignStudent = useCallback((seatNumber: number) => {
+    const unassignStudent = useCallback((seatNumber: number, studentIdToUnassign?: string) => {
         setRoutes(prevRoutes => {
-            const newRoutes = [...prevRoutes];
-            const routeIndex = newRoutes.findIndex(r => r.id === currentRoute?.id);
-            if (routeIndex === -1) return prevRoutes;
+            let newRoutes = [...prevRoutes];
+            if (!currentRoute) return newRoutes;
 
-            const newRoute = { ...newRoutes[routeIndex] };
-            const newSeating = [...newRoute.seating];
-            const seatToEmptyIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+            const studentId = studentIdToUnassign || currentRoute.seating.find(s => s.seatNumber === seatNumber)?.studentId;
+            if (!studentId) return newRoutes;
 
-            if (seatToEmptyIndex !== -1) {
-                newSeating[seatToEmptyIndex].studentId = null;
-            }
+            // Un-assign the student from this seat for all days of the week
+            days.forEach(day => {
+                const routeIndex = newRoutes.findIndex(
+                    r => r.busId === selectedBusId && r.dayOfWeek === day && r.type === selectedRouteType
+                );
+                if (routeIndex > -1) {
+                    const newRoute = { ...newRoutes[routeIndex] };
+                    const newSeating = [...newRoute.seating];
+                    const seatToEmptyIndex = newSeating.findIndex(
+                        s => s.seatNumber === seatNumber && s.studentId === studentId
+                    );
+                    if (seatToEmptyIndex !== -1) {
+                        newSeating[seatToEmptyIndex].studentId = null;
+                    }
+                    newRoute.seating = newSeating;
+                    newRoutes[routeIndex] = newRoute;
+                }
+            });
 
-            newRoute.seating = newSeating;
-            newRoutes[routeIndex] = newRoute;
             return newRoutes;
         });
-    }, [currentRoute, setRoutes]);
+    }, [currentRoute, setRoutes, days, selectedBusId, selectedRouteType]);
+
 
     const randomizeSeating = useCallback(() => {
         if (!currentRoute || !selectedBus) return;
@@ -417,9 +452,16 @@ const StudentManagementTab = ({
         const currentlyAssignedOnThisRoute = currentRoute.seating
             .map(s => s.studentId)
             .filter(Boolean) as string[];
+        
+        const studentAssignedInAnyRoute = new Set<string>();
+        routes.forEach(r => {
+             r.seating.forEach(s => {
+                 if (s.studentId) studentAssignedInAnyRoute.add(s.studentId);
+             });
+         });
 
         const studentsAvailableForThisRoute = studentsOnThisRouteStops.filter(
-             s => !assignedStudentIdsInAllRoutes.has(s.id) || currentlyAssignedOnThisRoute.includes(s.id)
+             s => !studentAssignedInAnyRoute.has(s.id) || currentlyAssignedOnThisRoute.includes(s.id)
         );
 
         const gradeToValue = (grade: string): number => {
@@ -449,11 +491,11 @@ const StudentManagementTab = ({
                 const base = row * 4 + 1;
                 if (base + 1 <= capacity) pairs.push([base, base + 1]);
                 if (base + 2 <= capacity && base + 3 <= capacity) {
-                     if(hasLastRowOfFive && base + 3 === (capacity - 1)) {
+                     if(hasLastRowOfFive && row === numRows -1) {
+                         // Don't create pairs for the last row of 5
+                     } else {
                          pairs.push([base + 2, base + 3]);
-                         break;
                      }
-                     pairs.push([base + 2, base + 3]);
                 }
             }
             return pairs;
@@ -553,7 +595,7 @@ const StudentManagementTab = ({
             return newRoutes;
         });
 
-    }, [currentRoute, selectedBus, students, setRoutes, assignedStudentIdsInAllRoutes]);
+    }, [currentRoute, selectedBus, students, setRoutes, routes]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,목적지";
@@ -825,9 +867,12 @@ export default function AdminPage() {
                         selectedBusId={selectedBusId}
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
+                        days={days}
                     />
                 </TabsContent>
             </Tabs>
         </MainLayout>
     );
 }
+
+    
