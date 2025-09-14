@@ -7,6 +7,8 @@ export type Student = {
   gender: 'Male' | 'Female';
   isGroupLeader: boolean;
   daysAsGroupLeader: number;
+  groupLeaderStartDate?: string;
+  groupLeaderEndDate?: string;
 };
 
 export type Bus = {
@@ -18,7 +20,7 @@ export type Bus = {
 
 export type Destination = {
   id: string;
-  name: string;
+  name:string;
 };
 
 export type SeatingAssignment = {
@@ -45,3 +47,11 @@ export type AttendanceRecord = {
 export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
 
 export type RouteType = 'Morning' | 'Afternoon';
+
+export type GroupLeaderRecord = {
+    studentId: string;
+    name: string;
+    startDate: string;
+    endDate: string | null;
+    days: number;
+}

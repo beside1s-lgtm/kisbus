@@ -2,21 +2,23 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/mock-data';
-import { Bus, Student, Route, Destination, DayOfWeek, RouteType } from '@/lib/types';
+import { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Crown, UserX, ArrowLeftRight } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { VolunteerTimeCalculator } from './components/volunteer-time-calculator';
+import { GroupLeaderManager } from './components/group-leader-manager';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {format, differenceInDays} from 'date-fns';
 
-const getStorageKey = (routeId: string) => `boarding_status_${routeId}`;
+const getBoardingStorageKey = (routeId: string) => `boarding_status_${routeId}`;
+const getLeaderStorageKey = (routeId: string) => `group_leader_records_${routeId}`;
 
 export default function TeacherPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -31,6 +33,7 @@ export default function TeacherPage() {
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
 
   const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   const dayLabels: { [key in DayOfWeek]: string } = {
@@ -70,25 +73,40 @@ export default function TeacherPage() {
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
-  // Load and save boarding status from/to sessionStorage
+  // Load and save boarding status and leader records from/to sessionStorage
   useEffect(() => {
     if (currentRoute) {
-      const storageKey = getStorageKey(currentRoute.id);
-      const savedStatus = window.sessionStorage.getItem(storageKey);
-      if (savedStatus) {
-        setBoardedStudentIds(JSON.parse(savedStatus));
+      const boardingKey = getBoardingStorageKey(currentRoute.id);
+      const savedBoardingStatus = window.sessionStorage.getItem(boardingKey);
+      if (savedBoardingStatus) {
+        setBoardedStudentIds(JSON.parse(savedBoardingStatus));
       } else {
         setBoardedStudentIds([]); // Reset for new route
+      }
+      
+      const leaderKey = getLeaderStorageKey(currentRoute.id);
+      const savedLeaderRecords = window.sessionStorage.getItem(leaderKey);
+      if (savedLeaderRecords) {
+        setGroupLeaderRecords(JSON.parse(savedLeaderRecords));
+      } else {
+        setGroupLeaderRecords([]); // Reset for new route
       }
     }
   }, [currentRoute]);
 
   useEffect(() => {
     if (currentRoute) {
-      const storageKey = getStorageKey(currentRoute.id);
-      window.sessionStorage.setItem(storageKey, JSON.stringify(boardedStudentIds));
+      const boardingKey = getBoardingStorageKey(currentRoute.id);
+      window.sessionStorage.setItem(boardingKey, JSON.stringify(boardedStudentIds));
     }
   }, [boardedStudentIds, currentRoute]);
+
+  useEffect(() => {
+    if (currentRoute) {
+      const leaderKey = getLeaderStorageKey(currentRoute.id);
+      window.sessionStorage.setItem(leaderKey, JSON.stringify(groupLeaderRecords));
+    }
+  }, [groupLeaderRecords, currentRoute]);
 
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
@@ -113,20 +131,55 @@ export default function TeacherPage() {
     );
   };
   
-  const toggleGroupLeader = (studentId: string) => {
-    setStudents(prev => prev.map(s => 
-      s.id === studentId ? { ...s, isGroupLeader: !s.isGroupLeader } : s
-    ));
-    const student = students.find(s => s.id === studentId);
-    if(student){
-        setSelectedStudent({...student, isGroupLeader: !student.isGroupLeader});
-    }
+  const toggleGroupLeader = (student: Student) => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const studentId = student.id;
+
+    setGroupLeaderRecords(prevRecords => {
+      const newRecords = [...prevRecords];
+      const existingRecordIndex = newRecords.findIndex(
+        r => r.studentId === studentId && r.endDate === null
+      );
+
+      if (existingRecordIndex > -1) { // Demote: Student is an active leader
+        const record = newRecords[existingRecordIndex];
+        record.endDate = today;
+        record.days = differenceInDays(new Date(today), new Date(record.startDate)) + 1;
+        
+        setStudents(prevStudents => prevStudents.map(s => 
+          s.id === studentId ? { ...s, isGroupLeader: false } : s
+        ));
+        setSelectedStudent(prev => prev && prev.id === studentId ? {...prev, isGroupLeader: false} : prev);
+
+      } else { // Promote: Student is not an active leader
+        const newRecord: GroupLeaderRecord = {
+          studentId: studentId,
+          name: student.name,
+          startDate: today,
+          endDate: null,
+          days: 1,
+        };
+        newRecords.push(newRecord);
+        
+        setStudents(prevStudents => prevStudents.map(s => 
+          s.id === studentId ? { ...s, isGroupLeader: true } : s
+        ));
+         setSelectedStudent(prev => prev && prev.id === studentId ? {...prev, isGroupLeader: true} : prev);
+      }
+      return newRecords;
+    });
   };
+
   
   const handleSeatClick = (seatNumber: number, studentId: string | null) => {
     if (studentId) {
       const student = students.find(s => s.id === studentId);
-      setSelectedStudent(student || null);
+      const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+      if(student) {
+          setSelectedStudent({...student, isGroupLeader: isActiveLeader});
+      } else {
+          setSelectedStudent(null);
+      }
       
       // Toggle boarding status
       setBoardedStudentIds(prev => 
@@ -204,20 +257,14 @@ export default function TeacherPage() {
             <Button
                 variant={selectedStudent.isGroupLeader ? "default" : "outline"}
                 className="w-full"
-                onClick={() => toggleGroupLeader(selectedStudent.id)}
+                onClick={() => toggleGroupLeader(selectedStudent)}
             >
-                <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 설정'}
+                <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
             </Button>
              <Button variant="outline" className="w-full">
                 <ArrowLeftRight className="mr-2" /> 좌석 교체
             </Button>
         </div>
-        {selectedStudent.isGroupLeader && (
-            <>
-                <Separator className="my-4" />
-                <VolunteerTimeCalculator student={selectedStudent} setStudents={setStudents} />
-            </>
-        )}
     </div>
   ) : (
     <div className="text-center text-muted-foreground py-10">
@@ -274,7 +321,7 @@ export default function TeacherPage() {
                                 onClick={() => handleSeatClick(0, student.id)}
                                 className="cursor-pointer"
                             >
-                                <TableCell>{student.name} {student.isGroupLeader && "👑"}</TableCell>
+                                <TableCell>{student.name} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                 <TableCell>
                                     <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : 'secondary'}>
                                         {boardedStudentIds.includes(student.id) ? '탑승' : '미탑승'}
@@ -295,6 +342,7 @@ export default function TeacherPage() {
                     {sidePanel}
                 </CardContent>
                 </Card>
+             <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
     </MainLayout>
