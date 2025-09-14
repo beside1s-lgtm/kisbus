@@ -445,10 +445,13 @@ const StudentManagementTab = ({
                     if (i+1 <= 40) pairs.push([i, i+1]);
                     if (i+2 <= 40 && i+3 <= 40) pairs.push([i+2, i+3]);
                 }
-            } else { // 15 and 29 seaters
-                // 1-2 layout
-                 for(let i=1; i<=29; i+=4) {
-                    if (i+1 <= 29) pairs.push([i, i+1]);
+            } else if (capacity === 29 || capacity === 15) {
+                 // 1-2 layout
+                for(let i=1; i <= capacity; i+=3) {
+                    // Pair seats 2 and 3 of each 3-seat row
+                    if (i+1 <= capacity && i+2 <= capacity) {
+                        pairs.push([i+1, i+2]);
+                    }
                 }
             }
             return pairs;
@@ -459,10 +462,13 @@ const StudentManagementTab = ({
                 if (seatNumber > 40) return 'aisle'; // Back row
                 const colInPair = (seatNumber - 1) % 4;
                 return colInPair === 0 || colInPair === 3 ? 'window' : 'aisle';
-            } else { // 15 and 29 seaters
-                const col = (seatNumber-1) % 4;
-                return col === 0 || col === 3 ? 'window' : 'aisle';
+            } else if (capacity === 29 || capacity === 15) {
+                const col = (seatNumber - 1) % 3;
+                if (col === 0) return 'window'; // Left side
+                if (col === 2) return 'window'; // Right side window
+                return 'aisle'; // Right side aisle
             }
+            return 'aisle';
         };
 
         const routeStopOrder = currentRoute.stops;

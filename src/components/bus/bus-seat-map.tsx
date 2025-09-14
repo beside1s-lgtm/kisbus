@@ -33,38 +33,55 @@ const getGridLayout = (capacity: number) => {
   }
 };
 
-const isAisle = (seatIndex: number, capacity: number) => {
-  if (capacity === 45) {
-    // For 45-seater, the aisle is the 3rd column, except for the last row.
-    // Last row has 5 seats, so no aisle.
-    const seatNumber = seatIndex + 1;
-    // The last 5 seats are 41, 42, 43, 44, 45. They are in the last row.
-    // Before that, seats are in 10 rows of 4.
-    // The visual grid has 11 rows. 10 rows of 5 items (2 seats, 1 aisle, 2 seats), and last row of 5 seats.
-    // Total items = 10 * 5 + 5 = 55? No, that's not right.
-    const totalItems = bus.capacity + Math.floor((bus.capacity-5) / 4); // 45 + 10 = 55
-    // The issue is how to represent the layout.
-    // Let's use grid position.
-    // The grid has 11 rows, 5 columns.
-    const rowIndex = Math.floor(seatIndex / 5);
-    const colIndex = seatIndex % 5;
-    
-    // For the first 10 rows (rowIndex 0 to 9), the middle one is an aisle.
-    if (rowIndex < 10 && colIndex === 2) {
-        return true;
+const isAisle = (itemIndex: number, capacity: number): boolean => {
+    const row = Math.floor(itemIndex / 4);
+    const col = itemIndex % 4;
+
+    if (capacity === 29 || capacity === 15) {
+        // 1-aisle-2 layout, aisle is the second column (index 1)
+        return col === 1;
     }
+    
+    // For 45-seater, use a 5-column grid. The aisle is the 3rd column (index 2).
+    if (capacity === 45) {
+        const itemCol = itemIndex % 5;
+        const itemRow = Math.floor(itemIndex / 5);
+        // Aisle is in the middle column for the first 10 rows. Last row is full.
+        return itemCol === 2 && itemRow < 10;
+    }
+    
     return false;
-  }
-  
-  const seatNumber = seatIndex + 1;
-  switch (capacity) {
-    case 29:
-    case 15:
-      return (seatNumber - 3) % 4 === 0;
-    default:
-      return false;
-  }
 };
+
+const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | null => {
+    if (capacity === 45) {
+        const itemCol = itemIndex % 5;
+        const itemRow = Math.floor(itemIndex / 5);
+        if (itemCol === 2 && itemRow < 10) return null; // Aisle
+
+        const seatsInPrevRows = itemRow * 4;
+        let seatInRow = itemCol;
+        if (itemCol > 2) seatInRow--;
+        
+        const seatNumber = seatsInPrevRows + seatInRow + 1;
+        return seatNumber <= capacity ? seatNumber : null;
+
+    } else if (capacity === 29 || capacity === 15) {
+        const itemCol = itemIndex % 4;
+        if (itemCol === 1) return null; // Aisle
+        
+        const row = Math.floor(itemIndex / 4);
+        const seatsInRow = 3;
+        let seatInRow = itemCol;
+        if (itemCol > 1) seatInRow--;
+
+        const seatNumber = row * seatsInRow + seatInRow + 1;
+        return seatNumber <= capacity ? seatNumber : null;
+    }
+
+    return itemIndex + 1;
+};
+
 
 export function BusSeatMap({
   bus,
@@ -107,7 +124,7 @@ export function BusSeatMap({
     return students.find(s => s.id === id);
   };
   
-  const totalGridItems = bus.capacity === 45 ? 55 : bus.capacity + Math.floor(bus.capacity / 4);
+  const totalGridItems = bus.capacity === 45 ? 55 : (bus.capacity === 29 ? 39 : 20);
 
   return (
     <TooltipProvider>
@@ -119,27 +136,14 @@ export function BusSeatMap({
         </div>
         <div className={cn('grid', getGridLayout(bus.capacity))}>
           {Array.from({ length: totalGridItems }).map((_, i) => {
-             const aisle = isAisle(i, bus.capacity);
-             if (aisle) {
+             if (isAisle(i, bus.capacity)) {
                return <div key={`aisle-${i}`} className="w-full h-full"></div>;
              }
 
-             // Adjust index to get correct seat number
-             let seatIndex;
-             if (bus.capacity === 45) {
-                const rowIndex = Math.floor(i / 5);
-                const colIndex = i % 5;
-                if (rowIndex < 10) {
-                    seatIndex = rowIndex * 4 + (colIndex > 2 ? colIndex - 1 : colIndex);
-                } else {
-                    seatIndex = 40 + colIndex;
-                }
-             } else {
-                seatIndex = i - Math.floor(i / 4);
-             }
+             const seatNumber = getSeatNumberFromIndex(i, bus.capacity);
+             if (seatNumber === null) return null;
 
-             const seat = seating.find(s => s.seatNumber === seatIndex + 1);
-             
+             const seat = seating.find(s => s.seatNumber === seatNumber);
              if (!seat) return null;
 
              const student = getStudentById(seat.studentId);
