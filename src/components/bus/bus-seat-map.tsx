@@ -252,12 +252,12 @@ export function BusSeatMap({
                         {isAbsent && (
                            <XCircle className="absolute w-3 h-3 text-destructive" />
                         )}
-                        <span className="text-base font-medium text-center break-words leading-tight">{student.name}</span>
+                        <span className="text-sm font-medium text-center break-words leading-tight">{student.name}</span>
                       </>
                     ) : (
                       <UserIcon className="w-4 h-4 text-muted-foreground" />
                     )}
-                    <span className="absolute top-1 left-1 text-[8px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+                    <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
                   </div>
                 </TooltipTrigger>
                 {student && (
