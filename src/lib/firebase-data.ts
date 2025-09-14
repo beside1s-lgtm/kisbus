@@ -61,6 +61,9 @@ export const updateBus = async (busId: string, data: Partial<Bus>) => {
 // Students
 export const getStudents = () => fetchCollection<Student>('students');
 export const addStudent = (student: NewStudent) => addDocument<Student>('students', student);
+export const updateStudent = async (studentId: string, data: Partial<Student>) => {
+    await updateDoc(doc(db, 'students', studentId), data);
+}
 
 // Destinations
 export const getDestinations = () => fetchCollection<Destination>('destinations');

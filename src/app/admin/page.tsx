@@ -6,7 +6,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations,
     addBus, deleteBus, updateBus,
-    addStudent,
+    addStudent, updateStudent,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations
 } from '@/lib/firebase-data';
@@ -911,6 +911,16 @@ const StudentManagementTab = ({
         }
     };
 
+    const handleDestinationChange = async (studentId: string, newDestinationId: string) => {
+        try {
+            await updateStudent(studentId, { destinationId: newDestinationId });
+            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, destinationId: newDestinationId } : s));
+            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다." });
+        } catch (error) {
+            toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
+        }
+    };
+
     if (!selectedBusId) {
        return <div className="p-4 text-center text-muted-foreground">버스를 선택하여 학생을 관리하세요.</div>;
     }
@@ -1009,7 +1019,12 @@ const StudentManagementTab = ({
                                  <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
                              </div>
                             {unassignedStudents.length > 0 ? unassignedStudents.map(student => (
-                                <DraggableStudentCard key={student.id} student={student} />
+                                <DraggableStudentCard 
+                                    key={student.id} 
+                                    student={student} 
+                                    destinations={destinations}
+                                    onDestinationChange={handleDestinationChange}
+                                />
                             )) : (
                                 <p className="text-sm text-muted-foreground text-center py-4">모든 학생이 배정되었습니다.</p>
                             )}
