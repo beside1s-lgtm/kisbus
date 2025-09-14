@@ -337,19 +337,21 @@ const StudentManagementTab = ({
         );
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
-    const assignedStudentIds = useMemo(() => {
-        if (!currentRoute) return new Set();
-        return new Set(currentRoute.seating.map(s => s.studentId).filter(Boolean));
-    }, [currentRoute]);
+    const assignedStudentIdsInAllRoutes = useMemo(() => {
+        const studentIds = new Set<string>();
+        routes.forEach(route => {
+            route.seating.forEach(seat => {
+                if (seat.studentId) {
+                    studentIds.add(seat.studentId);
+                }
+            });
+        });
+        return studentIds;
+    }, [routes]);
 
     const unassignedStudents = useMemo(() => {
-        if (!currentRoute) return [];
-        const routeStops = new Set(currentRoute.stops);
-        return students.filter(s => 
-            !assignedStudentIds.has(s.id) && 
-            routeStops.has(s.destinationId)
-        );
-    }, [students, assignedStudentIds, currentRoute]);
+        return students.filter(s => !assignedStudentIdsInAllRoutes.has(s.id));
+    }, [students, assignedStudentIdsInAllRoutes]);
 
     const handleSeatDrop = useCallback((seatNumber: number, studentId: string) => {
         setRoutes(prevRoutes => {
@@ -409,10 +411,15 @@ const StudentManagementTab = ({
     const randomizeSeating = useCallback(() => {
         if (!currentRoute || !selectedBus) return;
 
-        const studentsToAssign = [
-            ...unassignedStudents,
-            ...currentRoute.seating.map(s => s.studentId).filter(Boolean).map(id => students.find(s => s.id === id)!)
-        ].filter(Boolean);
+        const studentsOnThisRouteStops = students.filter(s => currentRoute.stops.includes(s.destinationId));
+        
+        const currentlyAssignedOnThisRoute = currentRoute.seating
+            .map(s => s.studentId)
+            .filter(Boolean) as string[];
+
+        const studentsAvailableForThisRoute = studentsOnThisRouteStops.filter(
+             s => !assignedStudentIdsInAllRoutes.has(s.id) || currentlyAssignedOnThisRoute.includes(s.id)
+        );
 
         const gradeToValue = (grade: string): number => {
             if (grade.toLowerCase().includes('k')) return 0;
@@ -421,7 +428,7 @@ const StudentManagementTab = ({
             return num;
         };
 
-        const sortedStudents = [...studentsToAssign].sort((a, b) => gradeToValue(a.grade) - gradeToValue(b.grade));
+        const sortedStudents = [...studentsAvailableForThisRoute].sort((a, b) => gradeToValue(a.grade) - gradeToValue(b.grade));
 
         const getSeatPairs = (capacity: number): [number, number][] => {
             const pairs: [number, number][] = [];
@@ -455,7 +462,7 @@ const StudentManagementTab = ({
         let males = sortedStudents.filter(s => s.gender === 'Male');
         let females = sortedStudents.filter(s => s.gender === 'Female');
 
-        const newSeating = [...currentRoute.seating].map(s => ({...s, studentId: null}));
+        const newSeating = generateInitialSeating(selectedBus.capacity);
         const occupiedSeats = new Set<number>();
 
         const seatPairs = getSeatPairs(selectedBus.capacity);
@@ -470,7 +477,6 @@ const StudentManagementTab = ({
                 if (!occupiedSeats.has(pair[0]) && !occupiedSeats.has(pair[1])) {
                     const [seat1, seat2] = pair;
                     const seat1Type = getSeatType(seat1, selectedBus.capacity);
-                    const seat2Type = getSeatType(seat2, selectedBus.capacity);
                     
                     const maleStopIndex = routeStopOrder.indexOf(male.destinationId);
                     const femaleStopIndex = routeStopOrder.indexOf(female.destinationId);
@@ -509,12 +515,16 @@ const StudentManagementTab = ({
         }
         
         // Assign remaining students (same-sex or singles)
-        const remainingStudents = [...males, ...females];
-        for(const student of remainingStudents) {
-             for (let i = 0; i < newSeating.length; i++) {
-                if (!newSeating[i].studentId) {
-                    newSeating[i].studentId = student.id;
-                    break;
+        const remainingStudents = [...males, ...females].sort((a,b) => gradeToValue(a.grade) - gradeToValue(b.grade));
+
+        const emptySeats = newSeating.filter(s => !s.studentId).map(s => s.seatNumber);
+
+        for (const student of remainingStudents) {
+            if (emptySeats.length > 0) {
+                const seatNumber = emptySeats.shift()!;
+                const seatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+                if (seatIndex !== -1) {
+                    newSeating[seatIndex].studentId = student.id;
                 }
             }
         }
@@ -528,7 +538,7 @@ const StudentManagementTab = ({
             return newRoutes;
         });
 
-    }, [currentRoute, selectedBus, unassignedStudents, students, setRoutes]);
+    }, [currentRoute, selectedBus, students, setRoutes, assignedStudentIdsInAllRoutes]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,목적지";
@@ -639,13 +649,14 @@ const StudentManagementTab = ({
                  <Card className="sticky top-20">
                     <CardHeader>
                         <CardTitle className="font-headline">미배정 학생</CardTitle>
+                        <CardDescription>어떤 버스에도 배정되지 않은 학생 목록입니다.</CardDescription>
                     </CardHeader>
                     <Separator />
                     <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
                         {unassignedStudents.length > 0 ? unassignedStudents.map(student => (
                             <DraggableStudentCard key={student.id} student={student} />
                         )) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">이 노선에 배정할 학생이 없습니다.</p>
+                            <p className="text-sm text-muted-foreground text-center py-4">모든 학생이 배정되었습니다.</p>
                         )}
                     </CardContent>
                 </Card>
@@ -759,5 +770,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
