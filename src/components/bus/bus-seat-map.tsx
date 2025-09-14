@@ -207,7 +207,7 @@ export function BusSeatMap({
                         {isAbsent && (
                            <XCircle className="absolute w-3 h-3 text-destructive" />
                         )}
-                        <span className="text-[10px] font-medium text-center break-words leading-tight">{student.name}</span>
+                        <span className="text-lg font-medium text-center break-words leading-tight">{student.name}</span>
                       </>
                     ) : (
                       <UserIcon className="w-4 h-4 text-muted-foreground" />
