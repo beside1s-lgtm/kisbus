@@ -302,7 +302,7 @@ export default function TeacherPage() {
             </Card>
         </div>
         <div className="lg:col-span-1 space-y-6">
-            <Card className="sticky top-20">
+            <Card>
             <CardHeader>
                 <CardTitle className="font-headline">탑승 학생 명단</CardTitle>
             </CardHeader>
@@ -334,7 +334,7 @@ export default function TeacherPage() {
             </CardContent>
             </Card>
 
-            <Card className="sticky top-20">
+            <Card>
                 <CardHeader>
                     <CardTitle className="font-headline">학생 정보</CardTitle>
                 </CardHeader>
