@@ -99,8 +99,13 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
 
     const handleDownloadBusTemplate = () => {
         const headers = "번호,타입";
-        const example = "Bus 10,45-seater";
-        const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
+        const examples = [
+            "Bus 10,45-seater",
+            "Bus 11,29-seater",
+            "Bus 12,15-seater",
+            "# 타입은 15-seater, 29-seater, 45-seater 중 하나를 입력해야 합니다."
+        ];
+        const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + examples.join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -117,16 +122,22 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
         Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
+            comments: "#",
             complete: async (results) => {
                 const capacityMap = { '15-seater': 15, '29-seater': 29, '45-seater': 45 };
-                const newBusesData: NewBus[] = results.data.map((row: any) => ({
-                    name: row['번호'] || row['name'],
-                    type: (row['타입'] || row['type']) as '15-seater' | '29-seater' | '45-seater',
-                    capacity: capacityMap[(row['타입'] || row['type']) as '15-seater' | '29-seater' | '45-seater']
-                })).filter(bus => bus.name && bus.type && bus.capacity);
+                const validTypes = Object.keys(capacityMap);
+
+                const newBusesData: NewBus[] = results.data.map((row: any) => {
+                    const type = (row['타입'] || row['type'] || '').trim();
+                    return {
+                        name: (row['번호'] || row['name'] || '').trim(),
+                        type: type as '15-seater' | '29-seater' | '45-seater',
+                        capacity: capacityMap[type as keyof typeof capacityMap]
+                    }
+                }).filter(bus => bus.name && bus.type && validTypes.includes(bus.type));
 
                 if (newBusesData.length === 0) {
-                    toast({ title: "오류", description: "파일에서 유효한 버스 데이터를 찾을 수 없습니다. 헤더가 '번호', '타입'으로 되어있는지 확인하세요.", variant: "destructive" });
+                    toast({ title: "오류", description: "파일에서 유효한 버스 데이터를 찾을 수 없습니다. 헤더가 '번호', '타입'으로 되어있는지, 타입이 15-seater, 29-seater, 45-seater 중 하나인지 확인하세요.", variant: "destructive" });
                     return;
                 }
 
@@ -487,6 +498,7 @@ const StudentManagementTab = ({
 }) => {
     const { toast } = useToast();
     const [newStudentForm, setNewStudentForm] = useState({ name: '', grade: '', class: '', gender: 'Male' as 'Male' | 'Female', destinationId: '' });
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
     const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
@@ -511,9 +523,12 @@ const StudentManagementTab = ({
         // 다른 모든 노선에 배정된 학생 ID 집합
         const assignedInAnyRoute = new Set<string>();
         routes.forEach(r => {
-            r.seating.forEach(s => {
-                if (s.studentId) assignedInAnyRoute.add(s.studentId);
-            });
+            // 현재 보고있는 경로는 제외하고 계산
+            if(r.id !== currentRoute.id) {
+                r.seating.forEach(s => {
+                    if (s.studentId) assignedInAnyRoute.add(s.studentId);
+                });
+            }
         });
 
         return students.filter(s => 
@@ -527,11 +542,10 @@ const StudentManagementTab = ({
 
         const oldRoutes = [...routes];
         const newRoutes = routes.map(route => {
-             // শুধুমাত্র বর্তমান রুটটি আপডেট করুন
             if (route.id === currentRoute.id) {
                 const newSeating = [...route.seating];
                 
-                // Check if student is already in a different seat on this route
+                // 학생이 현재 경로의 다른 좌석에 이미 있는지 확인하고 제거
                 const oldSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
                 if (oldSeatIdx > -1) newSeating[oldSeatIdx].studentId = null;
 
@@ -722,6 +736,48 @@ const StudentManagementTab = ({
         link.click();
         document.body.removeChild(link);
     };
+
+    const handleStudentFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const newStudentsData: NewStudent[] = results.data.map((row: any) => {
+                    const destName = (row['목적지'] || '').trim();
+                    const destination = destinations.find(d => d.name === destName);
+                    return {
+                        name: (row['학생 이름'] || '').trim(),
+                        grade: (row['학년'] || '').trim(),
+                        class: (row['반'] || '').trim(),
+                        gender: (row['성별'] || '').trim() as 'Male' | 'Female',
+                        destinationId: destination?.id || ''
+                    };
+                }).filter(s => s.name && s.grade && s.class && s.gender && s.destinationId);
+
+                if (newStudentsData.length === 0) {
+                    toast({ title: "오류", description: "유효한 학생 데이터를 찾을 수 없거나 목적지가 존재하지 않습니다.", variant: "destructive" });
+                    return;
+                }
+
+                try {
+                    const addedStudents = await Promise.all(newStudentsData.map(s => addStudent(s)));
+                    setStudents(prev => [...prev, ...addedStudents]);
+                    toast({ title: "성공", description: `${addedStudents.length}명의 학생이 등록되었습니다.` });
+                } catch (error) {
+                    toast({ title: "오류", description: "일괄 등록 중 오류 발생", variant: "destructive" });
+                }
+            },
+            error: (err) => {
+                toast({ title: "파일 오류", description: err.message, variant: "destructive" });
+            }
+        });
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
     
      const handleAddStudent = async () => {
         const { name, grade, class: studentClass, gender, destinationId } = newStudentForm;
@@ -825,8 +881,10 @@ const StudentManagementTab = ({
                     </CardHeader>
                     <Separator />
                      <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
-                         <div className="flex justify-end mb-2">
-                             <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 학생 템플릿</Button>
+                         <div className="flex justify-end mb-2 gap-2">
+                             <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
+                             <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록</Button>
+                             <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
                          </div>
                         {unassignedStudents.length > 0 ? unassignedStudents.map(student => (
                             <DraggableStudentCard key={student.id} student={student} />
