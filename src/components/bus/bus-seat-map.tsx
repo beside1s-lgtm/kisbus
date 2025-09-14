@@ -35,24 +35,24 @@ const isAisle = (itemIndex: number, capacity: number): boolean => {
         return col === 2;
     }
     
-    // For 29 and 45 seaters
     const itemCol = itemIndex % 5;
-    if (capacity === 45) {
+    
+    if (capacity === 45 || capacity === 29) {
         const itemRow = Math.floor(itemIndex / 5);
         const numRows = Math.ceil(capacity / 4);
-         // The last row of 5 seats in a 45-seater has no aisle.
+        // The last row of 5 seats has no aisle.
         if (itemRow === numRows - 1) {
             return false;
         }
     }
+    
     // For 29 and 45 seaters, the aisle is the 3rd column (index 2)
     return itemCol === 2;
 };
 
 
 const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | null => {
-    // Driver's seat is always at index 0 for 15-seater
-    if (capacity === 15 && itemIndex === 0) return null;
+    if (capacity === 15 && itemIndex === 0) return null; // Driver's seat handled separately
 
     if (capacity === 15) {
         const row = Math.floor(itemIndex / 4);
@@ -66,7 +66,6 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
             return null;
         }
 
-        // Other rows are 2-aisle-1 or 1-aisle-2, we need to map based on seat numbers
         const prevRowsSeats = 2 + (row - 1) * 3;
         let seatInRow;
         if (col < 2) {
@@ -89,11 +88,16 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
     if (itemCol > 2) seatInRow--;
    
     let seatNumber = seatsInPrevRows + seatInRow;
+    const numRows = Math.ceil(capacity / 4);
 
     if (capacity === 45) {
-        const numRows = Math.ceil(capacity / 4);
         if (itemRow === numRows - 1) { // Last row of 5
             seatNumber = 40 + itemCol + 1;
+        }
+    }
+    if (capacity === 29) {
+        if (itemRow === numRows - 1) { // Last row of 5
+            seatNumber = 24 + itemCol + 1;
         }
     }
 

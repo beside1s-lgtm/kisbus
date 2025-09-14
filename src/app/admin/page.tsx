@@ -443,14 +443,13 @@ const StudentManagementTab = ({
             }
 
             const numRows = Math.ceil(capacity / 4);
-            const hasLastRowOfFive = capacity === 45;
+            const hasLastRowOfFive = capacity === 45 || capacity === 29;
 
             for (let row = 0; row < numRows; row++) {
                 const base = row * 4 + 1;
                 if (base + 1 <= capacity) pairs.push([base, base + 1]);
                 if (base + 2 <= capacity && base + 3 <= capacity) {
-                     // For 45 seater, seat 45 is the 5th seat in the last row, don't pair it.
-                     if(hasLastRowOfFive && base + 3 === 44) {
+                     if(hasLastRowOfFive && base + 3 === (capacity - 1)) {
                          pairs.push([base + 2, base + 3]);
                          break;
                      }
@@ -466,8 +465,8 @@ const StudentManagementTab = ({
                 if (seatNumber === 5 || seatNumber === 8 || seatNumber === 11 || seatNumber === 14) return 'window';
                 return 'aisle';
             }
-            if (capacity === 45 && seatNumber > 40) { // Back row of 5
-                 if(seatNumber === 41 || seatNumber === 45) return 'window';
+            if ((capacity === 45 && seatNumber > 40) || (capacity === 29 && seatNumber > 24)) { // Back row of 5
+                 if(seatNumber === (capacity - 4) || seatNumber === capacity) return 'window';
                  return 'aisle';
             }
             const colInPair = (seatNumber - 1) % 4;
