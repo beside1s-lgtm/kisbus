@@ -34,6 +34,13 @@ export default function StudentPage() {
   }
   const today = format(new Date(), 'yyyy-MM-dd');
 
+  const formatStudentName = (student: Student) => {
+    if (!student) return '';
+    const grade = student.grade.replace(/\D/g, '');
+    const studentClass = student.class.replace(/\D/g, '');
+    return `${grade}${studentClass} ${student.name}`;
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -147,7 +154,7 @@ export default function StudentPage() {
                 </SelectTrigger>
                 <SelectContent>
                     {studentsOnCurrentRoute.length > 0 ? (
-                        studentsOnCurrentRoute.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.grade})</SelectItem>)
+                        studentsOnCurrentRoute.map(s => <SelectItem key={s.id} value={s.id}>{formatStudentName(s)}</SelectItem>)
                     ) : (
                         <SelectItem value="no-student" disabled>학생 없음</SelectItem>
                     )}

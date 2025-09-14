@@ -51,6 +51,13 @@ export default function TeacherPage() {
   }
   const today = format(new Date(), 'yyyy-MM-dd');
 
+  const formatStudentName = (student: Student) => {
+    if (!student) return '';
+    const grade = student.grade.replace(/\D/g, '');
+    const studentClass = student.class.replace(/\D/g, '');
+    return `${grade}${studentClass} ${student.name}`;
+  }
+
   useEffect(() => {
     const fetchData = async () => {
         setLoading(true);
@@ -105,7 +112,11 @@ export default function TeacherPage() {
       const fetchLeaderRecords = async () => {
           try {
               const records = await getGroupLeaderRecords(currentRoute.id);
-              setGroupLeaderRecords(records);
+              const recordsWithName = records.map(r => ({
+                  ...r,
+                  name: formatStudentName(students.find(s => s.id === r.studentId)!)
+              }))
+              setGroupLeaderRecords(recordsWithName);
           } catch(e) {
               console.error("Failed to fetch leader records", e);
               setGroupLeaderRecords([]); // Reset on error
@@ -113,7 +124,7 @@ export default function TeacherPage() {
       };
       fetchLeaderRecords();
     }
-  }, [currentRoute]);
+  }, [currentRoute, students]);
   
   // Save GroupLeaderRecords
   useEffect(() => {
@@ -165,7 +176,7 @@ export default function TeacherPage() {
     } else { // Promote
         newRecords.push({
             studentId,
-            name: student.name,
+            name: formatStudentName(student),
             startDate: dateStr,
             endDate: null,
             days: 1,
@@ -260,7 +271,7 @@ export default function TeacherPage() {
             <Avatar className="w-24 h-24 mb-4 border-4 border-primary/50">
                 <AvatarFallback className="text-4xl">{selectedStudent.name.charAt(0)}</AvatarFallback>
             </Avatar>
-            <h3 className="text-xl font-bold font-headline">{selectedStudent.name}</h3>
+            <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
             <p className="text-sm text-muted-foreground">
                 목적지: {destinations.find(d => d.id === selectedStudent.destinationId)?.name || '해당 없음'}
             </p>
@@ -344,7 +355,7 @@ export default function TeacherPage() {
                                 onClick={() => handleSeatClick(0, student.id)}
                                 className="cursor-pointer"
                             >
-                                <TableCell>{student.name} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
+                                <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                 <TableCell>
                                     <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : 'secondary'}>
                                         {boardedStudentIds.includes(student.id) ? '탑승' : '미탑승'}

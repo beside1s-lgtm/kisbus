@@ -158,6 +158,12 @@ export function BusSeatMap({
   const totalGridItems = bus.capacity === 15 ? (Math.ceil(15/2) * 3) : Math.ceil(bus.capacity / 4) * 5;
   const isLargeBus = bus.capacity === 29 || bus.capacity === 45;
 
+  const formatStudentName = (student: Student) => {
+    const grade = student.grade.replace(/\D/g, '');
+    const studentClass = student.class.replace(/\D/g, '');
+    return `${grade}${studentClass} ${student.name}`;
+  }
+
   return (
     <TooltipProvider>
       <div className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
@@ -252,7 +258,7 @@ export function BusSeatMap({
                         {isAbsent && (
                            <XCircle className="absolute w-3 h-3 text-destructive" />
                         )}
-                        <span className="text-sm font-medium text-center break-words leading-tight">{student.name}</span>
+                        <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
                       </>
                     ) : (
                       <div className="flex flex-col items-center">
@@ -264,7 +270,7 @@ export function BusSeatMap({
                 </TooltipTrigger>
                 {student && (
                   <TooltipContent>
-                    <p>이름: {student.name}</p>
+                    <p>이름: {formatStudentName(student)}</p>
                     <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
                   </TooltipContent>
                 )}

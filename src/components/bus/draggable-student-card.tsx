@@ -1,3 +1,4 @@
+
 'use client';
 import React from 'react';
 import { Student, Destination } from '@/lib/types';
@@ -24,6 +25,12 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ stud
   };
 
   const studentDestinationName = destinations.find(d => d.id === student.destinationId)?.name || '미지정';
+  
+  const formatStudentName = (student: Student) => {
+    const grade = student.grade.replace(/\D/g, '');
+    const studentClass = student.class.replace(/\D/g, '');
+    return `${grade}${studentClass} ${student.name}`;
+  }
 
   return (
     <Card
@@ -35,7 +42,7 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ stud
       )}
     >
       <GripVertical className="h-5 w-5 text-muted-foreground" />
-      <span className="text-sm font-medium flex-1">{student.name}</span>
+      <span className="text-sm font-medium flex-1">{formatStudentName(student)}</span>
       <Select 
         value={student.destinationId || ''} 
         onValueChange={(newDestId) => onDestinationChange(student.id, newDestId)}
