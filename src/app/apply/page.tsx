@@ -1,8 +1,8 @@
 
 'use client';
 import React, { useState, useEffect } from 'react';
-import { getDestinations, getStudents } from '@/lib/mock-data';
-import { Destination, Student } from '@/lib/types';
+import { getDestinations, addStudent, addSuggestedDestination } from '@/lib/firebase-data';
+import { Destination, Student, NewStudent } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,74 +15,64 @@ import { MainLayout } from '@/components/layout/main-layout';
 
 export default function ApplyPage() {
     const [destinations, setDestinations] = useState<Destination[]>([]);
-    const [students, setStudents] = useState<Student[]>([]);
     const [newDestinationName, setNewDestinationName] = useState('');
     const { toast } = useToast();
 
     useEffect(() => {
         const fetchData = async () => {
-            const [destinationsData, studentsData] = await Promise.all([
-                getDestinations(),
-                getStudents(),
-            ]);
+            const destinationsData = await getDestinations();
             setDestinations(destinationsData);
-            setStudents(studentsData);
         };
         fetchData();
     }, []);
 
-    const handleApplicationSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleApplicationSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
-        const newStudent: Student = {
-            id: `student${students.length + 1}`,
+        const newStudentData: NewStudent = {
             name: formData.get('name') as string,
             grade: formData.get('grade') as string,
             class: formData.get('class') as string,
             gender: formData.get('gender') as 'Male' | 'Female',
             destinationId: formData.get('destination') as string,
-            isGroupLeader: false,
-            daysAsGroupLeader: 0,
         };
 
-        // In a real application, you would send this to a server.
-        // For now, we'll just add it to the local state to simulate.
-        setStudents(prev => [...prev, newStudent]);
-        
-        toast({
-          title: "신청 완료!",
-          description: `${newStudent.name} 학생의 탑승 신청이 완료되었습니다. 관리자 확인 후 배정됩니다.`,
-        });
-        
-        (event.target as HTMLFormElement).reset();
+        if (!newStudentData.name || !newStudentData.grade || !newStudentData.class || !newStudentData.gender || !newStudentData.destinationId) {
+            toast({ title: "오류", description: "모든 필드를 입력해주세요.", variant: 'destructive' });
+            return;
+        }
+
+        try {
+            await addStudent(newStudentData);
+            toast({
+              title: "신청 완료!",
+              description: `${newStudentData.name} 학생의 탑승 신청이 완료되었습니다. 관리자 확인 후 배정됩니다.`,
+            });
+            (event.target as HTMLFormElement).reset();
+        } catch (error) {
+            console.error("Error submitting application:", error);
+            toast({ title: "오류", description: "신청 제출에 실패했습니다.", variant: 'destructive' });
+        }
     };
 
-    const handleSuggestionSubmit = () => {
+    const handleSuggestionSubmit = async () => {
         if (!newDestinationName.trim()) {
             toast({ title: "오류", description: "목적지 이름을 입력해주세요.", variant: "destructive" });
             return;
         }
-
-        const newSuggestion: Destination = {
-            id: `sugg_${Date.now()}`,
-            name: newDestinationName.trim(),
-        };
-
-        // In a real app, this would be sent to a database.
-        // We'll simulate by storing it in session storage to be picked up by the admin page.
-        if(typeof window !== "undefined") {
-            const currentSuggestions = JSON.parse(window.sessionStorage.getItem('suggestedDestinations') || '[]');
-            window.sessionStorage.setItem('suggestedDestinations', JSON.stringify([...currentSuggestions, newSuggestion]));
+        
+        try {
+            await addSuggestedDestination({ name: newDestinationName.trim() });
+            toast({
+              title: "제안 완료!",
+              description: `'${newDestinationName.trim()}' 목적지 제안이 관리자에게 전달되었습니다.`,
+            });
+            setNewDestinationName('');
+            document.getElementById('suggest-dest-dialog-close')?.click();
+        } catch (error) {
+            console.error("Error submitting suggestion:", error);
+            toast({ title: "오류", description: "목적지 제안에 실패했습니다.", variant: "destructive" });
         }
-
-        toast({
-          title: "제안 완료!",
-          description: `'${newSuggestion.name}' 목적지 제안이 관리자에게 전달되었습니다.`,
-        });
-        setNewDestinationName('');
-        // This closes the dialog, but we need to find the trigger and click it.
-        // A better approach would be to manage dialog's open state.
-        document.getElementById('suggest-dest-dialog-close')?.click();
     }
 
     return (

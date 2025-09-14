@@ -1,8 +1,8 @@
 
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
-import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/mock-data';
-import { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord } from '@/lib/types';
+import { getBuses, getStudents, getRoutes, getDestinations, getGroupLeaderRecords, saveGroupLeaderRecords } from '@/lib/firebase-data';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,9 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {format, differenceInDays} from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 const getBoardingStorageKey = (routeId: string) => `boarding_status_${routeId}`;
-const getLeaderStorageKey = (routeId: string) => `group_leader_records_${routeId}`;
 
 export default function TeacherPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -34,6 +34,8 @@ export default function TeacherPage() {
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   const dayLabels: { [key in DayOfWeek]: string } = {
@@ -46,19 +48,27 @@ export default function TeacherPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [busesData, studentsData, routesData, destinationsData] = await Promise.all([
-        getBuses(),
-        getStudents(),
-        getRoutes(),
-        getDestinations(),
-      ]);
-      setBuses(busesData);
-      setStudents(studentsData);
-      setRoutes(routesData);
-      setDestinations(destinationsData);
-      if (busesData.length > 0) {
-        setSelectedBusId(busesData[0].id);
-      }
+        setLoading(true);
+        try {
+            const [busesData, studentsData, routesData, destinationsData] = await Promise.all([
+                getBuses(),
+                getStudents(),
+                getRoutes(),
+                getDestinations(),
+            ]);
+            setBuses(busesData);
+            setStudents(studentsData);
+            setRoutes(routesData);
+            setDestinations(destinationsData);
+            if (busesData.length > 0 && !selectedBusId) {
+                setSelectedBusId(busesData[0].id);
+            }
+        } catch (error) {
+            console.error("Failed to fetch data", error);
+            toast({ title: "오류", description: "데이터 로딩 실패", variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
     };
     fetchData();
   }, []);
@@ -73,24 +83,25 @@ export default function TeacherPage() {
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
-  // Load and save boarding status and leader records from/to sessionStorage
+  // Load and save data from/to sessionStorage or Firestore
   useEffect(() => {
     if (currentRoute) {
+      // Boarding status from session storage (ephemeral)
       const boardingKey = getBoardingStorageKey(currentRoute.id);
       const savedBoardingStatus = window.sessionStorage.getItem(boardingKey);
-      if (savedBoardingStatus) {
-        setBoardedStudentIds(JSON.parse(savedBoardingStatus));
-      } else {
-        setBoardedStudentIds([]); // Reset for new route
-      }
+      setBoardedStudentIds(savedBoardingStatus ? JSON.parse(savedBoardingStatus) : []);
       
-      const leaderKey = getLeaderStorageKey(currentRoute.id);
-      const savedLeaderRecords = window.sessionStorage.getItem(leaderKey);
-      if (savedLeaderRecords) {
-        setGroupLeaderRecords(JSON.parse(savedLeaderRecords));
-      } else {
-        setGroupLeaderRecords([]); // Reset for new route
-      }
+      // Group leader records from Firestore
+      const fetchLeaderRecords = async () => {
+          try {
+              const records = await getGroupLeaderRecords(currentRoute.id);
+              setGroupLeaderRecords(records);
+          } catch(e) {
+              console.error("Failed to fetch leader records", e);
+              setGroupLeaderRecords([]); // Reset on error
+          }
+      };
+      fetchLeaderRecords();
     }
   }, [currentRoute]);
 
@@ -102,9 +113,8 @@ export default function TeacherPage() {
   }, [boardedStudentIds, currentRoute]);
 
   useEffect(() => {
-    if (currentRoute) {
-      const leaderKey = getLeaderStorageKey(currentRoute.id);
-      window.sessionStorage.setItem(leaderKey, JSON.stringify(groupLeaderRecords));
+    if (currentRoute && groupLeaderRecords.length) {
+      saveGroupLeaderRecords(currentRoute.id, groupLeaderRecords).catch(e => console.error("Failed to save leader records", e));
     }
   }, [groupLeaderRecords, currentRoute]);
 
@@ -112,16 +122,12 @@ export default function TeacherPage() {
       if (!currentRoute) return [];
       const studentIdsOnRoute = new Set<string>();
       currentRoute.seating.forEach(seat => {
-          if(seat.studentId) {
-              studentIdsOnRoute.add(seat.studentId);
-          }
+          if(seat.studentId) studentIdsOnRoute.add(seat.studentId);
       });
       
-      const uniqueStudentIds = Array.from(studentIdsOnRoute);
-
-      return uniqueStudentIds
+      return Array.from(studentIdsOnRoute)
           .map(id => students.find(s => s.id === id))
-          .filter((s): s is Student => s !== undefined)
+          .filter((s): s is Student => !!s)
           .sort((a,b) => a.name.localeCompare(b.name));
   }, [currentRoute, students]);
 
@@ -132,56 +138,48 @@ export default function TeacherPage() {
   };
   
   const toggleGroupLeader = (student: Student) => {
+    if(!currentRoute) return;
     const today = format(new Date(), 'yyyy-MM-dd');
     const studentId = student.id;
 
-    setGroupLeaderRecords(prevRecords => {
-      const newRecords = [...prevRecords];
-      const existingRecordIndex = newRecords.findIndex(
-        r => r.studentId === studentId && r.endDate === null
-      );
+    const newRecords = [...groupLeaderRecords];
+    const existingRecordIndex = newRecords.findIndex(r => r.studentId === studentId && r.endDate === null);
 
-      if (existingRecordIndex > -1) { // Demote: Student is an active leader
+    if (existingRecordIndex > -1) { // Demote
         const record = newRecords[existingRecordIndex];
         record.endDate = today;
         record.days = differenceInDays(new Date(today), new Date(record.startDate)) + 1;
-        
-        setStudents(prevStudents => prevStudents.map(s => 
-          s.id === studentId ? { ...s, isGroupLeader: false } : s
-        ));
-        setSelectedStudent(prev => prev && prev.id === studentId ? {...prev, isGroupLeader: false} : prev);
+    } else { // Promote
+        newRecords.push({
+            studentId,
+            name: student.name,
+            startDate: today,
+            endDate: null,
+            days: 1,
+        });
+    }
 
-      } else { // Promote: Student is not an active leader
-        const newRecord: GroupLeaderRecord = {
-          studentId: studentId,
-          name: student.name,
-          startDate: today,
-          endDate: null,
-          days: 1,
-        };
-        newRecords.push(newRecord);
-        
-        setStudents(prevStudents => prevStudents.map(s => 
-          s.id === studentId ? { ...s, isGroupLeader: true } : s
-        ));
-         setSelectedStudent(prev => prev && prev.id === studentId ? {...prev, isGroupLeader: true} : prev);
-      }
-      return newRecords;
-    });
+    setGroupLeaderRecords(newRecords); // This will trigger the save effect
+    
+    // Update local student state for immediate UI feedback
+    const isNowLeader = newRecords.some(r => r.studentId === studentId && r.endDate === null);
+    setStudents(prevStudents => prevStudents.map(s => 
+      s.id === studentId ? { ...s, isGroupLeader: isNowLeader } : s
+    ));
+    setSelectedStudent(prev => prev && prev.id === studentId ? {...prev, isGroupLeader: isNowLeader} : prev);
   };
 
   
   const handleSeatClick = (seatNumber: number, studentId: string | null) => {
     if (studentId) {
       const student = students.find(s => s.id === studentId);
-      const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
       if(student) {
-          setSelectedStudent({...student, isGroupLeader: isActiveLeader});
+        const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+        setSelectedStudent({...student, isGroupLeader: isActiveLeader});
       } else {
-          setSelectedStudent(null);
+        setSelectedStudent(null);
       }
       
-      // Toggle boarding status
       setBoardedStudentIds(prev => 
           prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
       );
@@ -194,7 +192,7 @@ export default function TeacherPage() {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
         <label className="text-sm font-medium">버스</label>
-        <Select value={selectedBusId} onValueChange={setSelectedBusId}>
+        <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
             <SelectTrigger>
             <SelectValue placeholder="버스를 선택하세요" />
             </SelectTrigger>
@@ -209,7 +207,7 @@ export default function TeacherPage() {
         </div>
         <div>
         <label className="text-sm font-medium">요일</label>
-        <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
+        <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
             <SelectTrigger>
             <SelectValue placeholder="요일을 선택하세요" />
             </SelectTrigger>
@@ -226,8 +224,8 @@ export default function TeacherPage() {
         <label className="text-sm font-medium">경로</label>
         <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="Morning">등교</TabsTrigger>
-            <TabsTrigger value="Afternoon">하교</TabsTrigger>
+            <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
+            <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
             </TabsList>
         </Tabs>
         </div>
@@ -274,6 +272,9 @@ export default function TeacherPage() {
 
   return (
     <MainLayout headerContent={headerContent}>
+      {loading ? (
+        <div className="flex justify-center items-center h-64"><p>데이터를 불러오는 중입니다...</p></div>
+      ) : (
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
             <Card>
@@ -345,6 +346,7 @@ export default function TeacherPage() {
              <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
+      )}
     </MainLayout>
   );
 }

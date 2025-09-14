@@ -1,8 +1,14 @@
 
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/mock-data';
-import { Bus, Student, Route, Destination, DayOfWeek, RouteType } from '@/lib/types';
+import { 
+    getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations,
+    addBus, deleteBus, updateBus,
+    addStudent,
+    addDestination, deleteDestination, approveSuggestedDestination,
+    addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating
+} from '@/lib/firebase-data';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -18,6 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { MainLayout } from '@/components/layout/main-layout';
+import { useToast } from '@/hooks/use-toast';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -27,7 +34,57 @@ const generateInitialSeating = (capacity: number): { seatNumber: number; student
 };
 
 const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
+    const [newBusName, setNewBusName] = useState('');
+    const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
+    const { toast } = useToast();
+    const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
+
+    const handleAddBus = async () => {
+        if (!newBusName || !newBusType) {
+            toast({ title: "오류", description: "버스 이름과 타입을 모두 입력해주세요.", variant: 'destructive' });
+            return;
+        }
+
+        const capacityMap = { '15-seater': 15, '29-seater': 29, '45-seater': 45 };
+        const newBusData: NewBus = { name: newBusName, type: newBusType, capacity: capacityMap[newBusType] };
+
+        try {
+            const newBus = await addBus(newBusData);
+            
+            // Create routes for the new bus
+            for (const day of days) {
+                for (const type of routeTypes) {
+                    await addRoute({
+                        busId: newBus.id,
+                        dayOfWeek: day,
+                        type: type,
+                        stops: [],
+                        seating: generateInitialSeating(newBus.capacity),
+                    });
+                }
+            }
+            setBuses(prev => [...prev, newBus]);
+            toast({ title: "성공", description: "버스가 추가되었습니다." });
+        } catch (error) {
+            console.error("Error adding bus:", error);
+            toast({ title: "오류", description: "버스 추가에 실패했습니다.", variant: 'destructive' });
+        }
+    };
     
+    const handleDeleteBus = async (busId: string) => {
+        if (confirm("정말로 이 버스와 관련된 모든 노선 정보를 삭제하시겠습니까?")) {
+             try {
+                await deleteBus(busId);
+                setBuses(prev => prev.filter(b => b.id !== busId));
+                toast({ title: "성공", description: "버스가 삭제되었습니다."});
+            } catch (error) {
+                console.error("Error deleting bus:", error);
+                toast({ title: "오류", description: "버스 삭제에 실패했습니다.", variant: 'destructive' });
+            }
+        }
+    }
+
     const handleDownloadBusTemplate = () => {
         const headers = "번호,타입";
         const example = "Bus 10,45-seater";
@@ -58,11 +115,11 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                             <div className="grid gap-4 py-4">
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="bus-name" className="text-right">버스 번호</Label>
-                                    <Input id="bus-name" placeholder="예: Bus 04" className="col-span-3" />
+                                    <Input id="bus-name" placeholder="예: Bus 04" className="col-span-3" value={newBusName} onChange={e => setNewBusName(e.target.value)} />
                                 </div>
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="bus-type" className="text-right">타입</Label>
-                                     <Select>
+                                     <Select onValueChange={(v) => setNewBusType(v as any)} value={newBusType}>
                                         <SelectTrigger className="col-span-3">
                                             <SelectValue placeholder="타입 선택" />
                                         </SelectTrigger>
@@ -74,22 +131,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                                     </Select>
                                 </div>
                             </div>
-                            <Button>추가</Button>
-                        </DialogContent>
-                    </Dialog>
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button><Upload className="mr-2" /> CSV 일괄 등록</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader><DialogTitle>버스 CSV 일괄 등록</DialogTitle></DialogHeader>
-                            <div className="p-4 text-center">
-                                <p className="mb-2">버스 대량 등록을 위해 CSV 파일을 선택하세요.</p>
-                                <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
-                                <Button variant="link" onClick={handleDownloadBusTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
-                                <Input type="file" accept=".csv" className="mt-2" />
-                                <Button className="mt-4">업로드</Button>
-                            </div>
+                            <Button onClick={handleAddBus}>추가</Button>
                         </DialogContent>
                     </Dialog>
                 </div>
@@ -107,7 +149,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                                 <TableCell>{bus.name}</TableCell>
                                 <TableCell>{bus.type}</TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon">
+                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteBus(bus.id)}>
                                         <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
                                 </TableCell>
@@ -123,7 +165,6 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
 const BusConfigurationTab = ({
   buses,
   routes,
-  setRoutes,
   destinations,
   setDestinations,
   suggestedDestinations,
@@ -131,11 +172,10 @@ const BusConfigurationTab = ({
   selectedDay,
   selectedRouteType,
   selectedBusId,
-  setSelectedBusId
+  setSelectedBusId,
 }: {
   buses: Bus[];
   routes: Route[];
-  setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
   setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   suggestedDestinations: Destination[],
@@ -145,6 +185,9 @@ const BusConfigurationTab = ({
   selectedBusId: string | null;
   setSelectedBusId: (id: string) => void;
 }) => {
+  const [newDestinationName, setNewDestinationName] = useState('');
+  const { toast } = useToast();
+  
   const selectedBus = useMemo(() => {
     if (!selectedBusId) return null;
     return buses.find(b => b.id === selectedBusId);
@@ -163,6 +206,30 @@ const BusConfigurationTab = ({
     return currentRoute.stops.map(stopId => destinations.find(d => d.id === stopId)!).filter(Boolean);
   };
   
+   const handleAddDestination = async () => {
+        if (!newDestinationName.trim()) return;
+        try {
+            const newDest = await addDestination({ name: newDestinationName });
+            setDestinations(prev => [...prev, newDest]);
+            setNewDestinationName('');
+            toast({ title: "성공", description: "목적지가 추가되었습니다." });
+        } catch (error) {
+            toast({ title: "오류", description: "목적지 추가 실패", variant: 'destructive' });
+        }
+    };
+    
+    const handleDeleteDestination = async (id: string) => {
+         if (confirm("정말로 이 목적지를 삭제하시겠습니까?")) {
+            try {
+                await deleteDestination(id);
+                setDestinations(prev => prev.filter(d => d.id !== id));
+                toast({ title: "성공", description: "목적지가 삭제되었습니다." });
+            } catch (error) {
+                toast({ title: "오류", description: "목적지 삭제 실패", variant: 'destructive' });
+            }
+         }
+    };
+  
   const handleDownloadDestinationTemplate = () => {
     const headers = "목적지 이름";
     const example = "강남역";
@@ -176,9 +243,16 @@ const BusConfigurationTab = ({
     document.body.removeChild(link);
   };
   
-  const approveSuggestedDestination = (suggestion: Destination) => {
-    setDestinations(prev => [...prev, suggestion]);
-    setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
+  const handleApproveSuggestion = async (suggestion: Destination) => {
+    try {
+        await approveSuggestedDestination(suggestion);
+        setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
+        const newDests = await getDestinations(); // Re-fetch all destinations
+        setDestinations(newDests);
+        toast({ title: "성공", description: "제안된 목적지가 승인되었습니다."});
+    } catch (error) {
+        toast({ title: "오류", description: "승인 처리 중 오류 발생", variant: 'destructive'});
+    }
   };
   
   return (
@@ -250,7 +324,7 @@ const BusConfigurationTab = ({
                   <Badge 
                     key={suggestion.id}
                     variant="outline" 
-                    onClick={() => approveSuggestedDestination(suggestion)}
+                    onClick={() => handleApproveSuggestion(suggestion)}
                     className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
                   >
                     {suggestion.name}
@@ -274,21 +348,8 @@ const BusConfigurationTab = ({
                     <DialogTrigger asChild><Button variant="outline"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
                     <DialogContent>
                         <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
-                        <Input placeholder="예: 강남역" />
-                        <Button className="mt-2">추가</Button>
-                    </DialogContent>
-                </Dialog>
-                <Dialog>
-                    <DialogTrigger asChild><Button><Upload className="mr-2" /> CSV 일괄 등록</Button></DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader><DialogTitle>목적지 CSV 일괄 등록</DialogTitle></DialogHeader>
-                        <div className="p-4 text-center">
-                            <p className="mb-2">목적지 대량 등록을 위해 CSV 파일을 선택하세요.</p>
-                            <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
-                            <Button variant="link" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
-                            <Input type="file" accept=".csv" className="mt-2" />
-                            <Button className="mt-4">업로드</Button>
-                        </div>
+                        <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
+                        <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
                     </DialogContent>
                 </Dialog>
             </div>
@@ -296,7 +357,7 @@ const BusConfigurationTab = ({
                 {destinations.map(dest => (
                     <Badge key={dest.id} variant="outline" className="flex justify-between items-center max-w-fit">
                         <span>{dest.name}</span>
-                        <Button variant="ghost" size="icon" className="h-5 w-5 ml-1">
+                        <Button variant="ghost" size="icon" className="h-5 w-5 ml-1" onClick={() => handleDeleteDestination(dest.id)}>
                             <Trash2 className="w-3 h-3 text-destructive" />
                         </Button>
                     </Badge>
@@ -312,6 +373,7 @@ const BusConfigurationTab = ({
 const StudentManagementTab = ({
     buses,
     students,
+    setStudents,
     routes,
     setRoutes,
     destinations,
@@ -322,6 +384,7 @@ const StudentManagementTab = ({
 }:{
     buses: Bus[],
     students: Student[],
+    setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
     routes: Route[],
     setRoutes: React.Dispatch<React.SetStateAction<Route[]>>,
     destinations: Destination[],
@@ -330,6 +393,9 @@ const StudentManagementTab = ({
     selectedRouteType: RouteType;
     days: DayOfWeek[];
 }) => {
+    const { toast } = useToast();
+    const [newStudentForm, setNewStudentForm] = useState({ name: '', grade: '', class: '', gender: 'Male' as 'Male' | 'Female', destinationId: '' });
+
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
     const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
 
@@ -342,96 +408,94 @@ const StudentManagementTab = ({
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
     const unassignedStudents = useMemo(() => {
-        const assignedStudentIdsOnThisBus = new Set<string>();
+        const allAssignedIds = new Set<string>();
         routes.forEach(r => {
-             if (r.busId === selectedBusId) {
-                r.seating.forEach(s => {
-                    if (s.studentId) assignedStudentIdsOnThisBus.add(s.studentId);
-                });
-             }
-         });
+            r.seating.forEach(s => {
+                if (s.studentId) allAssignedIds.add(s.studentId);
+            });
+        });
+        return students.filter(s => !allAssignedIds.has(s.id));
+    }, [students, routes]);
 
-        return students.filter(
-            s => !assignedStudentIdsOnThisBus.has(s.id)
-        );
-    }, [students, routes, selectedBusId]);
-
-    const handleSeatDrop = useCallback((seatNumber: number, studentId: string) => {
+    const handleSeatDrop = useCallback(async (seatNumber: number, studentId: string) => {
         if (!currentRoute) return;
 
-        setRoutes(prevRoutes => {
-            const newRoutes = [...prevRoutes];
-            const currentRouteIndex = newRoutes.findIndex(r => r.id === currentRoute.id);
-            if (currentRouteIndex === -1) return prevRoutes;
+        // Optimistic UI Update
+        const oldRoutes = [...routes];
+        const newRoutes = routes.map(route => {
+            if (route.id === currentRoute.id) {
+                const newSeating = [...route.seating];
+                const oldSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
+                if (oldSeatIdx > -1) newSeating[oldSeatIdx].studentId = null;
 
-            const newCurrentRoute = { ...newRoutes[currentRouteIndex] };
-            const newSeating = [...newCurrentRoute.seating];
+                const targetSeatIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
+                if (targetSeatIdx > -1) newSeating[targetSeatIdx].studentId = studentId;
 
-            // Un-assign from any old seat on this specific route
-            const oldSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
-            if (oldSeatIndex > -1) {
-                newSeating[oldSeatIndex].studentId = null;
+                return { ...route, seating: newSeating };
             }
+            return route;
+        });
+        setRoutes(newRoutes);
 
-            // If another student is in the target seat, unassign them (from this route only)
-            const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
-            if (targetSeatIndex > -1) {
-                const occupantId = newSeating[targetSeatIndex].studentId;
-                if(occupantId && occupantId !== studentId) {
-                   // This student is now unassigned from this route, will appear in unassigned list if not on other routes.
+        // DB Update
+        try {
+            const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id)!;
+            await updateRouteSeating(currentRoute.id, routeToUpdate.seating);
+        } catch (error) {
+            setRoutes(oldRoutes); // Revert on error
+            toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
+        }
+    }, [currentRoute, routes, setRoutes, toast]);
+
+    const unassignStudent = useCallback(async (seatNumber: number) => {
+        if (!currentRoute) return;
+
+        const oldRoutes = [...routes];
+        const newRoutes = routes.map(route => {
+            if (route.id === currentRoute.id) {
+                const newSeating = [...route.seating];
+                const seatToEmptyIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+                if (seatToEmptyIndex !== -1) {
+                    newSeating[seatToEmptyIndex].studentId = null;
                 }
-                newSeating[targetSeatIndex].studentId = studentId;
+                return { ...route, seating: newSeating };
             }
-
-            newCurrentRoute.seating = newSeating;
-            newRoutes[currentRouteIndex] = newCurrentRoute;
-
-            return newRoutes;
+            return route;
         });
-    }, [currentRoute, setRoutes]);
+        setRoutes(newRoutes);
+        
+        try {
+             const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id)!;
+             await updateRouteSeating(currentRoute.id, routeToUpdate.seating);
+        } catch(e) {
+            setRoutes(oldRoutes);
+            toast({ title: "오류", description: "좌석 배정 해제 실패", variant: 'destructive'});
+        }
+    }, [currentRoute, routes, setRoutes, toast]);
 
-    const unassignStudent = useCallback((seatNumber: number) => {
-        if (!currentRoute) return;
-
-        setRoutes(prevRoutes => {
-            const newRoutes = [...prevRoutes];
-            const routeIndex = newRoutes.findIndex(r => r.id === currentRoute.id);
-            if (routeIndex === -1) return newRoutes;
-    
-            const newRoute = { ...newRoutes[routeIndex] };
-            const newSeating = [...newRoute.seating];
-            const seatToEmptyIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
-
-            if (seatToEmptyIndex !== -1) {
-                newSeating[seatToEmptyIndex].studentId = null;
-            }
-    
-            newRoute.seating = newSeating;
-            newRoutes[routeIndex] = newRoute;
-            return newRoutes;
-        });
-    }, [currentRoute, setRoutes]);
-
-
-    const randomizeSeating = useCallback(() => {
+    const randomizeSeating = useCallback(async () => {
         if (!selectedBus) return;
+        
+        const oldRoutes = [...routes];
 
-        const studentsOnThisBusStops = students.filter(s => {
-            const routeForThisBus = routes.find(r => r.busId === selectedBus.id);
-            return routeForThisBus?.stops.includes(s.destinationId);
-        });
+        // 1. Get all students on this bus's stops
+        const routesForThisBus = routes.filter(r => r.busId === selectedBus.id);
+        const uniqueStopIds = new Set<string>();
+        routesForThisBus.forEach(r => r.stops.forEach(s => uniqueStopIds.add(s)));
 
-        const gradeToValue = (grade: string): number => {
+        const studentsOnThisBusStops = students.filter(s => uniqueStopIds.has(s.destinationId));
+        
+        // Sorting logic
+        const gradeToValue = (grade: string) => {
             if (grade.toLowerCase().startsWith('k')) return 0;
             const num = parseInt(grade.replace(/\D/g, ''));
-            if (isNaN(num)) return 99; // For middle/high school, place at end
-            return num;
+            return isNaN(num) ? 99 : num;
         };
-
         const sortedStudents = [...studentsOnThisBusStops].sort((a, b) => gradeToValue(a.grade) - gradeToValue(b.grade));
 
-        const getSeatPairs = (capacity: number): [number, number][] => {
-            const pairs: [number, number][] = [];
+        // Seat pairing logic
+        const getSeatPairs = (capacity: number) => {
+             const pairs: [number, number][] = [];
              if (capacity === 15) {
                 pairs.push([1, 2]);
                 for (let i = 3; i < 15; i += 3) {
@@ -448,7 +512,7 @@ const StudentManagementTab = ({
                 if (base + 1 <= capacity) pairs.push([base, base + 1]);
                 if (base + 2 <= capacity && base + 3 <= capacity) {
                      if(hasLastRowOfFive && row === numRows -1) {
-                         // Don't create pairs for the last row of 5
+                        // No pairs for last row of 5
                      } else {
                          pairs.push([base + 2, base + 3]);
                      }
@@ -456,101 +520,88 @@ const StudentManagementTab = ({
             }
             return pairs;
         };
-        
-        const getSeatType = (seatNumber: number, capacity: number): 'window' | 'aisle' => {
-            if (capacity === 15) {
-                if (seatNumber === 1 || seatNumber === 3 || seatNumber === 6 || seatNumber === 9 || seatNumber === 12) return 'window';
-                if (seatNumber === 5 || seatNumber === 8 || seatNumber === 11 || seatNumber === 14) return 'window';
+        const getSeatType = (seatNumber: number, capacity: number) => {
+             if (capacity === 15) {
+                if ([1, 3, 6, 9, 12, 5, 8, 11, 14].includes(seatNumber)) return 'window';
                 return 'aisle';
             }
-            if ((capacity === 45 && seatNumber > 40) || (capacity === 29 && seatNumber > 24)) { // Back row of 5
+            if ((capacity === 45 && seatNumber > 40) || (capacity === 29 && seatNumber > 24)) {
                  if(seatNumber === (capacity - 4) || seatNumber === capacity) return 'window';
                  return 'aisle';
             }
             const colInPair = (seatNumber - 1) % 4;
             return colInPair === 0 || colInPair === 3 ? 'window' : 'aisle';
         };
-
+        
+        // Main logic
         let males = sortedStudents.filter(s => s.gender === 'Male');
         let females = sortedStudents.filter(s => s.gender === 'Female');
-
         const newSeatingPlan = generateInitialSeating(selectedBus.capacity);
         const occupiedSeats = new Set<number>();
         const seatPairs = getSeatPairs(selectedBus.capacity);
-        
-        // This is a temporary seating plan for one route, to be copied to all.
-        // We'll use the morning route stops for pairing logic.
-        const referenceRoute = routes.find(r => r.busId === selectedBus.id && r.dayOfWeek === 'Monday' && r.type === 'Morning');
+        const referenceRoute = routesForThisBus.find(r => r.dayOfWeek === 'Monday' && r.type === 'Morning');
         const routeStopOrder = referenceRoute ? referenceRoute.stops : [];
-
-        // Try to form boy-girl pairs
+        
+        // Boy-girl pairing
         while (males.length > 0 && females.length > 0) {
             const male = males.shift()!;
             const female = females.shift()!;
-            
             let placed = false;
             for (const pair of seatPairs) {
                 if (!occupiedSeats.has(pair[0]) && !occupiedSeats.has(pair[1])) {
                     const [seat1, seat2] = pair;
-                    
                     const maleStopIndex = routeStopOrder.indexOf(male.destinationId);
                     const femaleStopIndex = routeStopOrder.indexOf(female.destinationId);
 
-                    let studentA, studentB, seatA, seatB;
-                    // Student getting off later gets window (for morning route)
-                    if(maleStopIndex > femaleStopIndex) {
-                        studentA = male; studentB = female;
-                    } else {
-                        studentA = female; studentB = male;
-                    }
+                    let studentA = (maleStopIndex > femaleStopIndex) ? male : female;
+                    let studentB = (maleStopIndex > femaleStopIndex) ? female : male;
 
-                    if (getSeatType(seat1, selectedBus.capacity) === 'window') {
-                        seatA = seat1; seatB = seat2;
-                    } else {
-                        seatA = seat2; seatB = seat1;
-                    }
-                    
+                    let seatA = getSeatType(seat1, selectedBus.capacity) === 'window' ? seat1 : seat2;
+                    let seatB = getSeatType(seat1, selectedBus.capacity) === 'window' ? seat2 : seat1;
+
                     const seatAIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatA);
                     const seatBIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatB);
                     if (seatAIndex !== -1) newSeatingPlan[seatAIndex].studentId = studentA.id;
                     if (seatBIndex !== -1) newSeatingPlan[seatBIndex].studentId = studentB.id;
-
                     occupiedSeats.add(seat1);
                     occupiedSeats.add(seat2);
                     placed = true;
                     break;
                 }
             }
-            if(!placed) {
-                males.unshift(male);
-                females.unshift(female);
-                break;
-            }
+            if(!placed) { males.unshift(male); females.unshift(female); break; }
         }
-        
+
+        // Fill remaining
         const remainingStudents = [...males, ...females].sort((a,b) => gradeToValue(a.grade) - gradeToValue(b.grade));
         const emptySeats = newSeatingPlan.filter(s => !s.studentId).map(s => s.seatNumber);
-
         for (const student of remainingStudents) {
             if (emptySeats.length > 0) {
                 const seatNumber = emptySeats.shift()!;
                 const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNumber);
-                if (seatIndex !== -1) {
-                    newSeatingPlan[seatIndex].studentId = student.id;
-                }
+                if (seatIndex !== -1) newSeatingPlan[seatIndex].studentId = student.id;
             }
         }
-
-        setRoutes(prevRoutes => {
-            return prevRoutes.map(route => {
-                if (route.busId === selectedBus.id) {
-                    return { ...route, seating: newSeatingPlan };
-                }
-                return route;
-            });
+        
+        // Optimistic UI update
+        const newRoutes = routes.map(route => {
+            if (route.busId === selectedBus.id) {
+                return { ...route, seating: newSeatingPlan };
+            }
+            return route;
         });
+        setRoutes(newRoutes);
 
-    }, [selectedBus, students, setRoutes, routes, days, routeTypes]);
+        // DB update
+        try {
+            await updateAllBusRoutesSeating(selectedBus.id, newSeatingPlan);
+            toast({ title: "성공", description: "랜덤 배정이 완료되었습니다."});
+        } catch (error) {
+            setRoutes(oldRoutes); // Revert
+            toast({ title: "오류", description: "랜덤 배정 실패", variant: 'destructive'});
+        }
+
+    }, [selectedBus, students, setRoutes, routes, toast]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,목적지";
@@ -565,6 +616,23 @@ const StudentManagementTab = ({
         document.body.removeChild(link);
     };
     
+     const handleAddStudent = async () => {
+        const { name, grade, class: studentClass, gender, destinationId } = newStudentForm;
+        if (!name || !grade || !studentClass || !gender || !destinationId) {
+            toast({ title: "오류", description: "모든 필드를 입력해주세요.", variant: "destructive" });
+            return;
+        }
+        try {
+            const newStudentData: NewStudent = { name, grade, class: studentClass, gender, destinationId };
+            const newStudent = await addStudent(newStudentData);
+            setStudents(prev => [...prev, newStudent]);
+            setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', destinationId: '' });
+            toast({ title: "성공", description: "학생이 추가되었습니다." });
+        } catch (error) {
+            toast({ title: "오류", description: "학생 추가 실패", variant: "destructive" });
+        }
+    };
+
     if (!selectedBus) {
        return <div className="p-4 text-center text-muted-foreground">버스를 선택하여 학생을 관리하세요.</div>;
     }
@@ -590,21 +658,21 @@ const StudentManagementTab = ({
                                     <div className="grid gap-4 py-4">
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="name" className="text-right">이름</Label>
-                                            <Input id="name" defaultValue="새 학생" className="col-span-3" />
+                                            <Input id="name" value={newStudentForm.name} onChange={e => setNewStudentForm(p => ({...p, name: e.target.value}))} className="col-span-3" />
                                         </div>
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="grade" className="text-right">학년</Label>
-                                            <Input id="grade" placeholder="예: G1" className="col-span-3" />
+                                            <Input id="grade" value={newStudentForm.grade} onChange={e => setNewStudentForm(p => ({...p, grade: e.target.value}))} placeholder="예: G1" className="col-span-3" />
                                         </div>
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="class" className="text-right">반</Label>
-                                            <Input id="class" placeholder="예: C1" className="col-span-3" />
+                                            <Input id="class" value={newStudentForm.class} onChange={e => setNewStudentForm(p => ({...p, class: e.target.value}))} placeholder="예: C1" className="col-span-3" />
                                         </div>
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="gender" className="text-right">성별</Label>
-                                            <Select>
+                                            <Select value={newStudentForm.gender} onValueChange={(v) => setNewStudentForm(p => ({...p, gender: v as any}))}>
                                                 <SelectTrigger className="col-span-3">
-                                                    <SelectValue placeholder="성별 선택" />
+                                                    <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="Male">Male</SelectItem>
@@ -614,7 +682,7 @@ const StudentManagementTab = ({
                                         </div>
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="destination" className="text-right">목적지</Label>
-                                            <Select>
+                                            <Select value={newStudentForm.destinationId} onValueChange={(v) => setNewStudentForm(p => ({...p, destinationId: v}))}>
                                                 <SelectTrigger className="col-span-3">
                                                     <SelectValue placeholder="목적지 선택" />
                                                 </SelectTrigger>
@@ -624,22 +692,7 @@ const StudentManagementTab = ({
                                             </Select>
                                         </div>
                                     </div>
-                                    <Button>추가</Button>
-                                </DialogContent>
-                            </Dialog>
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button><Upload className="mr-2" /> CSV 업로드</Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader><DialogTitle>학생 CSV 업로드</DialogTitle></DialogHeader>
-                                    <div className="p-4 text-center">
-                                        <p className="mb-2">학생 대량 업로드를 위해 CSV 파일을 선택하세요.</p>
-                                        <p className="text-sm text-muted-foreground mb-4">CSV 파일은 반드시 UTF-8 형식이어야 합니다.</p>
-                                        <Button variant="link" onClick={handleDownloadStudentTemplate}><Download className="mr-2" />예시 양식 다운로드</Button>
-                                        <Input type="file" accept=".csv" className="mt-2" />
-                                        <Button className="mt-4">업로드</Button>
-                                    </div>
+                                    <Button onClick={handleAddStudent}>추가</Button>
                                 </DialogContent>
                             </Dialog>
                         </div>
@@ -688,6 +741,7 @@ export default function AdminPage() {
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
+    const [loading, setLoading] = useState(true);
 
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const dayLabels: { [key in DayOfWeek]: string } = {
@@ -700,52 +754,38 @@ export default function AdminPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            const [busesData, studentsData, routesData, destinationsData] = await Promise.all([
-                getBuses(),
-                getStudents(),
-                getRoutes(),
-                getDestinations(),
-            ]);
-            setBuses(busesData);
-            setStudents(studentsData);
-            setRoutes(routesData);
-            setDestinations(destinationsData);
-            if (busesData.length > 0) {
-              setSelectedBusId(busesData[0].id);
+            setLoading(true);
+            try {
+                const [busesData, studentsData, routesData, destinationsData, suggestionsData] = await Promise.all([
+                    getBuses(),
+                    getStudents(),
+                    getRoutes(),
+                    getDestinations(),
+                    getSuggestedDestinations(),
+                ]);
+                setBuses(busesData);
+                setStudents(studentsData);
+                setRoutes(routesData);
+                setDestinations(destinationsData);
+                setSuggestedDestinations(suggestionsData);
+                if (busesData.length > 0 && !selectedBusId) {
+                  setSelectedBusId(busesData[0].id);
+                }
+            } catch (error) {
+                console.error("Failed to fetch initial data:", error);
+            } finally {
+                setLoading(false);
             }
         };
         fetchData();
     }, []);
-
-    // This is a mock for suggested destinations from the apply page
-    // In a real app, this would come from a database.
-    useEffect(() => {
-        const mockSuggestions: Destination[] = [
-            { id: 'sugg_dest_1', name: 'Yangjae Station' },
-            { id: 'sugg_dest_2', name: 'Sadang Station' },
-        ];
-        if (typeof window !== "undefined") {
-            const storedSuggestions = window.sessionStorage.getItem('suggestedDestinations');
-            if (storedSuggestions) {
-                 setSuggestedDestinations(JSON.parse(storedSuggestions));
-            } else {
-                 setSuggestedDestinations(mockSuggestions);
-            }
-        }
-    }, []);
-    
-    useEffect(() => {
-        if (typeof window !== "undefined") {
-            window.sessionStorage.setItem('suggestedDestinations', JSON.stringify(suggestedDestinations));
-        }
-    }, [suggestedDestinations]);
 
     const headerContent = (
       <div className="flex items-center gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className="text-sm font-medium">버스</label>
-            <Select value={selectedBusId} onValueChange={setSelectedBusId}>
+            <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
               <SelectTrigger>
                 <SelectValue placeholder="버스를 선택하세요" />
               </SelectTrigger>
@@ -760,7 +800,7 @@ export default function AdminPage() {
           </div>
           <div>
             <label className="text-sm font-medium">요일</label>
-            <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
+            <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
               <SelectTrigger>
                 <SelectValue placeholder="요일을 선택하세요" />
               </SelectTrigger>
@@ -777,8 +817,8 @@ export default function AdminPage() {
             <label className="text-sm font-medium">경로</label>
             <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="Morning">등교</TabsTrigger>
-                <TabsTrigger value="Afternoon">하교</TabsTrigger>
+                <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
+                <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -788,50 +828,50 @@ export default function AdminPage() {
 
     return (
         <MainLayout headerContent={headerContent}>
-            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
-                    <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
-                    <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
-                </TabsList>
-                <TabsContent value="bus-registration" className="mt-6">
-                    <BusRegistrationTab buses={buses} setBuses={setBuses} />
-                </TabsContent>
-                <TabsContent value="bus-configuration" className="mt-6">
-                    <BusConfigurationTab
-                        buses={buses}
-                        routes={routes}
-                        setRoutes={setRoutes}
-                        destinations={destinations}
-                        setDestinations={setDestinations}
-                        suggestedDestinations={suggestedDestinations}
-                        setSuggestedDestinations={setSuggestedDestinations}
-                        selectedDay={selectedDay}
-                        selectedRouteType={selectedRouteType}
-                        selectedBusId={selectedBusId}
-                        setSelectedBusId={setSelectedBusId}
-                    />
-                </TabsContent>
-                <TabsContent value="student-management" className="mt-6">
-                    <StudentManagementTab 
-                        buses={buses} 
-                        students={students} 
-                        routes={routes} 
-                        setRoutes={setRoutes}
-                        destinations={destinations}
-                        selectedBusId={selectedBusId}
-                        selectedDay={selectedDay}
-                        selectedRouteType={selectedRouteType}
-                        days={days}
-                    />
-                </TabsContent>
-            </Tabs>
+            {loading ? (
+                <div className="flex justify-center items-center h-64">
+                    <p>데이터를 불러오는 중입니다...</p>
+                </div>
+            ) : (
+                <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
+                        <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
+                        <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="bus-registration" className="mt-6">
+                        <BusRegistrationTab buses={buses} setBuses={setBuses} />
+                    </TabsContent>
+                    <TabsContent value="bus-configuration" className="mt-6">
+                        <BusConfigurationTab
+                            buses={buses}
+                            routes={routes}
+                            destinations={destinations}
+                            setDestinations={setDestinations}
+                            suggestedDestinations={suggestedDestinations}
+                            setSuggestedDestinations={setSuggestedDestinations}
+                            selectedDay={selectedDay}
+                            selectedRouteType={selectedRouteType}
+                            selectedBusId={selectedBusId}
+                            setSelectedBusId={setSelectedBusId}
+                        />
+                    </TabsContent>
+                    <TabsContent value="student-management" className="mt-6">
+                        <StudentManagementTab 
+                            buses={buses} 
+                            students={students} 
+                            setStudents={setStudents}
+                            routes={routes} 
+                            setRoutes={setRoutes}
+                            destinations={destinations}
+                            selectedBusId={selectedBusId}
+                            selectedDay={selectedDay}
+                            selectedRouteType={selectedRouteType}
+                            days={days}
+                        />
+                    </TabsContent>
+                </Tabs>
+            )}
         </MainLayout>
     );
 }
-
-    
-
-    
-
-    

@@ -1,3 +1,4 @@
+
 export type Student = {
   id: string;
   name: string;
@@ -10,6 +11,8 @@ export type Student = {
   groupLeaderStartDate?: string;
   groupLeaderEndDate?: string;
 };
+export type NewStudent = Omit<Student, 'id' | 'isGroupLeader' | 'daysAsGroupLeader'>;
+
 
 export type Bus = {
   id: string;
@@ -17,11 +20,14 @@ export type Bus = {
   capacity: 15 | 29 | 45;
   type: '15-seater' | '29-seater' | '45-seater';
 };
+export type NewBus = Omit<Bus, 'id'>;
 
 export type Destination = {
   id: string;
   name:string;
 };
+export type NewDestination = Omit<Destination, 'id'>;
+
 
 export type SeatingAssignment = {
   seatNumber: number;
