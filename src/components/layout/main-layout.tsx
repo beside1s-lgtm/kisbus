@@ -2,41 +2,19 @@
 'use client';
 import type { FC, ReactNode } from 'react';
 import React from 'react';
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarInset,
-  SidebarFooter,
-  SidebarTrigger,
-} from '@/components/ui/sidebar';
-import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bus, UserCog, User, ClipboardPenLine } from 'lucide-react';
+import { ArrowLeft, Bus } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { usePathname } from 'next/navigation';
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ElementType;
+interface MainLayoutProps {
+  children: ReactNode;
+  headerContent?: ReactNode;
 }
 
-const navItems: NavItem[] = [
-  { href: '/admin', label: '관리자', icon: UserCog },
-  { href: '/teacher', label: '선생님', icon: UserCog },
-  { href: '/student', label: '탑승 확인', icon: User },
-  { href: '/apply', label: '탑승 신청', icon: ClipboardPenLine },
-];
-
-export const MainLayout: FC<{ children: ReactNode }> = ({ children }) => {
+export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => {
   const pathname = usePathname();
-
+  
   const getPageTitle = () => {
     const currentPath = pathname.split('/')[1];
     switch(currentPath) {
@@ -44,56 +22,34 @@ export const MainLayout: FC<{ children: ReactNode }> = ({ children }) => {
         case 'teacher': return '선생님';
         case 'student': return '탑승 확인';
         case 'apply': return '탑승 신청';
-        default: return '대시보드';
+        default: return '홈';
     }
   }
 
+  const isHomePage = pathname === '/';
+
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <div className="flex items-center gap-3 p-2">
-            <div className="bg-primary p-2 rounded-lg flex items-center justify-center">
-              <Bus className="text-primary-foreground size-6" />
-            </div>
-            <h1 className="text-xl font-headline font-bold text-foreground">
-              KIS 버스 관리자
-            </h1>
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            {navItems.map((item) => (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith(item.href)}
-                  className="font-headline"
-                >
-                  <Link href={item.href}>
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter>
-          <p className="text-xs text-muted-foreground p-4">© 2024 KIS</p>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="flex h-16 items-center justify-between p-4 border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
-          <SidebarTrigger className="md:hidden" />
-          <div className="hidden md:block">
-            <h2 className="text-lg font-semibold capitalize font-headline">
+    <div className="flex flex-col min-h-screen bg-background">
+       <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-card/80 px-4 backdrop-blur-sm md:px-6">
+        <div className="flex items-center gap-4">
+          {!isHomePage && (
+            <Button asChild variant="outline" size="icon" className="h-8 w-8">
+              <Link href="/">
+                <ArrowLeft className="h-4 w-4" />
+                <span className="sr-only">Back to Home</span>
+              </Link>
+            </Button>
+          )}
+           <h1 className="text-lg font-semibold md:text-xl font-headline">
               {getPageTitle()}
-            </h2>
-          </div>
-        </header>
-        <main className="flex-1 p-4 md:p-6 lg:p-8 bg-background">{children}</main>
-      </SidebarInset>
-    </SidebarProvider>
+            </h1>
+        </div>
+        
+        <div className="flex items-center gap-2">
+            {headerContent}
+        </div>
+      </header>
+      <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
+    </div>
   );
 };

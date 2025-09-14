@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/mock-data';
 import { Bus, Student, Route, Destination, DayOfWeek, RouteType } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
-import { DashboardShell } from '@/components/bus/dashboard-shell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Crown, UserX, ArrowLeftRight } from 'lucide-react';
@@ -13,6 +12,9 @@ import { VolunteerTimeCalculator } from './components/volunteer-time-calculator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { MainLayout } from '@/components/layout/main-layout';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const getStorageKey = (routeId: string) => `boarding_status_${routeId}`;
 
@@ -29,6 +31,15 @@ export default function TeacherPage() {
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const dayLabels: { [key in DayOfWeek]: string } = {
+      Monday: '월요일',
+      Tuesday: '화요일',
+      Wednesday: '수요일',
+      Thursday: '목요일',
+      Friday: '금요일',
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -79,7 +90,6 @@ export default function TeacherPage() {
     }
   }, [boardedStudentIds, currentRoute]);
 
-
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
       const studentIdsOnRoute = new Set<string>();
@@ -89,7 +99,9 @@ export default function TeacherPage() {
           }
       });
       
-      return Array.from(studentIdsOnRoute)
+      const uniqueStudentIds = Array.from(studentIdsOnRoute);
+
+      return uniqueStudentIds
           .map(id => students.find(s => s.id === id))
           .filter((s): s is Student => s !== undefined)
           .sort((a,b) => a.name.localeCompare(b.name));
@@ -125,72 +137,47 @@ export default function TeacherPage() {
     }
   };
 
-  if (!selectedBus || !currentRoute) {
-    return (
-        <DashboardShell
-            buses={buses}
-            selectedBusId={selectedBusId}
-            setSelectedBusId={setSelectedBusId}
-            selectedDay={selectedDay}
-            setSelectedDay={setSelectedDay}
-            selectedRouteType={selectedRouteType}
-            setSelectedRouteType={setSelectedRouteType}
-            mainContent={<div className="p-4 text-center">로딩 중 또는 유효한 노선을 선택하세요...</div>}
-        />
-    );
-  }
-
-  const mainContent = (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-headline">버스 좌석 및 탑승 현황</CardTitle>
-            <CardDescription>학생 좌석을 클릭하여 탑승 여부를 표시하세요. 탑승한 학생은 초록색으로 표시됩니다.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <BusSeatMap 
-              bus={selectedBus}
-              seating={currentRoute.seating}
-              students={students}
-              destinations={destinations}
-              draggable={false}
-              onSeatClick={handleSeatClick}
-              absentStudentIds={absentStudentIds}
-              boardedStudentIds={boardedStudentIds}
-            />
-          </CardContent>
-        </Card>
-      </div>
-      <div className="lg:col-span-1">
-        <Card className="sticky top-20">
-          <CardHeader>
-            <CardTitle className="font-headline">탑승 학생 명단</CardTitle>
-          </CardHeader>
-          <CardContent className='max-h-[60vh] overflow-y-auto'>
-             <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>이름</TableHead>
-                        <TableHead>상태</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {studentsOnCurrentRoute.map(student => (
-                        <TableRow key={student.id}>
-                            <TableCell>{student.name} {student.isGroupLeader && "👑"}</TableCell>
-                            <TableCell>
-                                <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : 'secondary'}>
-                                    {boardedStudentIds.includes(student.id) ? '탑승' : '미탑승'}
-                                </Badge>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-             </Table>
-          </CardContent>
-        </Card>
-      </div>
+  const headerContent = (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+        <label className="text-sm font-medium">버스</label>
+        <Select value={selectedBusId} onValueChange={setSelectedBusId}>
+            <SelectTrigger>
+            <SelectValue placeholder="버스를 선택하세요" />
+            </SelectTrigger>
+            <SelectContent>
+            {buses.map((bus) => (
+                <SelectItem key={bus.id} value={bus.id}>
+                {bus.name} ({bus.type})
+                </SelectItem>
+            ))}
+            </SelectContent>
+        </Select>
+        </div>
+        <div>
+        <label className="text-sm font-medium">요일</label>
+        <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
+            <SelectTrigger>
+            <SelectValue placeholder="요일을 선택하세요" />
+            </SelectTrigger>
+            <SelectContent>
+            {days.map((day) => (
+                <SelectItem key={day} value={day}>
+                {dayLabels[day]}
+                </SelectItem>
+            ))}
+            </SelectContent>
+        </Select>
+        </div>
+        <div>
+        <label className="text-sm font-medium">경로</label>
+        <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="Morning">등교</TabsTrigger>
+            <TabsTrigger value="Afternoon">하교</TabsTrigger>
+            </TabsList>
+        </Tabs>
+        </div>
     </div>
   );
 
@@ -239,19 +226,77 @@ export default function TeacherPage() {
   );
 
   return (
-    <DashboardShell
-      buses={buses}
-      selectedBusId={selectedBusId}
-      setSelectedBusId={setSelectedBusId}
-      selectedDay={selectedDay}
-      setSelectedDay={setSelectedDay}
-      selectedRouteType={selectedRouteType}
-      setSelectedRouteType={setSelectedRouteType}
-      mainContent={mainContent}
-      sidePanel={sidePanel}
-      sidePanelTitle="학생 정보"
-    />
+    <MainLayout headerContent={headerContent}>
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+            <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">버스 좌석 및 탑승 현황</CardTitle>
+                <CardDescription>학생 좌석을 클릭하여 탑승 여부를 표시하세요. 탑승한 학생은 초록색으로 표시됩니다.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {selectedBus && currentRoute ? (
+                    <BusSeatMap 
+                        bus={selectedBus}
+                        seating={currentRoute.seating}
+                        students={students}
+                        destinations={destinations}
+                        draggable={false}
+                        onSeatClick={handleSeatClick}
+                        absentStudentIds={absentStudentIds}
+                        boardedStudentIds={boardedStudentIds}
+                    />
+                ) : (
+                    <div className="text-center py-10 text-muted-foreground">
+                        로딩 중이거나 유효한 노선 정보가 없습니다.
+                    </div>
+                )}
+            </CardContent>
+            </Card>
+        </div>
+        <div className="lg:col-span-1 space-y-6">
+            <Card className="sticky top-20">
+            <CardHeader>
+                <CardTitle className="font-headline">탑승 학생 명단</CardTitle>
+            </CardHeader>
+            <CardContent className='max-h-[60vh] overflow-y-auto'>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>이름</TableHead>
+                            <TableHead>상태</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {studentsOnCurrentRoute.map(student => (
+                            <TableRow 
+                                key={student.id} 
+                                onClick={() => handleSeatClick(0, student.id)}
+                                className="cursor-pointer"
+                            >
+                                <TableCell>{student.name} {student.isGroupLeader && "👑"}</TableCell>
+                                <TableCell>
+                                    <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : 'secondary'}>
+                                        {boardedStudentIds.includes(student.id) ? '탑승' : '미탑승'}
+                                    </Badge>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+            </Card>
+
+            <Card className="sticky top-20">
+                <CardHeader>
+                    <CardTitle className="font-headline">학생 정보</CardTitle>
+                </CardHeader>
+                <CardContent className='max-h-[75vh] overflow-y-auto'>
+                    {sidePanel}
+                </CardContent>
+                </Card>
+        </div>
+        </div>
+    </MainLayout>
   );
 }
-
-    

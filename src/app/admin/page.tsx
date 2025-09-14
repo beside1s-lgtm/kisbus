@@ -1,11 +1,9 @@
 
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/mock-data';
 import { Bus, Student, Route, Destination, DayOfWeek, RouteType } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
-import { DashboardShell } from '@/components/bus/dashboard-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
@@ -19,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { MainLayout } from '@/components/layout/main-layout';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -130,7 +129,9 @@ const BusConfigurationTab = ({
   suggestedDestinations,
   setSuggestedDestinations,
   selectedDay,
-  selectedRouteType
+  selectedRouteType,
+  selectedBusId,
+  setSelectedBusId
 }: {
   buses: Bus[];
   routes: Route[];
@@ -141,9 +142,9 @@ const BusConfigurationTab = ({
   setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   selectedDay: DayOfWeek;
   selectedRouteType: RouteType;
+  selectedBusId: string | null;
+  setSelectedBusId: (id: string) => void;
 }) => {
-  const [selectedBusId, setSelectedBusId] = useState<string | null>(buses.length > 0 ? buses[0].id : null);
-
   const selectedBus = useMemo(() => {
     if (!selectedBusId) return null;
     return buses.find(b => b.id === selectedBusId);
@@ -188,16 +189,7 @@ const BusConfigurationTab = ({
           <CardDescription>버스를 선택하여 노선을 설정하세요.</CardDescription>
         </CardHeader>
         <CardContent>
-            <Select onValueChange={setSelectedBusId} defaultValue={selectedBusId || undefined}>
-                <SelectTrigger className="mb-4">
-                    <SelectValue placeholder="버스를 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                    {buses.map(bus => <SelectItem key={bus.id} value={bus.id}>{bus.name}</SelectItem>)}
-                </SelectContent>
-            </Select>
-
-            {selectedBus && (
+            {selectedBus ? (
                 <Card>
                   <CardHeader>
                     <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : '하교'} 노선</CardTitle>
@@ -238,6 +230,8 @@ const BusConfigurationTab = ({
                       </div>
                   </CardContent>
                 </Card>
+            ) : (
+                <div className="text-center text-muted-foreground py-10">버스를 선택하여 노선을 확인하세요.</div>
             )}
         </CardContent>
       </Card>
@@ -699,6 +693,15 @@ export default function AdminPage() {
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
 
+    const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const dayLabels: { [key in DayOfWeek]: string } = {
+        Monday: '월요일',
+        Tuesday: '화요일',
+        Wednesday: '수요일',
+        Thursday: '목요일',
+        Friday: '금요일',
+    }
+
     useEffect(() => {
         const fetchData = async () => {
             const [busesData, studentsData, routesData, destinationsData] = await Promise.all([
@@ -741,54 +744,91 @@ export default function AdminPage() {
         }
     }, [suggestedDestinations]);
 
-    return (
-        <div className="flex flex-col gap-6">
-            <DashboardShell
-                buses={buses}
-                selectedBusId={selectedBusId}
-                setSelectedBusId={setSelectedBusId}
-                selectedDay={selectedDay}
-                setSelectedDay={setSelectedDay}
-                selectedRouteType={selectedRouteType}
-                setSelectedRouteType={setSelectedRouteType}
-                mainContent={
-                    <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
-                            <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
-                            <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="bus-registration" className="mt-6">
-                            <BusRegistrationTab buses={buses} setBuses={setBuses} />
-                        </TabsContent>
-                        <TabsContent value="bus-configuration" className="mt-6">
-                            <BusConfigurationTab
-                                buses={buses}
-                                routes={routes}
-                                setRoutes={setRoutes}
-                                destinations={destinations}
-                                setDestinations={setDestinations}
-                                suggestedDestinations={suggestedDestinations}
-                                setSuggestedDestinations={setSuggestedDestinations}
-                                selectedDay={selectedDay}
-                                selectedRouteType={selectedRouteType}
-                            />
-                        </TabsContent>
-                        <TabsContent value="student-management" className="mt-6">
-                            <StudentManagementTab 
-                                buses={buses} 
-                                students={students} 
-                                routes={routes} 
-                                setRoutes={setRoutes}
-                                destinations={destinations}
-                                selectedBusId={selectedBusId}
-                                selectedDay={selectedDay}
-                                selectedRouteType={selectedRouteType}
-                            />
-                        </TabsContent>
-                    </Tabs>
-                } 
-            />
+    const headerContent = (
+      <div className="flex items-center gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label className="text-sm font-medium">버스</label>
+            <Select value={selectedBusId} onValueChange={setSelectedBusId}>
+              <SelectTrigger>
+                <SelectValue placeholder="버스를 선택하세요" />
+              </SelectTrigger>
+              <SelectContent>
+                {buses.map((bus) => (
+                  <SelectItem key={bus.id} value={bus.id}>
+                    {bus.name} ({bus.type})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium">요일</label>
+            <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
+              <SelectTrigger>
+                <SelectValue placeholder="요일을 선택하세요" />
+              </SelectTrigger>
+              <SelectContent>
+                {days.map((day) => (
+                  <SelectItem key={day} value={day}>
+                    {dayLabels[day]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium">경로</label>
+            <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="Morning">등교</TabsTrigger>
+                <TabsTrigger value="Afternoon">하교</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
+      </div>
+    );
+
+    return (
+        <MainLayout headerContent={headerContent}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
+                    <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
+                    <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
+                </TabsList>
+                <TabsContent value="bus-registration" className="mt-6">
+                    <BusRegistrationTab buses={buses} setBuses={setBuses} />
+                </TabsContent>
+                <TabsContent value="bus-configuration" className="mt-6">
+                    <BusConfigurationTab
+                        buses={buses}
+                        routes={routes}
+                        setRoutes={setRoutes}
+                        destinations={destinations}
+                        setDestinations={setDestinations}
+                        suggestedDestinations={suggestedDestinations}
+                        setSuggestedDestinations={setSuggestedDestinations}
+                        selectedDay={selectedDay}
+                        selectedRouteType={selectedRouteType}
+                        selectedBusId={selectedBusId}
+                        setSelectedBusId={setSelectedBusId}
+                    />
+                </TabsContent>
+                <TabsContent value="student-management" className="mt-6">
+                    <StudentManagementTab 
+                        buses={buses} 
+                        students={students} 
+                        routes={routes} 
+                        setRoutes={setRoutes}
+                        destinations={destinations}
+                        selectedBusId={selectedBusId}
+                        selectedDay={selectedDay}
+                        selectedRouteType={selectedRouteType}
+                    />
+                </TabsContent>
+            </Tabs>
+        </MainLayout>
     );
 }
