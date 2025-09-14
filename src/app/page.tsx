@@ -15,8 +15,7 @@ function FeatureCard({ href, icon: Icon, title, description }: FeatureCardProps)
   return (
     <Link href={href} className="block group">
       <Card className="h-full hover:border-primary transition-colors">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-end pb-2">
           <Icon className="w-4 h-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
