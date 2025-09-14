@@ -46,10 +46,19 @@ export default function StudentPage() {
     // Set selectedDay to today's day of the week
     const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
     // Sunday (0) will default to Monday
-    if (dayIndex > 0) { // Monday(1) to Saturday(6)
+    if (dayIndex > 0 && dayIndex < 7) { // Monday(1) to Saturday(6)
         setSelectedDay(days[dayIndex - 1]);
     } else {
         setSelectedDay('Monday');
+    }
+
+    // Set route type based on Vietnam time
+    const now = new Date();
+    const vietnamHour = (now.getUTCHours() + 7) % 24;
+    if (vietnamHour >= 9 && vietnamHour < 20) {
+        setSelectedRouteType('Afternoon');
+    } else {
+        setSelectedRouteType('Morning');
     }
 
     const fetchData = async () => {

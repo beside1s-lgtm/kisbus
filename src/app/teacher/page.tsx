@@ -66,11 +66,21 @@ export default function TeacherPage() {
     // Set selectedDay to today's day of the week
     const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
     // Sunday (0) will default to Monday
-    if (dayIndex > 0) { // Monday(1) to Saturday(6)
+    if (dayIndex > 0 && dayIndex < 7) { // Monday(1) to Saturday(6)
         setSelectedDay(days[dayIndex - 1]);
     } else {
         setSelectedDay('Monday');
     }
+    
+    // Set route type based on Vietnam time
+    const now = new Date();
+    const vietnamHour = (now.getUTCHours() + 7) % 24;
+    if (vietnamHour >= 9 && vietnamHour < 20) {
+        setSelectedRouteType('Afternoon');
+    } else {
+        setSelectedRouteType('Morning');
+    }
+
 
     const fetchData = async () => {
         setLoading(true);
@@ -191,8 +201,12 @@ export default function TeacherPage() {
         ? currentAbsent.filter(id => id !== student.id)
         : [...currentAbsent, student.id];
 
+      const newBoardedIds = isAbsent 
+        ? currentBoarded
+        : currentBoarded.filter(id => id !== student.id);
+
       try {
-        await updateAttendance(route.id, today, { absent: newAbsentIds, boarded: currentBoarded });
+        await updateAttendance(route.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
         toast({ title: "성공", description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
       } catch (error) {
         console.error("Error updating absence:", error);
@@ -247,9 +261,13 @@ export default function TeacherPage() {
         ? boardedStudentIds.filter(id => id !== studentId)
         : [...boardedStudentIds, studentId];
 
+      const newAbsentIds = boardedStudentIds.includes(studentId)
+        ? absentStudentIds
+        : absentStudentIds.filter(id => id !== studentId);
+
       if (currentRoute) {
         try {
-          await updateAttendance(currentRoute.id, today, { absent: absentStudentIds, boarded: newBoardedIds });
+          await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
         } catch (error) {
           console.error("Error updating boarding status:", error);
           toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
@@ -444,8 +462,8 @@ export default function TeacherPage() {
                             >
                                 <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                 <TableCell>
-                                    <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : 'secondary'}>
-                                        {boardedStudentIds.includes(student.id) ? '탑승' : '미탑승'}
+                                    <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}>
+                                        {boardedStudentIds.includes(student.id) ? '탑승' : (absentStudentIds.includes(student.id) ? '결석' : '미탑승')}
                                     </Badge>
                                 </TableCell>
                             </TableRow>
