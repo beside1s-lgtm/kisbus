@@ -59,8 +59,15 @@ export default function TeacherPage() {
 
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
-      return currentRoute.seating
-          .map(s => students.find(student => student.id === s.studentId))
+      const studentIdsOnRoute = new Set<string>();
+      currentRoute.seating.forEach(seat => {
+          if(seat.studentId) {
+              studentIdsOnRoute.add(seat.studentId);
+          }
+      });
+      
+      return Array.from(studentIdsOnRoute)
+          .map(id => students.find(s => s.id === id))
           .filter((s): s is Student => s !== undefined)
           .sort((a,b) => a.name.localeCompare(b.name));
   }, [currentRoute, students]);
