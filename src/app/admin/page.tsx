@@ -44,7 +44,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
     const { toast } = useToast();
-    const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1215,13 +1215,14 @@ export default function AdminPage() {
     const [activeTab, setActiveTab] = useState('student-management');
     const [loading, setLoading] = useState(true);
 
-    const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayLabels: { [key in DayOfWeek]: string } = {
         Monday: '월요일',
         Tuesday: '화요일',
         Wednesday: '수요일',
         Thursday: '목요일',
         Friday: '금요일',
+        Saturday: '토요일',
     }
 
     useEffect(() => {

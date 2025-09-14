@@ -37,7 +37,7 @@ export type SeatingAssignment = {
 export type Route = {
   id: string;
   busId: string;
-  dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
+  dayOfWeek: DayOfWeek;
   type: 'Morning' | 'Afternoon';
   stops: string[]; // ordered list of destination IDs
   seating: SeatingAssignment[];
@@ -50,7 +50,7 @@ export type AttendanceRecord = {
   boarded: string[]; // student IDs
 };
 
-export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
+export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
 
 export type RouteType = 'Morning' | 'Afternoon';
 

@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Label } from '@/components/ui/label';
-import { format } from 'date-fns';
+import { format, getDay } from 'date-fns';
 
 export default function StudentPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -24,13 +24,14 @@ export default function StudentPage() {
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayLabels: { [key in DayOfWeek]: string } = {
       Monday: '월요일',
       Tuesday: '화요일',
       Wednesday: '수요일',
       Thursday: '목요일',
       Friday: '금요일',
+      Saturday: '토요일',
   }
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -42,6 +43,15 @@ export default function StudentPage() {
   }
 
   useEffect(() => {
+    // Set selectedDay to today's day of the week
+    const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
+    // Sunday (0) will default to Monday
+    if (dayIndex > 0) { // Monday(1) to Saturday(6)
+        setSelectedDay(days[dayIndex - 1]);
+    } else {
+        setSelectedDay('Monday');
+    }
+
     const fetchData = async () => {
       setLoading(true);
       try {

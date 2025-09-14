@@ -44,13 +44,14 @@ export default function TeacherPage() {
 
   const { toast } = useToast();
 
-  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayLabels: { [key in DayOfWeek]: string } = {
       Monday: '월요일',
       Tuesday: '화요일',
       Wednesday: '수요일',
       Thursday: '목요일',
       Friday: '금요일',
+      Saturday: '토요일',
   }
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -64,10 +65,9 @@ export default function TeacherPage() {
   useEffect(() => {
     // Set selectedDay to today's day of the week
     const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
-    const weekDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    // Sunday (0) or Saturday (6) will default to Monday
-    if (dayIndex > 0 && dayIndex < 6) {
-        setSelectedDay(weekDays[dayIndex - 1]);
+    // Sunday (0) will default to Monday
+    if (dayIndex > 0) { // Monday(1) to Saturday(6)
+        setSelectedDay(days[dayIndex - 1]);
     } else {
         setSelectedDay('Monday');
     }
@@ -167,7 +167,7 @@ export default function TeacherPage() {
     
     // Filter for today's day of the week
     const dayIndex = getDay(new Date()); // 0-6
-    if (dayIndex === 0 || dayIndex === 6) return []; // No routes on weekends
+    if (dayIndex === 0) return []; // No routes on Sunday
     const todayDayOfWeek = days[dayIndex - 1];
 
     return relevantRoutes.filter(r => r.dayOfWeek === todayDayOfWeek);
@@ -199,7 +199,7 @@ export default function TeacherPage() {
         toast({ title: "오류", description: `${route.id} 노선 결석 처리 실패`, variant: "destructive"});
       }
     });
-  }, [today, toast]);
+  }, [today, toast, days]);
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
