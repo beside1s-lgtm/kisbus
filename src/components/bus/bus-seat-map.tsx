@@ -136,7 +136,7 @@ export function BusSeatMap({
 
   return (
     <TooltipProvider>
-      <div className="p-2 border rounded-lg bg-muted/20 overflow-auto">
+      <div className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
         {isLargeBus && (
             <div className="mb-2 flex justify-start">
                  <div className="w-1/5">
