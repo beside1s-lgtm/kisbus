@@ -161,5 +161,3 @@ export const onAttendanceUpdate = (routeId: string, date: string, callback: (rec
     }
   });
 };
-
-    
