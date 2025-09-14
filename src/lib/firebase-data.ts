@@ -12,6 +12,7 @@ import {
   deleteDoc,
   getDoc,
   setDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import type {
   Bus,
@@ -23,6 +24,7 @@ import type {
   NewStudent,
   NewDestination,
   GroupLeaderRecord,
+  AttendanceRecord,
 } from './types';
 
 // Generic function to fetch data from a collection
@@ -132,3 +134,32 @@ export const approveSuggestedDestination = async (suggestion: Destination) => {
     batch.delete(doc(db, 'suggestedDestinations', suggestion.id));
     await batch.commit();
 }
+
+
+// --- Attendance ---
+export const getAttendance = async (routeId: string, date: string): Promise<AttendanceRecord | null> => {
+  const docRef = doc(db, 'routes', routeId, 'attendance', date);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return { id: docSnap.id, ...docSnap.data() } as AttendanceRecord;
+  }
+  return null;
+};
+
+export const updateAttendance = async (routeId: string, date: string, data: Partial<Omit<AttendanceRecord, 'id' | 'routeId'>>) => {
+  const docRef = doc(db, 'routes', routeId, 'attendance', date);
+  await setDoc(docRef, data, { merge: true });
+};
+
+export const onAttendanceUpdate = (routeId: string, date: string, callback: (record: AttendanceRecord | null) => void) => {
+  const docRef = doc(db, 'routes', routeId, 'attendance', date);
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback({ id: docSnap.id, ...docSnap.data() } as AttendanceRecord);
+    } else {
+      callback(null);
+    }
+  });
+};
+
+    

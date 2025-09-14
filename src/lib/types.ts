@@ -44,8 +44,8 @@ export type Route = {
 };
 
 export type AttendanceRecord = {
+  id: string; // YYYY-MM-DD
   routeId: string;
-  date: string; // YYYY-MM-DD
   absent: string[]; // student IDs
   boarded: string[]; // student IDs
 };
@@ -61,3 +61,5 @@ export type GroupLeaderRecord = {
     endDate: string | null;
     days: number;
 }
+
+    

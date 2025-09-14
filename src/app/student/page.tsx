@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
-import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/firebase-data';
+import { getBuses, getStudents, getRoutes, getDestinations, onAttendanceUpdate } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,8 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Label } from '@/components/ui/label';
-
-const getStorageKey = (routeId: string) => `boarding_status_${routeId}`;
+import { format } from 'date-fns';
 
 export default function StudentPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -33,6 +32,7 @@ export default function StudentPage() {
       Thursday: '목요일',
       Friday: '금요일',
   }
+  const today = format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -68,20 +68,19 @@ export default function StudentPage() {
      );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
-  // Load boarding status from sessionStorage
+  // Real-time listener for attendance
   useEffect(() => {
     if (currentRoute) {
-      const storageKey = getStorageKey(currentRoute.id);
-      const savedStatus = window.sessionStorage.getItem(storageKey);
-      if (savedStatus) {
-        setBoardedStudentIds(JSON.parse(savedStatus));
-      } else {
-        setBoardedStudentIds([]);
-      }
+      const unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
+        setBoardedStudentIds(attendance?.boarded || []);
+      });
+
       // Reset student selection when filters change
       setSelectedStudentId(null);
+      
+      return () => unsubscribe();
     }
-  }, [currentRoute]);
+  }, [currentRoute, today]);
   
   const studentsOnCurrentRoute = useMemo(() => {
     if (!currentRoute) return [];
@@ -199,3 +198,5 @@ export default function StudentPage() {
     </MainLayout>
   );
 }
+
+    

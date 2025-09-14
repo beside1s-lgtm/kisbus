@@ -1,8 +1,12 @@
 
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
-import { getBuses, getStudents, getRoutes, getDestinations, getGroupLeaderRecords, saveGroupLeaderRecords } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord } from '@/lib/types';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+    getBuses, getStudents, getRoutes, getDestinations, 
+    getGroupLeaderRecords, saveGroupLeaderRecords,
+    getAttendance, onAttendanceUpdate 
+} from '@/lib/firebase-data';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, AttendanceRecord } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,8 +21,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {format, differenceInDays} from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { updateAttendance } from '@/lib/firebase-data';
 
-const getBoardingStorageKey = (routeId: string) => `boarding_status_${routeId}`;
 
 export default function TeacherPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -45,6 +49,7 @@ export default function TeacherPage() {
       Thursday: '목요일',
       Friday: '금요일',
   }
+  const today = format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,7 +76,7 @@ export default function TeacherPage() {
         }
     };
     fetchData();
-  }, []);
+  }, [toast]);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
@@ -83,15 +88,20 @@ export default function TeacherPage() {
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
-  // Load and save data from/to sessionStorage or Firestore
+  // Firestore real-time listener for attendance
   useEffect(() => {
     if (currentRoute) {
-      // Boarding status from session storage (ephemeral)
-      const boardingKey = getBoardingStorageKey(currentRoute.id);
-      const savedBoardingStatus = window.sessionStorage.getItem(boardingKey);
-      setBoardedStudentIds(savedBoardingStatus ? JSON.parse(savedBoardingStatus) : []);
-      
-      // Group leader records from Firestore
+      const unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
+        setBoardedStudentIds(attendance?.boarded || []);
+        setAbsentStudentIds(attendance?.absent || []);
+      });
+      return () => unsubscribe();
+    }
+  }, [currentRoute, today]);
+
+  // Load GroupLeaderRecords
+  useEffect(() => {
+    if (currentRoute) {
       const fetchLeaderRecords = async () => {
           try {
               const records = await getGroupLeaderRecords(currentRoute.id);
@@ -104,14 +114,8 @@ export default function TeacherPage() {
       fetchLeaderRecords();
     }
   }, [currentRoute]);
-
-  useEffect(() => {
-    if (currentRoute) {
-      const boardingKey = getBoardingStorageKey(currentRoute.id);
-      window.sessionStorage.setItem(boardingKey, JSON.stringify(boardedStudentIds));
-    }
-  }, [boardedStudentIds, currentRoute]);
-
+  
+  // Save GroupLeaderRecords
   useEffect(() => {
     if (currentRoute && groupLeaderRecords.length) {
       saveGroupLeaderRecords(currentRoute.id, groupLeaderRecords).catch(e => console.error("Failed to save leader records", e));
@@ -131,15 +135,25 @@ export default function TeacherPage() {
           .sort((a,b) => a.name.localeCompare(b.name));
   }, [currentRoute, students]);
 
-  const toggleAbsence = (studentId: string) => {
-    setAbsentStudentIds(prev => 
-      prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
-    );
-  };
+  const toggleAbsence = useCallback(async (studentId: string) => {
+    if (!currentRoute) return;
+    const newAbsentIds = absentStudentIds.includes(studentId)
+      ? absentStudentIds.filter(id => id !== studentId)
+      : [...absentStudentIds, studentId];
+    
+    setAbsentStudentIds(newAbsentIds); // Optimistic update
+    try {
+      await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: boardedStudentIds });
+    } catch (error) {
+      console.error("Error updating absence:", error);
+      setAbsentStudentIds(absentStudentIds); // Revert on error
+      toast({ title: "오류", description: "결석 처리 실패", variant: "destructive"});
+    }
+  }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast]);
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const dateStr = format(new Date(), 'yyyy-MM-dd');
     const studentId = student.id;
 
     const newRecords = [...groupLeaderRecords];
@@ -147,13 +161,13 @@ export default function TeacherPage() {
 
     if (existingRecordIndex > -1) { // Demote
         const record = newRecords[existingRecordIndex];
-        record.endDate = today;
-        record.days = differenceInDays(new Date(today), new Date(record.startDate)) + 1;
+        record.endDate = dateStr;
+        record.days = differenceInDays(new Date(dateStr), new Date(record.startDate)) + 1;
     } else { // Promote
         newRecords.push({
             studentId,
             name: student.name,
-            startDate: today,
+            startDate: dateStr,
             endDate: null,
             days: 1,
         });
@@ -170,7 +184,7 @@ export default function TeacherPage() {
   };
 
   
-  const handleSeatClick = (seatNumber: number, studentId: string | null) => {
+  const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
     if (studentId) {
       const student = students.find(s => s.id === studentId);
       if(student) {
@@ -180,13 +194,25 @@ export default function TeacherPage() {
         setSelectedStudent(null);
       }
       
-      setBoardedStudentIds(prev => 
-          prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
-      );
+      const newBoardedIds = boardedStudentIds.includes(studentId)
+        ? boardedStudentIds.filter(id => id !== studentId)
+        : [...boardedStudentIds, studentId];
+
+      setBoardedStudentIds(newBoardedIds); // Optimistic update
+
+      if (currentRoute) {
+        try {
+          await updateAttendance(currentRoute.id, today, { absent: absentStudentIds, boarded: newBoardedIds });
+        } catch (error) {
+          console.error("Error updating boarding status:", error);
+          setBoardedStudentIds(boardedStudentIds); // Revert on error
+          toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
+        }
+      }
     } else {
       setSelectedStudent(null);
     }
-  };
+  }, [students, groupLeaderRecords, boardedStudentIds, currentRoute, today, absentStudentIds, toast]);
 
   const headerContent = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -350,3 +376,5 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+
+    
