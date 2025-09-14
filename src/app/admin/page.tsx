@@ -439,6 +439,15 @@ const StudentManagementTab = ({
 
         const getSeatPairs = (capacity: number): [number, number][] => {
             const pairs: [number, number][] = [];
+             if (capacity === 15) {
+                // First row is 1-2, rest are 2-1
+                pairs.push([1, 2]); // Special pair for first row
+                for (let i = 3; i < 15; i += 3) {
+                    if (i + 1 <= 15) pairs.push([i, i + 1]);
+                }
+                return pairs;
+            }
+
             const numRows = Math.ceil(capacity / 4);
             const hasLastRowOfFive = capacity === 45;
 
@@ -458,6 +467,11 @@ const StudentManagementTab = ({
         };
         
         const getSeatType = (seatNumber: number, capacity: number): 'window' | 'aisle' => {
+            if (capacity === 15) {
+                if (seatNumber === 1 || seatNumber === 3 || seatNumber === 6 || seatNumber === 9 || seatNumber === 12) return 'window';
+                if (seatNumber === 5 || seatNumber === 8 || seatNumber === 11 || seatNumber === 14) return 'window';
+                return 'aisle';
+            }
             if (capacity === 45 && seatNumber > 40) { // Back row of 5
                  if(seatNumber === 41 || seatNumber === 45) return 'window';
                  return 'aisle';
