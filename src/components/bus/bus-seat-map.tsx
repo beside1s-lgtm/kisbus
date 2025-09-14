@@ -149,7 +149,7 @@ export function BusSeatMap({
     <TooltipProvider>
       <div className="p-4 border rounded-lg bg-muted/20 overflow-auto">
         {isLargeBus && (
-            <div className="mb-4 flex justify-center">
+            <div className="mb-4 flex justify-start">
                  <div className="w-1/5">
                     <div className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
                         <CircleUserRound className="w-8 h-8" />
