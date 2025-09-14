@@ -11,16 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 export default function StudentPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  
-  // These states will be derived from the selected student
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -31,7 +29,7 @@ export default function StudentPage() {
         getDestinations(),
       ]);
       setBuses(busesData);
-      setStudents(studentsData);
+      setAllStudents(studentsData);
       setRoutes(routesData);
       setDestinations(destinationsData);
       if (busesData.length > 0 && !selectedBusId) {
@@ -39,39 +37,14 @@ export default function StudentPage() {
       }
     };
     fetchData();
-  }, []);
+  }, [selectedBusId]);
 
-  const studentRouteInfo = useMemo(() => {
-    if (!selectedStudentId) return null;
-
-    // Find the route for the specific day and type
-    const routeForStudent = routes.find(route => {
-        const isMatch = route.dayOfWeek === selectedDay && route.type === selectedRouteType;
-        if (!isMatch) return false;
-        return route.seating.some(s => s.studentId === selectedStudentId);
-    });
-
-    if (routeForStudent) {
-        const seatingInfo = routeForStudent.seating.find(s => s.studentId === selectedStudentId);
-        return {
-            route: routeForStudent,
-            busId: routeForStudent.busId,
-            seatNumber: seatingInfo?.seatNumber,
-        };
-    }
-    
-    return null;
-  }, [routes, selectedStudentId, selectedDay, selectedRouteType]);
-
+  // Reset student selection when filters change
   useEffect(() => {
-    if (studentRouteInfo) {
-      setSelectedBusId(studentRouteInfo.busId);
-    }
-  }, [studentRouteInfo]);
+    setSelectedStudentId(null);
+  }, [selectedBusId, selectedDay, selectedRouteType]);
   
-  const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
-
-  const currentRouteForDisplay = useMemo(() => {
+  const currentRoute = useMemo(() => {
      return routes.find(r => 
         r.busId === selectedBusId && 
         r.dayOfWeek === selectedDay && 
@@ -79,30 +52,42 @@ export default function StudentPage() {
      );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
+  const studentsOnCurrentRoute = useMemo(() => {
+    if (!currentRoute) return [];
+    const studentIdsOnRoute = currentRoute.seating
+      .map(seat => seat.studentId)
+      .filter((id): id is string => id !== null);
+
+    return allStudents
+      .filter(student => studentIdsOnRoute.includes(student.id))
+      .sort((a,b) => a.name.localeCompare(b.name));
+  }, [currentRoute, allStudents]);
+
+  const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
+
   const mainContent = (
     <Card>
       <CardHeader>
         <CardTitle className="font-headline">내 버스 좌석</CardTitle>
-        <CardDescription>이름을 선택하여 내 좌석을 확인하세요. 내 좌석은 파란색으로 강조 표시됩니다.</CardDescription>
+        <CardDescription>
+          버스, 요일, 경로를 선택한 후, 명단에서 이름을 선택하여 내 좌석을 확인하세요. 내 좌석은 파란색으로 강조 표시됩니다.
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        {selectedStudentId && currentRouteForDisplay && selectedBus ? (
+        {currentRoute && selectedBus ? (
              <BusSeatMap 
                 bus={selectedBus}
-                seating={currentRouteForDisplay.seating}
-                students={students}
+                seating={currentRoute.seating}
+                students={allStudents}
                 destinations={destinations}
                 draggable={false}
                 highlightedStudentId={selectedStudentId}
              />
         ) : (
             <Alert>
-                <AlertTitle>{selectedStudentId ? "배정 정보 없음" : "학생을 선택하세요"}</AlertTitle>
+                <AlertTitle>노선 정보 없음</AlertTitle>
                 <AlertDescription>
-                    {selectedStudentId 
-                        ? "선택하신 날짜와 경로에 배정된 버스 정보가 없습니다. 다른 요일이나 경로를 선택해보세요."
-                        : "버스 노선 및 좌석 정보를 보려면 목록에서 이름을 선택하세요."
-                    }
+                    선택하신 조건에 해당하는 버스 노선 정보가 없습니다. 다른 버스나 요일을 선택해보세요.
                 </AlertDescription>
             </Alert>
         )}
@@ -133,12 +118,16 @@ export default function StudentPage() {
       setSelectedRouteType={setSelectedRouteType}
       topActions={
         <div className="w-full sm:w-64">
-            <Select onValueChange={setSelectedStudentId} value={selectedStudentId || undefined}>
+            <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={!currentRoute}>
                 <SelectTrigger className="w-full">
                     <SelectValue placeholder="학생 이름을 선택하세요" />
                 </SelectTrigger>
                 <SelectContent>
-                    {students.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.grade})</SelectItem>)}
+                    {studentsOnCurrentRoute.length > 0 ? (
+                        studentsOnCurrentRoute.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.grade})</SelectItem>)
+                    ) : (
+                        <SelectItem value="no-student" disabled>이 노선에 배정된 학생이 없습니다</SelectItem>
+                    )}
                 </SelectContent>
             </Select>
         </div>
