@@ -176,7 +176,7 @@ export default function StudentPage() {
             <CardHeader>
                 <CardTitle className="font-headline">학생 탑승 현황</CardTitle>
                 <CardDescription>
-                버스, 요일, 경로를 선택한 후, 명단에서 이름을 선택하여 내 좌석을 확인하세요. 탑승 완료된 좌석은 초록색으로, 내 좌석은 파란색 테두리로 표시됩니다.
+                버스, 요일, 경로를 선택한 후, 명단에서 이름을 선택하여 자녀의 탑승 여부를 확인하세요. 탑승 완료된 좌석은 초록색으로, 학생의 좌석은 파란색 테두리로 표시됩니다.
                 </CardDescription>
             </CardHeader>
             <CardContent>
