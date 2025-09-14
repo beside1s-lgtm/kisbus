@@ -23,16 +23,16 @@ interface BusSeatMapProps {
 
 const getGridLayout = (capacity: number) => {
     if (capacity === 15) {
-        return 'grid-cols-4 gap-2 md:gap-4';
+        return 'grid-cols-4 gap-2 md:gap-2';
     }
     // 29 and 45 seaters use the same grid layout logic, just different row counts
-    return 'grid-cols-5 gap-2 md:gap-4';
+    return 'grid-cols-5 gap-2 md:gap-2';
 };
 
 const isAisle = (itemIndex: number, capacity: number): boolean => {
     if (capacity === 15) {
         const col = itemIndex % 4;
-        return col === 2;
+        return col === 1;
     }
     
     const itemCol = itemIndex % 5;
@@ -52,29 +52,43 @@ const isAisle = (itemIndex: number, capacity: number): boolean => {
 
 
 const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | null => {
-    if (capacity === 15 && itemIndex === 0) return null; // Driver's seat handled separately
-
     if (capacity === 15) {
         const row = Math.floor(itemIndex / 4);
         const col = itemIndex % 4;
-        if (col === 2) return null; // Aisle
+        if (col === 1) return null; // Aisle
 
-        // First row is DRIVER-1-aisle-2
-        if (row === 0) {
-            if (col === 1) return 1;
-            if (col > 2) return 2;
-            return null;
+        if (row === 0 && col === 0) return null; // Driver placeholder
+
+        if (row === 0) { // First row is DRIVER-aisle-1-2
+            return col - 1;
+        }
+        
+        // After first row, it's 2-aisle-1
+        if (row > 0 && row < 4) {
+            const prevRowsSeats = 2 + (row - 1) * 3;
+            let seatInRow;
+             if (col < 1) {
+                seatInRow = col + 1;
+            } else {
+                seatInRow = col;
+            }
+            return prevRowsSeats + seatInRow;
         }
 
-        const prevRowsSeats = 2 + (row - 1) * 3;
-        let seatInRow;
-        if (col < 2) {
-            seatInRow = col + 1;
-        } else {
-            seatInRow = 3;
+        // Last row is 2-aisle-2
+        if (row === 4) {
+             const prevRowsSeats = 2 + (row - 1) * 3;
+             let seatInRow;
+             if (col < 1) {
+                seatInRow = col + 1;
+            } else {
+                seatInRow = col;
+            }
+             const seatNumber = prevRowsSeats + seatInRow;
+             return seatNumber <= 15 ? seatNumber : null;
         }
-        const seatNumber = prevRowsSeats + seatInRow;
-        return seatNumber <= 15 ? seatNumber : null;
+
+        return null;
     }
     
     // For 29 and 45 seaters
@@ -90,15 +104,8 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
     let seatNumber = seatsInPrevRows + seatInRow;
     const numRows = Math.ceil(capacity / 4);
 
-    if (capacity === 45) {
-        if (itemRow === numRows - 1) { // Last row of 5
-            seatNumber = 40 + itemCol + 1;
-        }
-    }
-    if (capacity === 29) {
-        if (itemRow === numRows - 1) { // Last row of 5
-            seatNumber = 24 + itemCol + 1;
-        }
+    if ((capacity === 45 || capacity === 29) && itemRow === numRows - 1) {
+      seatNumber = (capacity - 5) + itemCol + 1;
     }
 
     return seatNumber <= capacity ? seatNumber : null;
@@ -151,13 +158,13 @@ export function BusSeatMap({
 
   return (
     <TooltipProvider>
-      <div className="p-4 border rounded-lg bg-muted/20 overflow-auto">
+      <div className="p-2 border rounded-lg bg-muted/20 overflow-auto">
         {isLargeBus && (
-            <div className="mb-4 flex justify-start">
+            <div className="mb-2 flex justify-start">
                  <div className="w-1/5">
                     <div className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
-                        <CircleUserRound className="w-8 h-8" />
-                        <span className="mt-1 text-xs font-medium">운전석</span>
+                        <CircleUserRound className="w-6 h-6" />
+                        <span className="mt-1 text-[10px] font-medium">운전석</span>
                     </div>
                 </div>
             </div>
@@ -167,8 +174,8 @@ export function BusSeatMap({
              if (bus.capacity === 15 && i === 0) {
                  return (
                     <div key="driver-seat" className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
-                        <CircleUserRound className="w-8 h-8" />
-                        <span className="mt-1 text-xs font-medium">운전석</span>
+                        <CircleUserRound className="w-6 h-6" />
+                        <span className="mt-1 text-[10px] font-medium">운전석</span>
                     </div>
                  );
              }
@@ -217,15 +224,15 @@ export function BusSeatMap({
                     {student ? (
                       <>
                         {student.isGroupLeader && (
-                          <Crown className="absolute w-5 h-5 -top-3 -right-3 text-yellow-500" />
+                          <Crown className="absolute w-4 h-4 -top-2 -right-2 text-yellow-500" />
                         )}
                         {isAbsent && (
-                           <XCircle className="absolute w-5 h-5 text-destructive" />
+                           <XCircle className="absolute w-4 h-4 text-destructive" />
                         )}
-                        <Avatar className="w-8 h-8 md:w-10 md:h-10">
+                        <Avatar className="w-8 h-8">
                           <AvatarFallback className={cn(isBoarded && 'bg-green-200 dark:bg-green-900')}>{student.name.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <span className="mt-1 text-xs font-medium text-center truncate">{student.name}</span>
+                        <span className="mt-1 text-[10px] font-medium text-center truncate">{student.name}</span>
                       </>
                     ) : (
                       <UserIcon className="w-6 h-6 text-muted-foreground" />
