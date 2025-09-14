@@ -1,3 +1,4 @@
+
 'use client';
 import type { FC, ReactNode } from 'react';
 import React from 'react';
@@ -15,7 +16,7 @@ import {
 } from '@/components/ui/sidebar';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bus, UserCog, User,ClipboardPenLine } from 'lucide-react';
+import { Bus, UserCog, User, ClipboardPenLine } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
@@ -29,7 +30,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/admin', label: '관리자', icon: UserCog },
   { href: '/teacher', label: '선생님', icon: UserCog },
-  { href: '/student', label: '학생', icon: User },
+  { href: '/student', label: '탑승 확인', icon: User },
   { href: '/apply', label: '탑승 신청', icon: ClipboardPenLine },
 ];
 
@@ -41,7 +42,7 @@ export const MainLayout: FC<{ children: ReactNode }> = ({ children }) => {
     switch(currentPath) {
         case 'admin': return '관리자';
         case 'teacher': return '선생님';
-        case 'student': return '학생';
+        case 'student': return '탑승 확인';
         case 'apply': return '탑승 신청';
         default: return '대시보드';
     }
