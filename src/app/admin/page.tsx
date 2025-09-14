@@ -429,8 +429,8 @@ const StudentManagementTab = ({
         );
 
         const gradeToValue = (grade: string): number => {
-            if (grade.toLowerCase().includes('k')) return 0;
-            const num = parseInt(grade.replace('G', ''));
+            if (grade.toLowerCase().startsWith('k')) return 0;
+            const num = parseInt(grade.replace(/\D/g, ''));
             if (isNaN(num)) return 99; // For middle/high school, place at end
             return num;
         };
@@ -440,10 +440,10 @@ const StudentManagementTab = ({
         const getSeatPairs = (capacity: number): [number, number][] => {
             const pairs: [number, number][] = [];
             if (capacity === 45) {
-                 // 2-2 layout
-                for(let i=1; i<=45; i+=5) {
-                    if (i+1 <= 45) pairs.push([i, i+1]);
-                    if (i+3 <= 45 && i+4 <= 45) pairs.push([i+3, i+4]);
+                 // 2-2 layout for first 10 rows
+                for(let i = 1; i <= 40; i+=4) {
+                    if (i+1 <= 40) pairs.push([i, i+1]);
+                    if (i+2 <= 40 && i+3 <= 40) pairs.push([i+2, i+3]);
                 }
             } else { // 15 and 29 seaters
                 // 1-2 layout
@@ -456,8 +456,9 @@ const StudentManagementTab = ({
         
         const getSeatType = (seatNumber: number, capacity: number): 'window' | 'aisle' => {
              if (capacity === 45) {
-                const col = (seatNumber - 1) % 5;
-                return col === 0 || col === 4 ? 'window' : 'aisle';
+                if (seatNumber > 40) return 'aisle'; // Back row
+                const colInPair = (seatNumber - 1) % 4;
+                return colInPair === 0 || colInPair === 3 ? 'window' : 'aisle';
             } else { // 15 and 29 seaters
                 const col = (seatNumber-1) % 4;
                 return col === 0 || col === 3 ? 'window' : 'aisle';
@@ -483,7 +484,6 @@ const StudentManagementTab = ({
             for (const pair of seatPairs) {
                 if (!occupiedSeats.has(pair[0]) && !occupiedSeats.has(pair[1])) {
                     const [seat1, seat2] = pair;
-                    const seat1Type = getSeatType(seat1, selectedBus.capacity);
                     
                     const maleStopIndex = routeStopOrder.indexOf(male.destinationId);
                     const femaleStopIndex = routeStopOrder.indexOf(female.destinationId);
@@ -497,7 +497,7 @@ const StudentManagementTab = ({
                     }
 
                     // Assign student A to window, B to aisle
-                    if (seat1Type === 'window') {
+                    if (getSeatType(seat1, selectedBus.capacity) === 'window') {
                         seatA = seat1; seatB = seat2;
                     } else {
                         seatA = seat2; seatB = seat1;

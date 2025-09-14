@@ -34,10 +34,30 @@ const getGridLayout = (capacity: number) => {
 };
 
 const isAisle = (seatIndex: number, capacity: number) => {
+  if (capacity === 45) {
+    // For 45-seater, the aisle is the 3rd column, except for the last row.
+    // Last row has 5 seats, so no aisle.
+    const seatNumber = seatIndex + 1;
+    // The last 5 seats are 41, 42, 43, 44, 45. They are in the last row.
+    // Before that, seats are in 10 rows of 4.
+    // The visual grid has 11 rows. 10 rows of 5 items (2 seats, 1 aisle, 2 seats), and last row of 5 seats.
+    // Total items = 10 * 5 + 5 = 55? No, that's not right.
+    const totalItems = bus.capacity + Math.floor((bus.capacity-5) / 4); // 45 + 10 = 55
+    // The issue is how to represent the layout.
+    // Let's use grid position.
+    // The grid has 11 rows, 5 columns.
+    const rowIndex = Math.floor(seatIndex / 5);
+    const colIndex = seatIndex % 5;
+    
+    // For the first 10 rows (rowIndex 0 to 9), the middle one is an aisle.
+    if (rowIndex < 10 && colIndex === 2) {
+        return true;
+    }
+    return false;
+  }
+  
   const seatNumber = seatIndex + 1;
   switch (capacity) {
-    case 45:
-      return (seatNumber - 3) % 5 === 0;
     case 29:
     case 15:
       return (seatNumber - 3) % 4 === 0;
@@ -86,6 +106,8 @@ export function BusSeatMap({
     if (!id) return null;
     return students.find(s => s.id === id);
   };
+  
+  const totalGridItems = bus.capacity === 45 ? 55 : bus.capacity + Math.floor(bus.capacity / 4);
 
   return (
     <TooltipProvider>
@@ -96,13 +118,26 @@ export function BusSeatMap({
           </div>
         </div>
         <div className={cn('grid', getGridLayout(bus.capacity))}>
-          {Array.from({ length: bus.capacity + Math.floor(bus.capacity / 4) }).map((_, i) => {
+          {Array.from({ length: totalGridItems }).map((_, i) => {
              const aisle = isAisle(i, bus.capacity);
              if (aisle) {
                return <div key={`aisle-${i}`} className="w-full h-full"></div>;
              }
 
-             const seatIndex = i - Math.floor(i / (bus.capacity === 45 ? 5 : 4));
+             // Adjust index to get correct seat number
+             let seatIndex;
+             if (bus.capacity === 45) {
+                const rowIndex = Math.floor(i / 5);
+                const colIndex = i % 5;
+                if (rowIndex < 10) {
+                    seatIndex = rowIndex * 4 + (colIndex > 2 ? colIndex - 1 : colIndex);
+                } else {
+                    seatIndex = 40 + colIndex;
+                }
+             } else {
+                seatIndex = i - Math.floor(i / 4);
+             }
+
              const seat = seating.find(s => s.seatNumber === seatIndex + 1);
              
              if (!seat) return null;
@@ -129,6 +164,7 @@ export function BusSeatMap({
                 <TooltipTrigger asChild>
                   <div
                     ref={isHighlighted ? highlightedSeatRef : null}
+                    id={`seat-${seat.seatNumber}`}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, seat.seatNumber)}
                     onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
