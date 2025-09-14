@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const getStorageKey = (routeId: string) => `boarding_status_${routeId}`;
+
 export default function StudentPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -19,6 +21,7 @@ export default function StudentPage() {
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,11 +42,6 @@ export default function StudentPage() {
     fetchData();
   }, [selectedBusId]);
 
-  // Reset student selection when filters change
-  useEffect(() => {
-    setSelectedStudentId(null);
-  }, [selectedBusId, selectedDay, selectedRouteType]);
-  
   const currentRoute = useMemo(() => {
      return routes.find(r => 
         r.busId === selectedBusId && 
@@ -52,6 +50,21 @@ export default function StudentPage() {
      );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
+  // Load boarding status from sessionStorage
+  useEffect(() => {
+    if (currentRoute) {
+      const storageKey = getStorageKey(currentRoute.id);
+      const savedStatus = window.sessionStorage.getItem(storageKey);
+      if (savedStatus) {
+        setBoardedStudentIds(JSON.parse(savedStatus));
+      } else {
+        setBoardedStudentIds([]);
+      }
+      // Reset student selection when filters change
+      setSelectedStudentId(null);
+    }
+  }, [currentRoute]);
+  
   const studentsOnCurrentRoute = useMemo(() => {
     if (!currentRoute) return [];
     const studentIdsOnRoute = currentRoute.seating
@@ -68,9 +81,9 @@ export default function StudentPage() {
   const mainContent = (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">내 버스 좌석</CardTitle>
+        <CardTitle className="font-headline">내 버스 좌석 및 탑승 현황</CardTitle>
         <CardDescription>
-          버스, 요일, 경로를 선택한 후, 명단에서 이름을 선택하여 내 좌석을 확인하세요. 내 좌석은 파란색으로 강조 표시됩니다.
+          버스, 요일, 경로를 선택한 후, 명단에서 이름을 선택하여 내 좌석을 확인하세요. 탑승 완료된 좌석은 초록색으로, 내 좌석은 파란색 테두리로 표시됩니다.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -82,6 +95,7 @@ export default function StudentPage() {
                 destinations={destinations}
                 draggable={false}
                 highlightedStudentId={selectedStudentId}
+                boardedStudentIds={boardedStudentIds}
              />
         ) : (
             <Alert>
@@ -102,7 +116,8 @@ export default function StudentPage() {
             <li>상단 필터에서 버스, 요일, 경로를 선택하세요.</li>
             <li>학생 이름 목록에서 내 이름을 찾아 선택하세요.</li>
             <li>배정된 버스와 좌석이 표시됩니다.</li>
-            <li>내 좌석은 파란색으로 강조 표시됩니다.</li>
+            <li>내 좌석은 파란색 테두리로 강조 표시됩니다.</li>
+            <li>초록색으로 표시된 좌석은 탑승이 확인된 좌석입니다.</li>
         </ul>
     </div>
   );
@@ -138,3 +153,5 @@ export default function StudentPage() {
     />
   );
 }
+
+    

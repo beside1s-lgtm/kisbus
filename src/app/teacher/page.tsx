@@ -14,6 +14,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
+const getStorageKey = (routeId: string) => `boarding_status_${routeId}`;
+
 export default function TeacherPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -56,6 +58,27 @@ export default function TeacherPage() {
       r.type === selectedRouteType
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+
+  // Load and save boarding status from/to sessionStorage
+  useEffect(() => {
+    if (currentRoute) {
+      const storageKey = getStorageKey(currentRoute.id);
+      const savedStatus = window.sessionStorage.getItem(storageKey);
+      if (savedStatus) {
+        setBoardedStudentIds(JSON.parse(savedStatus));
+      } else {
+        setBoardedStudentIds([]); // Reset for new route
+      }
+    }
+  }, [currentRoute]);
+
+  useEffect(() => {
+    if (currentRoute) {
+      const storageKey = getStorageKey(currentRoute.id);
+      window.sessionStorage.setItem(storageKey, JSON.stringify(boardedStudentIds));
+    }
+  }, [boardedStudentIds, currentRoute]);
+
 
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
@@ -230,3 +253,5 @@ export default function TeacherPage() {
     />
   );
 }
+
+    

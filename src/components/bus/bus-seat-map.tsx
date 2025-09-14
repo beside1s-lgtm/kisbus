@@ -103,7 +103,7 @@ export function BusSeatMap({
 
              const seatClasses = cn(
                'relative aspect-square rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm',
-               'hover:scale-105 hover:shadow-lg',
+               onSeatClick && 'hover:scale-105 hover:shadow-lg',
                onSeatClick ? 'cursor-pointer' : 'cursor-default',
                student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
                isBoarded && 'bg-green-300 dark:bg-green-800',
@@ -155,3 +155,5 @@ export function BusSeatMap({
     </TooltipProvider>
   );
 }
+
+    
