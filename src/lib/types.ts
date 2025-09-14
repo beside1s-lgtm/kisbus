@@ -2,7 +2,7 @@
 export type Student = {
   id: string;
   name: string;
-  destinationId: string;
+  destinationId: string | null;
   grade: string;
   class: string;
   gender: 'Male' | 'Female';
