@@ -22,10 +22,10 @@ interface BusSeatMapProps {
 
 const getGridLayout = (capacity: number) => {
     if (capacity === 15) {
-        return 'grid-cols-3 gap-2 md:gap-2';
+        return 'grid-cols-3 gap-1 md:gap-2';
     }
     // 29 and 45 seaters use the same grid layout logic, just different row counts
-    return 'grid-cols-5 gap-2 md:gap-2';
+    return 'grid-cols-5 gap-1 md:gap-2';
 };
 
 const isAisle = (itemIndex: number, capacity: number): boolean => {
@@ -140,9 +140,9 @@ export function BusSeatMap({
         {isLargeBus && (
             <div className="mb-2 flex justify-start">
                  <div className="w-1/5">
-                    <div className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
-                        <CircleUserRound className="w-6 h-6" />
-                        <span className="mt-1 text-[10px] font-medium">운전석</span>
+                    <div className="relative h-12 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
+                        <CircleUserRound className="w-5 h-5" />
+                        <span className="mt-1 text-[9px] font-medium">운전석</span>
                     </div>
                 </div>
             </div>
@@ -151,9 +151,9 @@ export function BusSeatMap({
           {Array.from({ length: totalGridItems }).map((_, i) => {
              if (bus.capacity === 15 && i === 0) {
                  return (
-                    <div key="driver-seat" className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
-                        <CircleUserRound className="w-6 h-6" />
-                        <span className="mt-1 text-[10px] font-medium">운전석</span>
+                    <div key="driver-seat" className="relative h-12 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
+                        <CircleUserRound className="w-5 h-5" />
+                        <span className="mt-1 text-[9px] font-medium">운전석</span>
                     </div>
                  );
              }
@@ -177,7 +177,7 @@ export function BusSeatMap({
              const isHighlighted = student ? highlightedStudentId === student.id : false;
 
              const seatClasses = cn(
-               'relative aspect-square rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm p-1',
+               'relative h-12 rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm p-1',
                onSeatClick && 'hover:scale-105 hover:shadow-lg',
                onSeatClick ? 'cursor-pointer' : 'cursor-default',
                student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
@@ -202,17 +202,17 @@ export function BusSeatMap({
                     {student ? (
                       <>
                         {student.isGroupLeader && (
-                          <Crown className="absolute w-4 h-4 -top-2 -right-2 text-yellow-500" />
+                          <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />
                         )}
                         {isAbsent && (
-                           <XCircle className="absolute w-4 h-4 text-destructive" />
+                           <XCircle className="absolute w-3 h-3 text-destructive" />
                         )}
                         <span className="text-[10px] font-medium text-center break-words leading-tight">{student.name}</span>
                       </>
                     ) : (
-                      <UserIcon className="w-5 h-5 text-muted-foreground" />
+                      <UserIcon className="w-4 h-4 text-muted-foreground" />
                     )}
-                    <span className="absolute top-1 left-1 text-[9px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+                    <span className="absolute top-1 left-1 text-[8px] font-bold text-muted-foreground">{seat.seatNumber}</span>
                   </div>
                 </TooltipTrigger>
                 {student && (
