@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -16,6 +17,7 @@ interface BusSeatMapProps {
   draggable: boolean;
   absentStudentIds?: string[];
   boardedStudentIds?: string[];
+  highlightedStudentId?: string | null;
 }
 
 const getGridLayout = (capacity: number) => {
@@ -53,6 +55,7 @@ export function BusSeatMap({
   draggable,
   absentStudentIds = [],
   boardedStudentIds = [],
+  highlightedStudentId = null,
 }: BusSeatMapProps) {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -94,6 +97,7 @@ export function BusSeatMap({
              const student = getStudentById(seat.studentId);
              const isAbsent = student ? absentStudentIds.includes(student.id) : false;
              const isBoarded = student ? boardedStudentIds.includes(student.id) : false;
+             const isHighlighted = student ? highlightedStudentId === student.id : false;
 
              const seatClasses = cn(
                'relative aspect-square rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm',
@@ -102,6 +106,7 @@ export function BusSeatMap({
                student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
                isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
                isBoarded && 'bg-green-300/80 dark:bg-green-700/80',
+               isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
                student && student.isGroupLeader && 'border-4 border-yellow-400'
              );
 
