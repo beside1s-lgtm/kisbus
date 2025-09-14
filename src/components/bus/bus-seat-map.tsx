@@ -164,7 +164,7 @@ export function BusSeatMap({
         {isLargeBus && (
             <div className="mb-2 flex justify-start">
                  <div className="w-1/5">
-                    <div className="relative h-12 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
+                    <div className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
                         <CircleUserRound className="w-5 h-5" />
                         <span className="mt-1 text-[9px] font-medium">운전석</span>
                     </div>
@@ -175,7 +175,7 @@ export function BusSeatMap({
           {Array.from({ length: totalGridItems }).map((_, i) => {
              if (bus.capacity === 15 && i === 0) {
                  return (
-                    <div key="driver-seat" className="relative h-12 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
+                    <div key="driver-seat" className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
                         <CircleUserRound className="w-5 h-5" />
                         <span className="mt-1 text-[9px] font-medium">운전석</span>
                     </div>
@@ -222,7 +222,7 @@ export function BusSeatMap({
              const isHighlighted = student ? highlightedStudentId === student.id : false;
 
              const seatClasses = cn(
-               'relative h-12 rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm p-1',
+               'relative h-10 rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm p-1',
                onSeatClick && 'hover:scale-105 hover:shadow-lg',
                onSeatClick ? 'cursor-pointer' : 'cursor-default',
                student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
