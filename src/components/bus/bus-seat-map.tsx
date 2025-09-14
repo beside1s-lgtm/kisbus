@@ -41,7 +41,7 @@ const isAisle = (itemIndex: number, capacity: number): boolean => {
         const itemRow = Math.floor(itemIndex / 5);
 
         // The last row of 5 seats has no aisle for 45-seater and 29-seater
-        if (itemRow === numRows - 1) {
+        if ((capacity === 45 && itemRow === Math.ceil(45 / 4) -1) || (capacity === 29 && itemRow === Math.ceil(29 / 4) - 1)) {
             return false;
         }
     }
@@ -72,6 +72,8 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
     // For 29 and 45 seaters
     const itemCol = itemIndex % 5;
     const itemRow = Math.floor(itemIndex / 5);
+    
+    if (itemIndex === 0) return null; // Driver seat is now handled outside this logic for these capacities
 
     if (isAisle(itemIndex, capacity)) return null;
    
@@ -80,13 +82,35 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
     if (itemCol > 2) seatInRow--;
    
     let seatNumber = seatsInPrevRows + seatInRow;
-    const numRows = Math.ceil(capacity / 4);
 
-    if ((capacity === 45 || capacity === 29) && itemRow === numRows - 1) {
-      seatNumber = (capacity - 5) + itemCol + 1;
+    if (capacity === 29 && itemRow === Math.ceil(29/4) - 1) {
+       seatNumber = (29 - 5) + itemCol + 1;
+    } else if (capacity === 45 && itemRow === Math.ceil(45/4) - 1) {
+       seatNumber = (45 - 5) + itemCol + 1;
+    }
+    
+    const adjustedIndex = itemIndex -1;
+    const adjustedRow = Math.floor(adjustedIndex/5);
+    const adjustedCol = adjustedIndex % 5;
+    
+    if(isAisle(adjustedIndex, capacity)) return null;
+
+    let calculatedSeatNumber = adjustedRow * 4;
+    if (adjustedCol < 2) {
+      calculatedSeatNumber += adjustedCol + 1;
+    } else {
+      calculatedSeatNumber += adjustedCol;
+    }
+    
+    if (capacity === 29 && calculatedSeatNumber > 24) {
+      return 24 + (adjustedCol + 1);
+    }
+    if (capacity === 45 && calculatedSeatNumber > 40) {
+        return 40 + (adjustedCol + 1);
     }
 
-    return seatNumber <= capacity ? seatNumber : null;
+
+    return calculatedSeatNumber <= capacity ? calculatedSeatNumber : null;
 };
 
 
@@ -157,15 +181,36 @@ export function BusSeatMap({
                     </div>
                  );
              }
+             
+             let seatNumber: number | null;
+             if(isLargeBus) {
+                 const adjustedIndex = i;
+                 const itemRow = Math.floor(adjustedIndex / 5);
+                 const itemCol = adjustedIndex % 5;
+                 
+                 if(isAisle(adjustedIndex, bus.capacity)) {
+                     seatNumber = null;
+                 } else {
+                     const seatsInPrevRows = itemRow * 4;
+                     let seatInRow = itemCol + 1;
+                     if(itemCol > 2) seatInRow--;
+                     seatNumber = seatsInPrevRows + seatInRow;
 
-             const seatNumber = getSeatNumberFromIndex(i, bus.capacity);
-             const isAisleCell = isAisle(i, bus.capacity);
+                     if (bus.capacity === 29 && itemRow === Math.ceil(bus.capacity/4) - 1) {
+                         seatNumber = (bus.capacity - 5) + itemCol + 1;
+                     }
+                      if (bus.capacity === 45 && itemRow === Math.ceil(bus.capacity/4) - 1) {
+                         seatNumber = (bus.capacity - 5) + itemCol + 1;
+                     }
+                 }
 
-             if (isAisleCell || seatNumber === null || seatNumber > bus.capacity) {
-                if(isAisleCell) {
-                    return <div key={`aisle-or-empty-${i}`} className="w-full h-full"></div>;
-                }
-                return null;
+             } else {
+                seatNumber = getSeatNumberFromIndex(i, bus.capacity);
+             }
+
+
+             if (seatNumber === null || seatNumber > bus.capacity) {
+                 return <div key={`aisle-or-empty-${i}`} className="w-full h-full"></div>;
              }
 
              const seat = seating.find(s => s.seatNumber === seatNumber);
@@ -207,7 +252,7 @@ export function BusSeatMap({
                         {isAbsent && (
                            <XCircle className="absolute w-3 h-3 text-destructive" />
                         )}
-                        <span className="text-lg font-medium text-center break-words leading-tight">{student.name}</span>
+                        <span className="text-base font-medium text-center break-words leading-tight">{student.name}</span>
                       </>
                     ) : (
                       <UserIcon className="w-4 h-4 text-muted-foreground" />
