@@ -45,13 +45,14 @@ const isAisle = (itemIndex: number, capacity: number): boolean => {
             return false;
         }
     }
+    // For 29 and 45 seaters, the aisle is the 3rd column (index 2)
     return itemCol === 2;
 };
 
 
 const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | null => {
-    // Driver's seat is always at index 0
-    if (itemIndex === 0) return null;
+    // Driver's seat is always at index 0 for 15-seater
+    if (capacity === 15 && itemIndex === 0) return null;
 
     if (capacity === 15) {
         const row = Math.floor(itemIndex / 4);
@@ -65,7 +66,7 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
             return null;
         }
 
-        // Other rows are 2-aisle-1
+        // Other rows are 2-aisle-1 or 1-aisle-2, we need to map based on seat numbers
         const prevRowsSeats = 2 + (row - 1) * 3;
         let seatInRow;
         if (col < 2) {
@@ -84,7 +85,7 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
     if (isAisle(itemIndex, capacity)) return null;
    
     const seatsInPrevRows = itemRow * 4;
-    let seatInRow = itemCol;
+    let seatInRow = itemCol + 1;
     if (itemCol > 2) seatInRow--;
    
     let seatNumber = seatsInPrevRows + seatInRow;
@@ -92,7 +93,7 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
     if (capacity === 45) {
         const numRows = Math.ceil(capacity / 4);
         if (itemRow === numRows - 1) { // Last row of 5
-            seatNumber = 40 + itemCol;
+            seatNumber = 40 + itemCol + 1;
         }
     }
 
@@ -141,15 +142,25 @@ export function BusSeatMap({
     return students.find(s => s.id === id);
   };
   
-  const totalGridItems = bus.capacity === 15 ? 5 * 4 : (Math.ceil(bus.capacity / 4) + 1) * 5;
+  const totalGridItems = bus.capacity === 15 ? 5 * 4 : Math.ceil(bus.capacity / 4) * 5;
+  const isLargeBus = bus.capacity === 29 || bus.capacity === 45;
 
   return (
     <TooltipProvider>
       <div className="p-4 border rounded-lg bg-muted/20 overflow-auto">
+        {isLargeBus && (
+            <div className="mb-4 flex justify-center">
+                 <div className="w-1/5">
+                    <div className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
+                        <CircleUserRound className="w-8 h-8" />
+                        <span className="mt-1 text-xs font-medium">운전석</span>
+                    </div>
+                </div>
+            </div>
+        )}
         <div className={cn('grid', getGridLayout(bus.capacity))}>
           {Array.from({ length: totalGridItems }).map((_, i) => {
-             // For all bus types, index 0 is the driver
-             if (i === 0) {
+             if (bus.capacity === 15 && i === 0) {
                  return (
                     <div key="driver-seat" className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
                         <CircleUserRound className="w-8 h-8" />
@@ -161,7 +172,7 @@ export function BusSeatMap({
              const seatNumber = getSeatNumberFromIndex(i, bus.capacity);
              const isAisleCell = isAisle(i, bus.capacity);
 
-             if (isAisleCell || seatNumber === null) {
+             if (isAisleCell || seatNumber === null || seatNumber > bus.capacity) {
                 if(isAisleCell) {
                     return <div key={`aisle-or-empty-${i}`} className="w-full h-full"></div>;
                 }
