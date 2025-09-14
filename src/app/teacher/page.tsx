@@ -5,12 +5,13 @@ import { Bus, Student, Route, Destination, DayOfWeek, RouteType } from '@/lib/ty
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { DashboardShell } from '@/components/bus/dashboard-shell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Crown, UserX, ArrowLeftRight } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { VolunteerTimeCalculator } from './components/volunteer-time-calculator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 export default function TeacherPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -23,6 +24,7 @@ export default function TeacherPage() {
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
   
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
+  const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   useEffect(() => {
@@ -54,6 +56,14 @@ export default function TeacherPage() {
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
+  const studentsOnCurrentRoute = useMemo(() => {
+      if (!currentRoute) return [];
+      return currentRoute.seating
+          .map(s => students.find(student => student.id === s.studentId))
+          .filter((s): s is Student => s !== undefined)
+          .sort((a,b) => a.name.localeCompare(b.name));
+  }, [currentRoute, students]);
+
   const toggleAbsence = (studentId: string) => {
     setAbsentStudentIds(prev => 
       prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
@@ -74,32 +84,82 @@ export default function TeacherPage() {
     if (studentId) {
       const student = students.find(s => s.id === studentId);
       setSelectedStudent(student || null);
+      
+      // Toggle boarding status
+      setBoardedStudentIds(prev => 
+          prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
+      );
     } else {
       setSelectedStudent(null);
     }
   };
 
   if (!selectedBus || !currentRoute) {
-    return <div className="p-4">로딩 중 또는 버스를 선택하세요...</div>;
+    return (
+        <DashboardShell
+            buses={buses}
+            selectedBusId={selectedBusId}
+            setSelectedBusId={setSelectedBusId}
+            selectedDay={selectedDay}
+            setSelectedDay={setSelectedDay}
+            selectedRouteType={selectedRouteType}
+            setSelectedRouteType={setSelectedRouteType}
+            mainContent={<div className="p-4 text-center">로딩 중 또는 유효한 노선을 선택하세요...</div>}
+        />
+    );
   }
 
   const mainContent = (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-headline">버스 좌석</CardTitle>
-        <CardDescription>학생을 클릭하여 세부 정보 및 작업을 확인하세요.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <BusSeatMap 
-          bus={selectedBus}
-          seating={currentRoute.seating}
-          students={students}
-          draggable={false}
-          onSeatClick={handleSeatClick}
-          absentStudentIds={absentStudentIds}
-        />
-      </CardContent>
-    </Card>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline">버스 좌석 및 탑승 현황</CardTitle>
+            <CardDescription>학생 좌석을 클릭하여 탑승 여부를 표시하세요. 탑승한 학생은 초록색으로 표시됩니다.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BusSeatMap 
+              bus={selectedBus}
+              seating={currentRoute.seating}
+              students={students}
+              draggable={false}
+              onSeatClick={handleSeatClick}
+              absentStudentIds={absentStudentIds}
+              boardedStudentIds={boardedStudentIds}
+            />
+          </CardContent>
+        </Card>
+      </div>
+      <div className="lg:col-span-1">
+        <Card className="sticky top-20">
+          <CardHeader>
+            <CardTitle className="font-headline">탑승 학생 명단</CardTitle>
+          </CardHeader>
+          <CardContent className='max-h-[60vh] overflow-y-auto'>
+             <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>이름</TableHead>
+                        <TableHead>상태</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {studentsOnCurrentRoute.map(student => (
+                        <TableRow key={student.id}>
+                            <TableCell>{student.name} {student.isGroupLeader && "👑"}</TableCell>
+                            <TableCell>
+                                <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : 'secondary'}>
+                                    {boardedStudentIds.includes(student.id) ? '탑승' : '미탑승'}
+                                </Badge>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+             </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 
   const sidePanel = selectedStudent ? (

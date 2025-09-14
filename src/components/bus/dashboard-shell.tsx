@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Bus, DayOfWeek, RouteType } from '@/lib/types';
 import { Separator } from '../ui/separator';
+import { cn } from '@/lib/utils';
 
 interface DashboardShellProps {
   buses: Bus[];
@@ -43,10 +44,10 @@ export function DashboardShell({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle className="font-headline">노선 설정</CardTitle>
+          <CardTitle className="font-headline">노선 및 현황 조회</CardTitle>
           <div className="flex items-center gap-2">
             {topActions}
           </div>
@@ -94,8 +95,8 @@ export function DashboardShell({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className={cn("grid grid-cols-1 gap-6", sidePanel && "lg:grid-cols-3")}>
+        <div className={cn(sidePanel && "lg:col-span-2")}>
           {mainContent}
         </div>
         {sidePanel && (
@@ -105,7 +106,7 @@ export function DashboardShell({
                 <CardTitle className="font-headline">{sidePanelTitle}</CardTitle>
               </CardHeader>
               <Separator className="mb-4" />
-              <CardContent className='max-h-[60vh] overflow-y-auto'>
+              <CardContent className='max-h-[75vh] overflow-y-auto'>
                 {sidePanel}
               </CardContent>
             </Card>

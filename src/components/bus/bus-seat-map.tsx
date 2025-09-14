@@ -104,10 +104,11 @@ export function BusSeatMap({
                'hover:scale-105 hover:shadow-lg',
                onSeatClick ? 'cursor-pointer' : 'cursor-default',
                student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
-               isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
-               isBoarded && 'bg-green-300/80 dark:bg-green-700/80',
+               isBoarded && 'bg-green-300 dark:bg-green-800',
                isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
-               student && student.isGroupLeader && 'border-4 border-yellow-400'
+               isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
+               student && student.isGroupLeader && !isBoarded && 'border-4 border-yellow-400',
+               student && student.isGroupLeader && isBoarded && 'border-4 border-yellow-600 dark:border-yellow-300'
              );
 
             return (
@@ -122,13 +123,13 @@ export function BusSeatMap({
                     {student ? (
                       <>
                         {student.isGroupLeader && (
-                          <Crown className="absolute w-5 h-5 -top-2 -right-2 text-yellow-500" />
+                          <Crown className="absolute w-5 h-5 -top-3 -right-3 text-yellow-500" />
                         )}
                         {isAbsent && (
                            <XCircle className="absolute w-5 h-5 text-destructive" />
                         )}
                         <Avatar className="w-8 h-8 md:w-10 md:h-10">
-                          <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
+                          <AvatarFallback className={cn(isBoarded && 'bg-green-200 dark:bg-green-900')}>{student.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <span className="mt-1 text-xs font-medium text-center truncate">{student.name}</span>
                       </>
@@ -141,7 +142,7 @@ export function BusSeatMap({
                 {student && (
                   <TooltipContent>
                     <p>이름: {student.name}</p>
-                    <p>목적지: {getStudentById(student.id)?.destinationId}</p>
+                    <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
                   </TooltipContent>
                 )}
               </Tooltip>
