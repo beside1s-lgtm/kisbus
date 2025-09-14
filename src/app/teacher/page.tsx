@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/mock-data';
@@ -122,6 +123,7 @@ export default function TeacherPage() {
               bus={selectedBus}
               seating={currentRoute.seating}
               students={students}
+              destinations={destinations}
               draggable={false}
               onSeatClick={handleSeatClick}
               absentStudentIds={absentStudentIds}

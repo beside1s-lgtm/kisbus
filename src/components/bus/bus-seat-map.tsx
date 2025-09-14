@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Bus, Student } from '@/lib/types';
+import { Bus, Student, Destination } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Crown, User as UserIcon, XCircle } from 'lucide-react';
@@ -12,6 +12,7 @@ interface BusSeatMapProps {
   bus: Bus;
   seating: { seatNumber: number; studentId: string | null }[];
   students: Student[];
+  destinations: Destination[];
   onSeatDrop?: (seatNumber: number, studentId: string) => void;
   onSeatClick?: (seatNumber: number, studentId: string | null) => void;
   draggable: boolean;
@@ -50,6 +51,7 @@ export function BusSeatMap({
   bus,
   seating,
   students,
+  destinations,
   onSeatDrop,
   onSeatClick,
   draggable,

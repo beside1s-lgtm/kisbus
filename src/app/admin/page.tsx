@@ -1,4 +1,5 @@
 
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/mock-data';
@@ -626,6 +627,7 @@ const StudentManagementTab = ({
                             bus={selectedBus}
                             seating={currentRoute.seating}
                             students={students}
+                            destinations={destinations}
                             onSeatDrop={handleSeatDrop}
                             onSeatClick={(seatNumber) => unassignStudent(seatNumber)}
                             draggable={true}

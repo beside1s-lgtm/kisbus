@@ -1,7 +1,8 @@
+
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
-import { getBuses, getStudents, getRoutes } from '@/lib/mock-data';
-import { Bus, Student, Route, DayOfWeek, RouteType } from '@/lib/types';
+import { getBuses, getStudents, getRoutes, getDestinations } from '@/lib/mock-data';
+import { Bus, Student, Route, DayOfWeek, RouteType, Destination } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { DashboardShell } from '@/components/bus/dashboard-shell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,6 +13,7 @@ export default function StudentPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
   
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   
@@ -22,14 +24,16 @@ export default function StudentPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [busesData, studentsData, routesData] = await Promise.all([
+      const [busesData, studentsData, routesData, destinationsData] = await Promise.all([
         getBuses(),
         getStudents(),
         getRoutes(),
+        getDestinations(),
       ]);
       setBuses(busesData);
       setStudents(studentsData);
       setRoutes(routesData);
+      setDestinations(destinationsData);
       if (busesData.length > 0 && !selectedBusId) {
         setSelectedBusId(busesData[0].id);
       }
@@ -87,6 +91,7 @@ export default function StudentPage() {
                 bus={selectedBus}
                 seating={currentRouteForDisplay.seating}
                 students={students}
+                destinations={destinations}
                 draggable={false}
                 highlightedStudentId={selectedStudentId}
              />
