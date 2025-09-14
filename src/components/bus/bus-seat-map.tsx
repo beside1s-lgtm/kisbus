@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Bus, Student, Destination } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -59,6 +59,18 @@ export function BusSeatMap({
   boardedStudentIds = [],
   highlightedStudentId = null,
 }: BusSeatMapProps) {
+  const highlightedSeatRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (highlightedSeatRef.current) {
+      highlightedSeatRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center',
+      });
+    }
+  }, [highlightedStudentId]);
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
@@ -78,7 +90,7 @@ export function BusSeatMap({
 
   return (
     <TooltipProvider>
-      <div className="p-4 border rounded-lg bg-muted/20">
+      <div className="p-4 border rounded-lg bg-muted/20 overflow-auto">
         <div className="w-full mb-4 text-center">
           <div className="inline-block px-4 py-2 font-bold border-2 rounded-md bg-secondary text-secondary-foreground">
             {bus.name} - 운전석
@@ -117,6 +129,7 @@ export function BusSeatMap({
               <Tooltip key={`seat-tooltip-${seat.seatNumber}-${i}`}>
                 <TooltipTrigger asChild>
                   <div
+                    ref={isHighlighted ? highlightedSeatRef : null}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, seat.seatNumber)}
                     onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
@@ -155,5 +168,3 @@ export function BusSeatMap({
     </TooltipProvider>
   );
 }
-
-    
