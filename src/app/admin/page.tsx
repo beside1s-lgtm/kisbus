@@ -8,12 +8,12 @@ import {
     addBus, deleteBus, updateBus,
     addStudent,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
-    addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating
+    addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
 import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -357,7 +358,6 @@ const BusConfigurationTab = ({
     const trimmedName = suggestion.name.trim();
     if (destinations.some(d => d.name.toLowerCase() === trimmedName.toLowerCase())) {
         toast({ title: "알림", description: "이미 등록된 목적지입니다. 제안 목록에서 삭제합니다." });
-        // Just remove from suggestions, don't add to main list
         try {
             await deleteDoc(doc(db, 'suggestedDestinations', suggestion.id));
             setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
@@ -377,6 +377,17 @@ const BusConfigurationTab = ({
         toast({ title: "오류", description: "승인 처리 중 오류 발생", variant: 'destructive'});
     }
   };
+
+  const handleClearAllSuggestions = async () => {
+    try {
+        await clearAllSuggestedDestinations();
+        setSuggestedDestinations([]);
+        toast({ title: "성공", description: "모든 제안된 목적지가 삭제되었습니다." });
+    } catch (error) {
+        toast({ title: "오류", description: "삭제 중 오류가 발생했습니다.", variant: 'destructive' });
+    }
+  };
+
 
   const handleDragEnd = async (result: any) => {
       const { source, destination, draggableId } = result;
@@ -500,6 +511,27 @@ const BusConfigurationTab = ({
                                 ))}
                             </div>
                             </CardContent>
+                             <CardFooter>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" className="w-full">
+                                            <Trash2 className="mr-2 h-4 w-4" /> 모두 삭제
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>정말 모든 제안을 삭제하시겠습니까?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            이 작업은 되돌릴 수 없습니다. 승인되지 않은 모든 목적지 제안이 영구적으로 삭제됩니다.
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>취소</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleClearAllSuggestions}>삭제</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </CardFooter>
                         </Card>
                     )}
 

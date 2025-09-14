@@ -134,6 +134,13 @@ export const approveSuggestedDestination = async (suggestion: Destination) => {
     batch.delete(doc(db, 'suggestedDestinations', suggestion.id));
     await batch.commit();
 }
+export const clearAllSuggestedDestinations = async () => {
+    const suggestionsCollection = collection(db, 'suggestedDestinations');
+    const snapshot = await getDocs(suggestionsCollection);
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+};
 
 
 // --- Attendance ---
