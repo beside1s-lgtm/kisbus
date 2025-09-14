@@ -237,6 +237,7 @@ const BusConfigurationTab = ({
   selectedRouteType,
   selectedBusId,
   setSelectedBusId,
+  filterComponent
 }: {
   buses: Bus[];
   routes: Route[];
@@ -248,6 +249,7 @@ const BusConfigurationTab = ({
   selectedRouteType: RouteType;
   selectedBusId: string | null;
   setSelectedBusId: (id: string) => void;
+  filterComponent: React.ReactNode;
 }) => {
   const [newDestinationName, setNewDestinationName] = useState('');
   const { toast } = useToast();
@@ -356,118 +358,121 @@ const BusConfigurationTab = ({
   };
   
   return (
-    <div className="grid grid-cols-1 gap-6 items-start">
-      <Card>
-        <CardHeader>
-          <CardTitle>버스 노선 설정</CardTitle>
-          <CardDescription>버스를 선택하여 노선을 설정하세요.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            {selectedBus ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : '하교'} 노선</CardTitle>
-                    <CardDescription>버스의 정보를 수정하고 노선 순서를 정합니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                      <div className="flex items-center gap-4 p-2 border rounded-md mb-4">
-                          <Input defaultValue={selectedBus.name} className="flex-1" />
-                          <Select defaultValue={selectedBus.type}>
-                              <SelectTrigger className="w-[150px]">
-                                  <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                  <SelectItem value="15-seater">15인승</SelectItem>
-                                  <SelectItem value="29-seater">29인승</SelectItem>
-                                  <SelectItem value="45-seater">45인승</SelectItem>
-                              </SelectContent>
-                          </Select>
-                          <Button>저장</Button>
-                      </div>
-
-                      <Separator className="my-4" />
-
-                      <div>
-                          <h4 className="font-semibold mb-2">노선 순서 (드래그하여 순서 변경)</h4>
-                          <p className="text-sm text-muted-foreground mb-2">
-                              아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
-                          </p>
-                          <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-muted/50">
-                            {getStopsForCurrentRoute().map((dest, index) => (
-                               <Badge key={`${dest.id}-${index}`} variant="secondary" className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                                 <span className="text-xs font-bold text-muted-foreground">{index + 1}</span>
-                                 <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                 {dest.name}
-                               </Badge>
-                            ))}
-                          </div>
-                      </div>
-                  </CardContent>
-                </Card>
-            ) : (
-                <div className="text-center text-muted-foreground py-10">버스를 선택하여 노선을 확인하세요.</div>
-            )}
-        </CardContent>
-      </Card>
-      
-       {suggestedDestinations.length > 0 && (
+    <div className="space-y-6">
+      {filterComponent}
+      <div className="grid grid-cols-1 gap-6 items-start">
           <Card>
             <CardHeader>
-              <CardTitle>신규 목적지 신청</CardTitle>
+              <CardTitle>버스 노선 설정</CardTitle>
+              <CardDescription>버스를 선택하여 노선을 설정하세요.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {selectedBus ? (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : '하교'} 노선</CardTitle>
+                        <CardDescription>버스의 정보를 수정하고 노선 순서를 정합니다.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                          <div className="flex items-center gap-4 p-2 border rounded-md mb-4">
+                              <Input defaultValue={selectedBus.name} className="flex-1" />
+                              <Select defaultValue={selectedBus.type}>
+                                  <SelectTrigger className="w-[150px]">
+                                      <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="15-seater">15인승</SelectItem>
+                                      <SelectItem value="29-seater">29인승</SelectItem>
+                                      <SelectItem value="45-seater">45인승</SelectItem>
+                                  </SelectContent>
+                              </Select>
+                              <Button>저장</Button>
+                          </div>
+
+                          <Separator className="my-4" />
+
+                          <div>
+                              <h4 className="font-semibold mb-2">노선 순서 (드래그하여 순서 변경)</h4>
+                              <p className="text-sm text-muted-foreground mb-2">
+                                  아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
+                              </p>
+                              <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-muted/50">
+                                {getStopsForCurrentRoute().map((dest, index) => (
+                                   <Badge key={`${dest.id}-${index}`} variant="secondary" className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                                     <span className="text-xs font-bold text-muted-foreground">{index + 1}</span>
+                                     <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                     {dest.name}
+                                   </Badge>
+                                ))}
+                              </div>
+                          </div>
+                      </CardContent>
+                    </Card>
+                ) : (
+                    <div className="text-center text-muted-foreground py-10">버스를 선택하여 노선을 확인하세요.</div>
+                )}
+            </CardContent>
+          </Card>
+          
+           {suggestedDestinations.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>신규 목적지 신청</CardTitle>
+                  <CardDescription>
+                    학생들이 제안한 새로운 목적지입니다. 클릭하여 전체 목적지 목록에 추가하세요.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
+                    {suggestedDestinations.map(suggestion => (
+                      <Badge 
+                        key={suggestion.id}
+                        variant="outline" 
+                        onClick={() => handleApproveSuggestion(suggestion)}
+                        className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
+                      >
+                        {suggestion.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>전체 목적지 목록</CardTitle>
               <CardDescription>
-                학생들이 제안한 새로운 목적지입니다. 클릭하여 전체 목적지 목록에 추가하세요.
+                모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
-                {suggestedDestinations.map(suggestion => (
-                  <Badge 
-                    key={suggestion.id}
-                    variant="outline" 
-                    onClick={() => handleApproveSuggestion(suggestion)}
-                    className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
-                  >
-                    {suggestion.name}
-                  </Badge>
-                ))}
-              </div>
+                <div className="flex justify-end gap-2 mb-4">
+                     <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
+                     <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                     <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
+                    <Dialog>
+                        <DialogTrigger asChild><Button><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
+                            <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
+                            <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+                <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50">
+                    {destinations.map(dest => (
+                        <Badge key={dest.id} variant="outline" className="flex justify-between items-center max-w-fit">
+                            <span>{dest.name}</span>
+                            <Button variant="ghost" size="icon" className="h-5 w-5 ml-1" onClick={() => handleDeleteDestination(dest.id)}>
+                                <Trash2 className="w-3 h-3 text-destructive" />
+                            </Button>
+                        </Badge>
+                    ))}
+                </div>
             </CardContent>
           </Card>
-        )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>전체 목적지 목록</CardTitle>
-          <CardDescription>
-            모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-            <div className="flex justify-end gap-2 mb-4">
-                 <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
-                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
-                 <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
-                <Dialog>
-                    <DialogTrigger asChild><Button><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
-                        <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
-                        <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
-                    </DialogContent>
-                </Dialog>
-            </div>
-            <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50">
-                {destinations.map(dest => (
-                    <Badge key={dest.id} variant="outline" className="flex justify-between items-center max-w-fit">
-                        <span>{dest.name}</span>
-                        <Button variant="ghost" size="icon" className="h-5 w-5 ml-1" onClick={() => handleDeleteDestination(dest.id)}>
-                            <Trash2 className="w-3 h-3 text-destructive" />
-                        </Button>
-                    </Badge>
-                ))}
-            </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 };
@@ -483,7 +488,8 @@ const StudentManagementTab = ({
     selectedBusId,
     selectedDay,
     selectedRouteType,
-    days
+    days,
+    filterComponent,
 }:{
     buses: Bus[],
     students: Student[],
@@ -495,6 +501,7 @@ const StudentManagementTab = ({
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
     days: DayOfWeek[];
+    filterComponent: React.ReactNode;
 }) => {
     const { toast } = useToast();
     const [newStudentForm, setNewStudentForm] = useState({ name: '', grade: '', class: '', gender: 'Male' as 'Male' | 'Female', destinationId: '' });
@@ -514,26 +521,36 @@ const StudentManagementTab = ({
     const unassignedStudents = useMemo(() => {
         if (!currentRoute) return students;
         
-        // 현재 버스, 현재 요일, 현재 경로에 배정된 학생 ID 집합
         const assignedInCurrentRoute = new Set<string>();
         currentRoute.seating.forEach(s => {
             if (s.studentId) assignedInCurrentRoute.add(s.studentId);
         });
-
-        // 다른 모든 노선에 배정된 학생 ID 집합
-        const assignedInAnyRoute = new Set<string>();
+        
+        const assignedInAnyOtherRoute = new Set<string>();
         routes.forEach(r => {
-            // 현재 보고있는 경로는 제외하고 계산
-            if(r.id !== currentRoute.id) {
+            if (r.id !== currentRoute.id) {
                 r.seating.forEach(s => {
-                    if (s.studentId) assignedInAnyRoute.add(s.studentId);
+                    if (s.studentId) assignedInAnyOtherRoute.add(s.studentId);
                 });
             }
         });
 
-        return students.filter(s => 
-            !assignedInAnyRoute.has(s.id) || assignedInCurrentRoute.has(s.id)
-        );
+        return students.filter(s => {
+            const isAssignedToThisRoute = assignedInCurrentRoute.has(s.id);
+            const isAssignedToAnyOtherRoute = assignedInAnyOtherRoute.has(s.id);
+            
+            // Show student if:
+            // 1. They are not assigned to ANY route at all.
+            // 2. They are assigned to THIS route (so they can be moved).
+            // This logic is imperfect for the multi-day requirement. Let's simplify.
+            
+            // New logic: a student is "unassigned" relative to the entire system
+            // if they are not on ANY bus on ANY day. This is too restrictive.
+            
+            // Let's go with: unassigned = not on THIS bus on THIS day/type.
+            return !assignedInCurrentRoute.has(s.id);
+
+        });
     }, [students, routes, currentRoute]);
 
 
@@ -544,29 +561,24 @@ const StudentManagementTab = ({
         const newRoutes = routes.map(route => {
             if (route.id === currentRoute.id) {
                 const newSeating = [...route.seating];
-                
-                // 학생이 현재 경로의 다른 좌석에 이미 있는지 확인하고 제거
                 const oldSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
                 if (oldSeatIdx > -1) newSeating[oldSeatIdx].studentId = null;
-
                 const targetSeatIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
                 if (targetSeatIdx > -1) newSeating[targetSeatIdx].studentId = studentId;
-
                 return { ...route, seating: newSeating };
             }
             return route;
         });
         setRoutes(newRoutes);
 
-        // DB Update
         try {
             const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id)!;
             await updateRouteSeating(currentRoute.id, routeToUpdate.seating);
         } catch (error) {
-            setRoutes(oldRoutes); // Revert on error
+            setRoutes(oldRoutes);
             toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
         }
-    }, [currentRoute, routes, setRoutes, toast]);
+    }, [currentRoute, routes, setRoutes, toast, selectedBusId, days, routeTypes]);
 
     const unassignStudent = useCallback(async (seatNumber: number) => {
         if (!currentRoute) return;
@@ -592,21 +604,19 @@ const StudentManagementTab = ({
             setRoutes(oldRoutes);
             toast({ title: "오류", description: "좌석 배정 해제 실패", variant: 'destructive'});
         }
-    }, [currentRoute, routes, setRoutes, toast]);
+    }, [currentRoute, routes, setRoutes, toast, selectedBusId, days, routeTypes]);
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus) return;
         
         const oldRoutes = [...routes];
 
-        // 1. Get all students on this bus's stops
         const routesForThisBus = routes.filter(r => r.busId === selectedBus.id);
         const uniqueStopIds = new Set<string>();
         routesForThisBus.forEach(r => r.stops.forEach(s => uniqueStopIds.add(s)));
 
         const studentsOnThisBusStops = students.filter(s => s.destinationId && uniqueStopIds.has(s.destinationId));
         
-        // Sorting logic
         const gradeToValue = (grade: string) => {
             if (grade.toLowerCase().startsWith('k')) return 0;
             const num = parseInt(grade.replace(/\D/g, ''));
@@ -614,7 +624,6 @@ const StudentManagementTab = ({
         };
         const sortedStudents = [...studentsOnThisBusStops].sort((a, b) => gradeToValue(a.grade) - gradeToValue(b.grade));
 
-        // Seat pairing logic
         const getSeatPairs = (capacity: number) => {
              const pairs: [number, number][] = [];
              if (capacity === 15) {
@@ -654,7 +663,6 @@ const StudentManagementTab = ({
             return colInPair === 0 || colInPair === 3 ? 'window' : 'aisle';
         };
         
-        // Main logic
         let males = sortedStudents.filter(s => s.gender === 'Male');
         let females = sortedStudents.filter(s => s.gender === 'Female');
         const newSeatingPlan = generateInitialSeating(selectedBus.capacity);
@@ -663,7 +671,6 @@ const StudentManagementTab = ({
         const referenceRoute = routesForThisBus.find(r => r.dayOfWeek === 'Monday' && r.type === 'Morning');
         const routeStopOrder = referenceRoute ? referenceRoute.stops : [];
         
-        // Boy-girl pairing
         while (males.length > 0 && females.length > 0) {
             const male = males.shift()!;
             const female = females.shift()!;
@@ -693,7 +700,6 @@ const StudentManagementTab = ({
             if(!placed) { males.unshift(male); females.unshift(female); break; }
         }
 
-        // Fill remaining
         const remainingStudents = [...males, ...females].sort((a,b) => gradeToValue(a.grade) - gradeToValue(b.grade));
         const emptySeats = newSeatingPlan.filter(s => !s.studentId).map(s => s.seatNumber);
         for (const student of remainingStudents) {
@@ -704,7 +710,6 @@ const StudentManagementTab = ({
             }
         }
         
-        // Optimistic UI update
         const newRoutes = routes.map(route => {
             if (route.busId === selectedBus.id) {
                 return { ...route, seating: newSeatingPlan };
@@ -713,7 +718,6 @@ const StudentManagementTab = ({
         });
         setRoutes(newRoutes);
 
-        // DB update
         try {
             await updateAllBusRoutesSeating(selectedBus.id, newSeatingPlan);
             toast({ title: "성공", description: "랜덤 배정이 완료되었습니다."});
@@ -805,98 +809,173 @@ const StudentManagementTab = ({
     }
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-                <Card>
-                    <CardHeader className="flex-row items-center justify-between">
-                        <CardTitle className="font-headline">좌석표</CardTitle>
-                        <div className="flex items-center gap-2">
-                             <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline"><UserPlus className="mr-2" /> 학생 추가</Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader><DialogTitle>새 학생 추가</DialogTitle></DialogHeader>
-                                    <div className="grid gap-4 py-4">
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="name" className="text-right">이름</Label>
-                                            <Input id="name" value={newStudentForm.name} onChange={e => setNewStudentForm(p => ({...p, name: e.target.value}))} className="col-span-3" />
+        <div className="space-y-6">
+            {filterComponent}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    <Card>
+                        <CardHeader className="flex-row items-center justify-between">
+                            <CardTitle className="font-headline">좌석표</CardTitle>
+                            <div className="flex items-center gap-2">
+                                 <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline"><UserPlus className="mr-2" /> 학생 추가</Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader><DialogTitle>새 학생 추가</DialogTitle></DialogHeader>
+                                        <div className="grid gap-4 py-4">
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="name" className="text-right">이름</Label>
+                                                <Input id="name" value={newStudentForm.name} onChange={e => setNewStudentForm(p => ({...p, name: e.target.value}))} className="col-span-3" />
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="grade" className="text-right">학년</Label>
+                                                <Input id="grade" value={newStudentForm.grade} onChange={e => setNewStudentForm(p => ({...p, grade: e.target.value}))} placeholder="예: G1" className="col-span-3" />
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="class" className="text-right">반</Label>
+                                                <Input id="class" value={newStudentForm.class} onChange={e => setNewStudentForm(p => ({...p, class: e.target.value}))} placeholder="예: C1" className="col-span-3" />
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="gender" className="text-right">성별</Label>
+                                                <Select value={newStudentForm.gender} onValueChange={(v) => setNewStudentForm(p => ({...p, gender: v as any}))}>
+                                                    <SelectTrigger className="col-span-3">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="Male">Male</SelectItem>
+                                                        <SelectItem value="Female">Female</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="destination" className="text-right">목적지</Label>
+                                                <Select value={newStudentForm.destinationId} onValueChange={(v) => setNewStudentForm(p => ({...p, destinationId: v}))}>
+                                                    <SelectTrigger className="col-span-3">
+                                                        <SelectValue placeholder="목적지 선택" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="grade" className="text-right">학년</Label>
-                                            <Input id="grade" value={newStudentForm.grade} onChange={e => setNewStudentForm(p => ({...p, grade: e.target.value}))} placeholder="예: G1" className="col-span-3" />
-                                        </div>
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="class" className="text-right">반</Label>
-                                            <Input id="class" value={newStudentForm.class} onChange={e => setNewStudentForm(p => ({...p, class: e.target.value}))} placeholder="예: C1" className="col-span-3" />
-                                        </div>
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="gender" className="text-right">성별</Label>
-                                            <Select value={newStudentForm.gender} onValueChange={(v) => setNewStudentForm(p => ({...p, gender: v as any}))}>
-                                                <SelectTrigger className="col-span-3">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="Male">Male</SelectItem>
-                                                    <SelectItem value="Female">Female</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="destination" className="text-right">목적지</Label>
-                                            <Select value={newStudentForm.destinationId} onValueChange={(v) => setNewStudentForm(p => ({...p, destinationId: v}))}>
-                                                <SelectTrigger className="col-span-3">
-                                                    <SelectValue placeholder="목적지 선택" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                    <Button onClick={handleAddStudent}>추가</Button>
-                                </DialogContent>
-                            </Dialog>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <BusSeatMap
-                            bus={selectedBus}
-                            seating={currentRoute.seating}
-                            students={students}
-                            destinations={destinations}
-                            onSeatDrop={handleSeatDrop}
-                            onSeatClick={(seatNumber) => unassignStudent(seatNumber)}
-                            draggable={true}
-                        />
-                    </CardContent>
-                </Card>
-            </div>
-            <div className="lg:col-span-1">
-                 <Card className="sticky top-20">
-                    <CardHeader>
-                        <CardTitle className="font-headline">미배정 학생</CardTitle>
-                        <CardDescription>드래그하여 빈 좌석에 배정하세요.</CardDescription>
-                    </CardHeader>
-                    <Separator />
-                     <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
-                         <div className="flex justify-end mb-2 gap-2">
-                             <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
-                             <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록</Button>
-                             <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
-                         </div>
-                        {unassignedStudents.length > 0 ? unassignedStudents.map(student => (
-                            <DraggableStudentCard key={student.id} student={student} />
-                        )) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">모든 학생이 배정되었습니다.</p>
-                        )}
-                    </CardContent>
-                </Card>
+                                        <Button onClick={handleAddStudent}>추가</Button>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <BusSeatMap
+                                bus={selectedBus}
+                                seating={currentRoute.seating}
+                                students={students}
+                                destinations={destinations}
+                                onSeatDrop={handleSeatDrop}
+                                onSeatClick={(seatNumber) => unassignStudent(seatNumber)}
+                                draggable={true}
+                            />
+                        </CardContent>
+                    </Card>
+                </div>
+                <div className="lg:col-span-1">
+                     <Card className="sticky top-20">
+                        <CardHeader>
+                            <CardTitle className="font-headline">미배정 학생</CardTitle>
+                            <CardDescription>드래그하여 빈 좌석에 배정하세요.</CardDescription>
+                        </CardHeader>
+                        <Separator />
+                         <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
+                             <div className="flex justify-end mb-2 gap-2">
+                                 <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
+                                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록</Button>
+                                 <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
+                             </div>
+                            {unassignedStudents.length > 0 ? unassignedStudents.map(student => (
+                                <DraggableStudentCard key={student.id} student={student} />
+                            )) : (
+                                <p className="text-sm text-muted-foreground text-center py-4">모든 학생이 배정되었습니다.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     );
 };
+
+const AdminPageFilter = ({
+    buses,
+    selectedBusId,
+    setSelectedBusId,
+    selectedDay,
+    setSelectedDay,
+    selectedRouteType,
+    setSelectedRouteType,
+    days,
+    dayLabels,
+    loading
+} : {
+    buses: Bus[],
+    selectedBusId: string,
+    setSelectedBusId: (id: string) => void,
+    selectedDay: DayOfWeek,
+    setSelectedDay: (day: DayOfWeek) => void,
+    selectedRouteType: RouteType,
+    setSelectedRouteType: (type: RouteType) => void,
+    days: DayOfWeek[],
+    dayLabels: { [key in DayOfWeek]: string },
+    loading: boolean
+}) => {
+    return (
+        <Card className="mb-6">
+            <CardContent className="p-4">
+                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <Label className="text-sm font-medium">버스</Label>
+                    <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="버스를 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {buses.map((bus) => (
+                          <SelectItem key={bus.id} value={bus.id}>
+                            {bus.name} ({bus.type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">요일</Label>
+                    <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="요일을 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {days.map((day) => (
+                          <SelectItem key={day} value={day}>
+                            {dayLabels[day]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">경로</Label>
+                    <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
+                        <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
 
 
 export default function AdminPage() {
@@ -948,54 +1027,23 @@ export default function AdminPage() {
         fetchData();
     }, []);
 
-    const headerContent = (
-      <div className="flex items-center gap-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label className="text-sm font-medium">버스</label>
-            <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
-              <SelectTrigger>
-                <SelectValue placeholder="버스를 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {buses.map((bus) => (
-                  <SelectItem key={bus.id} value={bus.id}>
-                    {bus.name} ({bus.type})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-sm font-medium">요일</label>
-            <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
-              <SelectTrigger>
-                <SelectValue placeholder="요일을 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {days.map((day) => (
-                  <SelectItem key={day} value={day}>
-                    {dayLabels[day]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-sm font-medium">경로</label>
-            <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
-                <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </div>
-      </div>
-    );
+    const filterComponent = (
+        <AdminPageFilter
+            buses={buses}
+            selectedBusId={selectedBusId}
+            setSelectedBusId={setSelectedBusId}
+            selectedDay={selectedDay}
+            setSelectedDay={setSelectedDay}
+            selectedRouteType={selectedRouteType}
+            setSelectedRouteType={setSelectedRouteType}
+            days={days}
+            dayLabels={dayLabels}
+            loading={loading}
+        />
+    )
 
     return (
-        <MainLayout headerContent={headerContent}>
+        <MainLayout>
             {loading ? (
                 <div className="flex justify-center items-center h-64">
                     <p>데이터를 불러오는 중입니다...</p>
@@ -1022,6 +1070,7 @@ export default function AdminPage() {
                             selectedRouteType={selectedRouteType}
                             selectedBusId={selectedBusId}
                             setSelectedBusId={setSelectedBusId}
+                            filterComponent={filterComponent}
                         />
                     </TabsContent>
                     <TabsContent value="student-management" className="mt-6">
@@ -1036,6 +1085,7 @@ export default function AdminPage() {
                             selectedDay={selectedDay}
                             selectedRouteType={selectedRouteType}
                             days={days}
+                            filterComponent={filterComponent}
                         />
                     </TabsContent>
                 </Tabs>
