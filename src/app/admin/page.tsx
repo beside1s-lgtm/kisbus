@@ -1,11 +1,12 @@
 
 'use client';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Papa from 'papaparse';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations,
     addBus, deleteBus, updateBus,
     addStudent,
-    addDestination, deleteDestination, approveSuggestedDestination,
+    addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination } from '@/lib/types';
@@ -39,8 +40,33 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
     const { toast } = useToast();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleAddBus = async () => {
+    const handleAddBus = async (busData: NewBus) => {
+        try {
+            const newBus = await addBus(busData);
+            
+            const routePromises = days.flatMap(day => 
+                routeTypes.map(type => 
+                    addRoute({
+                        busId: newBus.id,
+                        dayOfWeek: day,
+                        type: type,
+                        stops: [],
+                        seating: generateInitialSeating(newBus.capacity),
+                    })
+                )
+            );
+            await Promise.all(routePromises);
+            
+            return newBus;
+        } catch (error) {
+            console.error("Error adding bus:", error);
+            throw error;
+        }
+    };
+    
+    const handleManualAddBus = async () => {
         if (!newBusName || !newBusType) {
             toast({ title: "오류", description: "버스 이름과 타입을 모두 입력해주세요.", variant: 'destructive' });
             return;
@@ -50,24 +76,10 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
         const newBusData: NewBus = { name: newBusName, type: newBusType, capacity: capacityMap[newBusType] };
 
         try {
-            const newBus = await addBus(newBusData);
-            
-            // Create routes for the new bus
-            for (const day of days) {
-                for (const type of routeTypes) {
-                    await addRoute({
-                        busId: newBus.id,
-                        dayOfWeek: day,
-                        type: type,
-                        stops: [],
-                        seating: generateInitialSeating(newBus.capacity),
-                    });
-                }
-            }
+            const newBus = await handleAddBus(newBusData);
             setBuses(prev => [...prev, newBus]);
             toast({ title: "성공", description: "버스가 추가되었습니다." });
         } catch (error) {
-            console.error("Error adding bus:", error);
             toast({ title: "오류", description: "버스 추가에 실패했습니다.", variant: 'destructive' });
         }
     };
@@ -98,6 +110,44 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
         document.body.removeChild(link);
     };
 
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const capacityMap = { '15-seater': 15, '29-seater': 29, '45-seater': 45 };
+                const newBusesData: NewBus[] = results.data.map((row: any) => ({
+                    name: row['번호'] || row['name'],
+                    type: (row['타입'] || row['type']) as '15-seater' | '29-seater' | '45-seater',
+                    capacity: capacityMap[(row['타입'] || row['type']) as '15-seater' | '29-seater' | '45-seater']
+                })).filter(bus => bus.name && bus.type && bus.capacity);
+
+                if (newBusesData.length === 0) {
+                    toast({ title: "오류", description: "파일에서 유효한 버스 데이터를 찾을 수 없습니다. 헤더가 '번호', '타입'으로 되어있는지 확인하세요.", variant: "destructive" });
+                    return;
+                }
+
+                try {
+                    const addedBuses = await Promise.all(newBusesData.map(busData => handleAddBus(busData)));
+                    setBuses(prev => [...prev, ...addedBuses]);
+                    toast({ title: "성공", description: `${addedBuses.length}개의 버스가 일괄 등록되었습니다.` });
+                } catch (error) {
+                    toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
+                }
+            },
+            error: (error) => {
+                toast({ title: "파일 파싱 오류", description: error.message, variant: "destructive" });
+            }
+        });
+        
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -106,9 +156,12 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
             </CardHeader>
             <CardContent>
                 <div className="flex justify-end gap-2 mb-4">
+                    <Button variant="outline" onClick={handleDownloadBusTemplate}><Download className="mr-2" /> 템플릿</Button>
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
                     <Dialog>
                         <DialogTrigger asChild>
-                            <Button variant="outline"><PlusCircle className="mr-2" /> 새 버스 추가</Button>
+                            <Button><PlusCircle className="mr-2" /> 새 버스 추가</Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader><DialogTitle>새 버스 추가</DialogTitle></DialogHeader>
@@ -131,7 +184,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                                     </Select>
                                 </div>
                             </div>
-                            <Button onClick={handleAddBus}>추가</Button>
+                            <Button onClick={handleManualAddBus}>추가</Button>
                         </DialogContent>
                     </Dialog>
                 </div>
@@ -187,6 +240,7 @@ const BusConfigurationTab = ({
 }) => {
   const [newDestinationName, setNewDestinationName] = useState('');
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const selectedBus = useMemo(() => {
     if (!selectedBusId) return null;
@@ -241,6 +295,41 @@ const BusConfigurationTab = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDestinationFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+            const newDestinationsData: NewDestination[] = results.data.map((row: any) => ({
+                name: (row['목적지 이름'] || row['name'] || '').trim()
+            })).filter(dest => dest.name);
+
+            if (newDestinationsData.length === 0) {
+                toast({ title: "오류", description: "파일에서 유효한 목적지 데이터를 찾을 수 없습니다. 헤더가 '목적지 이름'으로 되어있는지 확인하세요.", variant: "destructive" });
+                return;
+            }
+
+            try {
+                const addedDests = await addDestinationsInBatch(newDestinationsData);
+                setDestinations(prev => [...prev, ...addedDests]);
+                toast({ title: "성공", description: `${addedDests.length}개의 목적지가 일괄 등록되었습니다.` });
+            } catch (error) {
+                toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
+            }
+        },
+        error: (error) => {
+            toast({ title: "파일 파싱 오류", description: error.message, variant: "destructive" });
+        }
+    });
+
+    if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+    }
   };
   
   const handleApproveSuggestion = async (suggestion: Destination) => {
@@ -344,8 +433,11 @@ const BusConfigurationTab = ({
         </CardHeader>
         <CardContent>
             <div className="flex justify-end gap-2 mb-4">
+                 <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
+                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                 <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
                 <Dialog>
-                    <DialogTrigger asChild><Button variant="outline"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
+                    <DialogTrigger asChild><Button><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
                     <DialogContent>
                         <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
                         <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
@@ -408,23 +500,38 @@ const StudentManagementTab = ({
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
     const unassignedStudents = useMemo(() => {
-        const allAssignedIds = new Set<string>();
+        if (!currentRoute) return students;
+        
+        // 현재 버스, 현재 요일, 현재 경로에 배정된 학생 ID 집합
+        const assignedInCurrentRoute = new Set<string>();
+        currentRoute.seating.forEach(s => {
+            if (s.studentId) assignedInCurrentRoute.add(s.studentId);
+        });
+
+        // 다른 모든 노선에 배정된 학생 ID 집합
+        const assignedInAnyRoute = new Set<string>();
         routes.forEach(r => {
             r.seating.forEach(s => {
-                if (s.studentId) allAssignedIds.add(s.studentId);
+                if (s.studentId) assignedInAnyRoute.add(s.studentId);
             });
         });
-        return students.filter(s => !allAssignedIds.has(s.id));
-    }, [students, routes]);
+
+        return students.filter(s => 
+            !assignedInAnyRoute.has(s.id) || assignedInCurrentRoute.has(s.id)
+        );
+    }, [students, routes, currentRoute]);
+
 
     const handleSeatDrop = useCallback(async (seatNumber: number, studentId: string) => {
         if (!currentRoute) return;
 
-        // Optimistic UI Update
         const oldRoutes = [...routes];
         const newRoutes = routes.map(route => {
+             // শুধুমাত্র বর্তমান রুটটি আপডেট করুন
             if (route.id === currentRoute.id) {
                 const newSeating = [...route.seating];
+                
+                // Check if student is already in a different seat on this route
                 const oldSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
                 if (oldSeatIdx > -1) newSeating[oldSeatIdx].studentId = null;
 
@@ -483,7 +590,7 @@ const StudentManagementTab = ({
         const uniqueStopIds = new Set<string>();
         routesForThisBus.forEach(r => r.stops.forEach(s => uniqueStopIds.add(s)));
 
-        const studentsOnThisBusStops = students.filter(s => uniqueStopIds.has(s.destinationId));
+        const studentsOnThisBusStops = students.filter(s => s.destinationId && uniqueStopIds.has(s.destinationId));
         
         // Sorting logic
         const gradeToValue = (grade: string) => {
@@ -714,10 +821,13 @@ const StudentManagementTab = ({
                  <Card className="sticky top-20">
                     <CardHeader>
                         <CardTitle className="font-headline">미배정 학생</CardTitle>
-                        <CardDescription>어떤 버스에도 배정되지 않은 학생 목록입니다.</CardDescription>
+                        <CardDescription>드래그하여 빈 좌석에 배정하세요.</CardDescription>
                     </CardHeader>
                     <Separator />
-                    <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
+                     <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
+                         <div className="flex justify-end mb-2">
+                             <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 학생 템플릿</Button>
+                         </div>
                         {unassignedStudents.length > 0 ? unassignedStudents.map(student => (
                             <DraggableStudentCard key={student.id} student={student} />
                         )) : (

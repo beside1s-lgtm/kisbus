@@ -32,7 +32,7 @@ async function fetchCollection<T>(collectionName: string): Promise<T[]> {
 }
 
 // Generic function to add a document to a collection
-async function addDocument<T>(collectionName: string, data: Omit<T, 'id'>): Promise<T> {
+async function addDocument<T extends {id: string}>(collectionName: string, data: Omit<T, 'id'>): Promise<T> {
   const docRef = await addDoc(collection(db, collectionName), data);
   return { id: docRef.id, ...data } as T;
 }
@@ -63,6 +63,17 @@ export const addStudent = (student: NewStudent) => addDocument<Student>('student
 // Destinations
 export const getDestinations = () => fetchCollection<Destination>('destinations');
 export const addDestination = (destination: NewDestination) => addDocument<Destination>('destinations', destination);
+export const addDestinationsInBatch = async (destinations: NewDestination[]): Promise<Destination[]> => {
+    const batch = writeBatch(db);
+    const newDestinations: Destination[] = [];
+    destinations.forEach(dest => {
+        const docRef = doc(collection(db, 'destinations'));
+        batch.set(docRef, dest);
+        newDestinations.push({ id: docRef.id, ...dest });
+    });
+    await batch.commit();
+    return newDestinations;
+}
 export const deleteDestination = (destinationId: string) => deleteDoc(doc(db, 'destinations', destinationId));
 
 // Routes
