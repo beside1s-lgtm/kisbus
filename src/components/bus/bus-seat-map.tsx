@@ -4,7 +4,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Bus, Student, Destination } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Crown, User as UserIcon, XCircle, CircleUserRound } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
@@ -23,7 +22,7 @@ interface BusSeatMapProps {
 
 const getGridLayout = (capacity: number) => {
     if (capacity === 15) {
-        return 'grid-cols-4 gap-2 md:gap-2';
+        return 'grid-cols-3 gap-2 md:gap-2';
     }
     // 29 and 45 seaters use the same grid layout logic, just different row counts
     return 'grid-cols-5 gap-2 md:gap-2';
@@ -31,16 +30,17 @@ const getGridLayout = (capacity: number) => {
 
 const isAisle = (itemIndex: number, capacity: number): boolean => {
     if (capacity === 15) {
-        const col = itemIndex % 4;
-        return col === 1;
+        const col = itemIndex % 3;
+        return col === 1; // Aisle in the middle of 3 columns
     }
     
     const itemCol = itemIndex % 5;
     
     if (capacity === 45 || capacity === 29) {
-        const itemRow = Math.floor(itemIndex / 5);
         const numRows = Math.ceil(capacity / 4);
-        // The last row of 5 seats has no aisle.
+        const itemRow = Math.floor(itemIndex / 5);
+
+        // The last row of 5 seats has no aisle for 45-seater and 29-seater
         if (itemRow === numRows - 1) {
             return false;
         }
@@ -53,42 +53,20 @@ const isAisle = (itemIndex: number, capacity: number): boolean => {
 
 const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | null => {
     if (capacity === 15) {
-        const row = Math.floor(itemIndex / 4);
-        const col = itemIndex % 4;
-        if (col === 1) return null; // Aisle
+        // Driver is handled separately in JSX
+        const seatIndex = itemIndex - 1; // Adjust for driver
+        if (itemIndex === 0) return null;
+        if (isAisle(itemIndex, capacity)) return null;
 
-        if (row === 0 && col === 0) return null; // Driver placeholder
+        const row = Math.floor(seatIndex / 3);
+        const col = seatIndex % 3;
 
-        if (row === 0) { // First row is DRIVER-aisle-1-2
-            return col - 1;
-        }
+        const seatsInPrevRows = row * 2;
+        let seatInRow = col + 1;
+        if (col > 1) seatInRow--;
         
-        // After first row, it's 2-aisle-1
-        if (row > 0 && row < 4) {
-            const prevRowsSeats = 2 + (row - 1) * 3;
-            let seatInRow;
-             if (col < 1) {
-                seatInRow = col + 1;
-            } else {
-                seatInRow = col;
-            }
-            return prevRowsSeats + seatInRow;
-        }
-
-        // Last row is 2-aisle-2
-        if (row === 4) {
-             const prevRowsSeats = 2 + (row - 1) * 3;
-             let seatInRow;
-             if (col < 1) {
-                seatInRow = col + 1;
-            } else {
-                seatInRow = col;
-            }
-             const seatNumber = prevRowsSeats + seatInRow;
-             return seatNumber <= 15 ? seatNumber : null;
-        }
-
-        return null;
+        const seatNumber = seatsInPrevRows + seatInRow;
+        return seatNumber <= 15 ? seatNumber : null;
     }
     
     // For 29 and 45 seaters
@@ -153,7 +131,7 @@ export function BusSeatMap({
     return students.find(s => s.id === id);
   };
   
-  const totalGridItems = bus.capacity === 15 ? 5 * 4 : Math.ceil(bus.capacity / 4) * 5;
+  const totalGridItems = bus.capacity === 15 ? (Math.ceil(15/2) * 3) : Math.ceil(bus.capacity / 4) * 5;
   const isLargeBus = bus.capacity === 29 || bus.capacity === 45;
 
   return (
@@ -199,7 +177,7 @@ export function BusSeatMap({
              const isHighlighted = student ? highlightedStudentId === student.id : false;
 
              const seatClasses = cn(
-               'relative aspect-square rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm',
+               'relative aspect-square rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm p-1',
                onSeatClick && 'hover:scale-105 hover:shadow-lg',
                onSeatClick ? 'cursor-pointer' : 'cursor-default',
                student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
@@ -229,15 +207,12 @@ export function BusSeatMap({
                         {isAbsent && (
                            <XCircle className="absolute w-4 h-4 text-destructive" />
                         )}
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback className={cn(isBoarded && 'bg-green-200 dark:bg-green-900')}>{student.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="mt-1 text-[10px] font-medium text-center truncate">{student.name}</span>
+                        <span className="text-[10px] font-medium text-center break-words leading-tight">{student.name}</span>
                       </>
                     ) : (
-                      <UserIcon className="w-6 h-6 text-muted-foreground" />
+                      <UserIcon className="w-5 h-5 text-muted-foreground" />
                     )}
-                    <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+                    <span className="absolute top-1 left-1 text-[9px] font-bold text-muted-foreground">{seat.seatNumber}</span>
                   </div>
                 </TooltipTrigger>
                 {student && (
