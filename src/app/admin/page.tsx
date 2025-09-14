@@ -275,9 +275,16 @@ const BusConfigurationTab = ({
   };
   
    const handleAddDestination = async () => {
-        if (!newDestinationName.trim()) return;
+        const trimmedName = newDestinationName.trim();
+        if (!trimmedName) return;
+
+        if (destinations.some(d => d.name.toLowerCase() === trimmedName.toLowerCase())) {
+            toast({ title: "오류", description: "이미 존재하는 목적지입니다.", variant: 'destructive' });
+            return;
+        }
+
         try {
-            const newDest = await addDestination({ name: newDestinationName });
+            const newDest = await addDestination({ name: trimmedName });
             setDestinations(prev => [...prev, newDest]);
             setNewDestinationName('');
             toast({ title: "성공", description: "목적지가 추가되었습니다." });
@@ -347,6 +354,19 @@ const BusConfigurationTab = ({
   };
   
   const handleApproveSuggestion = async (suggestion: Destination) => {
+    const trimmedName = suggestion.name.trim();
+    if (destinations.some(d => d.name.toLowerCase() === trimmedName.toLowerCase())) {
+        toast({ title: "알림", description: "이미 등록된 목적지입니다. 제안 목록에서 삭제합니다." });
+        // Just remove from suggestions, don't add to main list
+        try {
+            await deleteDoc(doc(db, 'suggestedDestinations', suggestion.id));
+            setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
+        } catch (error) {
+             toast({ title: "오류", description: "제안 삭제 중 오류 발생", variant: 'destructive'});
+        }
+        return;
+    }
+      
     try {
         await approveSuggestedDestination(suggestion);
         setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
@@ -1157,3 +1177,4 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
