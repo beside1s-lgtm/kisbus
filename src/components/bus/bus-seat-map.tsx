@@ -5,7 +5,7 @@ import React, { useEffect, useRef } from 'react';
 import { Bus, Student, Destination } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Crown, User as UserIcon, XCircle } from 'lucide-react';
+import { Crown, User as UserIcon, XCircle, SteeringWheel } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface BusSeatMapProps {
@@ -25,6 +25,9 @@ const getGridLayout = (capacity: number) => {
     if (capacity === 15) {
         return 'grid-cols-4 gap-2 md:gap-4';
     }
+    if (capacity === 29) {
+        return 'grid-cols-5 gap-2 md:gap-4';
+    }
     return 'grid-cols-5 gap-2 md:gap-4';
 };
 
@@ -33,6 +36,11 @@ const isAisle = (itemIndex: number, capacity: number): boolean => {
         // Aisle is between col 1 and 2
         const col = itemIndex % 4;
         return col === 2;
+    }
+    
+    if (capacity === 29) {
+        const itemCol = itemIndex % 5;
+        return itemCol === 2;
     }
 
     const itemCol = itemIndex % 5;
@@ -52,9 +60,10 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
         const col = itemIndex % 4;
         if (col === 2) return null; // Aisle
 
-        // First row is 1-aisle-2
+        if (row === 0 && col === 0) return null; // Driver seat area
+
+        // First row is DRIVER-1-aisle-2
         if (row === 0) {
-            if(col === 0) return null; // Driver seat area
             if (col === 1) return 1;
             if (col > 2) return 2;
         }
@@ -69,6 +78,20 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
         }
         const seatNumber = prevRowsSeats + seatInRow;
         return seatNumber <= 15 ? seatNumber : null;
+    }
+    
+    if (capacity === 29) {
+         const itemCol = itemIndex % 5;
+         const itemRow = Math.floor(itemIndex / 5);
+
+         if (isAisle(itemIndex, capacity)) return null;
+        
+         const seatsInPrevRows = itemRow * 4;
+         let seatInRow = itemCol;
+         if (itemCol > 2) seatInRow--;
+    
+         const seatNumber = seatsInPrevRows + seatInRow + 1;
+         return seatNumber <= capacity ? seatNumber : null;
     }
 
     const itemCol = itemIndex % 5;
@@ -139,25 +162,31 @@ export function BusSeatMap({
   return (
     <TooltipProvider>
       <div className="p-4 border rounded-lg bg-muted/20 overflow-auto">
-        <div className="w-full mb-4 text-center">
-          <div className="inline-block px-4 py-2 font-bold border-2 rounded-md bg-secondary text-secondary-foreground">
-            {bus.name} - 운전석
-          </div>
-        </div>
+        {bus.capacity !== 15 && (
+            <div className="w-full mb-4 text-center">
+              <div className="inline-block px-4 py-2 font-bold border-2 rounded-md bg-secondary text-secondary-foreground">
+                {bus.name} - 운전석
+              </div>
+            </div>
+        )}
         <div className={cn('grid', getGridLayout(bus.capacity))}>
           {Array.from({ length: totalGridItems }).map((_, i) => {
              const seatNumber = getSeatNumberFromIndex(i, bus.capacity);
              const isAisleCell = isAisle(i, bus.capacity);
 
+             if (bus.capacity === 15 && i === 0) {
+                 return (
+                    <div key="driver-seat" className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
+                        <SteeringWheel className="w-8 h-8" />
+                        <span className="mt-1 text-xs font-medium">운전석</span>
+                    </div>
+                 );
+             }
+
              if (isAisleCell || seatNumber === null) {
-                // Special handling for 15-seater driver spot
-                if(bus.capacity === 15 && i === 0) {
-                     return <div key={`empty-${i}`} className="w-full h-full"></div>;
-                }
                 if(isAisleCell) {
                     return <div key={`aisle-or-empty-${i}`} className="w-full h-full"></div>;
                 }
-                // Don't render anything for other null seat numbers unless debugging
                 return null;
              }
 
