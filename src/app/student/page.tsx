@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MainLayout } from '@/components/layout/main-layout';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 
 const getStorageKey = (routeId: string) => `boarding_status_${routeId}`;
@@ -98,8 +97,8 @@ export default function StudentPage() {
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
   const headerContent = (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl">
-        <div>
+    <div className="flex flex-wrap items-end gap-2">
+        <div className="w-[140px]">
           <Label className="text-xs">버스</Label>
           <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
             <SelectTrigger>
@@ -114,7 +113,7 @@ export default function StudentPage() {
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="w-[140px]">
           <Label className="text-xs">요일</Label>
           <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
             <SelectTrigger>
@@ -129,19 +128,22 @@ export default function StudentPage() {
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="w-[140px]">
           <Label className="text-xs">경로</Label>
-          <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
-              <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <Select value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} disabled={loading}>
+            <SelectTrigger>
+              <SelectValue placeholder="경로를 선택하세요" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Morning">등교</SelectItem>
+              <SelectItem value="Afternoon">하교</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div>
+        <div className="w-[140px]">
             <Label className="text-xs">학생 이름</Label>
             <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={!currentRoute || loading}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger>
                     <SelectValue placeholder="학생 이름을 선택하세요" />
                 </SelectTrigger>
                 <SelectContent>
