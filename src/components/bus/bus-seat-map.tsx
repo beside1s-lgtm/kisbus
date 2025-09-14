@@ -5,7 +5,7 @@ import React, { useEffect, useRef } from 'react';
 import { Bus, Student, Destination } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Crown, User as UserIcon, XCircle, SteeringWheel } from 'lucide-react';
+import { Crown, User as UserIcon, XCircle, CircleUserRound } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface BusSeatMapProps {
@@ -177,7 +177,7 @@ export function BusSeatMap({
              if (bus.capacity === 15 && i === 0) {
                  return (
                     <div key="driver-seat" className="relative aspect-square rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
-                        <SteeringWheel className="w-8 h-8" />
+                        <CircleUserRound className="w-8 h-8" />
                         <span className="mt-1 text-xs font-medium">운전석</span>
                     </div>
                  );
