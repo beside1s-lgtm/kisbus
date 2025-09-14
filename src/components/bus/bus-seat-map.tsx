@@ -222,7 +222,7 @@ export function BusSeatMap({
              const isHighlighted = student ? highlightedStudentId === student.id : false;
 
              const seatClasses = cn(
-               'relative h-10 rounded-md flex flex-col items-center justify-center transition-all duration-200 shadow-sm p-1',
+               'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
                onSeatClick && 'hover:scale-105 hover:shadow-lg',
                onSeatClick ? 'cursor-pointer' : 'cursor-default',
                student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
@@ -255,7 +255,9 @@ export function BusSeatMap({
                         <span className="text-sm font-medium text-center break-words leading-tight">{student.name}</span>
                       </>
                     ) : (
-                      <UserIcon className="w-4 h-4 text-muted-foreground" />
+                      <div className="flex flex-col items-center">
+                        <UserIcon className="w-4 h-4 text-muted-foreground" />
+                      </div>
                     )}
                     <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
                   </div>
