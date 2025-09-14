@@ -64,6 +64,15 @@ export const addStudent = (student: NewStudent) => addDocument<Student>('student
 export const updateStudent = async (studentId: string, data: Partial<Student>) => {
     await updateDoc(doc(db, 'students', studentId), data);
 }
+export const updateStudentsInBatch = async (students: { id: string; destinationId: string }[]) => {
+    const batch = writeBatch(db);
+    students.forEach(student => {
+        const docRef = doc(db, 'students', student.id);
+        batch.update(docRef, { destinationId: student.destinationId });
+    });
+    await batch.commit();
+};
+
 
 // Destinations
 export const getDestinations = () => fetchCollection<Destination>('destinations');

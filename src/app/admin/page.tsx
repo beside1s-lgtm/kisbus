@@ -9,7 +9,8 @@ import {
     addBus, deleteBus, updateBus,
     addStudent, updateStudent,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
-    addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations
+    addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations,
+    updateStudentsInBatch
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -879,6 +880,28 @@ const StudentManagementTab = ({
         document.body.removeChild(link);
     };
 
+    const handleDownloadUnassignedStudents = () => {
+        if (unassignedStudents.length === 0) {
+            toast({ title: "알림", description: "미배정 학생이 없습니다."});
+            return;
+        }
+
+        const headers = "학생 ID,학생 이름,학년,반,성별,목적지";
+        const csvData = unassignedStudents.map(s => {
+            const destName = destinations.find(d => d.id === s.destinationId)?.name || '';
+            return [s.id, s.name, s.grade, s.class, s.gender, destName].join(',');
+        }).join('\n');
+
+        const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + csvData;
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "unassigned_students.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleStudentFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -887,29 +910,65 @@ const StudentManagementTab = ({
             header: true,
             skipEmptyLines: true,
             complete: async (results) => {
-                const newStudentsData: NewStudent[] = results.data.map((row: any) => {
+                const studentsToUpdate: { id: string; destinationId: string }[] = [];
+                const studentsToAdd: NewStudent[] = [];
+
+                results.data.forEach((row: any) => {
                     const destName = (row['목적지'] || '').trim();
                     const destination = destinations.find(d => d.name === destName);
-                    return {
-                        name: (row['학생 이름'] || '').trim(),
-                        grade: (row['학년'] || '').trim(),
-                        class: (row['반'] || '').trim(),
-                        gender: (row['성별'] || '').trim() as 'Male' | 'Female',
-                        destinationId: destination?.id || ''
-                    };
-                }).filter(s => s.name && s.grade && s.class && s.gender && s.destinationId);
+                    const studentId = (row['학생 ID'] || '').trim();
+                    
+                    if (studentId) { // Existing student to update
+                        if (destination) {
+                            studentsToUpdate.push({ id: studentId, destinationId: destination.id });
+                        }
+                    } else { // New student to add
+                        const newStudent: NewStudent = {
+                            name: (row['학생 이름'] || '').trim(),
+                            grade: (row['학년'] || '').trim(),
+                            class: (row['반'] || '').trim(),
+                            gender: (row['성별'] || '').trim() as 'Male' | 'Female',
+                            destinationId: destination?.id || ''
+                        };
+                        if (newStudent.name && newStudent.grade && newStudent.class && newStudent.gender && newStudent.destinationId) {
+                            studentsToAdd.push(newStudent);
+                        }
+                    }
+                });
 
-                if (newStudentsData.length === 0) {
-                    toast({ title: "오류", description: "유효한 학생 데이터를 찾을 수 없거나 목적지가 존재하지 않습니다.", variant: "destructive" });
+                if (studentsToUpdate.length === 0 && studentsToAdd.length === 0) {
+                    toast({ title: "오류", description: "유효한 학생 데이터를 찾을 수 없거나 목적지가 존재하지 않습니다. 학생 ID가 있는 경우 목적지만 업데이트됩니다.", variant: "destructive" });
                     return;
                 }
 
                 try {
-                    const addedStudents = await Promise.all(newStudentsData.map(s => addStudent(s)));
-                    setStudents(prev => [...prev, ...addedStudents]);
-                    toast({ title: "성공", description: `${addedStudents.length}명의 학생이 등록되었습니다.` });
+                    let updateCount = 0;
+                    let addCount = 0;
+
+                    if (studentsToUpdate.length > 0) {
+                        await updateStudentsInBatch(studentsToUpdate);
+                        const updatedIds = new Set(studentsToUpdate.map(s => s.id));
+                        setStudents(prev => prev.map(s => {
+                            if (updatedIds.has(s.id)) {
+                                const updatedStudent = studentsToUpdate.find(u => u.id === s.id);
+                                return { ...s, destinationId: updatedStudent!.destinationId };
+                            }
+                            return s;
+                        }));
+                        updateCount = studentsToUpdate.length;
+                    }
+
+                    if (studentsToAdd.length > 0) {
+                        const addedStudents = await Promise.all(studentsToAdd.map(s => addStudent(s)));
+                        setStudents(prev => [...prev, ...addedStudents]);
+                        addCount = addedStudents.length;
+                    }
+                    
+                    toast({ title: "성공", description: `${addCount}명의 학생이 추가되고 ${updateCount}명의 학생 정보가 업데이트되었습니다.` });
+
                 } catch (error) {
-                    toast({ title: "오류", description: "일괄 등록 중 오류 발생", variant: "destructive" });
+                    console.error(error);
+                    toast({ title: "오류", description: "일괄 처리 중 오류 발생", variant: "destructive" });
                 }
             },
             error: (err) => {
@@ -1042,6 +1101,7 @@ const StudentManagementTab = ({
                          <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
                              <div className="flex justify-end mb-2 gap-2">
                                  <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
+                                 <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
                                  <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록</Button>
                                  <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
                              </div>
