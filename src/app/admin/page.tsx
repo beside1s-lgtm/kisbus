@@ -20,6 +20,13 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
+const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
+    return Array.from({ length: capacity }, (_, i) => ({
+        seatNumber: i + 1,
+        studentId: null,
+    }));
+};
+
 const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
     
     const handleDownloadBusTemplate = () => {
