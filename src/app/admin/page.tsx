@@ -638,8 +638,6 @@ const StudentManagementTab = ({
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
     
     const unassignedStudents = useMemo(() => {
-        if (!routes.length) return students;
-
         const allAssignedStudentIds = new Set<string>();
         routes.forEach(r => {
             r.seating.forEach(s => {
@@ -649,17 +647,26 @@ const StudentManagementTab = ({
             });
         });
 
-        if (!currentRoute) {
-            return students.filter(s => !allAssignedStudentIds.has(s.id));
-        }
+        const getDestinationName = (student: Student) => destinations.find(d => d.id === student.destinationId)?.name || '미지정';
 
-        const assignedInCurrentRoute = new Set<string>();
-        currentRoute.seating.forEach(s => {
-            if (s.studentId) assignedInCurrentRoute.add(s.studentId);
+        const filtered = students.filter(student => !allAssignedStudentIds.has(student.id));
+
+        return filtered.sort((a, b) => {
+            const destA = getDestinationName(a);
+            const destB = getDestinationName(b);
+            if (destA !== destB) {
+                return destA.localeCompare(destB);
+            }
+            if (a.grade !== b.grade) {
+                return a.grade.localeCompare(b.grade);
+            }
+            if (a.class !== b.class) {
+                return a.class.localeCompare(b.class);
+            }
+            return a.name.localeCompare(b.name);
         });
 
-        return students.filter(s => !allAssignedStudentIds.has(s.id) || assignedInCurrentRoute.has(s.id));
-    }, [students, routes, currentRoute]);
+    }, [students, routes, destinations]);
 
 
     const handleSeatDrop = useCallback(async (seatNumber: number, studentId: string) => {
