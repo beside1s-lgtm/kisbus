@@ -2,6 +2,7 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Papa from 'papaparse';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations,
     addBus, deleteBus, updateBus,
@@ -14,7 +15,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,9 +24,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -229,6 +230,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
 const BusConfigurationTab = ({
   buses,
   routes,
+  setRoutes,
   destinations,
   setDestinations,
   suggestedDestinations,
@@ -236,11 +238,11 @@ const BusConfigurationTab = ({
   selectedDay,
   selectedRouteType,
   selectedBusId,
-  setSelectedBusId,
   filterComponent
 }: {
   buses: Bus[];
   routes: Route[];
+  setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
   setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   suggestedDestinations: Destination[],
@@ -248,7 +250,6 @@ const BusConfigurationTab = ({
   selectedDay: DayOfWeek;
   selectedRouteType: RouteType;
   selectedBusId: string | null;
-  setSelectedBusId: (id: string) => void;
   filterComponent: React.ReactNode;
 }) => {
   const [newDestinationName, setNewDestinationName] = useState('');
@@ -356,124 +357,187 @@ const BusConfigurationTab = ({
         toast({ title: "오류", description: "승인 처리 중 오류 발생", variant: 'destructive'});
     }
   };
+
+  const handleDragEnd = async (result: any) => {
+      const { source, destination, draggableId } = result;
+
+      if (!destination || !currentRoute) return;
+
+      const currentStops = getStopsForCurrentRoute();
+      const currentStopIds = currentStops.map(s => s.id);
+
+      // Moving from all destinations list to the route list
+      if (source.droppableId === 'all-destinations' && destination.droppableId === 'route-stops') {
+          if (currentStopIds.includes(draggableId)) {
+              toast({ title: "오류", description: "이미 노선에 추가된 목적지입니다.", variant: 'destructive' });
+              return;
+          }
+          const newStopIds = Array.from(currentStopIds);
+          newStopIds.splice(destination.index, 0, draggableId);
+
+          const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
+          setRoutes(newRoutes);
+          await updateRouteStops(currentRoute.id, newStopIds);
+      }
+      // Reordering within the route list
+      else if (source.droppableId === 'route-stops' && destination.droppableId === 'route-stops') {
+          const newStopIds = Array.from(currentStopIds);
+          const [reorderedItem] = newStopIds.splice(source.index, 1);
+          newStopIds.splice(destination.index, 0, reorderedItem);
+
+          const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
+          setRoutes(newRoutes);
+          await updateRouteStops(currentRoute.id, newStopIds);
+      }
+  };
+
+  const removeStopFromRoute = async (stopId: string) => {
+      if (!currentRoute) return;
+
+      const newStopIds = currentRoute.stops.filter(id => id !== stopId);
+      const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
+      setRoutes(newRoutes);
+      await updateRouteStops(currentRoute.id, newStopIds);
+  };
   
   return (
-    <div className="space-y-6">
-      {filterComponent}
-      <div className="grid grid-cols-1 gap-6 items-start">
-          <Card>
-            <CardHeader>
-              <CardTitle>버스 노선 설정</CardTitle>
-              <CardDescription>버스를 선택하여 노선을 설정하세요.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {selectedBus ? (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : '하교'} 노선</CardTitle>
-                        <CardDescription>버스의 정보를 수정하고 노선 순서를 정합니다.</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                          <div className="flex items-center gap-4 p-2 border rounded-md mb-4">
-                              <Input defaultValue={selectedBus.name} className="flex-1" />
-                              <Select defaultValue={selectedBus.type}>
-                                  <SelectTrigger className="w-[150px]">
-                                      <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      <SelectItem value="15-seater">15인승</SelectItem>
-                                      <SelectItem value="29-seater">29인승</SelectItem>
-                                      <SelectItem value="45-seater">45인승</SelectItem>
-                                  </SelectContent>
-                              </Select>
-                              <Button>저장</Button>
-                          </div>
-
-                          <Separator className="my-4" />
-
-                          <div>
-                              <h4 className="font-semibold mb-2">노선 순서 (드래그하여 순서 변경)</h4>
-                              <p className="text-sm text-muted-foreground mb-2">
-                                  아래 목록은 이 버스의 정류장 순서를 나타냅니다. 전체 목적지 목록에서 노선에 추가할 수 있습니다.
-                              </p>
-                              <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-muted/50">
-                                {getStopsForCurrentRoute().map((dest, index) => (
-                                   <Badge key={`${dest.id}-${index}`} variant="secondary" className="p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                                     <span className="text-xs font-bold text-muted-foreground">{index + 1}</span>
-                                     <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                     {dest.name}
-                                   </Badge>
+    <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="space-y-6">
+            {filterComponent}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                <Card>
+                    <CardHeader>
+                    <CardTitle>버스 노선 설정</CardTitle>
+                    <CardDescription>
+                        전체 목적지 목록에서 오른쪽 노선 순서로 목적지를 드래그하여 추가하세요.
+                    </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {selectedBus ? (
+                            <Card>
+                            <CardHeader>
+                                <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : '하교'} 노선</CardTitle>
+                                <CardDescription>드래그하여 노선 순서를 정하고, 'X'를 눌러 삭제합니다.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Droppable droppableId="route-stops">
+                                    {(provided, snapshot) => (
+                                        <div
+                                            ref={provided.innerRef}
+                                            {...provided.droppableProps}
+                                            className={cn("flex flex-col gap-2 p-2 border rounded-md min-h-[150px] bg-muted/50", snapshot.isDraggingOver && "bg-primary/10")}
+                                        >
+                                            {getStopsForCurrentRoute().map((dest, index) => (
+                                                <Draggable key={dest.id} draggableId={dest.id} index={index}>
+                                                    {(provided, snapshot) => (
+                                                         <div
+                                                            ref={provided.innerRef}
+                                                            {...provided.draggableProps}
+                                                            {...provided.dragHandleProps}
+                                                            className={cn("p-2 flex items-center gap-2 rounded-md", snapshot.isDragging ? "bg-card shadow-lg" : "bg-card/80")}
+                                                        >
+                                                            <GripVertical className="h-5 w-5 text-muted-foreground" />
+                                                            <span className="flex-1 text-sm font-medium">{dest.name}</span>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeStopFromRoute(dest.id)}>
+                                                                <X className="h-4 w-4 text-destructive" />
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </Draggable>
+                                            ))}
+                                            {provided.placeholder}
+                                        </div>
+                                    )}
+                                </Droppable>
+                            </CardContent>
+                            </Card>
+                        ) : (
+                            <div className="text-center text-muted-foreground py-10">버스를 선택하여 노선을 확인하세요.</div>
+                        )}
+                    </CardContent>
+                </Card>
+                
+                <div className="space-y-6">
+                    {suggestedDestinations.length > 0 && (
+                        <Card>
+                            <CardHeader>
+                            <CardTitle>신규 목적지 신청</CardTitle>
+                            <CardDescription>
+                                학생들이 제안한 새로운 목적지입니다. 클릭하여 전체 목적지 목록에 추가하세요.
+                            </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                            <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
+                                {suggestedDestinations.map(suggestion => (
+                                <Badge 
+                                    key={suggestion.id}
+                                    variant="outline" 
+                                    onClick={() => handleApproveSuggestion(suggestion)}
+                                    className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
+                                >
+                                    {suggestion.name}
+                                </Badge>
                                 ))}
-                              </div>
-                          </div>
-                      </CardContent>
-                    </Card>
-                ) : (
-                    <div className="text-center text-muted-foreground py-10">버스를 선택하여 노선을 확인하세요.</div>
-                )}
-            </CardContent>
-          </Card>
-          
-           {suggestedDestinations.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>신규 목적지 신청</CardTitle>
-                  <CardDescription>
-                    학생들이 제안한 새로운 목적지입니다. 클릭하여 전체 목적지 목록에 추가하세요.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
-                    {suggestedDestinations.map(suggestion => (
-                      <Badge 
-                        key={suggestion.id}
-                        variant="outline" 
-                        onClick={() => handleApproveSuggestion(suggestion)}
-                        className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
-                      >
-                        {suggestion.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                            </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>전체 목적지 목록</CardTitle>
-              <CardDescription>
-                모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex justify-end gap-2 mb-4">
-                     <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
-                     <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
-                     <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
-                    <Dialog>
-                        <DialogTrigger asChild><Button><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
-                            <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
-                            <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
-                        </DialogContent>
-                    </Dialog>
+                    <Card>
+                        <CardHeader>
+                        <CardTitle>전체 목적지 목록</CardTitle>
+                        <CardDescription>
+                            모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
+                        </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex justify-end gap-2 mb-4">
+                                <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
+                                <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                                <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
+                                <Dialog>
+                                    <DialogTrigger asChild><Button><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
+                                        <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
+                                        <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
+                            <Droppable droppableId="all-destinations" isDropDisabled={true}>
+                                {(provided) => (
+                                    <div
+                                        ref={provided.innerRef}
+                                        {...provided.droppableProps}
+                                        className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50"
+                                    >
+                                        {destinations.map((dest, index) => (
+                                             <Draggable key={dest.id} draggableId={dest.id} index={index}>
+                                                {(provided, snapshot) => (
+                                                    <div
+                                                        ref={provided.innerRef}
+                                                        {...provided.draggableProps}
+                                                        {...provided.dragHandleProps}
+                                                        className={cn("rounded-full border px-3 py-1 text-sm font-semibold transition-colors flex items-center gap-1", snapshot.isDragging && "shadow-lg")}
+                                                    >
+                                                        {dest.name}
+                                                        <Button variant="ghost" size="icon" className="h-5 w-5 -mr-2" onClick={() => handleDeleteDestination(dest.id)}>
+                                                            <X className="w-3 h-3 text-destructive" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </Draggable>
+                                        ))}
+                                        {provided.placeholder}
+                                    </div>
+                                )}
+                            </Droppable>
+                        </CardContent>
+                    </Card>
                 </div>
-                <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50">
-                    {destinations.map(dest => (
-                        <Badge key={dest.id} variant="outline" className="flex justify-between items-center max-w-fit">
-                            <span>{dest.name}</span>
-                            <Button variant="ghost" size="icon" className="h-5 w-5 ml-1" onClick={() => handleDeleteDestination(dest.id)}>
-                                <Trash2 className="w-3 h-3 text-destructive" />
-                            </Button>
-                        </Badge>
-                    ))}
-                </div>
-            </CardContent>
-          </Card>
-      </div>
-    </div>
+            </div>
+        </div>
+    </DragDropContext>
   );
 };
 
@@ -508,7 +572,6 @@ const StudentManagementTab = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
-    const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
 
     const currentRoute = useMemo(() => {
         return routes.find(r =>
@@ -517,40 +580,29 @@ const StudentManagementTab = ({
             r.type === selectedRouteType
         );
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
-
+    
     const unassignedStudents = useMemo(() => {
-        if (!currentRoute) return students;
-        
+        if (!routes.length) return students;
+
+        const allAssignedStudentIds = new Set<string>();
+        routes.forEach(r => {
+            r.seating.forEach(s => {
+                if (s.studentId) {
+                    allAssignedStudentIds.add(s.studentId);
+                }
+            });
+        });
+
+        if (!currentRoute) {
+            return students.filter(s => !allAssignedStudentIds.has(s.id));
+        }
+
         const assignedInCurrentRoute = new Set<string>();
         currentRoute.seating.forEach(s => {
             if (s.studentId) assignedInCurrentRoute.add(s.studentId);
         });
-        
-        const assignedInAnyOtherRoute = new Set<string>();
-        routes.forEach(r => {
-            if (r.id !== currentRoute.id) {
-                r.seating.forEach(s => {
-                    if (s.studentId) assignedInAnyOtherRoute.add(s.studentId);
-                });
-            }
-        });
 
-        return students.filter(s => {
-            const isAssignedToThisRoute = assignedInCurrentRoute.has(s.id);
-            const isAssignedToAnyOtherRoute = assignedInAnyOtherRoute.has(s.id);
-            
-            // Show student if:
-            // 1. They are not assigned to ANY route at all.
-            // 2. They are assigned to THIS route (so they can be moved).
-            // This logic is imperfect for the multi-day requirement. Let's simplify.
-            
-            // New logic: a student is "unassigned" relative to the entire system
-            // if they are not on ANY bus on ANY day. This is too restrictive.
-            
-            // Let's go with: unassigned = not on THIS bus on THIS day/type.
-            return !assignedInCurrentRoute.has(s.id);
-
-        });
+        return students.filter(s => !allAssignedStudentIds.has(s.id) || assignedInCurrentRoute.has(s.id));
     }, [students, routes, currentRoute]);
 
 
@@ -558,27 +610,34 @@ const StudentManagementTab = ({
         if (!currentRoute) return;
 
         const oldRoutes = [...routes];
-        const newRoutes = routes.map(route => {
-            if (route.id === currentRoute.id) {
-                const newSeating = [...route.seating];
-                const oldSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
-                if (oldSeatIdx > -1) newSeating[oldSeatIdx].studentId = null;
-                const targetSeatIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
-                if (targetSeatIdx > -1) newSeating[targetSeatIdx].studentId = studentId;
-                return { ...route, seating: newSeating };
-            }
-            return route;
-        });
-        setRoutes(newRoutes);
+        let newRoutes = [...routes];
 
-        try {
-            const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id)!;
-            await updateRouteSeating(currentRoute.id, routeToUpdate.seating);
-        } catch (error) {
-            setRoutes(oldRoutes);
-            toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
+        // Find and remove student from any seat in the current route first
+        const routeToUpdateIdx = newRoutes.findIndex(r => r.id === currentRoute.id);
+        if (routeToUpdateIdx > -1) {
+            const newSeating = [...newRoutes[routeToUpdateIdx].seating];
+            const oldSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
+            if (oldSeatIdx > -1) {
+                newSeating[oldSeatIdx].studentId = null;
+            }
+
+            // Place student in the new seat
+            const targetSeatIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
+            if (targetSeatIdx > -1 && newSeating[targetSeatIdx].studentId === null) {
+                newSeating[targetSeatIdx].studentId = studentId;
+            }
+            newRoutes[routeToUpdateIdx] = { ...newRoutes[routeToUpdateIdx], seating: newSeating };
+            
+            setRoutes(newRoutes);
+
+            try {
+                await updateRouteSeating(currentRoute.id, newSeating);
+            } catch (error) {
+                setRoutes(oldRoutes);
+                toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
+            }
         }
-    }, [currentRoute, routes, setRoutes, toast, selectedBusId, days, routeTypes]);
+    }, [currentRoute, routes, setRoutes, toast]);
 
     const unassignStudent = useCallback(async (seatNumber: number) => {
         if (!currentRoute) return;
@@ -604,7 +663,7 @@ const StudentManagementTab = ({
             setRoutes(oldRoutes);
             toast({ title: "오류", description: "좌석 배정 해제 실패", variant: 'destructive'});
         }
-    }, [currentRoute, routes, setRoutes, toast, selectedBusId, days, routeTypes]);
+    }, [currentRoute, routes, setRoutes, toast]);
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus) return;
@@ -800,7 +859,7 @@ const StudentManagementTab = ({
         }
     };
 
-    if (!selectedBus) {
+    if (!selectedBusId) {
        return <div className="p-4 text-center text-muted-foreground">버스를 선택하여 학생을 관리하세요.</div>;
     }
     
@@ -815,7 +874,10 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
                         <CardHeader className="flex-row items-center justify-between">
-                            <CardTitle className="font-headline">좌석표</CardTitle>
+                            <div>
+                               <CardTitle className="font-headline">좌석표</CardTitle>
+                               <CardDescription>미배정 학생을 드래그하여 배정하거나, 좌석을 클릭하여 배정을 해제하세요.</CardDescription>
+                            </div>
                             <div className="flex items-center gap-2">
                                  <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
                                 <Dialog>
@@ -868,12 +930,14 @@ const StudentManagementTab = ({
                         </CardHeader>
                         <CardContent>
                             <BusSeatMap
-                                bus={selectedBus}
+                                bus={selectedBus!}
                                 seating={currentRoute.seating}
                                 students={students}
                                 destinations={destinations}
                                 onSeatDrop={handleSeatDrop}
-                                onSeatClick={(seatNumber) => unassignStudent(seatNumber)}
+                                onSeatClick={(seatNumber, studentId) => {
+                                  if (studentId) unassignStudent(seatNumber);
+                                }}
                                 draggable={true}
                             />
                         </CardContent>
@@ -918,7 +982,7 @@ const AdminPageFilter = ({
     loading
 } : {
     buses: Bus[],
-    selectedBusId: string,
+    selectedBusId: string | null,
     setSelectedBusId: (id: string) => void,
     selectedDay: DayOfWeek,
     setSelectedDay: (day: DayOfWeek) => void,
@@ -934,7 +998,7 @@ const AdminPageFilter = ({
                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <Label className="text-sm font-medium">버스</Label>
-                    <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
+                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId} disabled={loading}>
                       <SelectTrigger>
                         <SelectValue placeholder="버스를 선택하세요" />
                       </SelectTrigger>
@@ -984,7 +1048,7 @@ export default function AdminPage() {
     const [routes, setRoutes] = useState<Route[]>([]);
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
-    const [selectedBusId, setSelectedBusId] = useState<string>('');
+    const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
@@ -1062,6 +1126,7 @@ export default function AdminPage() {
                         <BusConfigurationTab
                             buses={buses}
                             routes={routes}
+                            setRoutes={setRoutes}
                             destinations={destinations}
                             setDestinations={setDestinations}
                             suggestedDestinations={suggestedDestinations}
@@ -1069,7 +1134,6 @@ export default function AdminPage() {
                             selectedDay={selectedDay}
                             selectedRouteType={selectedRouteType}
                             selectedBusId={selectedBusId}
-                            setSelectedBusId={setSelectedBusId}
                             filterComponent={filterComponent}
                         />
                     </TabsContent>
@@ -1081,7 +1145,7 @@ export default function AdminPage() {
                             routes={routes} 
                             setRoutes={setRoutes}
                             destinations={destinations}
-                            selectedBusId={selectedBusId}
+                            selectedBusId={selectedBusId!}
                             selectedDay={selectedDay}
                             selectedRouteType={selectedRouteType}
                             days={days}
