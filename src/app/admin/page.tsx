@@ -18,7 +18,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -792,6 +792,37 @@ const StudentManagementTab = ({
         }
     }, [routes, setRoutes, toast]);
 
+    const handleResetSeating = useCallback(async () => {
+        if (!selectedBus) {
+            toast({ title: "오류", description: "버스를 먼저 선택해주세요.", variant: 'destructive'});
+            return;
+        }
+
+        if (!confirm(`${selectedBus.name}의 모든 좌석 배정을 초기화하시겠습니까?`)) {
+            return;
+        }
+
+        const oldRoutes = [...routes];
+        const emptySeating = generateInitialSeating(selectedBus.capacity);
+
+        const newRoutes = routes.map(route => {
+            if (route.busId === selectedBus.id) {
+                return { ...route, seating: emptySeating };
+            }
+            return route;
+        });
+        setRoutes(newRoutes);
+
+        try {
+            await updateAllBusRoutesSeating(selectedBus.id, emptySeating);
+            toast({ title: "성공", description: `${selectedBus.name}의 좌석 배정이 초기화되었습니다.` });
+        } catch (error) {
+            setRoutes(oldRoutes);
+            toast({ title: "오류", description: "좌석 초기화 실패", variant: 'destructive' });
+        }
+
+    }, [selectedBus, routes, setRoutes, toast]);
+
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus) return;
     
@@ -1108,7 +1139,8 @@ const StudentManagementTab = ({
                                <CardDescription>미배정 학생을 드래그하여 배정하거나, 좌석을 클릭하여 배정을 해제하세요.</CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
-                                 <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
+                                <Button variant="outline" onClick={handleResetSeating}><RotateCcw className="mr-2" /> 좌석 초기화</Button>
+                                <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
                                 <Dialog>
                                     <DialogTrigger asChild>
                                         <Button variant="outline"><UserPlus className="mr-2" /> 학생 추가</Button>
@@ -1417,3 +1449,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
