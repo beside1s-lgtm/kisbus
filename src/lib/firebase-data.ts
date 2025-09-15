@@ -61,7 +61,27 @@ export const updateBus = async (busId: string, data: Partial<Bus>) => {
 
 // Students
 export const getStudents = () => fetchCollection<Student>('students');
-export const addStudent = (student: NewStudent) => addDocument<Student>('students', student);
+
+export const addStudent = async (student: NewStudent): Promise<Student> => {
+    const q = query(collection(db, "students"), 
+        where("name", "==", student.name),
+        where("grade", "==", student.grade),
+        where("class", "==", student.class)
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+        // Student exists, update them
+        const docRef = querySnapshot.docs[0].ref;
+        await updateDoc(docRef, student);
+        return { id: docRef.id, ...student } as Student;
+    } else {
+        // Student doesn't exist, create new
+        const docRef = await addDoc(collection(db, 'students'), student);
+        return { id: docRef.id, ...student } as Student;
+    }
+};
+
 export const updateStudent = async (studentId: string, data: Partial<Student>) => {
     await updateDoc(doc(db, 'students', studentId), data);
 }
@@ -286,3 +306,5 @@ export const onAttendanceUpdate = (routeId: string, date: string, callback: (rec
     }
   });
 };
+
+    
