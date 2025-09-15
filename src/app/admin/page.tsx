@@ -442,7 +442,13 @@ const BusConfigurationTab = ({
       if (!currentRoute) return;
 
       const newStopIds = currentRoute.stops.filter(id => id !== stopId);
-      const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
+      
+      const newRoutes = structuredClone(routes);
+      const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id);
+      if (routeToUpdate) {
+        routeToUpdate.stops = newStopIds;
+      }
+      
       setRoutes(newRoutes);
       await updateRouteStops(currentRoute.id, newStopIds);
   };
@@ -1494,3 +1500,4 @@ export default function AdminPage() {
 }
 
     
+
