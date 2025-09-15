@@ -6,9 +6,9 @@ import { DragDropContext, OnDragEndResponder } from '@hello-pangea/dnd';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
-    getAttendance, onAttendanceUpdate, getRoutesByStop
+    getAttendance, onAttendanceUpdate, getRoutesByStop, getTeachers
 } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, AttendanceRecord } from '@/lib/types';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, AttendanceRecord, Teacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ export default function TeacherPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -89,16 +90,18 @@ export default function TeacherPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [busesData, studentsData, routesData, destinationsData] = await Promise.all([
+            const [busesData, studentsData, routesData, destinationsData, teachersData] = await Promise.all([
                 getBuses(),
                 getStudents(),
                 getRoutes(),
                 getDestinations(),
+                getTeachers(),
             ]);
             setBuses(busesData);
             setStudents(studentsData);
             setRoutes(routesData);
             setDestinations(destinationsData);
+            setTeachers(teachersData);
             if (busesData.length > 0 && !selectedBusId) {
                 setSelectedBusId(busesData[0].id);
             }
@@ -121,6 +124,11 @@ export default function TeacherPage() {
       r.type === selectedRouteType
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+
+    const assignedTeachers = useMemo(() => {
+        if (!selectedBus || !selectedBus.teacherIds) return [];
+        return selectedBus.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
+    }, [selectedBus, teachers]);
 
   // Firestore real-time listener for attendance
   useEffect(() => {
@@ -453,7 +461,14 @@ export default function TeacherPage() {
         <div className="lg:col-span-2">
             <Card>
             <CardHeader>
-                <CardTitle className="font-headline">버스 좌석 및 탑승 현황</CardTitle>
+                <CardTitle className="font-headline flex items-center">
+                    버스 좌석 및 탑승 현황
+                    {assignedTeachers.length > 0 && (
+                        <span className="text-sm font-medium text-muted-foreground ml-2">
+                           - {assignedTeachers.map(t => t.name).join(', ')} 담당 선생님
+                        </span>
+                    )}
+                </CardTitle>
                 <CardDescription>학생 좌석을 클릭하여 탑승 여부를 표시하세요. 탑승한 학생은 초록색으로 표시됩니다.</CardDescription>
             </CardHeader>
             <CardContent>

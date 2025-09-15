@@ -24,6 +24,7 @@ export type Bus = {
   name: string;
   capacity: 15 | 29 | 45;
   type: '15-seater' | '29-seater' | '45-seater';
+  teacherIds?: string[];
 };
 export type NewBus = Omit<Bus, 'id'>;
 
@@ -32,6 +33,12 @@ export type Destination = {
   name:string;
 };
 export type NewDestination = Omit<Destination, 'id'>;
+
+export type Teacher = {
+    id: string;
+    name: string;
+};
+export type NewTeacher = Omit<Teacher, 'id'>;
 
 
 export type SeatingAssignment = {

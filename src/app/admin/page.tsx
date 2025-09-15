@@ -5,21 +5,21 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Papa from 'papaparse';
 import { DragDropContext, Droppable, Draggable, OnDragEndResponder } from '@hello-pangea/dnd';
 import { 
-    getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations,
+    getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations, getTeachers,
     addBus, deleteBus, updateBus,
     addStudent, updateStudent, deleteStudentsInBatch,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations,
     updateStudentsInBatch,
     unassignStudentFromAllRoutes,
-    updateSeatingForBusRoutes
+    updateSeatingForBusRoutes, addTeachersInBatch
 } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination } from '@/lib/types';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -270,24 +270,28 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
 
 const BusConfigurationTab = ({
   buses,
+  setBuses,
   routes,
   setRoutes,
   destinations,
   setDestinations,
   suggestedDestinations,
   setSuggestedDestinations,
+  teachers,
   selectedDay,
   selectedRouteType,
   selectedBusId,
   filterComponent
 }: {
   buses: Bus[];
+  setBuses: React.Dispatch<React.SetStateAction<Bus[]>>;
   routes: Route[];
   setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
   setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   suggestedDestinations: Destination[],
   setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
+  teachers: Teacher[];
   selectedDay: DayOfWeek;
   selectedRouteType: RouteType;
   selectedBusId: string | null;
@@ -314,6 +318,11 @@ const BusConfigurationTab = ({
     if (!currentRoute) return [];
     return currentRoute.stops.map(stopId => destinations.find(d => d.id === stopId)!).filter(Boolean);
   };
+
+    const assignedTeachers = useMemo(() => {
+        if (!selectedBus || !selectedBus.teacherIds) return [];
+        return selectedBus.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
+    }, [selectedBus, teachers]);
   
    const handleAddDestination = async () => {
         const trimmedName = newDestinationName.trim();
@@ -493,6 +502,36 @@ const BusConfigurationTab = ({
         setRoutes(routes); 
     });
 };
+
+  const assignRandomTeachers = async () => {
+    if (!selectedBus) {
+        toast({ title: "오류", description: "버스를 선택해주세요.", variant: 'destructive' });
+        return;
+    }
+    if (teachers.length === 0) {
+        toast({ title: "오류", description: "등록된 선생님이 없습니다. 선생님을 먼저 등록해주세요.", variant: 'destructive' });
+        return;
+    }
+
+    let numToAssign = 1;
+    if (selectedBus.type === '45-seater') {
+        numToAssign = teachers.length > 1 ? (Math.random() < 0.5 ? 1 : 2) : 1;
+    }
+
+    const shuffledTeachers = [...teachers].sort(() => 0.5 - Math.random());
+    const assignedTeacherIds = shuffledTeachers.slice(0, numToAssign).map(t => t.id);
+
+    try {
+        await updateBus(selectedBus.id, { teacherIds: assignedTeacherIds });
+        setBuses(prevBuses => prevBuses.map(b => 
+            b.id === selectedBus.id ? { ...b, teacherIds: assignedTeacherIds } : b
+        ));
+        toast({ title: "성공", description: "담당 선생님이 배정되었습니다." });
+    } catch (error) {
+        console.error("Error assigning teachers:", error);
+        toast({ title: "오류", description: "선생님 배정 중 오류가 발생했습니다.", variant: 'destructive' });
+    }
+  };
   
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -509,10 +548,20 @@ const BusConfigurationTab = ({
                     <CardContent>
                         {selectedBus ? (
                             <Card>
-                            <CardHeader>
-                                <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
-                                <CardDescription>드래그하여 노선 순서를 정하고, 'X'를 눌러 삭제합니다.</CardDescription>
-                            </CardHeader>
+                                <CardHeader>
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
+                                            <CardDescription>드래그하여 노선 순서를 정하고, 'X'를 눌러 삭제합니다.</CardDescription>
+                                        </div>
+                                        <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>담당 선생님 배정</Button>
+                                    </div>
+                                     {assignedTeachers.length > 0 && (
+                                        <div className="text-sm text-muted-foreground pt-2">
+                                            <strong>담당 선생님:</strong> {assignedTeachers.map(t => t.name).join(', ')}
+                                        </div>
+                                    )}
+                                </CardHeader>
                             <CardContent>
                                 <Droppable droppableId="route-stops">
                                     {(provided, snapshot) => (
@@ -862,11 +911,23 @@ const StudentManagementTab = ({
     }, [selectedBus, currentRoute, routes, setRoutes, toast, selectedDay, selectedRouteType]);
 
     const getStudentsForRoute = (route: Route, allStudents: Student[]): Student[] => {
+        const studentIdsOnRoute = new Set(
+            route.seating.map(s => s.studentId).filter(Boolean)
+        );
+    
         return allStudents.filter(s => {
-            if (route.type === 'Morning') return !!s.morningDestinationId;
-            if (route.type === 'Afternoon') return !!s.afternoonDestinationId;
-            if (route.type === 'AfterSchool') return !!s.afterSchoolDestinations?.[route.dayOfWeek];
-            return false;
+            // Check if student is eligible for this route type
+            let isEligible = false;
+            if (route.type === 'Morning') {
+                isEligible = !!s.morningDestinationId;
+            } else if (route.type === 'Afternoon') {
+                isEligible = !!s.afternoonDestinationId;
+            } else if (route.type === 'AfterSchool') {
+                isEligible = !!s.afterSchoolDestinations?.[route.dayOfWeek];
+            }
+    
+            // Return if they are eligible OR already on this bus (for copying existing assignments)
+            return isEligible || studentIdsOnRoute.has(s.id);
         });
     };
 
@@ -874,8 +935,17 @@ const StudentManagementTab = ({
         const batch = writeBatch(db);
         
         for (const targetRoute of targetRoutes) {
-            const targetStudents = getStudentsForRoute(targetRoute, allStudents);
-            const targetStudentIds = new Set(targetStudents.map(s => s.id));
+            const targetStudentsForThisRoute = allStudents.filter(s => {
+                 let destId: string | null = null;
+                 if (targetRoute.type === 'Morning') destId = s.morningDestinationId;
+                 else if (targetRoute.type === 'Afternoon') destId = s.afternoonDestinationId;
+                 else if (targetRoute.type === 'AfterSchool') destId = s.afterSchoolDestinations?.[targetRoute.dayOfWeek] || null;
+                 
+                 // Student must have a destination for the target route type and that destination must be one of the stops
+                 return destId && targetRoute.stops.includes(destId);
+            });
+
+            const targetStudentIds = new Set(targetStudentsForThisRoute.map(s => s.id));
 
             const newSeatingForTarget = sourcePlan.map(seat => {
                 // If the student in the source plan is also eligible for the target route, keep them.
@@ -1016,46 +1086,63 @@ const StudentManagementTab = ({
         }
     
         try {
-            // Update current route first and wait for it
+            // Immediately update the current route's seating plan in the database.
             await updateRouteSeating(currentRoute.id, newSeatingPlan);
-
+        
+            // If it's Monday, proceed to copy the plan to other days.
             if (selectedDay === 'Monday') {
                 const weekdays: DayOfWeek[] = ['Tuesday', 'Wednesday', 'Thursday', 'Friday'];
                 const allWeekdays: DayOfWeek[] = ['Monday', ...weekdays];
-                
-                // Copy to the same route type for other weekdays (e.g., Tue-Fri Morning)
-                if (selectedRouteType !== 'AfterSchool') {
-                    const sameTypeRoutesToCopy = routes.filter(r => 
+        
+                // Define routes to copy to.
+                let routesToCopyTo: Route[] = [];
+        
+                if (selectedRouteType === 'Morning') {
+                    // Morning -> Other weekday mornings + All weekday afternoons
+                    const otherMorningRoutes = routes.filter(r => 
                         r.busId === selectedBusId &&
                         weekdays.includes(r.dayOfWeek) &&
-                        r.type === selectedRouteType
+                        r.type === 'Morning'
                     );
-                    await copySeatingPlan(newSeatingPlan, sameTypeRoutesToCopy, students);
-
-                    // Copy to the other main route type (Morning -> Afternoon or vice-versa)
-                    const otherMainRouteType: RouteType | null = selectedRouteType === 'Morning' ? 'Afternoon' : selectedRouteType === 'Afternoon' ? 'Morning' : null;
-                    if (otherMainRouteType) {
-                        const otherTypeRoutesToCopy = routes.filter(r => 
-                            r.busId === selectedBusId &&
-                            allWeekdays.includes(r.dayOfWeek) &&
-                            r.type === otherMainRouteType
-                        );
-                        await copySeatingPlan(newSeatingPlan, otherTypeRoutesToCopy, students);
-                    }
+                    const allAfternoonRoutes = routes.filter(r => 
+                        r.busId === selectedBusId &&
+                        allWeekdays.includes(r.dayOfWeek) &&
+                        r.type === 'Afternoon'
+                    );
+                    routesToCopyTo = [...otherMorningRoutes, ...allAfternoonRoutes];
+                } else if (selectedRouteType === 'Afternoon') {
+                     // Afternoon -> Other weekday afternoons + All weekday mornings
+                     const otherAfternoonRoutes = routes.filter(r => 
+                        r.busId === selectedBusId &&
+                        weekdays.includes(r.dayOfWeek) &&
+                        r.type === 'Afternoon'
+                    );
+                    const allMorningRoutes = routes.filter(r => 
+                        r.busId === selectedBusId &&
+                        allWeekdays.includes(r.dayOfWeek) &&
+                        r.type === 'Morning'
+                    );
+                    routesToCopyTo = [...otherAfternoonRoutes, ...allMorningRoutes];
                 }
-                
-                // Refetch all routes to update state correctly after all DB operations
+        
+                if (routesToCopyTo.length > 0) {
+                    await copySeatingPlan(newSeatingPlan, routesToCopyTo, students);
+                }
+        
+                // After all DB operations, fetch the latest routes to update the UI.
                 const updatedRoutes = await getRoutes();
                 setRoutes(updatedRoutes);
-
                 toast({ title: "성공", description: "랜덤 배정이 완료되었고, 평일 등/하교 노선에 복사되었습니다." });
+        
             } else {
-                 const finalRoutes = routes.map(route => 
+                // If not Monday, just update the current route in the local state.
+                const finalRoutes = oldRoutes.map(route => 
                     route.id === currentRoute.id ? { ...route, seating: newSeatingPlan } : route
                 );
-                 setRoutes(finalRoutes);
-                 toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
+                setRoutes(finalRoutes);
+                toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
             }
+        
         } catch (error) {
             setRoutes(oldRoutes); // Revert on failure
             console.error("Randomization error:", error);
@@ -1524,6 +1611,90 @@ const StudentManagementTab = ({
     );
 };
 
+const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>> }) => {
+    const { toast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleDownloadTeacherTemplate = () => {
+        const headers = "선생님 이름";
+        const example = "김선생";
+        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "teacher_template.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleTeacherFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const newTeachersData: NewTeacher[] = results.data.map((row: any) => ({
+                    name: (row['선생님 이름'] || row['name'] || '').trim()
+                })).filter(teacher => teacher.name);
+
+                if (newTeachersData.length === 0) {
+                    toast({ title: "오류", description: "파일에서 유효한 선생님 데이터를 찾을 수 없습니다. 헤더가 '선생님 이름'으로 되어있는지 확인하세요.", variant: "destructive" });
+                    return;
+                }
+
+                try {
+                    const addedTeachers = await addTeachersInBatch(newTeachersData);
+                    setTeachers(prev => [...prev, ...addedTeachers]);
+                    toast({ title: "성공", description: `${addedTeachers.length}명의 선생님이 일괄 등록되었습니다.` });
+                } catch (error) {
+                    toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
+                }
+            },
+            error: (error) => {
+                toast({ title: "파일 파싱 오류", description: error.message, variant: "destructive" });
+            }
+        });
+
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>선생님 목록</CardTitle>
+                <CardDescription>CSV 파일로 선생님 명단을 일괄 등록합니다.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex justify-end gap-2 mb-4">
+                    <Button variant="outline" onClick={handleDownloadTeacherTemplate}><Download className="mr-2" /> 템플릿</Button>
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                    <input type="file" ref={fileInputRef} onChange={handleTeacherFileUpload} accept=".csv" className="hidden" />
+                </div>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>선생님 이름</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {teachers.map(teacher => (
+                            <TableRow key={teacher.id}>
+                                <TableCell>{teacher.name}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
+
 interface AdminPageFilterProps {
     buses: Bus[];
     selectedBusId: string | null;
@@ -1606,6 +1777,8 @@ export default function AdminPage() {
     const [routes, setRoutes] = useState<Route[]>([]);
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    
     const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
@@ -1618,12 +1791,13 @@ export default function AdminPage() {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [busesData, studentsData, routesData, destinationsData, suggestionsData] = await Promise.all([
+                const [busesData, studentsData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
                     getBuses(),
                     getStudents(),
                     getRoutes(),
                     getDestinations(),
                     getSuggestedDestinations(),
+                    getTeachers(),
                 ]);
                 const sortedBuses = sortBuses(busesData);
                 setBuses(sortedBuses);
@@ -1631,6 +1805,8 @@ export default function AdminPage() {
                 setRoutes(routesData);
                 setDestinations(destinationsData);
                 setSuggestedDestinations(suggestionsData);
+                setTeachers(teachersData);
+
                 if (sortedBuses.length > 0 && !selectedBusId) {
                   setSelectedBusId(sortedBuses[0].id);
                 }
@@ -1666,23 +1842,29 @@ export default function AdminPage() {
                 </div>
             ) : (
                 <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
+                        <TabsTrigger value="teacher-management">선생님 관리</TabsTrigger>
                         <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
                         <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
                     </TabsList>
                     <TabsContent value="bus-registration" className="mt-6">
                         <BusRegistrationTab buses={buses} setBuses={setBuses} />
                     </TabsContent>
+                     <TabsContent value="teacher-management" className="mt-6">
+                        <TeacherManagementTab teachers={teachers} setTeachers={setTeachers} />
+                    </TabsContent>
                     <TabsContent value="bus-configuration" className="mt-6">
                         <BusConfigurationTab
                             buses={buses}
+                            setBuses={setBuses}
                             routes={routes}
                             setRoutes={setRoutes}
                             destinations={destinations}
                             setDestinations={setDestinations}
                             suggestedDestinations={suggestedDestinations}
                             setSuggestedDestinations={setSuggestedDestinations}
+                            teachers={teachers}
                             selectedDay={selectedDay}
                             selectedRouteType={selectedRouteType}
                             selectedBusId={selectedBusId}

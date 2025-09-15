@@ -26,6 +26,8 @@ import type {
   NewDestination,
   GroupLeaderRecord,
   AttendanceRecord,
+  Teacher,
+  NewTeacher
 } from './types';
 
 // Generic function to fetch data from a collection
@@ -142,6 +144,27 @@ export const addDestinationsInBatch = async (destinations: NewDestination[]): Pr
     return newDestinations;
 }
 export const deleteDestination = (destinationId: string) => deleteDoc(doc(db, 'destinations', destinationId));
+
+// Teachers
+export const getTeachers = () => fetchCollection<Teacher>('teachers');
+export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teacher[]> => {
+    const batch = writeBatch(db);
+    const newTeachers: Teacher[] = [];
+    const q = query(collection(db, 'teachers'));
+    const existingDocs = await getDocs(q);
+    const existingNames = new Set(existingDocs.docs.map(d => d.data().name));
+
+    for (const teacher of teachers) {
+        if (!existingNames.has(teacher.name)) {
+            const docRef = doc(collection(db, 'teachers'));
+            batch.set(docRef, teacher);
+            newTeachers.push({ id: docRef.id, ...teacher });
+            existingNames.add(teacher.name);
+        }
+    }
+    await batch.commit();
+    return newTeachers;
+};
 
 // Routes
 export const getRoutes = () => fetchCollection<Route>('routes');
