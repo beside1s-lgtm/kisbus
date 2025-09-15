@@ -224,29 +224,35 @@ export default function ApplyPage() {
                     </Card>
                 </div>
                 
-                <Card className="w-full max-w-2xl">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <PlusCircle /> 신규 목적지 제안
-                        </CardTitle>
-                        <CardDescription>
-                           찾는 목적지가 목록에 없나요? 여기에 제안해주시면 관리자가 검토 후 추가합니다.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex gap-2">
-                        <Input 
-                            placeholder="예: 서초역" 
-                            value={newDestinationName}
-                            onChange={(e) => setNewDestinationName(e.target.value)}
-                        />
-                        <Button onClick={handleSuggestionSubmit}>제안하기</Button>
-                        <DialogClose id="suggest-dest-dialog-close" />
-                    </CardContent>
-                </Card>
+                <div className="text-center">
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button variant="link">
+                                <PlusCircle className="mr-2" />
+                                찾는 목적지가 없으신가요? (신규 목적지 제안)
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                             <DialogHeader>
+                                <DialogTitle>신규 목적지 제안</DialogTitle>
+                             </DialogHeader>
+                             <div className="flex flex-col gap-4">
+                                <p className="text-sm text-muted-foreground">
+                                    찾는 목적지가 목록에 없나요? 여기에 제안해주시면 관리자가 검토 후 추가합니다.
+                                </p>
+                                <Input 
+                                    placeholder="예: 서초역" 
+                                    value={newDestinationName}
+                                    onChange={(e) => setNewDestinationName(e.target.value)}
+                                />
+                                <Button onClick={handleSuggestionSubmit}>제안하기</Button>
+                                <DialogClose id="suggest-dest-dialog-close" />
+                             </div>
+                        </DialogContent>
+                    </Dialog>
+                </div>
 
             </div>
         </MainLayout>
     );
 }
-
-    
