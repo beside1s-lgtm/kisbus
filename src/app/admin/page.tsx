@@ -448,15 +448,20 @@ const BusConfigurationTab = ({
 
   const removeStopFromRoute = async (stopId: string) => {
     if (!currentRoute) return;
-
-    const newStopIds = currentRoute.stops.filter(id => id !== stopId);
     
-    const newRoutes = routes.map(r => 
-      r.id === currentRoute.id ? { ...r, stops: newStopIds } : r
+    setRoutes(prevRoutes => 
+        prevRoutes.map(route => {
+            if (route.id === currentRoute.id) {
+                return {
+                    ...route,
+                    stops: route.stops.filter(id => id !== stopId)
+                };
+            }
+            return route;
+        })
     );
     
-    setRoutes(newRoutes);
-
+    const newStopIds = currentRoute.stops.filter(id => id !== stopId);
     await updateRouteStops(currentRoute.id, newStopIds);
   };
   
