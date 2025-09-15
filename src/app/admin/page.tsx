@@ -605,21 +605,7 @@ const BusConfigurationTab = ({
                                             <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
                                             <CardDescription>드래그하여 노선 순서를 정하고, 'X'를 눌러 삭제합니다.</CardDescription>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>재배정</Button>
-                                            <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
-                                                <DialogTrigger asChild>
-                                                    <Button variant="outline"><Pencil className="mr-2"/>수동 변경</Button>
-                                                </DialogTrigger>
-                                                <TeacherAssignmentDialog bus={selectedBus} teachers={teachers} setBuses={setBuses} onOpenChange={setIsTeacherDialogOpen} />
-                                            </Dialog>
-                                        </div>
                                     </div>
-                                     {assignedTeachers.length > 0 && (
-                                        <div className="text-sm text-muted-foreground pt-2">
-                                            <strong>담당 선생님:</strong> {assignedTeachers.map(t => t.name).join(', ')}
-                                        </div>
-                                    )}
                                 </CardHeader>
                             <CardContent>
                                 <Droppable droppableId="route-stops">
@@ -773,6 +759,33 @@ const BusConfigurationTab = ({
                             </Droppable>
                         </CardContent>
                     </Card>
+
+                    {selectedBus && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>담당 선생님 배정</CardTitle>
+                                <CardDescription>현재 선택된 버스({selectedBus.name})의 담당 선생님을 배정합니다.</CardDescription>
+                            </CardHeader>
+                             <CardContent>
+                                {assignedTeachers.length > 0 ? (
+                                    <div className="text-sm text-muted-foreground">
+                                        <strong>담당 선생님:</strong> {assignedTeachers.map(t => t.name).join(', ')}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-muted-foreground">배정된 선생님이 없습니다.</div>
+                                )}
+                            </CardContent>
+                            <CardFooter className="flex gap-2">
+                               <Button onClick={assignRandomTeachers} className="flex-1"><UserCog className="mr-2"/>재배정</Button>
+                                <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" className="flex-1"><Pencil className="mr-2"/>수동 변경</Button>
+                                    </DialogTrigger>
+                                    <TeacherAssignmentDialog bus={selectedBus} teachers={teachers} setBuses={setBuses} onOpenChange={setIsTeacherDialogOpen} />
+                                </Dialog>
+                            </CardFooter>
+                        </Card>
+                    )}
                 </div>
             </div>
         </div>
