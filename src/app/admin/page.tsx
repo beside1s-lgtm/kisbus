@@ -447,17 +447,17 @@ const BusConfigurationTab = ({
   };
 
   const removeStopFromRoute = async (stopId: string) => {
-      if (!currentRoute) return;
+    if (!currentRoute) return;
 
-      const newStopIds = currentRoute.stops.filter(id => id !== stopId);
-      
-      const newRoutes = routes.map(r => 
-        r.id === currentRoute.id ? { ...r, stops: newStopIds } : r
-      );
-      
-      setRoutes(newRoutes);
+    const newStopIds = currentRoute.stops.filter(id => id !== stopId);
+    
+    const newRoutes = routes.map(r => 
+      r.id === currentRoute.id ? { ...r, stops: newStopIds } : r
+    );
+    
+    setRoutes(newRoutes);
 
-      await updateRouteStops(currentRoute.id, newStopIds);
+    await updateRouteStops(currentRoute.id, newStopIds);
   };
   
   return (
@@ -1505,9 +1505,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-    
-
-    
 
     
