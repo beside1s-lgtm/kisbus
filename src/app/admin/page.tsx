@@ -850,6 +850,45 @@ const StudentManagementTab = ({
 
     }, [selectedBus, currentRoute, routes, setRoutes, toast, selectedDay, selectedRouteType]);
 
+    const getStudentsForRoute = (route: Route, allStudents: Student[]): Student[] => {
+        return allStudents.filter(s => {
+            if (route.type === 'Morning') return !!s.morningDestinationId;
+            if (route.type === 'Afternoon') return !!s.afternoonDestinationId;
+            if (route.type === 'AfterSchool') return !!s.afterSchoolDestinations?.[route.dayOfWeek];
+            return false;
+        });
+    };
+
+    const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentId: string | null }[], targetRoutes: Route[], allStudents: Student[]) => {
+        const batch = writeBatch(db);
+        const newRoutesState = [...routes];
+
+        for (const targetRoute of targetRoutes) {
+            const targetStudents = getStudentsForRoute(targetRoute, allStudents);
+            const targetStudentIds = new Set(targetStudents.map(s => s.id));
+
+            const newSeatingForTarget = sourcePlan.map(seat => {
+                // If the student in the source plan is also eligible for the target route, keep them.
+                if (seat.studentId && targetStudentIds.has(seat.studentId)) {
+                    return seat;
+                }
+                // Otherwise, the seat is empty.
+                return { ...seat, studentId: null };
+            });
+
+            batch.update(doc(db, 'routes', targetRoute.id), { seating: newSeatingForTarget });
+            
+            const routeIndex = newRoutesState.findIndex(r => r.id === targetRoute.id);
+            if(routeIndex !== -1) {
+                newRoutesState[routeIndex].seating = newSeatingForTarget;
+            }
+        }
+
+        await batch.commit();
+        setRoutes(newRoutesState);
+    };
+
+
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
     
@@ -973,54 +1012,51 @@ const StudentManagementTab = ({
             }
         }
     
-        if (selectedDay === 'Monday') {
-            const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            const routeTypesToCopy: RouteType[] = ['Morning', 'Afternoon'];
-            
-            const routesToUpdate = routes.filter(r => 
-                r.busId === selectedBusId && 
-                weekdays.includes(r.dayOfWeek) &&
-                routeTypesToCopy.includes(r.type)
-            );
-            
-            const newRoutes = routes.map(route => {
-                if (routesToUpdate.some(u => u.id === route.id)) {
-                    return { ...route, seating: newSeatingPlan };
+        // Update current route first
+        const newRoutesWithCurrent = routes.map(route => 
+            route.id === currentRoute.id ? { ...route, seating: newSeatingPlan } : route
+        );
+        setRoutes(newRoutesWithCurrent);
+
+        try {
+            await updateRouteSeating(currentRoute.id, newSeatingPlan);
+
+            if (selectedDay === 'Monday') {
+                const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                
+                // Copy to the same route type for other weekdays
+                const sameTypeRoutesToCopy = routes.filter(r => 
+                    r.busId === selectedBusId &&
+                    r.id !== currentRoute.id &&
+                    weekdays.includes(r.dayOfWeek) &&
+                    r.type === selectedRouteType
+                );
+                await copySeatingPlan(newSeatingPlan, sameTypeRoutesToCopy, students);
+
+                // Copy to the other route type (Morning -> Afternoon or vice-versa)
+                const otherRouteType: RouteType | null = selectedRouteType === 'Morning' ? 'Afternoon' : selectedRouteType === 'Afternoon' ? 'Morning' : null;
+                if (otherRouteType) {
+                    const otherTypeRoutesToCopy = routes.filter(r => 
+                        r.busId === selectedBusId &&
+                        weekdays.includes(r.dayOfWeek) &&
+                        r.type === otherRouteType
+                    );
+                    await copySeatingPlan(newSeatingPlan, otherTypeRoutesToCopy, students);
                 }
-                return route;
-            });
-            setRoutes(newRoutes);
-    
-            try {
-                const routeIdsToUpdate = routesToUpdate.map(r => r.id);
-                await updateSeatingForBusRoutes(routeIdsToUpdate, newSeatingPlan);
-                toast({ title: "성공", description: "랜덤 배정이 완료되었고, 월-금 등하교 노선에 복사되었습니다." });
-            } catch (error) {
-                setRoutes(oldRoutes);
-                toast({ title: "오류", description: "랜덤 배정 및 복사 실패", variant: 'destructive' });
-            }
-        } else {
-             // Update only current route if not Monday
-            const newRoutes = routes.map(route => {
-                if (route.id === currentRoute.id) {
-                    return { ...route, seating: newSeatingPlan };
-                }
-                return route;
-            });
-            setRoutes(newRoutes);
-        
-            try {
-                await updateRouteSeating(currentRoute.id, newSeatingPlan);
+
+                toast({ title: "성공", description: "랜덤 배정이 완료되었고, 평일 등/하교 노선에 복사되었습니다." });
+            } else {
                 toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
-            } catch (error) {
-                setRoutes(oldRoutes); // Revert on failure
-                toast({ title: "오류", description: "랜덤 배정 실패", variant: 'destructive' });
             }
+        } catch (error) {
+            setRoutes(oldRoutes); // Revert on failure
+            console.error("Randomization error:", error);
+            toast({ title: "오류", description: "랜덤 배정 또는 복사 중 오류가 발생했습니다.", variant: 'destructive' });
         }
     }, [selectedBus, students, routes, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
     
     const handleDownloadStudentTemplate = () => {
-        const headers = "학생 ID,학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월),방과후 목적지(화),방과후 목적지(수),방과후 목적지(목),방과후 목적지(금),방과후 목적지(토)";
+        const headers = "학생 ID,학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
         const example = "STUDENT_ID_123,김민준,G1,C1,Male,강남역,서초역,양재역,양재역,양재역,양재역,양재역,";
         const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
