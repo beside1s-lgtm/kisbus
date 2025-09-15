@@ -6,18 +6,28 @@ import { Card } from '../ui/card';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Checkbox } from '../ui/checkbox';
 
 interface DraggableStudentCardProps {
   student: Student;
   destinations: Destination[];
   onDestinationChange: (studentId: string, newDestinationId: string) => void;
   className?: string;
+  isChecked: boolean;
+  onCheckedChange: (isChecked: boolean) => void;
 }
 
-export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ student, destinations, onDestinationChange, className }) => {
+export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ 
+    student, 
+    destinations, 
+    onDestinationChange, 
+    className,
+    isChecked,
+    onCheckedChange
+}) => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    // Prevent drag from starting if the click is on the Select trigger
-    if (e.target instanceof HTMLElement && e.target.closest('[data-radix-collection-item]')) {
+    // Prevent drag from starting if the click is on the Select trigger or Checkbox
+    if (e.target instanceof HTMLElement && (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role=checkbox]'))) {
         e.preventDefault();
         return;
     }
@@ -58,6 +68,11 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ stud
             ))}
         </SelectContent>
       </Select>
+      <Checkbox
+        checked={isChecked}
+        onCheckedChange={onCheckedChange}
+        aria-label={`Select ${student.name}`}
+      />
     </Card>
   );
 };

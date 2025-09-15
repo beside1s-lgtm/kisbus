@@ -1,4 +1,5 @@
 
+
 import { db } from './firebase';
 import {
   collection,
@@ -70,6 +71,36 @@ export const updateStudentsInBatch = async (students: { id: string; destinationI
         const docRef = doc(db, 'students', student.id);
         batch.update(docRef, { destinationId: student.destinationId });
     });
+    await batch.commit();
+};
+
+export const deleteStudentsInBatch = async (studentIds: string[]) => {
+    const batch = writeBatch(db);
+    
+    // 1. Delete student documents
+    studentIds.forEach(id => {
+        const docRef = doc(db, 'students', id);
+        batch.delete(docRef);
+    });
+    
+    // 2. Unassign students from all routes
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    routesSnapshot.forEach(routeDoc => {
+        const routeData = routeDoc.data() as Route;
+        let seatingChanged = false;
+        const newSeating = routeData.seating.map(seat => {
+            if (seat.studentId && studentIds.includes(seat.studentId)) {
+                seatingChanged = true;
+                return { ...seat, studentId: null };
+            }
+            return seat;
+        });
+
+        if (seatingChanged) {
+            batch.update(routeDoc.ref, { seating: newSeating });
+        }
+    });
+
     await batch.commit();
 };
 

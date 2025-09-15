@@ -7,7 +7,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations,
     addBus, deleteBus, updateBus,
-    addStudent, updateStudent,
+    addStudent, updateStudent, deleteStudentsInBatch,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations,
     updateStudentsInBatch,
@@ -627,6 +627,7 @@ const StudentManagementTab = ({
     const { toast } = useToast();
     const [newStudentForm, setNewStudentForm] = useState({ name: '', grade: '', class: '', gender: 'Male' as 'Male' | 'Female', destinationId: '' });
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
@@ -668,6 +669,55 @@ const StudentManagementTab = ({
         });
 
     }, [students, routes, destinations]);
+    
+     const handleToggleSelectAll = () => {
+        const allUnassignedIds = unassignedStudents.map(s => s.id);
+        if (selectedStudentIds.size === allUnassignedIds.length) {
+            setSelectedStudentIds(new Set());
+        } else {
+            setSelectedStudentIds(new Set(allUnassignedIds));
+        }
+    };
+    
+    const handleToggleStudentSelection = (studentId: string, isChecked: boolean) => {
+        const newSelection = new Set(selectedStudentIds);
+        if (isChecked) {
+            newSelection.add(studentId);
+        } else {
+            newSelection.delete(studentId);
+        }
+        setSelectedStudentIds(newSelection);
+    };
+
+    const handleDeleteSelectedStudents = async () => {
+        if (selectedStudentIds.size === 0) {
+            toast({ title: "알림", description: "삭제할 학생을 선택해주세요." });
+            return;
+        }
+
+        try {
+            const idsToDelete = Array.from(selectedStudentIds);
+            await deleteStudentsInBatch(idsToDelete);
+
+            setStudents(prev => prev.filter(s => !idsToDelete.includes(s.id)));
+            // Also need to update routes in case they were assigned somewhere
+            const newRoutes = routes.map(route => ({
+                ...route,
+                seating: route.seating.map(seat => 
+                    seat.studentId && idsToDelete.includes(seat.studentId)
+                        ? { ...seat, studentId: null }
+                        : seat
+                )
+            }));
+            setRoutes(newRoutes);
+            
+            setSelectedStudentIds(new Set());
+            toast({ title: "성공", description: `${idsToDelete.length}명의 학생이 삭제되었습니다.` });
+        } catch (error) {
+            console.error("Error deleting students:", error);
+            toast({ title: "오류", description: "학생 삭제 중 오류가 발생했습니다.", variant: "destructive" });
+        }
+    };
 
 
     const handleSeatDrop = useCallback(async (seatNumber: number, studentId: string) => {
@@ -1029,11 +1079,21 @@ const StudentManagementTab = ({
     };
 
     if (!selectedBusId) {
-       return <div className="p-4 text-center text-muted-foreground">버스를 선택하여 학생을 관리하세요.</div>;
+       return (
+            <div className="space-y-6">
+                {filterComponent}
+                <div className="p-4 text-center text-muted-foreground">버스를 선택하여 학생을 관리하세요.</div>
+            </div>
+       );
     }
     
      if (!currentRoute) {
-        return <div className="p-4 text-center text-muted-foreground">선택된 조건에 해당하는 노선 정보를 찾을 수 없습니다.</div>;
+        return (
+            <div className="space-y-6">
+                {filterComponent}
+                <div className="p-4 text-center text-muted-foreground">선택된 조건에 해당하는 노선 정보를 찾을 수 없습니다.</div>
+            </div>
+        );
     }
 
     return (
@@ -1120,11 +1180,33 @@ const StudentManagementTab = ({
                         </CardHeader>
                         <Separator />
                          <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
-                             <div className="flex justify-end mb-2 gap-2">
+                             <div className="flex justify-end mb-2 gap-2 flex-wrap">
                                  <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
                                  <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
                                  <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록</Button>
                                  <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
+                                 <Button size="sm" variant="outline" onClick={handleToggleSelectAll}>
+                                    {selectedStudentIds.size === unassignedStudents.length && unassignedStudents.length > 0 ? '선택 해제' : '모두 선택'}
+                                 </Button>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button size="sm" variant="destructive" disabled={selectedStudentIds.size === 0}>
+                                            <Trash2 className="mr-2 h-4 w-4" /> 선택 삭제
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>정말 선택한 학생들을 삭제하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                이 작업은 되돌릴 수 없습니다. {selectedStudentIds.size}명의 학생 정보가 영구적으로 삭제됩니다.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>취소</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleDeleteSelectedStudents}>삭제</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                              </div>
                             {unassignedStudents.length > 0 ? unassignedStudents.map(student => (
                                 <DraggableStudentCard 
@@ -1132,6 +1214,8 @@ const StudentManagementTab = ({
                                     student={student} 
                                     destinations={destinations}
                                     onDestinationChange={handleDestinationChange}
+                                    isChecked={selectedStudentIds.has(student.id)}
+                                    onCheckedChange={(isChecked) => handleToggleStudentSelection(student.id, isChecked)}
                                 />
                             )) : (
                                 <p className="text-sm text-muted-foreground text-center py-4">모든 학생이 배정되었습니다.</p>
@@ -1265,7 +1349,7 @@ export default function AdminPage() {
             }
         };
         fetchData();
-    }, [selectedBusId]);
+    }, []);
 
     const filterComponent = (
         <AdminPageFilter
