@@ -519,7 +519,7 @@ export default function TeacherPage() {
             </CardContent>
             </Card>
 
-             <GroupLeaderManager records={groupLeaderRecords} setRecords={setRecords} />
+             <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
       </DragDropContext>
