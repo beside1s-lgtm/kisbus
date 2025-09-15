@@ -11,6 +11,8 @@ export type Student = {
   daysAsGroupLeader: number;
   groupLeaderStartDate?: string;
   groupLeaderEndDate?: string;
+  suggestedMainDestination?: string | null;
+  suggestedAfterSchoolDestination?: string | null;
 };
 export type NewStudent = Omit<Student, 'id' | 'isGroupLeader' | 'daysAsGroupLeader'>;
 
@@ -62,5 +64,3 @@ export type GroupLeaderRecord = {
     endDate: string | null;
     days: number;
 }
-
-    

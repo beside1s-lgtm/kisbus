@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, PlusCircle, Bus, Clock } from 'lucide-react';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { MainLayout } from '@/components/layout/main-layout';
-import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function ApplyPage() {
     const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -26,6 +26,11 @@ export default function ApplyPage() {
     
     const [mainDestinationId, setMainDestinationId] = useState<string | null>(null);
     const [afterSchoolDestinationId, setAfterSchoolDestinationId] = useState<string | null>(null);
+    
+    const [useCustomMainDest, setUseCustomMainDest] = useState(false);
+    const [useCustomAfterSchoolDest, setUseCustomAfterSchoolDest] = useState(false);
+    const [customMainDestName, setCustomMainDestName] = useState('');
+    const [customAfterSchoolDestName, setCustomAfterSchoolDestName] = useState('');
 
     const [newDestinationName, setNewDestinationName] = useState('');
     const { toast } = useToast();
@@ -61,23 +66,63 @@ export default function ApplyPage() {
     const handleSubmit = async (type: 'main' | 'afterSchool') => {
         if (!validateBaseInfo()) return;
         
+        const isCustom = type === 'main' ? useCustomMainDest : useCustomAfterSchoolDest;
+        const customDestName = type === 'main' ? customMainDestName.trim() : customAfterSchoolDestName.trim();
         const destinationId = type === 'main' ? mainDestinationId : afterSchoolDestinationId;
-        if (!destinationId) {
+
+        if (!isCustom && !destinationId) {
             toast({ title: "오류", description: "목적지를 선택해주세요.", variant: "destructive" });
+            return;
+        }
+        if (isCustom && !customDestName) {
+            toast({ title: "오류", description: "새로운 목적지 이름을 입력해주세요.", variant: "destructive" });
             return;
         }
 
         const existingStudent = findExistingStudent();
+        
+        let updateData: Partial<NewStudent> = {};
+        let newStudentData: Partial<NewStudent> = {
+            name: name.trim(),
+            grade: grade.trim(),
+            class: studentClass.trim(),
+            gender,
+        };
+
+        if (isCustom) {
+            try {
+                await addSuggestedDestination({ name: customDestName });
+                toast({ title: "제안 제출됨", description: `"${customDestName}" 목적지가 제안되었습니다. 관리자 승인 후 정식 목록에 추가됩니다.` });
+
+                if(type === 'main') {
+                    updateData.suggestedMainDestination = customDestName;
+                    updateData.mainDestinationId = null; // Clear existing selection
+                } else {
+                    updateData.suggestedAfterSchoolDestination = customDestName;
+                    updateData.afterSchoolDestinationId = null; // Clear existing selection
+                }
+            } catch(e) {
+                toast({ title: "오류", description: "목적지 제안 실패", variant: "destructive" });
+                return;
+            }
+        } else {
+            if(type === 'main') {
+                updateData.mainDestinationId = destinationId;
+                updateData.suggestedMainDestination = null;
+            } else {
+                updateData.afterSchoolDestinationId = destinationId;
+                updateData.suggestedAfterSchoolDestination = null;
+            }
+        }
 
         try {
             if (existingStudent) {
                 // Update existing student
-                const fieldToUpdate = type === 'main' ? { mainDestinationId: destinationId } : { afterSchoolDestinationId: destinationId };
-                await updateStudent(existingStudent.id, fieldToUpdate);
+                await updateStudent(existingStudent.id, updateData);
                 
                 // Update local state
                 setAllStudents(prevStudents => prevStudents.map(s => 
-                    s.id === existingStudent.id ? { ...s, ...fieldToUpdate } : s
+                    s.id === existingStudent.id ? { ...s, ...updateData } : s
                 ));
                 
                 toast({
@@ -86,15 +131,17 @@ export default function ApplyPage() {
                 });
             } else {
                 // Add new student
-                const newStudentData: NewStudent = {
+                const finalNewStudentData: NewStudent = {
                     name: name.trim(),
                     grade: grade.trim(),
                     class: studentClass.trim(),
                     gender,
-                    mainDestinationId: type === 'main' ? destinationId : null,
-                    afterSchoolDestinationId: type === 'afterSchool' ? destinationId : null,
+                    mainDestinationId: type === 'main' && !isCustom ? destinationId : null,
+                    afterSchoolDestinationId: type === 'afterSchool' && !isCustom ? destinationId : null,
+                    suggestedMainDestination: type === 'main' && isCustom ? customDestName : null,
+                    suggestedAfterSchoolDestination: type === 'afterSchool' && isCustom ? customDestName : null,
                 };
-                const addedStudent = await addStudent(newStudentData);
+                const addedStudent = await addStudent(finalNewStudentData);
                 
                 // Update local state
                 setAllStudents(prevStudents => [...prevStudents, addedStudent]);
@@ -104,16 +151,23 @@ export default function ApplyPage() {
                     description: `${name} 학생의 ${type === 'main' ? '등/하교' : '방과후'} 버스 탑승 신청이 완료되었습니다.`,
                 });
             }
-            // Clear form partially? For now, we keep the base info.
-            if(type === 'main') setMainDestinationId(null);
-            if(type === 'afterSchool') setAfterSchoolDestinationId(null);
+
+            // Clear form fields after submission
+            if(type === 'main') {
+                setMainDestinationId(null);
+                setCustomMainDestName('');
+                setUseCustomMainDest(false);
+            } else {
+                setAfterSchoolDestinationId(null);
+                setCustomAfterSchoolDestName('');
+                setUseCustomAfterSchoolDest(false);
+            }
 
         } catch (error) {
             console.error("Error submitting application:", error);
             toast({ title: "오류", description: "신청 제출에 실패했습니다.", variant: 'destructive' });
         }
     }
-
 
     const handleSuggestionSubmit = async () => {
         if (!newDestinationName.trim()) {
@@ -187,17 +241,27 @@ export default function ApplyPage() {
                         <CardContent className="space-y-4">
                              <div className="space-y-2">
                                 <Label htmlFor="mainDestinationId">등/하교 목적지</Label>
-                                <div className="flex gap-2">
-                                    <Select name="mainDestinationId" value={mainDestinationId || ''} onValueChange={setMainDestinationId}>
-                                        <SelectTrigger id="mainDestinationId">
-                                            <SelectValue placeholder="목적지 선택" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                <Select name="mainDestinationId" value={mainDestinationId || ''} onValueChange={setMainDestinationId} disabled={useCustomMainDest}>
+                                    <SelectTrigger id="mainDestinationId">
+                                        <SelectValue placeholder="목적지 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
                             </div>
+                             <div className="flex items-center space-x-2">
+                                <Checkbox id="useCustomMainDest" checked={useCustomMainDest} onCheckedChange={(checked) => setUseCustomMainDest(checked as boolean)} />
+                                <label htmlFor="useCustomMainDest" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    찾는 목적지가 없나요? 직접 입력하세요.
+                                </label>
+                            </div>
+                            {useCustomMainDest && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="customMainDestName">새 목적지 이름</Label>
+                                    <Input id="customMainDestName" value={customMainDestName} onChange={e => setCustomMainDestName(e.target.value)} placeholder="예: 서초역 1번 출구" />
+                                </div>
+                            )}
                             <Button onClick={() => handleSubmit('main')} className="w-full">등/하교 버스 신청</Button>
                         </CardContent>
                     </Card>
@@ -210,7 +274,7 @@ export default function ApplyPage() {
                         <CardContent className="space-y-4">
                              <div className="space-y-2">
                                 <Label htmlFor="afterSchoolDestinationId">방과후 목적지</Label>
-                                <Select name="afterSchoolDestinationId" value={afterSchoolDestinationId || ''} onValueChange={setAfterSchoolDestinationId}>
+                                <Select name="afterSchoolDestinationId" value={afterSchoolDestinationId || ''} onValueChange={setAfterSchoolDestinationId} disabled={useCustomAfterSchoolDest}>
                                     <SelectTrigger id="afterSchoolDestinationId">
                                         <SelectValue placeholder="방과후 하차 목적지 선택" />
                                     </SelectTrigger>
@@ -219,6 +283,18 @@ export default function ApplyPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                             <div className="flex items-center space-x-2">
+                                <Checkbox id="useCustomAfterSchoolDest" checked={useCustomAfterSchoolDest} onCheckedChange={(checked) => setUseCustomAfterSchoolDest(checked as boolean)} />
+                                <label htmlFor="useCustomAfterSchoolDest" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    찾는 목적지가 없나요? 직접 입력하세요.
+                                </label>
+                            </div>
+                             {useCustomAfterSchoolDest && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="customAfterSchoolDestName">새 방과후 목적지 이름</Label>
+                                    <Input id="customAfterSchoolDestName" value={customAfterSchoolDestName} onChange={e => setCustomAfterSchoolDestName(e.target.value)} placeholder="예: 대치동 학원" />
+                                </div>
+                            )}
                             <Button onClick={() => handleSubmit('afterSchool')} className="w-full">방과후 버스 신청</Button>
                         </CardContent>
                     </Card>
@@ -229,7 +305,7 @@ export default function ApplyPage() {
                         <DialogTrigger asChild>
                             <Button variant="link">
                                 <PlusCircle className="mr-2" />
-                                찾는 목적지가 없으신가요? (신규 목적지 제안)
+                                찾는 목적지가 없으신가요? (단순 제안)
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
@@ -238,7 +314,7 @@ export default function ApplyPage() {
                              </DialogHeader>
                              <div className="flex flex-col gap-4">
                                 <p className="text-sm text-muted-foreground">
-                                    찾는 목적지가 목록에 없나요? 여기에 제안해주시면 관리자가 검토 후 추가합니다.
+                                    신청과 별개로, 목록에 추가되었으면 하는 목적지를 제안할 수 있습니다.
                                 </p>
                                 <Input 
                                     placeholder="예: 서초역" 

@@ -74,7 +74,8 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         // Student exists, update them
         const docRef = querySnapshot.docs[0].ref;
         await updateDoc(docRef, student);
-        return { id: docRef.id, ...student } as Student;
+        const docSnap = await getDoc(docRef);
+        return { id: docRef.id, ...docSnap.data() } as Student;
     } else {
         // Student doesn't exist, create new
         const docRef = await addDoc(collection(db, 'students'), student);
@@ -240,7 +241,13 @@ export const saveGroupLeaderRecords = async (routeId: string, records: Omit<Grou
 
 // Suggested Destinations (using a simple 'suggestedDestinations' collection)
 export const getSuggestedDestinations = () => fetchCollection<Destination>('suggestedDestinations');
-export const addSuggestedDestination = (destination: { name: string }) => addDocument<Destination>('suggestedDestinations', destination);
+export const addSuggestedDestination = async (destination: { name: string }) => {
+    const q = query(collection(db, "suggestedDestinations"), where("name", "==", destination.name));
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+        await addDocument<Destination>('suggestedDestinations', destination);
+    }
+}
 export const approveSuggestedDestination = async (suggestion: Destination) => {
     const batch = writeBatch(db);
     // Add to main destinations
@@ -306,5 +313,3 @@ export const onAttendanceUpdate = (routeId: string, date: string, callback: (rec
     }
   });
 };
-
-    
