@@ -175,7 +175,11 @@ export default function TeacherPage() {
   }, [currentRoute, students]);
   
   const findRoutesForStudent = async (student: Student): Promise<Route[]> => {
-    const destId = selectedRouteType === 'AfterSchool' ? student.afterSchoolDestinationId : student.mainDestinationId;
+    const isAfterSchool = selectedRouteType === 'AfterSchool';
+    const destId = isAfterSchool 
+      ? student.afterSchoolDestinations?.[selectedDay] 
+      : student.mainDestinationId;
+      
     if (!destId) return [];
     
     const relevantRoutes = await getRoutesByStop(destId);
@@ -217,7 +221,7 @@ export default function TeacherPage() {
         toast({ title: "오류", description: `${route.id} 노선 결석 처리 실패`, variant: "destructive"});
       }
     });
-  }, [today, toast, days, selectedRouteType]);
+  }, [today, toast, days, selectedRouteType, selectedDay]);
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
@@ -396,7 +400,7 @@ export default function TeacherPage() {
                     </Avatar>
                     <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
                     <p className="text-sm text-muted-foreground">
-                        목적지: {destinations.find(d => d.id === (selectedRouteType === 'AfterSchool' ? selectedStudent.afterSchoolDestinationId : selectedStudent.mainDestinationId))?.name || '해당 없음'}
+                        목적지: {destinations.find(d => d.id === (selectedRouteType === 'AfterSchool' ? selectedStudent.afterSchoolDestinations?.[selectedDay] : selectedStudent.mainDestinationId))?.name || '해당 없음'}
                     </p>
                 </div>
                 <Separator className="my-4" />
@@ -454,6 +458,7 @@ export default function TeacherPage() {
                         absentStudentIds={absentStudentIds}
                         boardedStudentIds={boardedStudentIds}
                         routeType={selectedRouteType}
+                        dayOfWeek={selectedDay}
                     />
                 ) : (
                     <div className="text-center py-10 text-muted-foreground">

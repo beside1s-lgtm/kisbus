@@ -1,7 +1,7 @@
 
 'use client';
 import React from 'react';
-import { Student, Destination, RouteType } from '@/lib/types';
+import { Student, Destination, RouteType, DayOfWeek } from '@/lib/types';
 import { Card } from '../ui/card';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ interface DraggableStudentCardProps {
   isChecked: boolean;
   onCheckedChange: (isChecked: boolean) => void;
   routeType: RouteType;
+  dayOfWeek: DayOfWeek;
 }
 
 export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ 
@@ -25,7 +26,8 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     className,
     isChecked,
     onCheckedChange,
-    routeType
+    routeType,
+    dayOfWeek
 }) => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     if (e.target instanceof HTMLElement && (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role=checkbox]'))) {
@@ -36,7 +38,7 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
   };
 
   const isAfterSchoolRoute = routeType === 'AfterSchool';
-  const destinationId = isAfterSchoolRoute ? student.afterSchoolDestinationId : student.mainDestinationId;
+  const destinationId = isAfterSchoolRoute ? student.afterSchoolDestinations?.[dayOfWeek] : student.mainDestinationId;
   const destinationType = isAfterSchoolRoute ? 'afterSchool' : 'main';
 
   const studentDestinationName = destinations.find(d => d.id === destinationId)?.name || '미지정';

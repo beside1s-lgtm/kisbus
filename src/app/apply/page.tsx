@@ -2,7 +2,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { getStudents, getDestinations, addStudent, addSuggestedDestination, updateStudent } from '@/lib/firebase-data';
-import { Destination, NewStudent, Student } from '@/lib/types';
+import { Destination, NewStudent, Student, DayOfWeek } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,17 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Bus, Clock } from 'lucide-react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Checkbox } from '@/components/ui/checkbox';
+
+const daysOfWeek: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const dayLabels: Record<DayOfWeek, string> = {
+  Monday: '월',
+  Tuesday: '화',
+  Wednesday: '수',
+  Thursday: '목',
+  Friday: '금',
+  Saturday: '토',
+};
+
 
 export default function ApplyPage() {
     const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -24,12 +35,14 @@ export default function ApplyPage() {
     const [gender, setGender] = useState<'Male' | 'Female'>('Male');
     
     const [mainDestinationId, setMainDestinationId] = useState<string | null>(null);
-    const [afterSchoolDestinationId, setAfterSchoolDestinationId] = useState<string | null>(null);
-    
     const [useCustomMainDest, setUseCustomMainDest] = useState(false);
-    const [useCustomAfterSchoolDest, setUseCustomAfterSchoolDest] = useState(false);
     const [customMainDestName, setCustomMainDestName] = useState('');
-    const [customAfterSchoolDestName, setCustomAfterSchoolDestName] = useState('');
+
+    const [afterSchoolDays, setAfterSchoolDays] = useState<Partial<Record<DayOfWeek, boolean>>>({});
+    const [afterSchoolDestinations, setAfterSchoolDestinations] = useState<Partial<Record<DayOfWeek, string | null>>>({});
+    const [useCustomAfterSchoolDests, setUseCustomAfterSchoolDests] = useState<Partial<Record<DayOfWeek, boolean>>>({});
+    const [customAfterSchoolDestNames, setCustomAfterSchoolDestNames] = useState<Partial<Record<DayOfWeek, string>>>({});
+
 
     const { toast } = useToast();
 
@@ -61,109 +74,150 @@ export default function ApplyPage() {
         );
     }
     
-    const handleSubmit = async (type: 'main' | 'afterSchool') => {
+    const handleMainSubmit = async () => {
         if (!validateBaseInfo()) return;
         
-        const isCustom = type === 'main' ? useCustomMainDest : useCustomAfterSchoolDest;
-        const customDestName = type === 'main' ? customMainDestName.trim() : customAfterSchoolDestName.trim();
-        const destinationId = type === 'main' ? mainDestinationId : afterSchoolDestinationId;
-
-        if (!isCustom && !destinationId) {
+        if (!useCustomMainDest && !mainDestinationId) {
             toast({ title: "오류", description: "목적지를 선택해주세요.", variant: "destructive" });
             return;
         }
-        if (isCustom && !customDestName) {
+        if (useCustomMainDest && !customMainDestName.trim()) {
             toast({ title: "오류", description: "새로운 목적지 이름을 입력해주세요.", variant: "destructive" });
             return;
         }
 
         const existingStudent = findExistingStudent();
         
-        let updateData: Partial<NewStudent> = {};
-        let newStudentData: Partial<NewStudent> = {
-            name: name.trim(),
-            grade: grade.trim(),
-            class: studentClass.trim(),
-            gender,
-        };
-
-        if (isCustom) {
+        let updateData: Partial<Student> = {};
+        
+        if (useCustomMainDest) {
             try {
-                await addSuggestedDestination({ name: customDestName });
-                toast({ title: "제안 제출됨", description: `"${customDestName}" 목적지가 제안되었습니다. 관리자 승인 후 정식 목록에 추가됩니다.` });
-
-                if(type === 'main') {
-                    updateData.suggestedMainDestination = customDestName;
-                    updateData.mainDestinationId = null; // Clear existing selection
-                } else {
-                    updateData.suggestedAfterSchoolDestination = customDestName;
-                    updateData.afterSchoolDestinationId = null; // Clear existing selection
-                }
+                await addSuggestedDestination({ name: customMainDestName.trim() });
+                toast({ title: "제안 제출됨", description: `"${customMainDestName.trim()}" 목적지가 제안되었습니다. 관리자 승인 후 정식 목록에 추가됩니다.` });
+                updateData.suggestedMainDestination = customMainDestName.trim();
+                updateData.mainDestinationId = null;
             } catch(e) {
                 toast({ title: "오류", description: "목적지 제안 실패", variant: "destructive" });
                 return;
             }
         } else {
-            if(type === 'main') {
-                updateData.mainDestinationId = destinationId;
-                updateData.suggestedMainDestination = null;
-            } else {
-                updateData.afterSchoolDestinationId = destinationId;
-                updateData.suggestedAfterSchoolDestination = null;
-            }
+            updateData.mainDestinationId = mainDestinationId;
+            updateData.suggestedMainDestination = null;
         }
 
         try {
             if (existingStudent) {
-                // Update existing student
                 await updateStudent(existingStudent.id, updateData);
-                
-                // Update local state
-                setAllStudents(prevStudents => prevStudents.map(s => 
-                    s.id === existingStudent.id ? { ...s, ...updateData } : s
-                ));
-                
-                toast({
-                    title: "신청 완료!",
-                    description: `${name} 학생의 ${type === 'main' ? '등/하교' : '방과후'} 버스 정보가 업데이트되었습니다.`,
-                });
+                setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } : s));
             } else {
-                // Add new student
-                const finalNewStudentData: NewStudent = {
+                const newStudentData: NewStudent = {
                     name: name.trim(),
                     grade: grade.trim(),
                     class: studentClass.trim(),
                     gender,
-                    mainDestinationId: type === 'main' && !isCustom ? destinationId : null,
-                    afterSchoolDestinationId: type === 'afterSchool' && !isCustom ? destinationId : null,
-                    suggestedMainDestination: type === 'main' && isCustom ? customDestName : null,
-                    suggestedAfterSchoolDestination: type === 'afterSchool' && isCustom ? customDestName : null,
+                    mainDestinationId: updateData.mainDestinationId || null,
+                    afterSchoolDestinations: {},
+                    suggestedMainDestination: updateData.suggestedMainDestination || null,
                 };
-                const addedStudent = await addStudent(finalNewStudentData);
-                
-                // Update local state
+                const addedStudent = await addStudent(newStudentData);
                 setAllStudents(prevStudents => [...prevStudents, addedStudent]);
-                
-                toast({
-                    title: "신청 완료!",
-                    description: `${name} 학생의 ${type === 'main' ? '등/하교' : '방과후'} 버스 탑승 신청이 완료되었습니다.`,
-                });
             }
-
-            // Clear form fields after submission
-            if(type === 'main') {
-                setMainDestinationId(null);
-                setCustomMainDestName('');
-                setUseCustomMainDest(false);
-            } else {
-                setAfterSchoolDestinationId(null);
-                setCustomAfterSchoolDestName('');
-                setUseCustomAfterSchoolDest(false);
-            }
+            toast({ title: "신청 완료!", description: `${name} 학생의 등/하교 버스 정보가 업데이트되었습니다.` });
+             // Clear form fields
+            setMainDestinationId(null);
+            setCustomMainDestName('');
+            setUseCustomMainDest(false);
 
         } catch (error) {
-            console.error("Error submitting application:", error);
+            console.error("Error submitting main application:", error);
             toast({ title: "오류", description: "신청 제출에 실패했습니다.", variant: 'destructive' });
+        }
+    }
+
+    const handleAfterSchoolSubmit = async () => {
+        if (!validateBaseInfo()) return;
+
+        const existingStudent = findExistingStudent();
+        let finalDestinations: Partial<Record<DayOfWeek, string | null>> = existingStudent?.afterSchoolDestinations || {};
+
+        let hasError = false;
+        for (const day of daysOfWeek) {
+            if (afterSchoolDays[day]) {
+                const isCustom = useCustomAfterSchoolDests[day];
+                const customName = customAfterSchoolDestNames[day]?.trim();
+                const selectedId = afterSchoolDestinations[day];
+
+                if (!isCustom && !selectedId) {
+                    toast({ title: "오류", description: `${dayLabels[day]}요일의 목적지를 선택해주세요.`, variant: "destructive" });
+                    hasError = true;
+                    break;
+                }
+                if (isCustom && !customName) {
+                    toast({ title: "오류", description: `${dayLabels[day]}요일의 새로운 목적지 이름을 입력해주세요.`, variant: "destructive" });
+                    hasError = true;
+                    break;
+                }
+                 if (isCustom && customName) {
+                    try {
+                        await addSuggestedDestination({ name: customName });
+                        toast({ title: "제안 제출됨", description: `"${customName}" 목적지가 제안되었습니다.` });
+                        // This doesn't assign the student yet, just suggests. Let's mark it as null for now.
+                        // Admin needs to approve and then assign.
+                        finalDestinations[day] = null;
+                    } catch(e) {
+                         toast({ title: "오류", description: "목적지 제안 실패", variant: "destructive" });
+                         hasError = true;
+                         break;
+                    }
+                } else {
+                    finalDestinations[day] = selectedId || null;
+                }
+            } else {
+                 finalDestinations[day] = null; // Unchecked means not using the bus
+            }
+        }
+        if (hasError) return;
+
+        const updateData: Partial<Student> = { afterSchoolDestinations: finalDestinations };
+
+         try {
+            if (existingStudent) {
+                await updateStudent(existingStudent.id, updateData);
+                setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } : s));
+            } else {
+                 const newStudentData: NewStudent = {
+                    name: name.trim(),
+                    grade: grade.trim(),
+                    class: studentClass.trim(),
+                    gender,
+                    mainDestinationId: null,
+                    afterSchoolDestinations: finalDestinations,
+                };
+                const addedStudent = await addStudent(newStudentData);
+                setAllStudents(prevStudents => [...prevStudents, addedStudent]);
+            }
+            toast({ title: "신청 완료!", description: `${name} 학생의 방과후 버스 정보가 업데이트되었습니다.` });
+
+            // Reset form
+            setAfterSchoolDays({});
+            setAfterSchoolDestinations({});
+            setUseCustomAfterSchoolDests({});
+            setCustomAfterSchoolDestNames({});
+
+        } catch (error) {
+            console.error("Error submitting after school application:", error);
+            toast({ title: "오류", description: "신청 제출에 실패했습니다.", variant: 'destructive' });
+        }
+    }
+
+
+    const handleToggleAfterSchoolDay = (day: DayOfWeek, checked: boolean) => {
+        setAfterSchoolDays(prev => ({...prev, [day]: checked}));
+        if (!checked) {
+            // Also clear destination data for that day
+            setAfterSchoolDestinations(prev => ({...prev, [day]: null}));
+            setUseCustomAfterSchoolDests(prev => ({...prev, [day]: false}));
+            setCustomAfterSchoolDestNames(prev => ({...prev, [day]: ''}));
         }
     }
 
@@ -242,40 +296,64 @@ export default function ApplyPage() {
                                     <Input id="customMainDestName" value={customMainDestName} onChange={e => setCustomMainDestName(e.target.value)} placeholder="예: 서초역 1번 출구" />
                                 </div>
                             )}
-                            <Button onClick={() => handleSubmit('main')} className="w-full">등/하교 버스 신청</Button>
+                            <Button onClick={handleMainSubmit} className="w-full">등/하교 버스 신청</Button>
                         </CardContent>
                     </Card>
                     
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 font-headline"><Clock /> 방과후 버스</CardTitle>
-                            <CardDescription>방과후 수업 하차 목적지를 선택하고 신청하세요.</CardDescription>
+                            <CardDescription>방과후 수업 하차 요일과 목적지를 선택하고 신청하세요.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                             <div className="space-y-2">
-                                <Label htmlFor="afterSchoolDestinationId">방과후 목적지</Label>
-                                <Select name="afterSchoolDestinationId" value={afterSchoolDestinationId || ''} onValueChange={setAfterSchoolDestinationId} disabled={useCustomAfterSchoolDest}>
-                                    <SelectTrigger id="afterSchoolDestinationId">
-                                        <SelectValue placeholder="방과후 하차 목적지 선택" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <Checkbox id="useCustomAfterSchoolDest" checked={useCustomAfterSchoolDest} onCheckedChange={(checked) => setUseCustomAfterSchoolDest(checked as boolean)} />
-                                <label htmlFor="useCustomAfterSchoolDest" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    찾는 목적지가 없나요? 직접 입력하세요.
-                                </label>
-                            </div>
-                             {useCustomAfterSchoolDest && (
-                                <div className="space-y-2">
-                                    <Label htmlFor="customAfterSchoolDestName">새 방과후 목적지 이름</Label>
-                                    <Input id="customAfterSchoolDestName" value={customAfterSchoolDestName} onChange={e => setCustomAfterSchoolDestName(e.target.value)} placeholder="예: 대치동 학원" />
+                            <div className="space-y-2">
+                                <Label>탑승 요일 선택</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {daysOfWeek.map(day => (
+                                        <div key={day} className="flex items-center gap-1">
+                                            <Checkbox
+                                                id={`day-${day}`}
+                                                checked={!!afterSchoolDays[day]}
+                                                onCheckedChange={(checked) => handleToggleAfterSchoolDay(day, checked as boolean)}
+                                            />
+                                            <Label htmlFor={`day-${day}`}>{dayLabels[day]}</Label>
+                                        </div>
+                                    ))}
                                 </div>
-                            )}
-                            <Button onClick={() => handleSubmit('afterSchool')} className="w-full">방과후 버스 신청</Button>
+                            </div>
+                            
+                            {daysOfWeek.map(day => afterSchoolDays[day] && (
+                                <div key={day} className="p-3 border rounded-md space-y-3">
+                                    <Label className="font-semibold">{dayLabels[day]}요일 목적지</Label>
+                                     <Select
+                                        value={afterSchoolDestinations[day] || ''}
+                                        onValueChange={(value) => setAfterSchoolDestinations(prev => ({...prev, [day]: value}))}
+                                        disabled={!!useCustomAfterSchoolDests[day]}
+                                    >
+                                        <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
+                                        <SelectContent>
+                                            {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                     <div className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id={`custom-day-${day}`}
+                                            checked={!!useCustomAfterSchoolDests[day]}
+                                            onCheckedChange={(checked) => setUseCustomAfterSchoolDests(prev => ({...prev, [day]: checked as boolean}))}
+                                        />
+                                        <label htmlFor={`custom-day-${day}`} className="text-sm font-medium">직접 입력</label>
+                                    </div>
+                                    {useCustomAfterSchoolDests[day] && (
+                                        <Input
+                                            value={customAfterSchoolDestNames[day] || ''}
+                                            onChange={(e) => setCustomAfterSchoolDestNames(prev => ({...prev, [day]: e.target.value}))}
+                                            placeholder="새 방과후 목적지 이름"
+                                        />
+                                    )}
+                                </div>
+                            ))}
+                            
+                            <Button onClick={handleAfterSchoolSubmit} className="w-full" disabled={Object.values(afterSchoolDays).every(v => !v)}>방과후 버스 신청</Button>
                         </CardContent>
                     </Card>
                 </div>
@@ -283,5 +361,3 @@ export default function ApplyPage() {
         </MainLayout>
     );
 }
-
-    

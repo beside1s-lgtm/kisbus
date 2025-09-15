@@ -212,6 +212,7 @@ export default function StudentPage() {
                         highlightedStudentId={selectedStudentId}
                         boardedStudentIds={boardedStudentIds}
                         routeType={selectedRouteType}
+                        dayOfWeek={selectedDay}
                     />
                 ) : (
                     <Alert>
@@ -228,5 +229,3 @@ export default function StudentPage() {
     </MainLayout>
   );
 }
-
-    

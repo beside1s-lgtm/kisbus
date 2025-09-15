@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Bus, Student, Destination, RouteType } from '@/lib/types';
+import { Bus, Student, Destination, RouteType, DayOfWeek } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Crown, User as UserIcon, XCircle, CircleUserRound } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -20,6 +20,7 @@ interface BusSeatMapProps {
   boardedStudentIds?: string[];
   highlightedStudentId?: string | null;
   routeType?: RouteType;
+  dayOfWeek?: DayOfWeek;
 }
 
 const SEAT_MAP_45: (number | null)[] = [
@@ -86,6 +87,7 @@ export function BusSeatMap({
   boardedStudentIds = [],
   highlightedStudentId = null,
   routeType = 'Morning',
+  dayOfWeek = 'Monday',
 }: BusSeatMapProps) {
   const highlightedSeatRef = useRef<HTMLDivElement>(null);
   
@@ -113,7 +115,7 @@ export function BusSeatMap({
   }
 
   const getDestinationName = (student: Student) => {
-      const destId = routeType === 'AfterSchool' ? student.afterSchoolDestinationId : student.mainDestinationId;
+      const destId = routeType === 'AfterSchool' ? student.afterSchoolDestinations?.[dayOfWeek] : student.mainDestinationId;
       return destinations.find(d => d.id === destId)?.name || 'N/A';
   }
 

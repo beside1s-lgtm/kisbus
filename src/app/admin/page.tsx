@@ -700,12 +700,14 @@ const StudentManagementTab = ({
         const isAfterSchool = selectedRouteType === 'AfterSchool';
         
         const relevantStudents = students.filter(student => {
-            const hasDestination = isAfterSchool ? !!student.afterSchoolDestinationId : !!student.mainDestinationId;
+             const hasDestination = isAfterSchool
+                ? student.afterSchoolDestinations && student.afterSchoolDestinations[selectedDay]
+                : !!student.mainDestinationId;
             return hasDestination && !assignedStudentIds.has(student.id);
         });
 
         return relevantStudents;
-    }, [students, currentRoute, selectedRouteType]);
+    }, [students, currentRoute, selectedRouteType, selectedDay]);
     
      const handleToggleSelectAll = () => {
         const allUnassignedIds = unassignedStudents.map(s => s.id);
@@ -843,7 +845,7 @@ const StudentManagementTab = ({
         const oldRoutes = [...routes];
 
         const studentsForThisRoute = students.filter(s => {
-            const destId = selectedRouteType === 'AfterSchool' ? s.afterSchoolDestinationId : s.mainDestinationId;
+            const destId = selectedRouteType === 'AfterSchool' ? (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null) : s.mainDestinationId;
             return destId && currentRoute.stops.includes(destId);
         });
 
@@ -901,8 +903,8 @@ const StudentManagementTab = ({
                 if (!occupiedSeats.has(pair[0]) && !occupiedSeats.has(pair[1])) {
                     const [seat1, seat2] = pair;
     
-                    const maleDestId = selectedRouteType === 'AfterSchool' ? male.afterSchoolDestinationId : male.mainDestinationId;
-                    const femaleDestId = selectedRouteType === 'AfterSchool' ? female.afterSchoolDestinationId : female.mainDestinationId;
+                    const maleDestId = selectedRouteType === 'AfterSchool' ? (male.afterSchoolDestinations ? male.afterSchoolDestinations[selectedDay] : null) : male.mainDestinationId;
+                    const femaleDestId = selectedRouteType === 'AfterSchool' ? (female.afterSchoolDestinations ? female.afterSchoolDestinations[selectedDay] : null) : female.mainDestinationId;
 
                     const maleStopIndex = routeStopOrder.indexOf(maleDestId!);
                     const femaleStopIndex = routeStopOrder.indexOf(femaleDestId!);
@@ -1014,7 +1016,7 @@ const StudentManagementTab = ({
         const headers = "학생 ID,학생 이름,학년,반,성별,등하교 목적지,방과후 목적지";
         const csvData = unassignedStudents.map(s => {
             const mainDestName = destinations.find(d => d.id === s.mainDestinationId)?.name || '';
-            const afterSchoolDestName = destinations.find(d => d.id === s.afterSchoolDestinationId)?.name || '';
+            const afterSchoolDestName = destinations.find(d => d.id === (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null))?.name || '';
             return [s.id, s.name, s.grade, s.class, s.gender, mainDestName, afterSchoolDestName].join(',');
         }).join('\n');
 
@@ -1036,7 +1038,7 @@ const StudentManagementTab = ({
             header: true,
             skipEmptyLines: true,
             complete: async (results) => {
-                const studentsToUpdate: { id: string; mainDestinationId?: string, afterSchoolDestinationId?: string }[] = [];
+                const studentsToUpdate: { id: string; data: Partial<Student> }[] = [];
                 const studentsToAdd: NewStudent[] = [];
 
                 results.data.forEach((row: any) => {
@@ -1049,20 +1051,35 @@ const StudentManagementTab = ({
                     const studentId = (row['학생 ID'] || '').trim();
                     
                     if (studentId) { // Existing student to update
-                        const studentUpdate: { id: string; mainDestinationId?: string, afterSchoolDestinationId?: string } = { id: studentId };
-                        if (mainDestination) studentUpdate.mainDestinationId = mainDestination.id;
-                        if (afterSchoolDestination) studentUpdate.afterSchoolDestinationId = afterSchoolDestination.id;
-                        if(studentUpdate.mainDestinationId || studentUpdate.afterSchoolDestinationId) {
+                        const studentUpdate: { id: string; data: Partial<Student> } = { id: studentId, data: {} };
+                        if (mainDestination) studentUpdate.data.mainDestinationId = mainDestination.id;
+                        
+                        // For after school, we assume the CSV applies to all days for simplicity
+                        if (afterSchoolDestination) {
+                            const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
+                            days.forEach(day => {
+                                afterSchoolDestinations[day] = afterSchoolDestination.id;
+                            });
+                            studentUpdate.data.afterSchoolDestinations = afterSchoolDestinations;
+                        }
+
+                        if(Object.keys(studentUpdate.data).length > 0) {
                            studentsToUpdate.push(studentUpdate);
                         }
                     } else { // New student to add
+                        const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
+                        if(afterSchoolDestination){
+                            days.forEach(day => {
+                                afterSchoolDestinations[day] = afterSchoolDestination.id;
+                            });
+                        }
                         const newStudent: NewStudent = {
                             name: (row['학생 이름'] || '').trim(),
                             grade: (row['학년'] || '').trim(),
                             class: (row['반'] || '').trim(),
                             gender: (row['성별'] || '').trim() as 'Male' | 'Female',
                             mainDestinationId: mainDestination?.id || null,
-                            afterSchoolDestinationId: afterSchoolDestination?.id || null
+                            afterSchoolDestinations: afterSchoolDestinations
                         };
                         if (newStudent.name && newStudent.grade && newStudent.class && newStudent.gender) {
                             studentsToAdd.push(newStudent);
@@ -1080,12 +1097,12 @@ const StudentManagementTab = ({
                     let addCount = 0;
 
                     if (studentsToUpdate.length > 0) {
-                        await updateStudentsInBatch(studentsToUpdate);
+                        await updateStudentsInBatch(studentsToUpdate.map(s => ({id: s.id, ...s.data})));
                         const updatedIds = new Set(studentsToUpdate.map(s => s.id));
                         setStudents(prev => prev.map(s => {
                             if (updatedIds.has(s.id)) {
                                 const updatedStudentData = studentsToUpdate.find(u => u.id === s.id);
-                                return { ...s, ...updatedStudentData };
+                                return { ...s, ...updatedStudentData?.data };
                             }
                             return s;
                         }));
@@ -1115,16 +1132,16 @@ const StudentManagementTab = ({
     };
     
      const handleAddStudent = async () => {
-        const { name, grade, class: studentClass, gender, mainDestinationId, afterSchoolDestinationId } = newStudentForm;
+        const { name, grade, class: studentClass, gender, mainDestinationId, afterSchoolDestinations } = newStudentForm;
         if (!name || !grade || !studentClass || !gender) {
             toast({ title: "오류", description: "목적지를 제외한 모든 필드를 입력해주세요.", variant: "destructive" });
             return;
         }
         try {
-            const newStudentData: NewStudent = { name, grade, class: studentClass, gender, mainDestinationId: mainDestinationId || null, afterSchoolDestinationId: afterSchoolDestinationId || null };
+            const newStudentData: NewStudent = { name, grade, class: studentClass, gender, mainDestinationId: mainDestinationId || null, afterSchoolDestinations: afterSchoolDestinations || {} };
             const newStudent = await addStudent(newStudentData);
             setStudents(prev => [...prev, newStudent]);
-            setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', mainDestinationId: '', afterSchoolDestinationId: '' });
+            setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', mainDestinationId: '', afterSchoolDestinations: {} });
             toast({ title: "성공", description: "학생이 추가되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "학생 추가 실패", variant: "destructive" });
@@ -1133,9 +1150,20 @@ const StudentManagementTab = ({
 
     const handleDestinationChange = async (studentId: string, newDestinationId: string, type: 'main' | 'afterSchool') => {
         try {
-            const fieldToUpdate = type === 'main' ? 'mainDestinationId' : 'afterSchoolDestinationId';
-            await updateStudent(studentId, { [fieldToUpdate]: newDestinationId });
-            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, [fieldToUpdate]: newDestinationId } : s));
+            let updateData: Partial<Student>;
+
+            if (type === 'main') {
+                 updateData = { mainDestinationId: newDestinationId };
+            } else {
+                 const student = students.find(s => s.id === studentId);
+                 if (!student) return;
+                 const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [selectedDay]: newDestinationId };
+                 updateData = { afterSchoolDestinations: newAfterSchoolDests };
+            }
+
+            await updateStudent(studentId, updateData);
+
+            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, ...updateData } : s));
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
@@ -1289,9 +1317,13 @@ const StudentManagementTab = ({
                                             </div>
                                              <div className="grid grid-cols-4 items-center gap-4">
                                                 <Label htmlFor="destination" className="text-right">방과후 목적지</Label>
-                                                <Select value={newStudentForm.afterSchoolDestinationId || ''} onValueChange={(v) => setNewStudentForm(p => ({...p, afterSchoolDestinationId: v}))}>
+                                                <Select value={ (newStudentForm.afterSchoolDestinations && newStudentForm.afterSchoolDestinations['Monday']) || ''} onValueChange={(v) => setNewStudentForm(p => {
+                                                    const newDests: Partial<Record<DayOfWeek, string | null>> = {};
+                                                    days.forEach(day => newDests[day] = v);
+                                                    return {...p, afterSchoolDestinations: newDests};
+                                                })}>
                                                     <SelectTrigger className="col-span-3">
-                                                        <SelectValue placeholder="목적지 선택" />
+                                                        <SelectValue placeholder="모든 요일 방과후 목적지 선택" />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
@@ -1316,6 +1348,7 @@ const StudentManagementTab = ({
                                     }}
                                     draggable={true}
                                     routeType={selectedRouteType}
+                                    dayOfWeek={selectedDay}
                                 />
                            )}
                         </CardContent>
@@ -1324,7 +1357,7 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-1">
                      <Card className="sticky top-20">
                         <CardHeader>
-                            <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'AfterSchool' ? '방과후' : '등/하교'})</CardTitle>
+                            <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'AfterSchool' ? `(${dayLabels[selectedDay]}) 방과후` : '등/하교'})</CardTitle>
                             <CardDescription>드래그하여 빈 좌석에 배정하세요.</CardDescription>
                         </CardHeader>
                         <Separator />
@@ -1371,6 +1404,7 @@ const StudentManagementTab = ({
                                                             isChecked={selectedStudentIds.has(student.id)}
                                                             onCheckedChange={(isChecked) => handleToggleStudentSelection(student.id, isChecked)}
                                                             routeType={selectedRouteType}
+                                                            dayOfWeek={selectedDay}
                                                         />
                                                     </div>
                                                 )}

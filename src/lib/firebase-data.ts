@@ -86,14 +86,12 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 export const updateStudent = async (studentId: string, data: Partial<Student>) => {
     await updateDoc(doc(db, 'students', studentId), data);
 }
-export const updateStudentsInBatch = async (students: { id: string; mainDestinationId?: string, afterSchoolDestinationId?: string }[]) => {
+export const updateStudentsInBatch = async (students: (Partial<Student> & {id: string})[]) => {
     const batch = writeBatch(db);
     students.forEach(student => {
-        const docRef = doc(db, 'students', student.id);
-        const dataToUpdate: { mainDestinationId?: string, afterSchoolDestinationId?: string } = {};
-        if (student.mainDestinationId) dataToUpdate.mainDestinationId = student.mainDestinationId;
-        if (student.afterSchoolDestinationId) dataToUpdate.afterSchoolDestinationId = student.afterSchoolDestinationId;
-        batch.update(docRef, dataToUpdate);
+        const { id, ...data } = student;
+        const docRef = doc(db, 'students', id);
+        batch.update(docRef, data);
     });
     await batch.commit();
 };

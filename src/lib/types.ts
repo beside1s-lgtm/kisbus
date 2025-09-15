@@ -3,7 +3,7 @@ export type Student = {
   id: string;
   name: string;
   mainDestinationId: string | null;
-  afterSchoolDestinationId: string | null;
+  afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>>;
   grade: string;
   class: string;
   gender: 'Male' | 'Female';
