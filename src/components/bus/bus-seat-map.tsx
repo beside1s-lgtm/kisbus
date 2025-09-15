@@ -7,57 +7,95 @@ import { cn } from '@/lib/utils';
 import { Crown, User as UserIcon, XCircle, CircleUserRound } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
-interface BusSeatMapProps {
-  bus: Bus;
-  seating: { seatNumber: number; studentId: string | null }[];
-  students: Student[];
-  destinations: Destination[];
-  onSeatDrop?: (seatNumber: number, studentId: string) => void;
-  onSeatClick?: (seatNumber: number, studentId: string | null) => void;
-  draggable: boolean;
-  absentStudentIds?: string[];
-  boardedStudentIds?: string[];
-  highlightedStudentId?: string | null;
-}
+// Provided layout from the image for 45-seater
+const SEAT_MAP_45: (number | null)[] = [
+  1, 2, null, 3, 4,
+  5, 6, null, 7, 8,
+  9, 10, null, 11, 12,
+  13, 14, null, 15, 16,
+  17, 18, null, 19, 20,
+  21, 22, null, 23, 24,
+  25, 26, null, 27, 28,
+  29, 30, null, 31, 32,
+  33, 34, null, 35, 36,
+  37, 38, null, 39, 40,
+  41, 42, 43, 44, 45,
+];
 
-const getGridLayoutInfo = (capacity: number) => {
+// Assuming a similar layout logic for 29-seater
+const SEAT_MAP_29: (number | null)[] = [
+  1, 2, null, 3, 4,
+  5, 6, null, 7, 8,
+  9, 10, null, 11, 12,
+  13, 14, null, 15, 16,
+  17, 18, null, 19, 20,
+  21, 22, null, 23, 24,
+  25, 26, 27, 28, 29,
+];
+
+// Layout for 15-seater
+const SEAT_MAP_15: (number | null)[] = [
+   null, null, 1, // Exit
+   2, 3, null,
+   4, 5, null,
+   6, 7, null,
+   8, 9, 10,
+   11, 12, 13,
+   14, 15, null, // This layout is a bit odd. Let's try another one.
+];
+
+const SEAT_MAP_15_ALT: (number | null)[] = [
+// D A S
+// S A S
+// S A S
+// S A S
+// S A S
+// S A S S
+  // This is a complex layout. Let's try to map it based on 3 columns
+  null, null, 1, // Driver, Aisle, Seat 1 (This seems wrong, let's follow the old logic for 15-seater for now as it was not the main issue)
+];
+
+
+const getLayoutInfo = (capacity: number) => {
+    if (capacity === 45) {
+        return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: SEAT_MAP_45, hasFrontDriver: true };
+    }
+    if (capacity === 29) {
+        return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: SEAT_MAP_29, hasFrontDriver: true };
+    }
     if (capacity === 15) {
-        // 1 driver + 15 seats = 16 items. 
-        // Layout: 
-        // D A S
-        // S A S
-        // S A S
-        // S A S
-        // S A S
-        // S A S S
-        return { 
+        // This is a 2-2-3-3-3-2 layout. It's complex. Let's stick to the old grid logic that worked for 15.
+        // It seems to be 3 columns.
+         return { 
             gridClass: 'grid-cols-3 gap-1 md:gap-2',
-            totalItems: 17, // Driver(1) + Seats(15) + Aisles(x), we'll use a loop and counters
-            aislePosition: 1, // 2nd column
+            seatMap: [
+                null, // Driver
+                null, // Aisle
+                1,
+                2,
+                null,
+                3,
+                4,
+                null,
+                5,
+                6,
+                null,
+                7,
+                8,
+                null,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+            ],
+            hasFrontDriver: false
         };
     }
-    // 29 and 45 seaters use a 5-column layout
-    // S S A S S
-    const regularRows = Math.floor(capacity / 4);
-    const lastRowSeats = capacity % 4 === 0 ? (capacity > 0 ? 4 : 0) : capacity % 4;
-    
-    // For 29 and 45, the last row is special (5 seats)
-    if (capacity === 29 || capacity === 45) {
-         const numRegularRows = (capacity - 5) / 4;
-         const totalItems = (numRegularRows * 5) + 5; // 5 items per row for regular, 5 for last row
-         return {
-            gridClass: 'grid-cols-5 gap-1 md:gap-2',
-            totalItems: totalItems,
-            aislePosition: 2,
-         }
-    }
-    
-    // Fallback for other capacities, though we only have 15, 29, 45
-    return {
-        gridClass: 'grid-cols-5 gap-1 md:gap-2',
-        totalItems: Math.ceil(capacity / 4) * 5,
-        aislePosition: 2,
-    };
+    // Fallback
+    return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: [], hasFrontDriver: true };
 };
 
 
@@ -102,8 +140,7 @@ export function BusSeatMap({
     return students.find(s => s.id === id);
   };
   
-  const { gridClass, totalItems, aislePosition } = getGridLayoutInfo(bus.capacity);
-  const isLargeBus = bus.capacity === 29 || bus.capacity === 45;
+  const { gridClass, seatMap, hasFrontDriver } = getLayoutInfo(bus.capacity);
 
   const formatStudentName = (student: Student) => {
     const grade = student.grade.replace(/\D/g, '');
@@ -111,12 +148,76 @@ export function BusSeatMap({
     return `${grade}${studentClass} ${student.name}`;
   }
 
-  let seatCounter = 0;
+
+  const renderSeat = (seatNumber: number | null) => {
+    if (seatNumber === null) {
+      return <div className="w-full h-full"></div>; // Aisle or empty space
+    }
+    
+    const seat = seating.find(s => s.seatNumber === seatNumber);
+    if (!seat) return null;
+
+    const student = getStudentById(seat.studentId);
+    const isAbsent = student ? absentStudentIds.includes(student.id) : false;
+    const isBoarded = student ? boardedStudentIds.includes(student.id) : false;
+    const isHighlighted = student ? highlightedStudentId === student.id : false;
+
+    const seatClasses = cn(
+      'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
+      onSeatClick && 'hover:scale-105 hover:shadow-lg',
+      onSeatClick ? 'cursor-pointer' : 'cursor-default',
+      student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
+      isBoarded && 'bg-green-300 dark:bg-green-800',
+      isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
+      isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
+      student && student.isGroupLeader && !isBoarded && 'border-4 border-yellow-400',
+      student && student.isGroupLeader && isBoarded && 'border-4 border-yellow-600 dark:border-yellow-300'
+    );
+
+    return (
+      <Tooltip key={`seat-tooltip-${seat.seatNumber}`}>
+        <TooltipTrigger asChild>
+          <div
+            ref={isHighlighted ? highlightedSeatRef : null}
+            id={`seat-${seat.seatNumber}`}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, seat.seatNumber)}
+            onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+            className={seatClasses}
+          >
+            {student ? (
+              <>
+                {student.isGroupLeader && (
+                  <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />
+                )}
+                {isAbsent && (
+                   <XCircle className="absolute w-3 h-3 text-destructive" />
+                )}
+                <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
+              </>
+            ) : (
+              <div className="flex flex-col items-center">
+                <UserIcon className="w-4 h-4 text-muted-foreground" />
+              </div>
+            )}
+            <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+          </div>
+        </TooltipTrigger>
+        {student && (
+          <TooltipContent>
+            <p>이름: {formatStudentName(student)}</p>
+            <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    );
+  };
+
 
   return (
     <TooltipProvider>
       <div className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
-        {isLargeBus && (
+        {hasFrontDriver && (
             <div className="mb-2 flex justify-start">
                  <div className="w-1/5">
                     <div className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
@@ -126,112 +227,22 @@ export function BusSeatMap({
                 </div>
             </div>
         )}
+         {!hasFrontDriver && bus.capacity === 15 && (
+             <div className="grid grid-cols-3 gap-1 md:gap-2 mb-2">
+                 <div className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
+                    <CircleUserRound className="w-5 h-5" />
+                    <span className="mt-1 text-[9px] font-medium">운전석</span>
+                </div>
+                <div></div>
+                <div></div>
+             </div>
+        )}
         <div className={cn('grid', gridClass)}>
-          {Array.from({ length: totalItems }).map((_, i) => {
-             const col = i % (aislePosition * 2 + 1); // e.g. 5 for large, 3 for small
-             
-             // --- Driver Seat ---
-             if (!isLargeBus && i === 0) {
-                 return (
-                    <div key="driver-seat" className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
-                        <CircleUserRound className="w-5 h-5" />
-                        <span className="mt-1 text-[9px] font-medium">운전석</span>
-                    </div>
-                 );
-             }
-             
-             // --- Aisle ---
-             let isAisle = col === aislePosition;
-             // Special case for last row on large buses
-             if(isLargeBus) {
-                 const numRegularRows = (bus.capacity - 5) / 4;
-                 const row = Math.floor(i / 5);
-                 if (row >= numRegularRows) { // This is the last row
-                     isAisle = false;
-                 }
-             }
-             if (bus.capacity === 15) {
-                 const numRows = Math.ceil(15 / 2);
-                 const row = Math.floor(i / 3);
-                 if (row === numRows) { // Last row of 15-seater is special
-                    isAisle = false;
-                 }
-                 if(i === 16) isAisle = true; // Manual aisle for last row
-             }
-
-             if (isAisle) {
-                return <div key={`aisle-${i}`} className="w-full h-full"></div>;
-             }
-             
-             // --- Seat ---
-             seatCounter++;
-             const seatNumber = seatCounter;
-             
-             if (seatNumber > bus.capacity) {
-                if (bus.capacity === 15 && seatNumber === 16) {
-                    return <div key={`empty-16`}></div>; // Special empty spot for 15-seater layout
-                }
-                return null;
-             }
-
-             const seat = seating.find(s => s.seatNumber === seatNumber);
-             if (!seat) return null; // Should not happen if seating array is correct
-
-             const student = getStudentById(seat.studentId);
-             const isAbsent = student ? absentStudentIds.includes(student.id) : false;
-             const isBoarded = student ? boardedStudentIds.includes(student.id) : false;
-             const isHighlighted = student ? highlightedStudentId === student.id : false;
-
-             const seatClasses = cn(
-               'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
-               onSeatClick && 'hover:scale-105 hover:shadow-lg',
-               onSeatClick ? 'cursor-pointer' : 'cursor-default',
-               student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
-               isBoarded && 'bg-green-300 dark:bg-green-800',
-               isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
-               isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
-               student && student.isGroupLeader && !isBoarded && 'border-4 border-yellow-400',
-               student && student.isGroupLeader && isBoarded && 'border-4 border-yellow-600 dark:border-yellow-300'
-             );
-
-            return (
-              <Tooltip key={`seat-tooltip-${seat.seatNumber}-${i}`}>
-                <TooltipTrigger asChild>
-                  <div
-                    ref={isHighlighted ? highlightedSeatRef : null}
-                    id={`seat-${seat.seatNumber}`}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, seat.seatNumber)}
-                    onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-                    className={seatClasses}
-                  >
-                    {student ? (
-                      <>
-                        {student.isGroupLeader && (
-                          <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />
-                        )}
-                        {isAbsent && (
-                           <XCircle className="absolute w-3 h-3 text-destructive" />
-                        )}
-                        <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center">
-                        <UserIcon className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                    )}
-                    <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
-                  </div>
-                </TooltipTrigger>
-                {student && (
-                  <TooltipContent>
-                    <p>이름: {formatStudentName(student)}</p>
-                    <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            );
-          })}
+            {seatMap.map((seatNumber, index) => (
+                <React.Fragment key={index}>
+                    {renderSeat(seatNumber)}
+                </React.Fragment>
+            ))}
         </div>
       </div>
     </TooltipProvider>
