@@ -447,18 +447,24 @@ const BusConfigurationTab = ({
   };
 
   const removeStopFromRoute = async (stopId: string) => {
-      if (!currentRoute) return;
+      const latestCurrentRoute = routes.find(r =>
+        r.busId === selectedBusId &&
+        r.dayOfWeek === selectedDay &&
+        r.type === selectedRouteType
+      );
+      if (!latestCurrentRoute) return;
 
-      const newStopIds = currentRoute.stops.filter(id => id !== stopId);
+      const newStopIds = latestCurrentRoute.stops.filter(id => id !== stopId);
       
-      const newRoutes = structuredClone(routes);
-      const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id);
-      if (routeToUpdate) {
-        routeToUpdate.stops = newStopIds;
-      }
+      const newRoutes = routes.map(r => 
+        r.id === latestCurrentRoute.id ? { ...r, stops: newStopIds } : r
+      );
       
       setRoutes(newRoutes);
-      await updateRouteStops(currentRoute.id, newStopIds);
+      // Force re-render of destinations list to re-enable dnd
+      setDestinations(prev => [...prev]);
+
+      await updateRouteStops(latestCurrentRoute.id, newStopIds);
   };
   
   return (
@@ -1506,5 +1512,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
 
     
