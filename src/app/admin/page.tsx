@@ -448,32 +448,32 @@ const BusConfigurationTab = ({
   };
 
   const removeStopFromRoute = async (stopId: string) => {
-      if (!currentRoute) return;
+    if (!currentRoute) return;
 
-      setRoutes(prevRoutes => {
-          const newRoutes = prevRoutes.map(route => {
-              if (route.id === currentRoute.id) {
-                  // Create a new object for the route and a new array for stops
-                  return {
-                      ...route,
-                      stops: route.stops.filter(id => id !== stopId)
-                  };
-              }
-              return route;
-          });
-          
-          // Now update the database with the new stops array
-          const newStopIds = newRoutes.find(r => r.id === currentRoute.id)!.stops;
-          updateRouteStops(currentRoute.id, newStopIds).catch(error => {
-              // Revert UI on DB error if needed
-              console.error("Failed to update stops in DB:", error);
-              toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
-              setRoutes(prevRoutes); // Revert to previous state
-          });
+    setRoutes(prevRoutes => {
+        const newRoutes = prevRoutes.map(route => {
+            if (route.id === currentRoute.id) {
+                // Create a new object for the route and a new array for stops
+                return {
+                    ...route,
+                    stops: route.stops.filter(id => id !== stopId)
+                };
+            }
+            return route;
+        });
+        
+        // Now update the database with the new stops array
+        const newStopIds = newRoutes.find(r => r.id === currentRoute.id)!.stops;
+        updateRouteStops(currentRoute.id, newStopIds).catch(error => {
+            // Revert UI on DB error if needed
+            console.error("Failed to update stops in DB:", error);
+            toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
+            setRoutes(prevRoutes); // Revert to previous state
+        });
 
-          return newRoutes;
-      });
-  };
+        return newRoutes;
+    });
+};
   
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -762,7 +762,7 @@ const StudentManagementTab = ({
         const targetSeatIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
         // Check if the seat is already occupied
-        if (targetSeatIdx > -1 && newSeating[targetSeatIdx].studentId !== null) {
+        if (targetSeatIdx > -1 && newSeating[targetSeatIdx].studentId !== null && newSeating[targetSeatIdx].studentId !== studentId) {
             toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
             return;
         }
@@ -772,6 +772,12 @@ const StudentManagementTab = ({
             const sourceSeatIdx = newSeating.findIndex(s => s.seatNumber === sourceSeatNumber);
             if (sourceSeatIdx > -1) {
                 newSeating[sourceSeatIdx].studentId = null;
+            }
+        } else {
+             // If student was on another seat on this route, unassign them first
+            const existingSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
+            if (existingSeatIdx > -1) {
+                newSeating[existingSeatIdx].studentId = null;
             }
         }
         
@@ -1125,18 +1131,16 @@ const StudentManagementTab = ({
         
         // Dropping onto the seat map
         if (destination.droppableId === 'bus-seat-map') {
-            const seatNumber = parseInt(destination.draggableId.replace('seat-', ''));
+            const seatNumber = destination.index; // This is now seat number
             
             // From unassigned list
             if (source.droppableId === 'unassigned-students') {
-                const studentId = draggableId;
-                handleSeatDrop(seatNumber, studentId);
+                handleSeatDrop(seatNumber, draggableId);
             }
             // From another seat
             else if (source.droppableId === 'bus-seat-map') {
-                const sourceSeatNumber = parseInt(source.draggableId.replace('seat-', ''));
-                const studentId = draggableId;
-                handleSeatDrop(seatNumber, studentId, sourceSeatNumber);
+                const sourceSeatNumber = source.index; // This is source seat number
+                handleSeatDrop(seatNumber, draggableId, sourceSeatNumber);
             }
         }
     };
@@ -1521,5 +1525,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
 
     
