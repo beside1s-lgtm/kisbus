@@ -448,32 +448,31 @@ const BusConfigurationTab = ({
   };
 
   const removeStopFromRoute = async (stopId: string) => {
-    if (!currentRoute) return;
+        if (!currentRoute) return;
 
-    setRoutes(prevRoutes => {
-        const newRoutes = prevRoutes.map(route => {
-            if (route.id === currentRoute.id) {
-                // Create a new object for the route and a new array for stops
-                return {
-                    ...route,
-                    stops: route.stops.filter(id => id !== stopId)
-                };
+        setRoutes(prevRoutes => {
+            const newRoutes = prevRoutes.map(route => {
+                if (route.id === currentRoute.id) {
+                    return {
+                        ...route,
+                        stops: route.stops.filter(id => id !== stopId)
+                    };
+                }
+                return route;
+            });
+            
+            const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id);
+            if (routeToUpdate) {
+                updateRouteStops(currentRoute.id, routeToUpdate.stops).catch(error => {
+                    console.error("Failed to update stops in DB:", error);
+                    toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
+                    setRoutes(prevRoutes); // Revert to previous state
+                });
             }
-            return route;
-        });
-        
-        // Now update the database with the new stops array
-        const newStopIds = newRoutes.find(r => r.id === currentRoute.id)!.stops;
-        updateRouteStops(currentRoute.id, newStopIds).catch(error => {
-            // Revert UI on DB error if needed
-            console.error("Failed to update stops in DB:", error);
-            toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
-            setRoutes(prevRoutes); // Revert to previous state
-        });
 
-        return newRoutes;
-    });
-};
+            return newRoutes;
+        });
+    };
   
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -1246,7 +1245,7 @@ const StudentManagementTab = ({
                            {selectedBus && currentRoute && (
                             <Droppable droppableId="bus-seat-map">
                                 {(provided) => (
-                                    <div ref={provided.innerRef} {...provided.droppableProps}>
+                                    <div ref={provided.innerRef} {...provided.droppableProps} className="flex-grow">
                                         <BusSeatMap
                                             bus={selectedBus}
                                             seating={currentRoute.seating}
@@ -1525,7 +1524,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-    
-
-    

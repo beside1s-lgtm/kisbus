@@ -117,7 +117,7 @@ export function BusSeatMap({
     <TooltipProvider>
       <div className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
         {hasFrontDriver && (
-            <div className="mb-2 flex justify-start">
+            <div className="mb-4 flex justify-start">
                  <div className="w-1/5">
                     <div className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
                         <CircleUserRound className="w-5 h-5" />
@@ -127,7 +127,7 @@ export function BusSeatMap({
             </div>
         )}
          {!hasFrontDriver && bus.capacity === 15 && (
-             <div className="grid grid-cols-3 gap-1 md:gap-2 mb-2">
+             <div className="grid grid-cols-3 gap-1 md:gap-2 mb-4">
                  <div className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
                     <CircleUserRound className="w-5 h-5" />
                     <span className="mt-1 text-[9px] font-medium">운전석</span>
@@ -211,5 +211,3 @@ export function BusSeatMap({
     </TooltipProvider>
   );
 }
-
-    
