@@ -26,6 +26,16 @@ import { useToast } from '@/hooks/use-toast';
 import { updateAttendance } from '@/lib/firebase-data';
 import { Input } from '@/components/ui/input';
 
+const sortBuses = (buses: Bus[]): Bus[] => {
+  return buses.sort((a, b) => {
+    const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+    const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+    return a.name.localeCompare(b.name);
+  });
+};
 
 export default function TeacherPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -97,13 +107,14 @@ export default function TeacherPage() {
                 getDestinations(),
                 getTeachers(),
             ]);
-            setBuses(busesData);
+            const sortedBuses = sortBuses(busesData);
+            setBuses(sortedBuses);
             setStudents(studentsData);
             setRoutes(routesData);
             setDestinations(destinationsData);
             setTeachers(teachersData);
-            if (busesData.length > 0 && !selectedBusId) {
-                setSelectedBusId(busesData[0].id);
+            if (sortedBuses.length > 0 && !selectedBusId) {
+                setSelectedBusId(sortedBuses[0].id);
             }
         } catch (error) {
             console.error("Failed to fetch data", error);
