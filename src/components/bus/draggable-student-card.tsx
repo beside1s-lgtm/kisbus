@@ -26,12 +26,11 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     onCheckedChange
 }) => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    // Prevent drag from starting if the click is on the Select trigger or Checkbox
     if (e.target instanceof HTMLElement && (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role=checkbox]'))) {
         e.preventDefault();
         return;
     }
-    e.dataTransfer.setData('studentId', student.id);
+    // We don't set data here anymore because react-beautiful-dnd handles it.
   };
 
   const studentDestinationName = destinations.find(d => d.id === student.destinationId)?.name || '미지정';
@@ -44,8 +43,7 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
 
   return (
     <Card
-      draggable
-      onDragStart={handleDragStart}
+      onDragStart={handleDragStart} // Keep this to prevent drag on select/checkbox
       className={cn(
         'p-2 mb-2 flex items-center gap-2 cursor-grab active:cursor-grabbing bg-card hover:bg-muted/80 transition-colors',
         className

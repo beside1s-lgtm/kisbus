@@ -6,6 +6,19 @@ import { Bus, Student, Destination } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Crown, User as UserIcon, XCircle, CircleUserRound } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Draggable } from '@hello-pangea/dnd';
+
+interface BusSeatMapProps {
+  bus: Bus;
+  seating: { seatNumber: number; studentId: string | null }[];
+  students: Student[];
+  destinations: Destination[];
+  onSeatClick?: (seatNumber: number, studentId: string | null) => void;
+  draggable?: boolean;
+  absentStudentIds?: string[];
+  boardedStudentIds?: string[];
+  highlightedStudentId?: string | null;
+}
 
 // Provided layout from the image for 45-seater
 const SEAT_MAP_45: (number | null)[] = [
@@ -35,26 +48,14 @@ const SEAT_MAP_29: (number | null)[] = [
 
 // Layout for 15-seater
 const SEAT_MAP_15: (number | null)[] = [
-   null, null, 1, // Exit
-   2, 3, null,
-   4, 5, null,
-   6, 7, null,
-   8, 9, 10,
-   11, 12, 13,
-   14, 15, null, // This layout is a bit odd. Let's try another one.
+    null, null, 1,
+    2, 3, null,
+    4, 5, null,
+    6, 7, null,
+    8, 9, 10,
+    11, 12, null,
+    13, 14, 15
 ];
-
-const SEAT_MAP_15_ALT: (number | null)[] = [
-// D A S
-// S A S
-// S A S
-// S A S
-// S A S
-// S A S S
-  // This is a complex layout. Let's try to map it based on 3 columns
-  null, null, 1, // Driver, Aisle, Seat 1 (This seems wrong, let's follow the old logic for 15-seater for now as it was not the main issue)
-];
-
 
 const getLayoutInfo = (capacity: number) => {
     if (capacity === 45) {
@@ -64,33 +65,9 @@ const getLayoutInfo = (capacity: number) => {
         return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: SEAT_MAP_29, hasFrontDriver: true };
     }
     if (capacity === 15) {
-        // This is a 2-2-3-3-3-2 layout. It's complex. Let's stick to the old grid logic that worked for 15.
-        // It seems to be 3 columns.
          return { 
             gridClass: 'grid-cols-3 gap-1 md:gap-2',
-            seatMap: [
-                null, // Driver
-                null, // Aisle
-                1,
-                2,
-                null,
-                3,
-                4,
-                null,
-                5,
-                6,
-                null,
-                7,
-                8,
-                null,
-                9,
-                10,
-                11,
-                12,
-                13,
-                14,
-                15
-            ],
+            seatMap: SEAT_MAP_15,
             hasFrontDriver: false
         };
     }
@@ -104,9 +81,8 @@ export function BusSeatMap({
   seating,
   students,
   destinations,
-  onSeatDrop,
   onSeatClick,
-  draggable,
+  draggable = false,
   absentStudentIds = [],
   boardedStudentIds = [],
   highlightedStudentId = null,
@@ -123,18 +99,6 @@ export function BusSeatMap({
     }
   }, [highlightedStudentId]);
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, seatNumber: number) => {
-    e.preventDefault();
-    if (onSeatDrop) {
-      const studentId = e.dataTransfer.getData('studentId');
-      onSeatDrop(seatNumber, studentId);
-    }
-  };
-
   const getStudentById = (id: string | null) => {
     if (!id) return null;
     return students.find(s => s.id === id);
@@ -148,69 +112,145 @@ export function BusSeatMap({
     return `${grade}${studentClass} ${student.name}`;
   }
 
-
-  const renderSeat = (seatNumber: number | null) => {
-    if (seatNumber === null) {
-      return <div className="w-full h-full"></div>; // Aisle or empty space
-    }
-    
+  const renderSeat = (seatNumber: number, index: number) => {
     const seat = seating.find(s => s.seatNumber === seatNumber);
-    if (!seat) return null;
+    if (!seat) return <div key={`empty-${index}`} className="w-full h-full"></div>; // Should not happen with valid data
 
     const student = getStudentById(seat.studentId);
     const isAbsent = student ? absentStudentIds.includes(student.id) : false;
     const isBoarded = student ? boardedStudentIds.includes(student.id) : false;
     const isHighlighted = student ? highlightedStudentId === student.id : false;
 
-    const seatClasses = cn(
-      'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
-      onSeatClick && 'hover:scale-105 hover:shadow-lg',
-      onSeatClick ? 'cursor-pointer' : 'cursor-default',
-      student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
-      isBoarded && 'bg-green-300 dark:bg-green-800',
-      isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
-      isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
-      student && student.isGroupLeader && !isBoarded && 'border-4 border-yellow-400',
-      student && student.isGroupLeader && isBoarded && 'border-4 border-yellow-600 dark:border-yellow-300'
+    const seatContent = (
+      <div
+        className={cn(
+          'relative h-10 w-full rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
+          onSeatClick && 'hover:scale-105 hover:shadow-lg',
+          onSeatClick && !student && 'cursor-pointer',
+          onSeatClick && student && 'cursor-pointer',
+          draggable && student && 'cursor-grab',
+          student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
+          isBoarded && 'bg-green-300 dark:bg-green-800',
+          isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
+          isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
+          student && student.isGroupLeader && !isBoarded && 'border-4 border-yellow-400',
+          student && student.isGroupLeader && isBoarded && 'border-4 border-yellow-600 dark:border-yellow-300'
+        )}
+        onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+      >
+        {student ? (
+          <>
+            {student.isGroupLeader && (
+              <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />
+            )}
+            {isAbsent && (
+              <XCircle className="absolute w-3 h-3 text-destructive" />
+            )}
+            <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
+          </>
+        ) : (
+          <div className="flex flex-col items-center">
+            <UserIcon className="w-4 h-4 text-muted-foreground" />
+          </div>
+        )}
+        <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+      </div>
     );
 
     return (
-      <Tooltip key={`seat-tooltip-${seat.seatNumber}`}>
-        <TooltipTrigger asChild>
-          <div
-            ref={isHighlighted ? highlightedSeatRef : null}
-            id={`seat-${seat.seatNumber}`}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, seat.seatNumber)}
-            onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-            className={seatClasses}
-          >
-            {student ? (
-              <>
-                {student.isGroupLeader && (
-                  <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />
-                )}
-                {isAbsent && (
-                   <XCircle className="absolute w-3 h-3 text-destructive" />
-                )}
-                <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
-              </>
-            ) : (
-              <div className="flex flex-col items-center">
-                <UserIcon className="w-4 h-4 text-muted-foreground" />
+      <Draggable
+        key={`seat-${seat.seatNumber}`}
+        draggableId={student ? student.id : `seat-${seat.seatNumber}`}
+        index={index}
+        isDragDisabled={!draggable || !student}
+      >
+        {(provided, snapshot) => (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                ref={provided.innerRef}
+                {...provided.draggableProps}
+                {...provided.dragHandleProps}
+                style={{...provided.draggableProps.style}}
+                className={cn(snapshot.isDragging && "opacity-80")}
+              >
+                {seatContent}
               </div>
+            </TooltipTrigger>
+            {student && (
+              <TooltipContent>
+                <p>이름: {formatStudentName(student)}</p>
+                <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
+              </TooltipContent>
             )}
-            <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
-          </div>
-        </TooltipTrigger>
-        {student && (
-          <TooltipContent>
-            <p>이름: {formatStudentName(student)}</p>
-            <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
-          </TooltipContent>
+          </Tooltip>
         )}
-      </Tooltip>
+      </Draggable>
     );
+  };
+  
+  const renderEmptySpace = (index: number) => {
+    return (
+      <Draggable key={`empty-${index}`} draggableId={`empty-${index}`} index={index} isDragDisabled={true}>
+        {(provided) => (
+          <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} className="w-full h-full"></div>
+        )}
+      </Draggable>
+    );
+  };
+
+  const renderDraggableSeat = (seatNumber: number, index: number) => {
+      const seat = seating.find(s => s.seatNumber === seatNumber);
+      if (!seat) return null; // Should not happen
+      const student = getStudentById(seat.studentId);
+
+      return (
+        <Draggable key={`seat-${seatNumber}`} draggableId={student ? student.id : `seat-${seatNumber}`} index={seatNumber} isDragDisabled={!student}>
+           {(provided, snapshot) => {
+               const isHighlighted = student ? highlightedStudentId === student.id : false;
+               const seatClasses = cn(
+                  'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
+                  onSeatClick && 'hover:scale-105 hover:shadow-lg',
+                  onSeatClick ? 'cursor-pointer' : 'cursor-default',
+                  student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
+                   isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
+                  snapshot.isDragging && 'shadow-2xl scale-105',
+                  student ? 'cursor-grab' : 'cursor-default'
+                );
+
+               return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                       <div
+                           ref={provided.innerRef}
+                           {...provided.draggableProps}
+                           {...provided.dragHandleProps}
+                           id={`seat-${seat.seatNumber}`}
+                           onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+                           className={seatClasses}
+                       >
+                           {student ? (
+                             <>
+                               {student.isGroupLeader && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
+                               <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
+                             </>
+                           ) : (
+                             <UserIcon className="w-4 h-4 text-muted-foreground" />
+                           )}
+                           <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+                       </div>
+                    </TooltipTrigger>
+                    {student && (
+                      <TooltipContent>
+                        <p>이름: {formatStudentName(student)}</p>
+                        <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+               )
+           }}
+        </Draggable>
+      );
   };
 
 
@@ -234,15 +274,82 @@ export function BusSeatMap({
                     <span className="mt-1 text-[9px] font-medium">운전석</span>
                 </div>
                 <div></div>
-                <div></div>
+                <Draggable draggableId="entry" index={99} isDragDisabled>
+                    {(provided) => (
+                        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
+                            <span className="text-[9px] font-medium">출입문</span>
+                        </div>
+                    )}
+                </Draggable>
              </div>
         )}
         <div className={cn('grid', gridClass)}>
-            {seatMap.map((seatNumber, index) => (
-                <React.Fragment key={index}>
-                    {renderSeat(seatNumber)}
-                </React.Fragment>
-            ))}
+            {seatMap.map((seatNumber, index) => {
+                 if (seatNumber === null) {
+                    return <div key={`aisle-${index}`}></div>;
+                }
+
+                const seat = seating.find(s => s.seatNumber === seatNumber);
+                if (!seat) return null;
+
+                const student = getStudentById(seat.studentId);
+                const isAbsent = student ? absentStudentIds.includes(student.id) : false;
+                const isBoarded = student ? boardedStudentIds.includes(student.id) : false;
+                const isHighlighted = student ? highlightedStudentId === student.id : false;
+
+                return (
+                    <Draggable
+                        key={seat.seatNumber}
+                        draggableId={student ? seat.studentId! : `seat-${seat.seatNumber}`}
+                        index={seat.seatNumber} // Use a unique and stable index
+                        isDragDisabled={!draggable || !student}
+                    >
+                        {(provided, snapshot) => (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div
+                                        ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
+                                        {...provided.draggableProps}
+                                        {...provided.dragHandleProps}
+                                        onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+                                        className={cn(
+                                            'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
+                                            onSeatClick && 'hover:scale-105 hover:shadow-lg',
+                                            onSeatClick && 'cursor-pointer',
+                                            !student && draggable && 'cursor-default', // Make empty seats non-draggable visually
+                                            student && draggable && 'cursor-grab active:cursor-grabbing',
+                                            student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
+                                            isBoarded && 'bg-green-300 dark:bg-green-800',
+                                            isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
+                                            isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
+                                            student && student.isGroupLeader && !isBoarded && 'border-4 border-yellow-400',
+                                            student && student.isGroupLeader && isBoarded && 'border-4 border-yellow-600 dark:border-yellow-300',
+                                            snapshot.isDragging && 'shadow-xl scale-105 z-50'
+                                        )}
+                                    >
+                                        {student ? (
+                                            <>
+                                                {student.isGroupLeader && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
+                                                {isAbsent && <XCircle className="absolute w-3 h-3 text-destructive" />}
+                                                <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
+                                            </>
+                                        ) : (
+                                            <UserIcon className="w-4 h-4 text-muted-foreground" />
+                                        )}
+                                        <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+                                    </div>
+                                </TooltipTrigger>
+                                {student && (
+                                    <TooltipContent>
+                                        <p>이름: {formatStudentName(student)}</p>
+                                        <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
+                                    </TooltipContent>
+                                )}
+                            </Tooltip>
+                        )}
+                    </Draggable>
+                );
+            })}
         </div>
       </div>
     </TooltipProvider>
