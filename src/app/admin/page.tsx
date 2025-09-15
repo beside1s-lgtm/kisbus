@@ -10,7 +10,8 @@ import {
     addStudent, updateStudent,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations,
-    updateStudentsInBatch
+    updateStudentsInBatch,
+    unassignStudentFromAllRoutes
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -599,7 +600,6 @@ const BusConfigurationTab = ({
 
 
 const StudentManagementTab = ({
-    buses,
     students,
     setStudents,
     routes,
@@ -611,7 +611,6 @@ const StudentManagementTab = ({
     days,
     filterComponent,
 }:{
-    buses: Bus[],
     students: Student[],
     setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
     routes: Route[],
@@ -626,6 +625,17 @@ const StudentManagementTab = ({
     const { toast } = useToast();
     const [newStudentForm, setNewStudentForm] = useState({ name: '', grade: '', class: '', gender: 'Male' as 'Male' | 'Female', destinationId: '' });
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const buses = useMemo(() => {
+        const busMap = new Map<string, Bus>();
+        routes.forEach(route => {
+            const bus = buses.find(b => b.id === route.busId);
+            if (bus && !busMap.has(bus.id)) {
+                busMap.set(bus.id, bus);
+            }
+        });
+        return Array.from(busMap.values());
+    }, [routes]);
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
@@ -672,21 +682,32 @@ const StudentManagementTab = ({
     const handleSeatDrop = useCallback(async (seatNumber: number, studentId: string) => {
         if (!currentRoute) return;
 
-        const oldRoutes = [...routes];
-        let newRoutes = [...routes];
+        // Find the student being dropped
+        const studentToAssign = students.find(s => s.id === studentId);
+        if (!studentToAssign) return;
 
-        // Find and remove student from any seat in the current route first
+        // Unassign from all other routes first
+        const oldRoutes = [...routes];
+        let newRoutes = routes.map(route => ({
+            ...route,
+            seating: route.seating.map(seat => 
+                seat.studentId === studentId ? { ...seat, studentId: null } : seat
+            )
+        }));
+
+        // Assign to the new seat in the current route
         const routeToUpdateIdx = newRoutes.findIndex(r => r.id === currentRoute.id);
         if (routeToUpdateIdx > -1) {
             const newSeating = [...newRoutes[routeToUpdateIdx].seating];
-            const oldSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
-            if (oldSeatIdx > -1) {
-                newSeating[oldSeatIdx].studentId = null;
+            const targetSeatIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
+
+            // Check if the seat is already occupied
+            if (targetSeatIdx > -1 && newSeating[targetSeatIdx].studentId !== null) {
+                toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
+                return; // Do not proceed
             }
 
-            // Place student in the new seat
-            const targetSeatIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
-            if (targetSeatIdx > -1 && newSeating[targetSeatIdx].studentId === null) {
+            if (targetSeatIdx > -1) {
                 newSeating[targetSeatIdx].studentId = studentId;
             }
             newRoutes[routeToUpdateIdx] = { ...newRoutes[routeToUpdateIdx], seating: newSeating };
@@ -694,39 +715,41 @@ const StudentManagementTab = ({
             setRoutes(newRoutes);
 
             try {
-                await updateRouteSeating(currentRoute.id, newSeating);
+                // Update all routes in the database
+                const batch = writeBatch(db);
+                newRoutes.forEach(route => {
+                    const routeRef = doc(db, "routes", route.id);
+                    batch.update(routeRef, { seating: route.seating });
+                });
+                await batch.commit();
+
             } catch (error) {
                 setRoutes(oldRoutes);
                 toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
             }
         }
-    }, [currentRoute, routes, setRoutes, toast]);
+    }, [currentRoute, routes, students, setRoutes, toast]);
 
-    const unassignStudent = useCallback(async (seatNumber: number) => {
-        if (!currentRoute) return;
-
+    const unassignStudent = useCallback(async (studentId: string) => {
         const oldRoutes = [...routes];
-        const newRoutes = routes.map(route => {
-            if (route.id === currentRoute.id) {
-                const newSeating = [...route.seating];
-                const seatToEmptyIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
-                if (seatToEmptyIndex !== -1) {
-                    newSeating[seatToEmptyIndex].studentId = null;
-                }
-                return { ...route, seating: newSeating };
-            }
-            return route;
-        });
+        
+        // Optimistically update UI
+        const newRoutes = routes.map(route => ({
+            ...route,
+            seating: route.seating.map(seat =>
+                seat.studentId === studentId ? { ...seat, studentId: null } : seat
+            )
+        }));
         setRoutes(newRoutes);
         
         try {
-             const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id)!;
-             await updateRouteSeating(currentRoute.id, routeToUpdate.seating);
+             await unassignStudentFromAllRoutes(studentId);
+             toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
         } catch(e) {
-            setRoutes(oldRoutes);
+            setRoutes(oldRoutes); // Revert on error
             toast({ title: "오류", description: "좌석 배정 해제 실패", variant: 'destructive'});
         }
-    }, [currentRoute, routes, setRoutes, toast]);
+    }, [routes, setRoutes, toast]);
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus) return;
@@ -935,7 +958,7 @@ const StudentManagementTab = ({
                             grade: (row['학년'] || '').trim(),
                             class: (row['반'] || '').trim(),
                             gender: (row['성별'] || '').trim() as 'Male' | 'Female',
-                            destinationId: destination?.id || ''
+                            destinationId: destination?.id || null
                         };
                         if (newStudent.name && newStudent.grade && newStudent.class && newStudent.gender && newStudent.destinationId) {
                             studentsToAdd.push(newStudent);
@@ -1091,7 +1114,7 @@ const StudentManagementTab = ({
                                 destinations={destinations}
                                 onSeatDrop={handleSeatDrop}
                                 onSeatClick={(seatNumber, studentId) => {
-                                  if (studentId) unassignStudent(seatNumber);
+                                  if (studentId) unassignStudent(studentId);
                                 }}
                                 draggable={true}
                             />
@@ -1301,7 +1324,6 @@ export default function AdminPage() {
                     </TabsContent>
                     <TabsContent value="student-management" className="mt-6">
                         <StudentManagementTab 
-                            buses={buses} 
                             students={students} 
                             setStudents={setStudents}
                             routes={routes} 
@@ -1319,4 +1341,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-

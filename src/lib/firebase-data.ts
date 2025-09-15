@@ -159,6 +159,28 @@ export const clearAllSuggestedDestinations = async () => {
     await batch.commit();
 };
 
+export const unassignStudentFromAllRoutes = async (studentId: string) => {
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    const batch = writeBatch(db);
+
+    routesSnapshot.forEach(routeDoc => {
+        const routeData = routeDoc.data() as Route;
+        const newSeating = routeData.seating.map(seat => {
+            if (seat.studentId === studentId) {
+                return { ...seat, studentId: null };
+            }
+            return seat;
+        });
+
+        // Check if the seating actually changed to avoid unnecessary writes
+        if (JSON.stringify(newSeating) !== JSON.stringify(routeData.seating)) {
+            batch.update(routeDoc.ref, { seating: newSeating });
+        }
+    });
+
+    await batch.commit();
+};
+
 
 // --- Attendance ---
 export const getAttendance = async (routeId: string, date: string): Promise<AttendanceRecord | null> => {
