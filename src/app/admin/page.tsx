@@ -861,8 +861,7 @@ const StudentManagementTab = ({
 
     const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentId: string | null }[], targetRoutes: Route[], allStudents: Student[]) => {
         const batch = writeBatch(db);
-        const newRoutesState = [...routes];
-
+        
         for (const targetRoute of targetRoutes) {
             const targetStudents = getStudentsForRoute(targetRoute, allStudents);
             const targetStudentIds = new Set(targetStudents.map(s => s.id));
@@ -877,17 +876,10 @@ const StudentManagementTab = ({
             });
 
             batch.update(doc(db, 'routes', targetRoute.id), { seating: newSeatingForTarget });
-            
-            const routeIndex = newRoutesState.findIndex(r => r.id === targetRoute.id);
-            if(routeIndex !== -1) {
-                newRoutesState[routeIndex].seating = newSeatingForTarget;
-            }
         }
 
         await batch.commit();
-        setRoutes(newRoutesState);
     };
-
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
@@ -1012,40 +1004,44 @@ const StudentManagementTab = ({
             }
         }
     
-        // Update current route first
-        const newRoutesWithCurrent = routes.map(route => 
-            route.id === currentRoute.id ? { ...route, seating: newSeatingPlan } : route
-        );
-        setRoutes(newRoutesWithCurrent);
-
         try {
+            // Update current route first and wait for it
             await updateRouteSeating(currentRoute.id, newSeatingPlan);
 
+            let finalRoutes = routes.map(route => 
+                route.id === currentRoute.id ? { ...route, seating: newSeatingPlan } : route
+            );
+
             if (selectedDay === 'Monday') {
-                const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                const weekdays: DayOfWeek[] = ['Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                const allWeekdays: DayOfWeek[] = ['Monday', ...weekdays];
                 
-                // Copy to the same route type for other weekdays
+                // Copy to the same route type for other weekdays (e.g., Tue-Fri Morning)
                 const sameTypeRoutesToCopy = routes.filter(r => 
                     r.busId === selectedBusId &&
-                    r.id !== currentRoute.id &&
                     weekdays.includes(r.dayOfWeek) &&
                     r.type === selectedRouteType
                 );
                 await copySeatingPlan(newSeatingPlan, sameTypeRoutesToCopy, students);
 
-                // Copy to the other route type (Morning -> Afternoon or vice-versa)
-                const otherRouteType: RouteType | null = selectedRouteType === 'Morning' ? 'Afternoon' : selectedRouteType === 'Afternoon' ? 'Morning' : null;
-                if (otherRouteType) {
+                // Copy to the other main route type (Morning -> Afternoon or vice-versa)
+                const otherMainRouteType: RouteType | null = selectedRouteType === 'Morning' ? 'Afternoon' : selectedRouteType === 'Afternoon' ? 'Morning' : null;
+                if (otherMainRouteType) {
                     const otherTypeRoutesToCopy = routes.filter(r => 
                         r.busId === selectedBusId &&
-                        weekdays.includes(r.dayOfWeek) &&
-                        r.type === otherRouteType
+                        allWeekdays.includes(r.dayOfWeek) &&
+                        r.type === otherMainRouteType
                     );
                     await copySeatingPlan(newSeatingPlan, otherTypeRoutesToCopy, students);
                 }
+                
+                // Refetch all routes to update state correctly after all DB operations
+                const updatedRoutes = await getRoutes();
+                setRoutes(updatedRoutes);
 
                 toast({ title: "성공", description: "랜덤 배정이 완료되었고, 평일 등/하교 노선에 복사되었습니다." });
             } else {
+                 setRoutes(finalRoutes); // Update state just for the current route
                 toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
             }
         } catch (error) {
@@ -1120,7 +1116,7 @@ const StudentManagementTab = ({
                     let hasAfterSchool = false;
                     days.forEach(day => {
                         const dayLabel = dayLabels[day];
-                        const destName = (row[`방과후 목적지(${dayLabel})`] || '').trim();
+                        const destName = (row[`방과후 목적지(${dayLabel})`] || row[`방과후 목적지 (${dayLabel})`] || '').trim();
                         if (destName) {
                             afterSchoolDests[day] = findDestId(destName);
                             hasAfterSchool = true;
