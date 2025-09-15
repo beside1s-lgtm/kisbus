@@ -1008,10 +1008,6 @@ const StudentManagementTab = ({
             // Update current route first and wait for it
             await updateRouteSeating(currentRoute.id, newSeatingPlan);
 
-            let finalRoutes = routes.map(route => 
-                route.id === currentRoute.id ? { ...route, seating: newSeatingPlan } : route
-            );
-
             if (selectedDay === 'Monday') {
                 const weekdays: DayOfWeek[] = ['Tuesday', 'Wednesday', 'Thursday', 'Friday'];
                 const allWeekdays: DayOfWeek[] = ['Monday', ...weekdays];
@@ -1041,8 +1037,11 @@ const StudentManagementTab = ({
 
                 toast({ title: "성공", description: "랜덤 배정이 완료되었고, 평일 등/하교 노선에 복사되었습니다." });
             } else {
-                 setRoutes(finalRoutes); // Update state just for the current route
-                toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
+                 const finalRoutes = routes.map(route => 
+                    route.id === currentRoute.id ? { ...route, seating: newSeatingPlan } : route
+                );
+                 setRoutes(finalRoutes);
+                 toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
             }
         } catch (error) {
             setRoutes(oldRoutes); // Revert on failure
@@ -1250,21 +1249,16 @@ const StudentManagementTab = ({
             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
             if (targetSeatIndex !== -1 && newSeating[targetSeatIndex].studentId) {
-                toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
+                toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다. 자리를 바꾸려면 좌석 간에 이동하세요.", variant: "destructive" });
                 return;
             }
 
             if (targetSeatIndex !== -1) {
-                // If student was in another seat, unseat them first
-                const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
-                if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null;
-                
                 newSeating[targetSeatIndex].studentId = studentId;
+                handleSeatUpdate(newSeating);
             }
-
-            handleSeatUpdate(newSeating);
         }
-        // Case 2: Moving from a seat to another seat
+        // Case 2: Moving from a seat to another seat (or swapping)
         else if (source.droppableId.startsWith('seat-') && destination.droppableId.startsWith('seat-')) {
             const sourceSeatNumber = parseInt(source.droppableId.replace('seat-', ''));
             const destinationSeatNumber = parseInt(destination.droppableId.replace('seat-', ''));
@@ -1274,14 +1268,14 @@ const StudentManagementTab = ({
             const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === sourceSeatNumber);
             const destinationSeatIndex = newSeating.findIndex(s => s.seatNumber === destinationSeatNumber);
 
-            if (destinationSeatIndex !== -1 && newSeating[destinationSeatIndex].studentId) {
-                const studentInDestSeat = newSeating[destinationSeatIndex].studentId;
-                if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = studentInDestSeat;
-                if (destinationSeatIndex !== -1) newSeating[destinationSeatIndex].studentId = studentId;
-            } else { 
-                if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null;
-                if (destinationSeatIndex !== -1) newSeating[destinationSeatIndex].studentId = studentId;
-            }
+            if (sourceSeatIndex === -1 || destinationSeatIndex === -1) return;
+            
+            const studentInSourceSeat = newSeating[sourceSeatIndex].studentId;
+            const studentInDestinationSeat = newSeating[destinationSeatIndex].studentId;
+
+            // Swap the students
+            newSeating[destinationSeatIndex].studentId = studentInSourceSeat;
+            newSeating[sourceSeatIndex].studentId = studentInDestinationSeat;
             
             handleSeatUpdate(newSeating);
         }
