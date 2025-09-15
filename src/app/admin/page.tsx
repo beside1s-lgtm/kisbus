@@ -92,15 +92,13 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
     };
     
     const handleDeleteBus = async (busId: string) => {
-        if (confirm("정말로 이 버스와 관련된 모든 노선 정보를 삭제하시겠습니까?")) {
-             try {
-                await deleteBus(busId);
-                setBuses(prev => prev.filter(b => b.id !== busId));
-                toast({ title: "성공", description: "버스가 삭제되었습니다."});
-            } catch (error) {
-                console.error("Error deleting bus:", error);
-                toast({ title: "오류", description: "버스 삭제에 실패했습니다.", variant: 'destructive' });
-            }
+        try {
+            await deleteBus(busId);
+            setBuses(prev => prev.filter(b => b.id !== busId));
+            toast({ title: "성공", description: "버스가 삭제되었습니다."});
+        } catch (error) {
+            console.error("Error deleting bus:", error);
+            toast({ title: "오류", description: "버스 삭제에 실패했습니다.", variant: 'destructive' });
         }
     }
 
@@ -220,9 +218,25 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                                 <TableCell>{bus.name}</TableCell>
                                 <TableCell>{bus.type}</TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteBus(bus.id)}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon">
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>정말 이 버스를 삭제하시겠습니까?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    이 작업은 되돌릴 수 없습니다. 이 버스와 관련된 모든 노선 정보가 영구적으로 삭제됩니다.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>취소</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteBus(bus.id)}>삭제</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -300,15 +314,13 @@ const BusConfigurationTab = ({
     };
     
     const handleDeleteDestination = async (id: string) => {
-         if (confirm("정말로 이 목적지를 삭제하시겠습니까?")) {
-            try {
-                await deleteDestination(id);
-                setDestinations(prev => prev.filter(d => d.id !== id));
-                toast({ title: "성공", description: "목적지가 삭제되었습니다." });
-            } catch (error) {
-                toast({ title: "오류", description: "목적지 삭제 실패", variant: 'destructive' });
-            }
-         }
+        try {
+            await deleteDestination(id);
+            setDestinations(prev => prev.filter(d => d.id !== id));
+            toast({ title: "성공", description: "목적지가 삭제되었습니다." });
+        } catch (error) {
+            toast({ title: "오류", description: "목적지 삭제 실패", variant: 'destructive' });
+        }
     };
   
   const handleDownloadDestinationTemplate = () => {
@@ -578,9 +590,25 @@ const BusConfigurationTab = ({
                                                         className={cn("rounded-full border px-3 py-1 text-sm font-semibold transition-colors flex items-center gap-1", snapshot.isDragging && "shadow-lg")}
                                                     >
                                                         {dest.name}
-                                                        <Button variant="ghost" size="icon" className="h-5 w-5 -mr-2" onClick={() => handleDeleteDestination(dest.id)}>
-                                                            <X className="w-3 h-3 text-destructive" />
-                                                        </Button>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-5 w-5 -mr-2">
+                                                                    <X className="w-3 h-3 text-destructive" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>정말 이 목적지를 삭제하시겠습니까?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        이 작업은 되돌릴 수 없습니다.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDeleteDestination(dest.id)}>삭제</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
                                                     </div>
                                                 )}
                                             </Draggable>
@@ -795,10 +823,6 @@ const StudentManagementTab = ({
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
             toast({ title: "오류", description: "버스를 먼저 선택해주세요.", variant: 'destructive'});
-            return;
-        }
-
-        if (!confirm(`${selectedBus.name}의 모든 좌석 배정을 초기화하시겠습니까?`)) {
             return;
         }
 
@@ -1139,7 +1163,23 @@ const StudentManagementTab = ({
                                <CardDescription>미배정 학생을 드래그하여 배정하거나, 좌석을 클릭하여 배정을 해제하세요.</CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Button variant="outline" onClick={handleResetSeating}><RotateCcw className="mr-2" /> 좌석 초기화</Button>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="outline"><RotateCcw className="mr-2" /> 좌석 초기화</Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>정말 모든 좌석 배정을 초기화하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                               이 작업은 되돌릴 수 없습니다. {selectedBus?.name}의 모든 좌석 배정이 해제됩니다.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>취소</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleResetSeating}>초기화</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                                 <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
                                 <Dialog>
                                     <DialogTrigger asChild>
@@ -1190,17 +1230,19 @@ const StudentManagementTab = ({
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <BusSeatMap
-                                bus={selectedBus!}
-                                seating={currentRoute.seating}
-                                students={students}
-                                destinations={destinations}
-                                onSeatDrop={handleSeatDrop}
-                                onSeatClick={(seatNumber, studentId) => {
-                                  if (studentId) unassignStudent(studentId);
-                                }}
-                                draggable={true}
-                            />
+                           {selectedBus && (
+                                <BusSeatMap
+                                    bus={selectedBus}
+                                    seating={currentRoute.seating}
+                                    students={students}
+                                    destinations={destinations}
+                                    onSeatDrop={handleSeatDrop}
+                                    onSeatClick={(seatNumber, studentId) => {
+                                      if (studentId) unassignStudent(studentId);
+                                    }}
+                                    draggable={true}
+                                />
+                           )}
                         </CardContent>
                     </Card>
                 </div>
@@ -1271,17 +1313,17 @@ const AdminPageFilter = ({
     days,
     dayLabels,
     loading
-} : {
-    buses: Bus[],
-    selectedBusId: string | null,
-    setSelectedBusId: (id: string | null) => void,
-    selectedDay: DayOfWeek,
-    setSelectedDay: (day: DayOfWeek) => void,
-    selectedRouteType: RouteType,
-    setSelectedRouteType: (type: RouteType) => void,
-    days: DayOfWeek[],
-    dayLabels: { [key in DayOfWeek]: string },
-    loading: boolean
+}: {
+    buses: Bus[];
+    selectedBusId: string | null;
+    setSelectedBusId: (id: string | null) => void;
+    selectedDay: DayOfWeek;
+    setSelectedDay: (day: DayOfWeek) => void;
+    selectedRouteType: RouteType;
+    setSelectedRouteType: (type: RouteType) => void;
+    days: DayOfWeek[];
+    dayLabels: { [key in DayOfWeek]: string };
+    loading: boolean;
 }) => {
     return (
         <Card className="mb-6">
@@ -1307,7 +1349,7 @@ const AdminPageFilter = ({
                     <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
                       <SelectTrigger>
                         <SelectValue placeholder="요일을 선택하세요" />
-                      </SelectTrigger>
+                      </Trigger>
                       <SelectContent>
                         {days.map((day) => (
                           <SelectItem key={day} value={day}>
@@ -1329,8 +1371,8 @@ const AdminPageFilter = ({
                 </div>
             </CardContent>
         </Card>
-    )
-}
+    );
+};
 
 
 export default function AdminPage() {
@@ -1449,6 +1491,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-    
-    
