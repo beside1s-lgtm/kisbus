@@ -77,7 +77,9 @@ export default function TeacherPage() {
     // Set route type based on Vietnam time
     const now = new Date();
     const vietnamHour = (now.getUTCHours() + 7) % 24;
-    if (vietnamHour >= 9 && vietnamHour < 20) {
+    if (vietnamHour >= 16) {
+        setSelectedRouteType('AfterSchool');
+    } else if (vietnamHour >= 9) {
         setSelectedRouteType('Afternoon');
     } else {
         setSelectedRouteType('Morning');
@@ -350,9 +352,10 @@ export default function TeacherPage() {
         <div>
         <label className="text-sm font-medium">경로</label>
         <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
             <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
+            <TabsTrigger value="AfterSchool" disabled={loading}>방과후</TabsTrigger>
             </TabsList>
         </Tabs>
         </div>

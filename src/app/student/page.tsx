@@ -55,7 +55,9 @@ export default function StudentPage() {
     // Set route type based on Vietnam time
     const now = new Date();
     const vietnamHour = (now.getUTCHours() + 7) % 24;
-    if (vietnamHour >= 9 && vietnamHour < 20) {
+    if (vietnamHour >= 16) {
+        setSelectedRouteType('AfterSchool');
+    } else if (vietnamHour >= 9) {
         setSelectedRouteType('Afternoon');
     } else {
         setSelectedRouteType('Morning');
@@ -162,6 +164,7 @@ export default function StudentPage() {
             <SelectContent>
               <SelectItem value="Morning">등교</SelectItem>
               <SelectItem value="Afternoon">하교</SelectItem>
+              <SelectItem value="AfterSchool">방과후</SelectItem>
             </SelectContent>
           </Select>
         </div>

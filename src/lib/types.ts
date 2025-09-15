@@ -38,7 +38,7 @@ export type Route = {
   id: string;
   busId: string;
   dayOfWeek: DayOfWeek;
-  type: 'Morning' | 'Afternoon';
+  type: RouteType;
   stops: string[]; // ordered list of destination IDs
   seating: SeatingAssignment[];
 };
@@ -52,7 +52,7 @@ export type AttendanceRecord = {
 
 export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
 
-export type RouteType = 'Morning' | 'Afternoon';
+export type RouteType = 'Morning' | 'Afternoon' | 'AfterSchool';
 
 export type GroupLeaderRecord = {
     studentId: string;

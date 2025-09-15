@@ -47,7 +47,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
     const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
     const { toast } = useToast();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
+    const routeTypes: RouteType[] = ['Morning', 'Afternoon', 'AfterSchool'];
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleAddBus = async (busData: NewBus) => {
@@ -494,7 +494,7 @@ const BusConfigurationTab = ({
                         {selectedBus ? (
                             <Card>
                             <CardHeader>
-                                <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : '하교'} 노선</CardTitle>
+                                <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
                                 <CardDescription>드래그하여 노선 순서를 정하고, 'X'를 눌러 삭제합니다.</CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -936,10 +936,10 @@ const StudentManagementTab = ({
             }
         }
     
-        // If today is Monday, copy to all week days (Mon-Fri) for both routes
+        // If today is Monday, copy to all week days (Mon-Fri) for all routes
         if (selectedDay === 'Monday') {
             const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
+            const routeTypes: RouteType[] = ['Morning', 'Afternoon', 'AfterSchool'];
             const routesToUpdate = routes.filter(r => 
                 r.busId === selectedBusId && 
                 weekdays.includes(r.dayOfWeek)
@@ -956,7 +956,7 @@ const StudentManagementTab = ({
             try {
                 const routeIdsToUpdate = routesToUpdate.map(r => r.id);
                 await updateSeatingForBusRoutes(routeIdsToUpdate, newSeatingPlan);
-                toast({ title: "성공", description: "랜덤 배정이 완료되었고, 월-금 노선에 복사되었습니다." });
+                toast({ title: "성공", description: "랜덤 배정이 완료되었고, 월-금 모든 노선에 복사되었습니다." });
             } catch (error) {
                 setRoutes(oldRoutes);
                 toast({ title: "오류", description: "랜덤 배정 및 복사 실패", variant: 'destructive' });
@@ -1154,15 +1154,21 @@ const StudentManagementTab = ({
             const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === sourceSeatNumber);
             const destinationSeatIndex = newSeating.findIndex(s => s.seatNumber === destinationSeatNumber);
 
+            // If the destination seat is occupied, swap students
             if (destinationSeatIndex !== -1 && newSeating[destinationSeatIndex].studentId) {
-                 toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
-                return;
+                const studentInDestSeat = newSeating[destinationSeatIndex].studentId;
+                if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = studentInDestSeat;
+                if (destinationSeatIndex !== -1) newSeating[destinationSeatIndex].studentId = studentId;
+            } else { // If the destination seat is empty, just move
+                if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null;
+                if (destinationSeatIndex !== -1) newSeating[destinationSeatIndex].studentId = studentId;
             }
-
-            if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null;
-            if (destinationSeatIndex !== -1) newSeating[destinationSeatIndex].studentId = studentId;
             
             handleSeatUpdate(newSeating);
+        }
+         // Case 3: Moving from a seat back to the unassigned list
+        else if (source.droppableId.startsWith('seat-') && destination.droppableId === 'unassigned-students') {
+            unassignStudent(studentId);
         }
     };
 
@@ -1410,9 +1416,10 @@ const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
                   <div>
                     <Label className="text-sm font-medium">경로</Label>
                     <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-                      <TabsList className="grid w-full grid-cols-2">
+                      <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
                         <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
+                        <TabsTrigger value="AfterSchool" disabled={loading}>방과후</TabsTrigger>
                       </TabsList>
                     </Tabs>
                   </div>
