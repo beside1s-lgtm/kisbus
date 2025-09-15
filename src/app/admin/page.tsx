@@ -448,33 +448,29 @@ const BusConfigurationTab = ({
     }
   };
 
-  const removeStopFromRoute = async (stopId: string) => {
-    if (!currentRoute) return;
+  const removeStopFromRoute = (stopId: string) => {
+    const latestCurrentRoute = routes.find(r =>
+        r.busId === selectedBusId &&
+        r.dayOfWeek === selectedDay &&
+        r.type === selectedRouteType
+    );
+    if (!latestCurrentRoute) return;
 
-    setRoutes(prevRoutes => {
-        const newRoutes = prevRoutes.map(route => {
-            if (route.id === currentRoute.id) {
-                // Create a new route object with a new stops array
-                return {
-                    ...route,
-                    stops: route.stops.filter(id => id !== stopId)
-                };
-            }
-            return route;
-        });
-        
-        // Find the updated route to save to DB
-        const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id);
-        if (routeToUpdate) {
-            updateRouteStops(currentRoute.id, routeToUpdate.stops).catch(error => {
-                console.error("Failed to update stops in DB:", error);
-                toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
-                // Revert to previous state on error
-                setRoutes(prevRoutes); 
-            });
-        }
+    const newStopIds = latestCurrentRoute.stops.filter(id => id !== stopId);
+    
+    setRoutes(prevRoutes =>
+        prevRoutes.map(route =>
+            route.id === latestCurrentRoute.id
+                ? { ...route, stops: newStopIds }
+                : route
+        )
+    );
 
-        return newRoutes;
+    updateRouteStops(latestCurrentRoute.id, newStopIds).catch(error => {
+        console.error("Failed to update stops in DB:", error);
+        toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
+        // Revert to previous state on error
+        setRoutes(routes); 
     });
 };
   
@@ -936,13 +932,14 @@ const StudentManagementTab = ({
             }
         }
     
-        // If today is Monday, copy to all week days (Mon-Fri) for all routes
         if (selectedDay === 'Monday') {
             const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            const routeTypes: RouteType[] = ['Morning', 'Afternoon', 'AfterSchool'];
+            const routeTypesToCopy: RouteType[] = ['Morning', 'Afternoon'];
+            
             const routesToUpdate = routes.filter(r => 
                 r.busId === selectedBusId && 
-                weekdays.includes(r.dayOfWeek)
+                weekdays.includes(r.dayOfWeek) &&
+                routeTypesToCopy.includes(r.type)
             );
             
             const newRoutes = routes.map(route => {
@@ -956,7 +953,7 @@ const StudentManagementTab = ({
             try {
                 const routeIdsToUpdate = routesToUpdate.map(r => r.id);
                 await updateSeatingForBusRoutes(routeIdsToUpdate, newSeatingPlan);
-                toast({ title: "성공", description: "랜덤 배정이 완료되었고, 월-금 모든 노선에 복사되었습니다." });
+                toast({ title: "성공", description: "랜덤 배정이 완료되었고, 월-금 등하교 노선에 복사되었습니다." });
             } catch (error) {
                 setRoutes(oldRoutes);
                 toast({ title: "오류", description: "랜덤 배정 및 복사 실패", variant: 'destructive' });
