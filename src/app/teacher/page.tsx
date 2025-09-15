@@ -294,7 +294,16 @@ export default function TeacherPage() {
     setSearchQuery('');
   }
 
-  const handleDragEnd: OnDragEndResponder = (result) => {
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (searchResults.length > 0) {
+        handleSelectStudentFromSearch(searchResults[0]);
+      }
+    }
+  };
+
+  const onDragEnd: OnDragEndResponder = (result) => {
     // This is a placeholder. Teacher page does not implement dnd yet.
   }
 
@@ -352,6 +361,7 @@ export default function TeacherPage() {
                 className="pl-8 w-full"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
             />
             {searchResults.length > 0 && (
                 <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
@@ -414,7 +424,7 @@ export default function TeacherPage() {
       {loading ? (
         <div className="flex justify-center items-center h-64"><p>데이터를 불러오는 중입니다...</p></div>
       ) : (
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropContext onDragEnd={onDragEnd}>
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
             <Card>
