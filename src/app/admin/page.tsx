@@ -31,7 +31,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
@@ -602,6 +602,7 @@ const BusConfigurationTab = ({
 const StudentManagementTab = ({
     students,
     setStudents,
+    buses,
     routes,
     setRoutes,
     destinations,
@@ -613,10 +614,11 @@ const StudentManagementTab = ({
 }:{
     students: Student[],
     setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
+    buses: Bus[],
     routes: Route[],
     setRoutes: React.Dispatch<React.SetStateAction<Route[]>>,
     destinations: Destination[],
-    selectedBusId: string;
+    selectedBusId: string | null;
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
     days: DayOfWeek[];
@@ -625,17 +627,6 @@ const StudentManagementTab = ({
     const { toast } = useToast();
     const [newStudentForm, setNewStudentForm] = useState({ name: '', grade: '', class: '', gender: 'Male' as 'Male' | 'Female', destinationId: '' });
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const buses = useMemo(() => {
-        const busMap = new Map<string, Bus>();
-        routes.forEach(route => {
-            const bus = buses.find(b => b.id === route.busId);
-            if (bus && !busMap.has(bus.id)) {
-                busMap.set(bus.id, bus);
-            }
-        });
-        return Array.from(busMap.values());
-    }, [routes]);
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
@@ -1167,7 +1158,7 @@ const AdminPageFilter = ({
 } : {
     buses: Bus[],
     selectedBusId: string | null,
-    setSelectedBusId: (id: string) => void,
+    setSelectedBusId: (id: string | null) => void,
     selectedDay: DayOfWeek,
     setSelectedDay: (day: DayOfWeek) => void,
     selectedRouteType: RouteType,
@@ -1274,7 +1265,7 @@ export default function AdminPage() {
             }
         };
         fetchData();
-    }, []);
+    }, [selectedBusId]);
 
     const filterComponent = (
         <AdminPageFilter
@@ -1326,10 +1317,11 @@ export default function AdminPage() {
                         <StudentManagementTab 
                             students={students} 
                             setStudents={setStudents}
+                            buses={buses}
                             routes={routes} 
                             setRoutes={setRoutes}
                             destinations={destinations}
-                            selectedBusId={selectedBusId!}
+                            selectedBusId={selectedBusId}
                             selectedDay={selectedDay}
                             selectedRouteType={selectedRouteType}
                             days={days}
