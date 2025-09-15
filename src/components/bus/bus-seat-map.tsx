@@ -7,7 +7,7 @@ import { Bus, Student, Destination } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Crown, User as UserIcon, XCircle, CircleUserRound } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { Draggable } from '@hello-pangea/dnd';
+import { Draggable, Droppable } from '@hello-pangea/dnd';
 
 interface BusSeatMapProps {
   bus: Bus;
@@ -19,10 +19,8 @@ interface BusSeatMapProps {
   absentStudentIds?: string[];
   boardedStudentIds?: string[];
   highlightedStudentId?: string | null;
-  isDropZoneActive?: boolean;
 }
 
-// Provided layout from the image for 45-seater
 const SEAT_MAP_45: (number | null)[] = [
   1, 2, null, 3, 4,
   5, 6, null, 7, 8,
@@ -37,7 +35,6 @@ const SEAT_MAP_45: (number | null)[] = [
   41, 42, 43, 44, 45,
 ];
 
-// Assuming a similar layout logic for 29-seater
 const SEAT_MAP_29: (number | null)[] = [
   1, 2, null, 3, 4,
   5, 6, null, 7, 8,
@@ -48,7 +45,6 @@ const SEAT_MAP_29: (number | null)[] = [
   25, 26, 27, 28, 29,
 ];
 
-// Layout for 15-seater
 const SEAT_MAP_15: (number | null)[] = [
     null, null, 1,
     2, 3, null,
@@ -88,7 +84,6 @@ export function BusSeatMap({
   absentStudentIds = [],
   boardedStudentIds = [],
   highlightedStudentId = null,
-  isDropZoneActive = false,
 }: BusSeatMapProps) {
   const highlightedSeatRef = useRef<HTMLDivElement>(null);
   
@@ -117,10 +112,7 @@ export function BusSeatMap({
 
   return (
     <TooltipProvider>
-      <div className={cn(
-          "p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto",
-          isDropZoneActive && "bg-primary/10"
-      )}>
+      <div className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
         {hasFrontDriver && (
             <div className="mb-4 flex justify-start">
                  <div className="w-1/5">
@@ -157,58 +149,70 @@ export function BusSeatMap({
                 const isBoarded = student ? boardedStudentIds.includes(student.id) : false;
                 const isHighlighted = student ? highlightedStudentId === student.id : false;
 
-                return (
-                    <Draggable
-                        key={seat.seatNumber}
-                        draggableId={student ? student.id : `seat-${seat.seatNumber}`}
-                        index={seat.seatNumber}
-                        isDragDisabled={!draggable || !student}
-                    >
-                        {(provided, snapshot) => (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div
-                                        ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
-                                        {...provided.draggableProps}
-                                        {...provided.dragHandleProps}
-                                        onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-                                        style={snapshot.isDragging ? { ...provided.draggableProps.style, display: 'block'} : provided.draggableProps.style}
-                                        className={cn(
-                                            'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
-                                            onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg',
-                                            student && draggable && 'cursor-grab active:cursor-grabbing',
-                                            snapshot.isDragging ? 'bg-muted/50 border-2 border-dashed text-transparent' : (student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed'),
-                                            isBoarded && !snapshot.isDragging && 'bg-green-300 dark:bg-green-800',
-                                            isHighlighted && !snapshot.isDragging && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
-                                            isAbsent && !snapshot.isDragging && 'bg-destructive/20 text-destructive-foreground/50 opacity-60'
-                                        )}
-                                    >
-                                        {(student && !snapshot.isDragging) ? (
-                                            <>
-                                                {student.isGroupLeader && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
-                                                {isAbsent && <XCircle className="absolute w-3 h-3 text-destructive" />}
-                                                <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
-                                            </>
-                                        ) : (
-                                            <UserIcon className="w-4 h-4 text-muted-foreground" />
-                                        )}
-                                        <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
-                                    </div>
-                                </TooltipTrigger>
-                                {student && (
-                                    <TooltipContent>
-                                        <p>이름: {formatStudentName(student)}</p>
-                                        <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
-                                    </TooltipContent>
-                                )}
-                            </Tooltip>
-                        )}
-                    </Draggable>
+                const seatContent = (
+                  <Droppable 
+                      droppableId={`seat-${seat.seatNumber}`} 
+                      isDropDisabled={!draggable}
+                  >
+                      {(provided, snapshot) => (
+                          <div
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                              onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+                              className={cn(
+                                  'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
+                                  onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg',
+                                  'bg-muted/50 border-2 border-dashed',
+                                  snapshot.isDraggingOver && 'bg-primary/20',
+                                  isBoarded && 'bg-green-300 dark:bg-green-800 border-solid',
+                                  isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
+                                  isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60 border-solid'
+                              )}
+                          >
+                            <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+                            {student ? (
+                                <Draggable draggableId={student.id} index={0}>
+                                    {(provided, snapshot) => (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div
+                                                    ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
+                                                    {...provided.draggableProps}
+                                                    {...provided.dragHandleProps}
+                                                    className={cn(
+                                                        'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
+                                                        draggable && 'cursor-grab active:cursor-grabbing',
+                                                        'bg-card',
+                                                        isBoarded && !snapshot.isDragging && 'bg-green-300 dark:bg-green-800',
+                                                        isHighlighted && !snapshot.isDragging && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
+                                                        isAbsent && !snapshot.isDragging && 'bg-destructive/20 text-destructive-foreground/50 opacity-60'
+                                                    )}
+                                                >
+                                                    {student.isGroupLeader && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
+                                                    {isAbsent && <XCircle className="absolute w-3 h-3 text-destructive" />}
+                                                    <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>이름: {formatStudentName(student)}</p>
+                                                <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    )}
+                                </Draggable>
+                            ) : (
+                               <UserIcon className="w-4 h-4 text-muted-foreground self-center my-auto" />
+                            )}
+                            {provided.placeholder}
+                          </div>
+                      )}
+                  </Droppable>
                 );
+                
+                return <div key={seatNumber}>{seatContent}</div>
             })}
         </div>
       </div>
     </TooltipProvider>
   );
 }
-

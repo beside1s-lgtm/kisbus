@@ -751,44 +751,17 @@ const StudentManagementTab = ({
         }
     };
 
-    const handleSeatDrop = useCallback(async (seatNumber: number, studentId: string, sourceSeatNumber?: number) => {
+    const handleSeatUpdate = useCallback(async (newSeating: {seatNumber: number; studentId: string | null}[]) => {
         if (!currentRoute) return;
 
         const oldRoutes = [...routes];
         
-        let newRoutes = routes.map(route => ({...route}));
-        const routeToUpdateIdx = newRoutes.findIndex(r => r.id === currentRoute.id);
-        if (routeToUpdateIdx === -1) return;
-
-        const newSeating = [...newRoutes[routeToUpdateIdx].seating];
-        const targetSeatIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
-
-        // Check if the seat is already occupied
-        if (targetSeatIdx > -1 && newSeating[targetSeatIdx].studentId !== null && newSeating[targetSeatIdx].studentId !== studentId) {
-            toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
-            return;
-        }
-        
-        // If moving from another seat, unassign from the old seat
-        if (sourceSeatNumber) {
-            const sourceSeatIdx = newSeating.findIndex(s => s.seatNumber === sourceSeatNumber);
-            if (sourceSeatIdx > -1) {
-                newSeating[sourceSeatIdx].studentId = null;
+        let newRoutes = routes.map(route => {
+            if (route.id === currentRoute.id) {
+                return { ...route, seating: newSeating };
             }
-        } else {
-             // If student was on another seat on this route, unassign them first
-            const existingSeatIdx = newSeating.findIndex(s => s.studentId === studentId);
-            if (existingSeatIdx > -1) {
-                newSeating[existingSeatIdx].studentId = null;
-            }
-        }
-        
-        // Assign to the new seat
-        if (targetSeatIdx > -1) {
-            newSeating[targetSeatIdx].studentId = studentId;
-        }
-        
-        newRoutes[routeToUpdateIdx].seating = newSeating;
+            return route;
+        });
         
         setRoutes(newRoutes);
 
@@ -798,7 +771,6 @@ const StudentManagementTab = ({
             setRoutes(oldRoutes);
             toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
         }
-
     }, [currentRoute, routes, setRoutes, toast]);
 
     const unassignStudent = useCallback(async (studentId: string) => {
@@ -1127,23 +1099,47 @@ const StudentManagementTab = ({
     };
 
     const onDragEnd: OnDragEndResponder = (result) => {
-        const { source, destination, draggableId } = result;
+        const { source, destination, draggableId: studentId } = result;
 
-        if (!destination) return;
-        
-        // Dropping onto the seat map
-        if (destination.droppableId === 'bus-seat-map') {
-            const seatNumber = destination.index; // This is now seat number
+        if (!destination || !currentRoute) return;
+
+        const newSeating = [...currentRoute.seating];
+
+        // Case 1: Moving from unassigned list to a seat
+        if (source.droppableId === 'unassigned-students' && destination.droppableId.startsWith('seat-')) {
+            const seatNumber = parseInt(destination.droppableId.replace('seat-', ''));
+            const targetSeat = newSeating.find(s => s.seatNumber === seatNumber);
+            const sourceSeat = newSeating.find(s => s.studentId === studentId);
+
+            if (targetSeat && targetSeat.studentId) {
+                toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
+                return;
+            }
+
+            if (targetSeat) targetSeat.studentId = studentId;
+            if (sourceSeat) sourceSeat.studentId = null; // Un-seat from previous position if any
+
+            handleSeatUpdate(newSeating);
+        }
+        // Case 2: Moving from a seat to another seat
+        else if (source.droppableId.startsWith('seat-') && destination.droppableId.startsWith('seat-')) {
+            const sourceSeatNumber = parseInt(source.droppableId.replace('seat-', ''));
+            const destinationSeatNumber = parseInt(destination.droppableId.replace('seat-', ''));
             
-            // From unassigned list
-            if (source.droppableId === 'unassigned-students') {
-                handleSeatDrop(seatNumber, draggableId);
+            if(sourceSeatNumber === destinationSeatNumber) return;
+
+            const sourceSeat = newSeating.find(s => s.seatNumber === sourceSeatNumber);
+            const destinationSeat = newSeating.find(s => s.seatNumber === destinationSeatNumber);
+
+            if (destinationSeat && destinationSeat.studentId) {
+                 toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
+                return;
             }
-            // From another seat
-            else if (source.droppableId === 'bus-seat-map') {
-                const sourceSeatNumber = source.index; // This is source seat number
-                handleSeatDrop(seatNumber, draggableId, sourceSeatNumber);
-            }
+
+            if (sourceSeat) sourceSeat.studentId = null;
+            if (destinationSeat) destinationSeat.studentId = studentId;
+            
+            handleSeatUpdate(newSeating);
         }
     };
 
@@ -1246,24 +1242,16 @@ const StudentManagementTab = ({
                         </CardHeader>
                         <CardContent>
                            {selectedBus && currentRoute && (
-                            <Droppable droppableId="bus-seat-map">
-                                {(provided, snapshot) => (
-                                    <div ref={provided.innerRef} {...provided.droppableProps} className="flex-grow">
-                                        <BusSeatMap
-                                            bus={selectedBus}
-                                            seating={currentRoute.seating}
-                                            students={students}
-                                            destinations={destinations}
-                                            onSeatClick={(seatNumber, studentId) => {
-                                              if (studentId) unassignStudent(studentId);
-                                            }}
-                                            draggable={true}
-                                            isDropZoneActive={snapshot.isDraggingOver}
-                                        />
-                                        {provided.placeholder}
-                                    </div>
-                                )}
-                            </Droppable>
+                                <BusSeatMap
+                                    bus={selectedBus}
+                                    seating={currentRoute.seating}
+                                    students={students}
+                                    destinations={destinations}
+                                    onSeatClick={(seatNumber, studentId) => {
+                                        if (studentId) unassignStudent(studentId);
+                                    }}
+                                    draggable={true}
+                                />
                            )}
                         </CardContent>
                     </Card>
