@@ -456,7 +456,6 @@ const BusConfigurationTab = ({
       );
       
       setRoutes(newRoutes);
-      setDestinations(prev => [...prev]); // Force re-render
 
       await updateRouteStops(currentRoute.id, newStopIds);
   };
@@ -1506,6 +1505,8 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
 
     
 
