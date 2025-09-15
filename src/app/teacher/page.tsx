@@ -282,7 +282,10 @@ export default function TeacherPage() {
 
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
-    return students.filter(s => formatStudentName(s).toLowerCase().includes(searchQuery.toLowerCase()));
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return students.filter(s => 
+        s.name.toLowerCase().includes(lowerCaseQuery)
+    );
   }, [searchQuery, students]);
 
   const handleSelectStudentFromSearch = (student: Student) => {
