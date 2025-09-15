@@ -119,7 +119,7 @@ export function BusSeatMap({
     <TooltipProvider>
       <div className={cn(
           "p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto",
-          isDropZoneActive && "[&>div>div]:scale-100" // Prevents jiggling
+          isDropZoneActive && "bg-primary/10"
       )}>
         {hasFrontDriver && (
             <div className="mb-4 flex justify-start">
@@ -160,9 +160,8 @@ export function BusSeatMap({
                 return (
                     <Draggable
                         key={seat.seatNumber}
-                        // Use studentId for occupied seats, unique string for empty seats
                         draggableId={student ? student.id : `seat-${seat.seatNumber}`}
-                        index={seat.seatNumber} // Use seatNumber as a stable index
+                        index={seat.seatNumber}
                         isDragDisabled={!draggable || !student}
                     >
                         {(provided, snapshot) => (
@@ -173,20 +172,15 @@ export function BusSeatMap({
                                         {...provided.draggableProps}
                                         {...provided.dragHandleProps}
                                         onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+                                        style={snapshot.isDragging ? { ...provided.draggableProps.style, display: 'block'} : provided.draggableProps.style}
                                         className={cn(
                                             'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
-                                            onSeatClick && 'hover:scale-105 hover:shadow-lg',
-                                            onSeatClick && 'cursor-pointer',
-                                            !student && draggable && 'cursor-default', // Make empty seats non-draggable visually
+                                            onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg',
                                             student && draggable && 'cursor-grab active:cursor-grabbing',
-                                            student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed',
-                                            isBoarded && 'bg-green-300 dark:bg-green-800',
-                                            isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
-                                            isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
-                                            snapshot.isDragging && 'shadow-xl scale-105 z-50',
-                                            // Make the original spot empty while dragging
-                                            snapshot.isDragging ? 'bg-muted/50 border-2 border-dashed text-transparent' : (student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed')
-
+                                            snapshot.isDragging ? 'bg-muted/50 border-2 border-dashed text-transparent' : (student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed'),
+                                            isBoarded && !snapshot.isDragging && 'bg-green-300 dark:bg-green-800',
+                                            isHighlighted && !snapshot.isDragging && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
+                                            isAbsent && !snapshot.isDragging && 'bg-destructive/20 text-destructive-foreground/50 opacity-60'
                                         )}
                                     >
                                         {(student && !snapshot.isDragging) ? (
@@ -217,3 +211,4 @@ export function BusSeatMap({
     </TooltipProvider>
   );
 }
+
