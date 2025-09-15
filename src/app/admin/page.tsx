@@ -19,8 +19,8 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -268,6 +269,55 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
     );
 };
 
+const TeacherAssignmentDialog = ({ bus, teachers, setBuses, onOpenChange }: { bus: Bus, teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>>, onOpenChange: (open: boolean) => void }) => {
+    const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>(bus.teacherIds || []);
+    const { toast } = useToast();
+
+    const handleSave = async () => {
+        try {
+            await updateBus(bus.id, { teacherIds: selectedTeacherIds });
+            setBuses(prevBuses => prevBuses.map(b =>
+                b.id === bus.id ? { ...b, teacherIds: selectedTeacherIds } : b
+            ));
+            toast({ title: "성공", description: "담당 선생님이 변경되었습니다." });
+            onOpenChange(false);
+        } catch (error) {
+            toast({ title: "오류", description: "선생님 변경 중 오류가 발생했습니다.", variant: "destructive" });
+        }
+    };
+
+    const handleCheckboxChange = (teacherId: string, checked: boolean) => {
+        setSelectedTeacherIds(prev =>
+            checked ? [...prev, teacherId] : prev.filter(id => id !== teacherId)
+        );
+    };
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{bus.name} 담당 선생님 변경</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                {teachers.map(teacher => (
+                    <div key={teacher.id} className="flex items-center space-x-2">
+                        <Checkbox
+                            id={`teacher-${teacher.id}`}
+                            checked={selectedTeacherIds.includes(teacher.id)}
+                            onCheckedChange={(checked) => handleCheckboxChange(teacher.id, checked as boolean)}
+                        />
+                        <Label htmlFor={`teacher-${teacher.id}`}>{teacher.name}</Label>
+                    </div>
+                ))}
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
+                <Button onClick={handleSave}>저장</Button>
+            </DialogFooter>
+        </DialogContent>
+    );
+};
+
+
 const BusConfigurationTab = ({
   buses,
   setBuses,
@@ -300,6 +350,7 @@ const BusConfigurationTab = ({
   const [newDestinationName, setNewDestinationName] = useState('');
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
   
   const selectedBus = useMemo(() => {
     if (!selectedBusId) return null;
@@ -515,7 +566,7 @@ const BusConfigurationTab = ({
 
     let numToAssign = 1;
     if (selectedBus.type === '45-seater') {
-        numToAssign = teachers.length > 1 ? (Math.random() < 0.5 ? 1 : 2) : 1;
+        numToAssign = Math.min(teachers.length, 2);
     }
 
     const shuffledTeachers = [...teachers].sort(() => 0.5 - Math.random());
@@ -554,7 +605,15 @@ const BusConfigurationTab = ({
                                             <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
                                             <CardDescription>드래그하여 노선 순서를 정하고, 'X'를 눌러 삭제합니다.</CardDescription>
                                         </div>
-                                        <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>담당 선생님 배정</Button>
+                                        <div className="flex gap-2">
+                                            <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>재배정</Button>
+                                            <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
+                                                <DialogTrigger asChild>
+                                                    <Button variant="outline"><Pencil className="mr-2"/>수동 변경</Button>
+                                                </DialogTrigger>
+                                                <TeacherAssignmentDialog bus={selectedBus} teachers={teachers} setBuses={setBuses} onOpenChange={setIsTeacherDialogOpen} />
+                                            </Dialog>
+                                        </div>
                                     </div>
                                      {assignedTeachers.length > 0 && (
                                         <div className="text-sm text-muted-foreground pt-2">
@@ -935,25 +994,30 @@ const StudentManagementTab = ({
         const batch = writeBatch(db);
         
         for (const targetRoute of targetRoutes) {
-            const targetStudentsForThisRoute = allStudents.filter(s => {
-                 let destId: string | null = null;
-                 if (targetRoute.type === 'Morning') destId = s.morningDestinationId;
-                 else if (targetRoute.type === 'Afternoon') destId = s.afternoonDestinationId;
-                 else if (targetRoute.type === 'AfterSchool') destId = s.afterSchoolDestinations?.[targetRoute.dayOfWeek] || null;
-                 
-                 // Student must have a destination for the target route type and that destination must be one of the stops
-                 return destId && targetRoute.stops.includes(destId);
-            });
+            const newSeatingForTarget = generateInitialSeating(targetRoute.seating.length);
+            
+            sourcePlan.forEach(sourceSeat => {
+                if (!sourceSeat.studentId) return;
 
-            const targetStudentIds = new Set(targetStudentsForThisRoute.map(s => s.id));
+                const student = allStudents.find(s => s.id === sourceSeat.studentId);
+                if (!student) return;
 
-            const newSeatingForTarget = sourcePlan.map(seat => {
-                // If the student in the source plan is also eligible for the target route, keep them.
-                if (seat.studentId && targetStudentIds.has(seat.studentId)) {
-                    return seat;
+                let isEligible = false;
+                if (targetRoute.type === 'Morning') {
+                    isEligible = !!student.morningDestinationId && targetRoute.stops.includes(student.morningDestinationId);
+                } else if (targetRoute.type === 'Afternoon') {
+                    isEligible = !!student.afternoonDestinationId && targetRoute.stops.includes(student.afternoonDestinationId);
+                } else if (targetRoute.type === 'AfterSchool') {
+                    const destId = student.afterSchoolDestinations?.[targetRoute.dayOfWeek];
+                    isEligible = !!destId && targetRoute.stops.includes(destId);
                 }
-                // Otherwise, the seat is empty.
-                return { ...seat, studentId: null };
+
+                if (isEligible) {
+                    const targetSeatIndex = newSeatingForTarget.findIndex(s => s.seatNumber === sourceSeat.seatNumber);
+                    if (targetSeatIndex !== -1) {
+                        newSeatingForTarget[targetSeatIndex].studentId = student.id;
+                    }
+                }
             });
 
             batch.update(doc(db, 'routes', targetRoute.id), { seating: newSeatingForTarget });
@@ -1086,19 +1150,15 @@ const StudentManagementTab = ({
         }
     
         try {
-            // Immediately update the current route's seating plan in the database.
             await updateRouteSeating(currentRoute.id, newSeatingPlan);
         
-            // If it's Monday, proceed to copy the plan to other days.
             if (selectedDay === 'Monday') {
                 const weekdays: DayOfWeek[] = ['Tuesday', 'Wednesday', 'Thursday', 'Friday'];
                 const allWeekdays: DayOfWeek[] = ['Monday', ...weekdays];
         
-                // Define routes to copy to.
                 let routesToCopyTo: Route[] = [];
         
                 if (selectedRouteType === 'Morning') {
-                    // Morning -> Other weekday mornings + All weekday afternoons
                     const otherMorningRoutes = routes.filter(r => 
                         r.busId === selectedBusId &&
                         weekdays.includes(r.dayOfWeek) &&
@@ -1111,7 +1171,6 @@ const StudentManagementTab = ({
                     );
                     routesToCopyTo = [...otherMorningRoutes, ...allAfternoonRoutes];
                 } else if (selectedRouteType === 'Afternoon') {
-                     // Afternoon -> Other weekday afternoons + All weekday mornings
                      const otherAfternoonRoutes = routes.filter(r => 
                         r.busId === selectedBusId &&
                         weekdays.includes(r.dayOfWeek) &&
@@ -1129,20 +1188,15 @@ const StudentManagementTab = ({
                     await copySeatingPlan(newSeatingPlan, routesToCopyTo, students);
                 }
         
-                // After all DB operations, fetch the latest routes to update the UI.
-                const updatedRoutes = await getRoutes();
-                setRoutes(updatedRoutes);
                 toast({ title: "성공", description: "랜덤 배정이 완료되었고, 평일 등/하교 노선에 복사되었습니다." });
         
             } else {
-                // If not Monday, just update the current route in the local state.
-                const finalRoutes = oldRoutes.map(route => 
-                    route.id === currentRoute.id ? { ...route, seating: newSeatingPlan } : route
-                );
-                setRoutes(finalRoutes);
                 toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
             }
         
+            const updatedRoutes = await getRoutes();
+            setRoutes(updatedRoutes);
+
         } catch (error) {
             setRoutes(oldRoutes); // Revert on failure
             console.error("Randomization error:", error);
@@ -1891,5 +1945,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
 
     
