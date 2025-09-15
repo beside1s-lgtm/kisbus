@@ -41,7 +41,7 @@ const isAisle = (itemIndex: number, capacity: number): boolean => {
         const itemRow = Math.floor(itemIndex / 5);
 
         // The last row of 5 seats has no aisle for 45-seater and 29-seater
-        if ((capacity === 45 && itemRow === Math.ceil(45 / 4) -1) || (capacity === 29 && itemRow === Math.ceil(29 / 4) - 1)) {
+        if ((capacity === 45 && itemRow === Math.ceil(45 / 5) -1) || (capacity === 29 && itemRow === Math.ceil(29 / 5) - 1)) {
             return false;
         }
     }
@@ -83,34 +83,12 @@ const getSeatNumberFromIndex = (itemIndex: number, capacity: number): number | n
    
     let seatNumber = seatsInPrevRows + seatInRow;
 
-    if (capacity === 29 && itemRow === Math.ceil(29/4) - 1) {
-       seatNumber = (29 - 5) + itemCol + 1;
-    } else if (capacity === 45 && itemRow === Math.ceil(45/4) - 1) {
-       seatNumber = (45 - 5) + itemCol + 1;
+    if ((capacity === 29 && itemRow === Math.ceil(29/5) - 1) || (capacity === 45 && itemRow === Math.ceil(45/5) - 1)) {
+        const lastRowFirstSeat = capacity - 4;
+        seatNumber = lastRowFirstSeat + itemCol;
     }
     
-    const adjustedIndex = itemIndex -1;
-    const adjustedRow = Math.floor(adjustedIndex/5);
-    const adjustedCol = adjustedIndex % 5;
-    
-    if(isAisle(adjustedIndex, capacity)) return null;
-
-    let calculatedSeatNumber = adjustedRow * 4;
-    if (adjustedCol < 2) {
-      calculatedSeatNumber += adjustedCol + 1;
-    } else {
-      calculatedSeatNumber += adjustedCol;
-    }
-    
-    if (capacity === 29 && calculatedSeatNumber > 24) {
-      return 24 + (adjustedCol + 1);
-    }
-    if (capacity === 45 && calculatedSeatNumber > 40) {
-        return 40 + (adjustedCol + 1);
-    }
-
-
-    return calculatedSeatNumber <= capacity ? calculatedSeatNumber : null;
+    return seatNumber <= capacity ? seatNumber : null;
 };
 
 
@@ -197,16 +175,15 @@ export function BusSeatMap({
                  if(isAisle(adjustedIndex, bus.capacity)) {
                      seatNumber = null;
                  } else {
-                     const seatsInPrevRows = itemRow * 4;
-                     let seatInRow = itemCol + 1;
-                     if(itemCol > 2) seatInRow--;
-                     seatNumber = seatsInPrevRows + seatInRow;
-
-                     if (bus.capacity === 29 && itemRow === Math.ceil(bus.capacity/4) - 1) {
-                         seatNumber = (bus.capacity - 5) + itemCol + 1;
-                     }
-                      if (bus.capacity === 45 && itemRow === Math.ceil(bus.capacity/4) - 1) {
-                         seatNumber = (bus.capacity - 5) + itemCol + 1;
+                     const numRows = Math.ceil(bus.capacity / 4);
+                     if (itemRow === numRows - 1) { // Last row
+                        const lastRowFirstSeat = bus.capacity - 4;
+                        seatNumber = lastRowFirstSeat + itemCol;
+                     } else {
+                        const seatsInPrevRows = itemRow * 4;
+                        let seatInRow = itemCol + 1;
+                        if(itemCol > 2) seatInRow--;
+                        seatNumber = seatsInPrevRows + seatInRow;
                      }
                  }
 
@@ -282,3 +259,5 @@ export function BusSeatMap({
     </TooltipProvider>
   );
 }
+
+    
