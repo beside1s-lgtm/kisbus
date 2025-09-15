@@ -182,15 +182,19 @@ export function BusSeatMap({
                                                     className={cn(
                                                         'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
                                                         draggable && 'cursor-grab active:cursor-grabbing',
-                                                        'bg-card',
+                                                        snapshot.isDragging ? 'bg-muted/50 border-2 border-dashed text-transparent' : 'bg-card',
                                                         isBoarded && !snapshot.isDragging && 'bg-green-300 dark:bg-green-800',
                                                         isHighlighted && !snapshot.isDragging && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
                                                         isAbsent && !snapshot.isDragging && 'bg-destructive/20 text-destructive-foreground/50 opacity-60'
                                                     )}
                                                 >
-                                                    {student.isGroupLeader && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
-                                                    {isAbsent && <XCircle className="absolute w-3 h-3 text-destructive" />}
-                                                    <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
+                                                   {!snapshot.isDragging && (
+                                                      <>
+                                                        {student.isGroupLeader && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
+                                                        {isAbsent && <XCircle className="absolute w-3 h-3 text-destructive" />}
+                                                        <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
+                                                      </>
+                                                   )}
                                                 </div>
                                             </TooltipTrigger>
                                             <TooltipContent>

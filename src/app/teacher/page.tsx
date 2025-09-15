@@ -1,6 +1,8 @@
 
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { DragDropContext, OnDragEndResponder } from '@hello-pangea/dnd';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
@@ -289,6 +291,10 @@ export default function TeacherPage() {
     setSearchQuery('');
   }
 
+  const handleDragEnd: OnDragEndResponder = (result) => {
+    // This is a placeholder. Teacher page does not implement dnd yet.
+  }
+
   const headerContent = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
@@ -405,6 +411,7 @@ export default function TeacherPage() {
       {loading ? (
         <div className="flex justify-center items-center h-64"><p>데이터를 불러오는 중입니다...</p></div>
       ) : (
+      <DragDropContext onDragEnd={handleDragEnd}>
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
             <Card>
@@ -476,6 +483,7 @@ export default function TeacherPage() {
              <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
+      </DragDropContext>
       )}
     </MainLayout>
   );
