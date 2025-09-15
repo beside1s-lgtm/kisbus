@@ -696,8 +696,16 @@ const StudentManagementTab = ({
     const unassignedStudents = useMemo(() => {
         if (!currentRoute) return [];
         const assignedStudentIds = new Set(currentRoute.seating.map(s => s.studentId).filter(Boolean));
-        return students.filter(student => !assignedStudentIds.has(student.id));
-    }, [students, currentRoute]);
+        
+        const isAfterSchool = selectedRouteType === 'AfterSchool';
+        
+        const relevantStudents = students.filter(student => {
+            const hasDestination = isAfterSchool ? !!student.afterSchoolDestinationId : !!student.mainDestinationId;
+            return hasDestination && !assignedStudentIds.has(student.id);
+        });
+
+        return relevantStudents;
+    }, [students, currentRoute, selectedRouteType]);
     
      const handleToggleSelectAll = () => {
         const allUnassignedIds = unassignedStudents.map(s => s.id);
@@ -985,8 +993,8 @@ const StudentManagementTab = ({
     }, [selectedBus, students, routes, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
     
     const handleDownloadStudentTemplate = () => {
-        const headers = "학생 이름,학년,반,성별,등하교 목적지,방과후 목적지";
-        const example = "김민준,G1,C1,Male,강남역,서초역";
+        const headers = "학생 ID,학생 이름,학년,반,성별,등하교 목적지,방과후 목적지";
+        const example = "STUDENT_ID_123,김민준,G1,C1,Male,강남역,서초역";
         const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -1316,7 +1324,7 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-1">
                      <Card className="sticky top-20">
                         <CardHeader>
-                            <CardTitle className="font-headline">미배정 학생</CardTitle>
+                            <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'AfterSchool' ? '방과후' : '등/하교'})</CardTitle>
                             <CardDescription>드래그하여 빈 좌석에 배정하세요.</CardDescription>
                         </CardHeader>
                         <Separator />
@@ -1324,7 +1332,7 @@ const StudentManagementTab = ({
                              <div className="flex justify-end mb-2 gap-2 flex-wrap">
                                  <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
                                  <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
-                                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록</Button>
+                                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록/수정</Button>
                                  <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
                                  <Button size="sm" variant="outline" onClick={handleToggleSelectAll}>
                                     {selectedStudentIds.size === unassignedStudents.length && unassignedStudents.length > 0 ? '선택 해제' : '모두 선택'}
@@ -1368,7 +1376,7 @@ const StudentManagementTab = ({
                                                 )}
                                             </Draggable>
                                         )) : (
-                                            <p className="text-sm text-muted-foreground text-center py-4">모든 학생이 배정되었습니다.</p>
+                                            <p className="text-sm text-muted-foreground text-center py-4">모든 학생이 배정되었거나, 이 노선 유형에 해당하는 학생이 없습니다.</p>
                                         )}
                                         {provided.placeholder}
                                     </div>
