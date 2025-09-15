@@ -406,36 +406,44 @@ const BusConfigurationTab = ({
 
 
   const handleDragEnd = async (result: any) => {
-      const { source, destination, draggableId } = result;
+    const { source, destination, draggableId } = result;
 
-      if (!destination || !currentRoute) return;
+    if (!destination) return;
 
-      const currentStops = getStopsForCurrentRoute();
-      const currentStopIds = currentStops.map(s => s.id);
+    // Find the actual current route from the state, not from the memoized value
+    const latestCurrentRoute = routes.find(r =>
+        r.busId === selectedBusId &&
+        r.dayOfWeek === selectedDay &&
+        r.type === selectedRouteType
+    );
 
-      // Moving from all destinations list to the route list
-      if (source.droppableId === 'all-destinations' && destination.droppableId === 'route-stops') {
-          if (currentStopIds.includes(draggableId)) {
-              toast({ title: "오류", description: "이미 노선에 추가된 목적지입니다.", variant: 'destructive' });
-              return;
-          }
-          const newStopIds = Array.from(currentStopIds);
-          newStopIds.splice(destination.index, 0, draggableId);
+    if (!latestCurrentRoute) return;
 
-          const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
-          setRoutes(newRoutes);
-          await updateRouteStops(currentRoute.id, newStopIds);
-      }
-      // Reordering within the route list
-      else if (source.droppableId === 'route-stops' && destination.droppableId === 'route-stops') {
-          const newStopIds = Array.from(currentStopIds);
-          const [reorderedItem] = newStopIds.splice(source.index, 1);
-          newStopIds.splice(destination.index, 0, reorderedItem);
+    const currentStopIds = latestCurrentRoute.stops || [];
 
-          const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
-          setRoutes(newRoutes);
-          await updateRouteStops(currentRoute.id, newStopIds);
-      }
+    // Moving from all destinations list to the route list
+    if (source.droppableId === 'all-destinations' && destination.droppableId === 'route-stops') {
+        if (currentStopIds.includes(draggableId)) {
+            toast({ title: "오류", description: "이미 노선에 추가된 목적지입니다.", variant: 'destructive' });
+            return;
+        }
+        const newStopIds = Array.from(currentStopIds);
+        newStopIds.splice(destination.index, 0, draggableId);
+
+        const newRoutes = routes.map(r => r.id === latestCurrentRoute.id ? { ...r, stops: newStopIds } : r);
+        setRoutes(newRoutes);
+        await updateRouteStops(latestCurrentRoute.id, newStopIds);
+    }
+    // Reordering within the route list
+    else if (source.droppableId === 'route-stops' && destination.droppableId === 'route-stops') {
+        const newStopIds = Array.from(currentStopIds);
+        const [reorderedItem] = newStopIds.splice(source.index, 1);
+        newStopIds.splice(destination.index, 0, reorderedItem);
+
+        const newRoutes = routes.map(r => r.id === latestCurrentRoute.id ? { ...r, stops: newStopIds } : r);
+        setRoutes(newRoutes);
+        await updateRouteStops(latestCurrentRoute.id, newStopIds);
+    }
   };
 
   const removeStopFromRoute = async (stopId: string) => {
@@ -1500,4 +1508,3 @@ export default function AdminPage() {
 }
 
     
-
