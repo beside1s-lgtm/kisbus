@@ -9,8 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, PlusCircle, Bus, Clock } from 'lucide-react';
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
+import { UserPlus, Bus, Clock } from 'lucide-react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -32,7 +31,6 @@ export default function ApplyPage() {
     const [customMainDestName, setCustomMainDestName] = useState('');
     const [customAfterSchoolDestName, setCustomAfterSchoolDestName] = useState('');
 
-    const [newDestinationName, setNewDestinationName] = useState('');
     const { toast } = useToast();
 
     useEffect(() => {
@@ -169,24 +167,6 @@ export default function ApplyPage() {
         }
     }
 
-    const handleSuggestionSubmit = async () => {
-        if (!newDestinationName.trim()) {
-            toast({ title: "오류", description: "제안할 목적지 이름을 입력해주세요.", variant: "destructive" });
-            return;
-        }
-
-        try {
-            await addSuggestedDestination({ name: newDestinationName.trim() });
-            setNewDestinationName('');
-            toast({ title: "제안 제출됨", description: "새로운 목적지가 제안되었습니다. 관리자 승인 후 목록에 추가됩니다."})
-            document.getElementById('suggest-dest-dialog-close')?.click();
-        } catch (error) {
-            console.error("Error submitting suggestion:", error);
-            toast({ title: "오류", description: "제안 처리에 실패했습니다.", variant: "destructive" });
-        }
-    }
-
-
     return (
         <MainLayout>
             <div className="flex flex-col items-center gap-8">
@@ -299,36 +279,9 @@ export default function ApplyPage() {
                         </CardContent>
                     </Card>
                 </div>
-                
-                <div className="text-center">
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="link">
-                                <PlusCircle className="mr-2" />
-                                찾는 목적지가 없으신가요? (단순 제안)
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                             <DialogHeader>
-                                <DialogTitle>신규 목적지 제안</DialogTitle>
-                             </DialogHeader>
-                             <div className="flex flex-col gap-4">
-                                <p className="text-sm text-muted-foreground">
-                                    신청과 별개로, 목록에 추가되었으면 하는 목적지를 제안할 수 있습니다.
-                                </p>
-                                <Input 
-                                    placeholder="예: 서초역" 
-                                    value={newDestinationName}
-                                    onChange={(e) => setNewDestinationName(e.target.value)}
-                                />
-                                <Button onClick={handleSuggestionSubmit}>제안하기</Button>
-                                <DialogClose id="suggest-dest-dialog-close" />
-                             </div>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-
             </div>
         </MainLayout>
     );
 }
+
+    
