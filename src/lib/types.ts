@@ -2,7 +2,8 @@
 export type Student = {
   id: string;
   name: string;
-  mainDestinationId: string | null;
+  morningDestinationId: string | null;
+  afternoonDestinationId: string | null;
   afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>>;
   grade: string;
   class: string;
@@ -11,8 +12,9 @@ export type Student = {
   daysAsGroupLeader: number;
   groupLeaderStartDate?: string;
   groupLeaderEndDate?: string;
-  suggestedMainDestination?: string | null;
-  suggestedAfterSchoolDestination?: string | null;
+  suggestedMorningDestination?: string | null;
+  suggestedAfternoonDestination?: string | null;
+  suggestedAfterSchoolDestinations?: Partial<Record<DayOfWeek, string | null>>;
 };
 export type NewStudent = Omit<Student, 'id' | 'isGroupLeader' | 'daysAsGroupLeader'>;
 

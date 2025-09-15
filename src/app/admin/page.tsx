@@ -42,6 +42,15 @@ const generateInitialSeating = (capacity: number): { seatNumber: number; student
     }));
 };
 
+const dayLabels: { [key in DayOfWeek]: string } = {
+    Monday: '월요일',
+    Tuesday: '화요일',
+    Wednesday: '수요일',
+    Thursday: '목요일',
+    Friday: '금요일',
+    Saturday: '토요일',
+};
+
 const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
@@ -697,16 +706,18 @@ const StudentManagementTab = ({
         if (!currentRoute) return [];
         const assignedStudentIds = new Set(currentRoute.seating.map(s => s.studentId).filter(Boolean));
         
-        const isAfterSchool = selectedRouteType === 'AfterSchool';
-        
-        const relevantStudents = students.filter(student => {
-             const hasDestination = isAfterSchool
-                ? student.afterSchoolDestinations && student.afterSchoolDestinations[selectedDay]
-                : !!student.mainDestinationId;
+        return students.filter(student => {
+            let hasDestination = false;
+            if (selectedRouteType === 'Morning') {
+                hasDestination = !!student.morningDestinationId;
+            } else if (selectedRouteType === 'Afternoon') {
+                hasDestination = !!student.afternoonDestinationId;
+            } else if (selectedRouteType === 'AfterSchool') {
+                hasDestination = student.afterSchoolDestinations ? !!student.afterSchoolDestinations[selectedDay] : false;
+            }
             return hasDestination && !assignedStudentIds.has(student.id);
         });
 
-        return relevantStudents;
     }, [students, currentRoute, selectedRouteType, selectedDay]);
     
      const handleToggleSelectAll = () => {
@@ -845,7 +856,14 @@ const StudentManagementTab = ({
         const oldRoutes = [...routes];
 
         const studentsForThisRoute = students.filter(s => {
-            const destId = selectedRouteType === 'AfterSchool' ? (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null) : s.mainDestinationId;
+            let destId: string | null = null;
+            if (selectedRouteType === 'Morning') {
+                destId = s.morningDestinationId;
+            } else if (selectedRouteType === 'Afternoon') {
+                destId = s.afternoonDestinationId;
+            } else if (selectedRouteType === 'AfterSchool') {
+                destId = s.afterSchoolDestinations?.[selectedDay] || null;
+            }
             return destId && currentRoute.stops.includes(destId);
         });
 
@@ -903,8 +921,15 @@ const StudentManagementTab = ({
                 if (!occupiedSeats.has(pair[0]) && !occupiedSeats.has(pair[1])) {
                     const [seat1, seat2] = pair;
     
-                    const maleDestId = selectedRouteType === 'AfterSchool' ? (male.afterSchoolDestinations ? male.afterSchoolDestinations[selectedDay] : null) : male.mainDestinationId;
-                    const femaleDestId = selectedRouteType === 'AfterSchool' ? (female.afterSchoolDestinations ? female.afterSchoolDestinations[selectedDay] : null) : female.mainDestinationId;
+                    let maleDestId: string | null = null;
+                    if (selectedRouteType === 'Morning') maleDestId = male.morningDestinationId;
+                    else if (selectedRouteType === 'Afternoon') maleDestId = male.afternoonDestinationId;
+                    else if (selectedRouteType === 'AfterSchool') maleDestId = male.afterSchoolDestinations?.[selectedDay] || null;
+
+                    let femaleDestId: string | null = null;
+                    if (selectedRouteType === 'Morning') femaleDestId = female.morningDestinationId;
+                    else if (selectedRouteType === 'Afternoon') femaleDestId = female.afternoonDestinationId;
+                    else if (selectedRouteType === 'AfterSchool') femaleDestId = female.afterSchoolDestinations?.[selectedDay] || null;
 
                     const maleStopIndex = routeStopOrder.indexOf(maleDestId!);
                     const femaleStopIndex = routeStopOrder.indexOf(femaleDestId!);
@@ -995,8 +1020,8 @@ const StudentManagementTab = ({
     }, [selectedBus, students, routes, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
     
     const handleDownloadStudentTemplate = () => {
-        const headers = "학생 ID,학생 이름,학년,반,성별,등하교 목적지,방과후 목적지";
-        const example = "STUDENT_ID_123,김민준,G1,C1,Male,강남역,서초역";
+        const headers = "학생 ID,학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월),방과후 목적지(화),방과후 목적지(수),방과후 목적지(목),방과후 목적지(금),방과후 목적지(토)";
+        const example = "STUDENT_ID_123,김민준,G1,C1,Male,강남역,서초역,양재역,양재역,양재역,양재역,양재역,";
         const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -1013,18 +1038,19 @@ const StudentManagementTab = ({
             return;
         }
 
-        const headers = "학생 ID,학생 이름,학년,반,성별,등하교 목적지,방과후 목적지";
+        const headers = "학생 ID,학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지";
         const csvData = unassignedStudents.map(s => {
-            const mainDestName = destinations.find(d => d.id === s.mainDestinationId)?.name || '';
+            const morningDestName = destinations.find(d => d.id === s.morningDestinationId)?.name || '';
+            const afternoonDestName = destinations.find(d => d.id === s.afternoonDestinationId)?.name || '';
             const afterSchoolDestName = destinations.find(d => d.id === (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null))?.name || '';
-            return [s.id, s.name, s.grade, s.class, s.gender, mainDestName, afterSchoolDestName].join(',');
+            return [s.id, s.name, s.grade, s.class, s.gender, morningDestName, afternoonDestName, afterSchoolDestName].join(',');
         }).join('\n');
 
         const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + csvData;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "unassigned_students.csv");
+        link.setAttribute("download", `unassigned_students_${selectedRouteType}_${selectedDay}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1040,46 +1066,45 @@ const StudentManagementTab = ({
             complete: async (results) => {
                 const studentsToUpdate: { id: string; data: Partial<Student> }[] = [];
                 const studentsToAdd: NewStudent[] = [];
+                const allDestinations = [...destinations];
+
+                const findDestId = (name: string) => allDestinations.find(d => d.name === name)?.id || null;
 
                 results.data.forEach((row: any) => {
-                    const mainDestName = (row['등하교 목적지'] || '').trim();
-                    const afterSchoolDestName = (row['방과후 목적지'] || '').trim();
-                    
-                    const mainDestination = destinations.find(d => d.name === mainDestName);
-                    const afterSchoolDestination = destinations.find(d => d.name === afterSchoolDestName);
-
                     const studentId = (row['학생 ID'] || '').trim();
-                    
-                    if (studentId) { // Existing student to update
-                        const studentUpdate: { id: string; data: Partial<Student> } = { id: studentId, data: {} };
-                        if (mainDestination) studentUpdate.data.mainDestinationId = mainDestination.id;
-                        
-                        // For after school, we assume the CSV applies to all days for simplicity
-                        if (afterSchoolDestination) {
-                            const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
-                            days.forEach(day => {
-                                afterSchoolDestinations[day] = afterSchoolDestination.id;
-                            });
-                            studentUpdate.data.afterSchoolDestinations = afterSchoolDestinations;
-                        }
+                    const studentData: Partial<Student> = {};
 
-                        if(Object.keys(studentUpdate.data).length > 0) {
-                           studentsToUpdate.push(studentUpdate);
+                    const morningDestName = (row['등교 목적지'] || '').trim();
+                    if(morningDestName) studentData.morningDestinationId = findDestId(morningDestName);
+
+                    const afternoonDestName = (row['하교 목적지'] || '').trim();
+                    if(afternoonDestName) studentData.afternoonDestinationId = findDestId(afternoonDestName);
+
+                    const afterSchoolDests: Partial<Record<DayOfWeek, string | null>> = {};
+                    let hasAfterSchool = false;
+                    days.forEach(day => {
+                        const dayLabel = dayLabels[day];
+                        const destName = (row[`방과후 목적지(${dayLabel})`] || '').trim();
+                        if (destName) {
+                            afterSchoolDests[day] = findDestId(destName);
+                            hasAfterSchool = true;
+                        }
+                    });
+                    if(hasAfterSchool) studentData.afterSchoolDestinations = afterSchoolDests;
+
+                    if (studentId) { // Existing student to update
+                        if (Object.keys(studentData).length > 0) {
+                            studentsToUpdate.push({ id: studentId, data: studentData });
                         }
                     } else { // New student to add
-                        const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
-                        if(afterSchoolDestination){
-                            days.forEach(day => {
-                                afterSchoolDestinations[day] = afterSchoolDestination.id;
-                            });
-                        }
                         const newStudent: NewStudent = {
                             name: (row['학생 이름'] || '').trim(),
                             grade: (row['학년'] || '').trim(),
                             class: (row['반'] || '').trim(),
                             gender: (row['성별'] || '').trim() as 'Male' | 'Female',
-                            mainDestinationId: mainDestination?.id || null,
-                            afterSchoolDestinations: afterSchoolDestinations
+                            morningDestinationId: studentData.morningDestinationId || null,
+                            afternoonDestinationId: studentData.afternoonDestinationId || null,
+                            afterSchoolDestinations: studentData.afterSchoolDestinations || {},
                         };
                         if (newStudent.name && newStudent.grade && newStudent.class && newStudent.gender) {
                             studentsToAdd.push(newStudent);
@@ -1132,28 +1157,38 @@ const StudentManagementTab = ({
     };
     
      const handleAddStudent = async () => {
-        const { name, grade, class: studentClass, gender, mainDestinationId, afterSchoolDestinations } = newStudentForm;
+        const { name, grade, class: studentClass, gender, morningDestinationId, afternoonDestinationId, afterSchoolDestinations } = newStudentForm;
         if (!name || !grade || !studentClass || !gender) {
             toast({ title: "오류", description: "목적지를 제외한 모든 필드를 입력해주세요.", variant: "destructive" });
             return;
         }
         try {
-            const newStudentData: NewStudent = { name, grade, class: studentClass, gender, mainDestinationId: mainDestinationId || null, afterSchoolDestinations: afterSchoolDestinations || {} };
+            const newStudentData: NewStudent = { 
+                name, 
+                grade, 
+                class: studentClass, 
+                gender, 
+                morningDestinationId: morningDestinationId || null, 
+                afternoonDestinationId: afternoonDestinationId || null,
+                afterSchoolDestinations: afterSchoolDestinations || {} 
+            };
             const newStudent = await addStudent(newStudentData);
             setStudents(prev => [...prev, newStudent]);
-            setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', mainDestinationId: '', afterSchoolDestinations: {} });
+            setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', morningDestinationId: null, afternoonDestinationId: null, afterSchoolDestinations: {} });
             toast({ title: "성공", description: "학생이 추가되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "학생 추가 실패", variant: "destructive" });
         }
     };
 
-    const handleDestinationChange = async (studentId: string, newDestinationId: string, type: 'main' | 'afterSchool') => {
+    const handleDestinationChange = async (studentId: string, newDestinationId: string, type: 'morning' | 'afternoon' | 'afterSchool') => {
         try {
             let updateData: Partial<Student>;
 
-            if (type === 'main') {
-                 updateData = { mainDestinationId: newDestinationId };
+            if (type === 'morning') {
+                 updateData = { morningDestinationId: newDestinationId };
+            } else if (type === 'afternoon') {
+                 updateData = { afternoonDestinationId: newDestinationId };
             } else {
                  const student = students.find(s => s.id === studentId);
                  if (!student) return;
@@ -1305,8 +1340,19 @@ const StudentManagementTab = ({
                                                 </Select>
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="destination" className="text-right">등/하교 목적지</Label>
-                                                <Select value={newStudentForm.mainDestinationId || ''} onValueChange={(v) => setNewStudentForm(p => ({...p, mainDestinationId: v}))}>
+                                                <Label htmlFor="destination" className="text-right">등교 목적지</Label>
+                                                <Select value={newStudentForm.morningDestinationId || ''} onValueChange={(v) => setNewStudentForm(p => ({...p, morningDestinationId: v}))}>
+                                                    <SelectTrigger className="col-span-3">
+                                                        <SelectValue placeholder="목적지 선택" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="destination" className="text-right">하교 목적지</Label>
+                                                <Select value={newStudentForm.afternoonDestinationId || ''} onValueChange={(v) => setNewStudentForm(p => ({...p, afternoonDestinationId: v}))}>
                                                     <SelectTrigger className="col-span-3">
                                                         <SelectValue placeholder="목적지 선택" />
                                                     </SelectTrigger>
@@ -1357,7 +1403,7 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-1">
                      <Card className="sticky top-20">
                         <CardHeader>
-                            <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'AfterSchool' ? `(${dayLabels[selectedDay]}) 방과후` : '등/하교'})</CardTitle>
+                            <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : `(${dayLabels[selectedDay]}) 방과후`})</CardTitle>
                             <CardDescription>드래그하여 빈 좌석에 배정하세요.</CardDescription>
                         </CardHeader>
                         <Separator />
@@ -1514,14 +1560,6 @@ export default function AdminPage() {
     const [loading, setLoading] = useState(true);
 
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayLabels: { [key in DayOfWeek]: string } = {
-        Monday: '월요일',
-        Tuesday: '화요일',
-        Wednesday: '수요일',
-        Thursday: '목요일',
-        Friday: '금요일',
-        Saturday: '토요일',
-    }
 
     useEffect(() => {
         const fetchData = async () => {

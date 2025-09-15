@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Bus, Clock } from 'lucide-react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 
 const daysOfWeek: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const dayLabels: Record<DayOfWeek, string> = {
@@ -34,9 +35,13 @@ export default function ApplyPage() {
     const [studentClass, setStudentClass] = useState('');
     const [gender, setGender] = useState<'Male' | 'Female'>('Male');
     
-    const [mainDestinationId, setMainDestinationId] = useState<string | null>(null);
-    const [useCustomMainDest, setUseCustomMainDest] = useState(false);
-    const [customMainDestName, setCustomMainDestName] = useState('');
+    const [morningDestinationId, setMorningDestinationId] = useState<string | null>(null);
+    const [useCustomMorningDest, setUseCustomMorningDest] = useState(false);
+    const [customMorningDestName, setCustomMorningDestName] = useState('');
+
+    const [afternoonDestinationId, setAfternoonDestinationId] = useState<string | null>(null);
+    const [useCustomAfternoonDest, setUseCustomAfternoonDest] = useState(false);
+    const [customAfternoonDestName, setCustomAfternoonDestName] = useState('');
 
     const [afterSchoolDays, setAfterSchoolDays] = useState<Partial<Record<DayOfWeek, boolean>>>({});
     const [afterSchoolDestinations, setAfterSchoolDestinations] = useState<Partial<Record<DayOfWeek, string | null>>>({});
@@ -77,32 +82,42 @@ export default function ApplyPage() {
     const handleMainSubmit = async () => {
         if (!validateBaseInfo()) return;
         
-        if (!useCustomMainDest && !mainDestinationId) {
-            toast({ title: "오류", description: "목적지를 선택해주세요.", variant: "destructive" });
-            return;
-        }
-        if (useCustomMainDest && !customMainDestName.trim()) {
-            toast({ title: "오류", description: "새로운 목적지 이름을 입력해주세요.", variant: "destructive" });
+        const hasMorningSelection = !useCustomMorningDest && morningDestinationId;
+        const hasCustomMorning = useCustomMorningDest && customMorningDestName.trim();
+        const hasAfternoonSelection = !useCustomAfternoonDest && afternoonDestinationId;
+        const hasCustomAfternoon = useCustomAfternoonDest && customAfternoonDestName.trim();
+
+        if (!hasMorningSelection && !hasCustomMorning && !hasAfternoonSelection && !hasCustomAfternoon) {
+             toast({ title: "오류", description: "등교 또는 하교 목적지 중 하나 이상을 선택하거나 입력해주세요.", variant: "destructive" });
             return;
         }
 
         const existingStudent = findExistingStudent();
-        
         let updateData: Partial<Student> = {};
         
-        if (useCustomMainDest) {
-            try {
-                await addSuggestedDestination({ name: customMainDestName.trim() });
-                toast({ title: "제안 제출됨", description: `"${customMainDestName.trim()}" 목적지가 제안되었습니다. 관리자 승인 후 정식 목록에 추가됩니다.` });
-                updateData.suggestedMainDestination = customMainDestName.trim();
-                updateData.mainDestinationId = null;
-            } catch(e) {
-                toast({ title: "오류", description: "목적지 제안 실패", variant: "destructive" });
-                return;
+        try {
+            if (useCustomMorningDest && customMorningDestName.trim()) {
+                await addSuggestedDestination({ name: customMorningDestName.trim() });
+                toast({ title: "제안 제출됨", description: `"${customMorningDestName.trim()}" 목적지가 제안되었습니다.` });
+                updateData.suggestedMorningDestination = customMorningDestName.trim();
+                updateData.morningDestinationId = null;
+            } else {
+                updateData.morningDestinationId = morningDestinationId;
+                updateData.suggestedMorningDestination = null;
             }
-        } else {
-            updateData.mainDestinationId = mainDestinationId;
-            updateData.suggestedMainDestination = null;
+
+            if (useCustomAfternoonDest && customAfternoonDestName.trim()) {
+                await addSuggestedDestination({ name: customAfternoonDestName.trim() });
+                toast({ title: "제안 제출됨", description: `"${customAfternoonDestName.trim()}" 목적지가 제안되었습니다.` });
+                updateData.suggestedAfternoonDestination = customAfternoonDestName.trim();
+                updateData.afternoonDestinationId = null;
+            } else {
+                updateData.afternoonDestinationId = afternoonDestinationId;
+                updateData.suggestedAfternoonDestination = null;
+            }
+        } catch(e) {
+            toast({ title: "오류", description: "목적지 제안 실패", variant: "destructive" });
+            return;
         }
 
         try {
@@ -115,18 +130,23 @@ export default function ApplyPage() {
                     grade: grade.trim(),
                     class: studentClass.trim(),
                     gender,
-                    mainDestinationId: updateData.mainDestinationId || null,
+                    morningDestinationId: updateData.morningDestinationId || null,
+                    afternoonDestinationId: updateData.afternoonDestinationId || null,
                     afterSchoolDestinations: {},
-                    suggestedMainDestination: updateData.suggestedMainDestination || null,
+                    suggestedMorningDestination: updateData.suggestedMorningDestination || null,
+                    suggestedAfternoonDestination: updateData.suggestedAfternoonDestination || null,
                 };
                 const addedStudent = await addStudent(newStudentData);
                 setAllStudents(prevStudents => [...prevStudents, addedStudent]);
             }
             toast({ title: "신청 완료!", description: `${name} 학생의 등/하교 버스 정보가 업데이트되었습니다.` });
              // Clear form fields
-            setMainDestinationId(null);
-            setCustomMainDestName('');
-            setUseCustomMainDest(false);
+            setMorningDestinationId(null);
+            setCustomMorningDestName('');
+            setUseCustomMorningDest(false);
+            setAfternoonDestinationId(null);
+            setCustomAfternoonDestName('');
+            setUseCustomAfternoonDest(false);
 
         } catch (error) {
             console.error("Error submitting main application:", error);
@@ -139,8 +159,11 @@ export default function ApplyPage() {
 
         const existingStudent = findExistingStudent();
         let finalDestinations: Partial<Record<DayOfWeek, string | null>> = existingStudent?.afterSchoolDestinations || {};
+        let finalSuggestedDests: Partial<Record<DayOfWeek, string | null>> = existingStudent?.suggestedAfterSchoolDestinations || {};
 
         let hasError = false;
+        const suggestionPromises = [];
+
         for (const day of daysOfWeek) {
             if (afterSchoolDays[day]) {
                 const isCustom = useCustomAfterSchoolDests[day];
@@ -157,28 +180,35 @@ export default function ApplyPage() {
                     hasError = true;
                     break;
                 }
-                 if (isCustom && customName) {
-                    try {
-                        await addSuggestedDestination({ name: customName });
-                        toast({ title: "제안 제출됨", description: `"${customName}" 목적지가 제안되었습니다.` });
-                        // This doesn't assign the student yet, just suggests. Let's mark it as null for now.
-                        // Admin needs to approve and then assign.
-                        finalDestinations[day] = null;
-                    } catch(e) {
-                         toast({ title: "오류", description: "목적지 제안 실패", variant: "destructive" });
-                         hasError = true;
-                         break;
-                    }
+                if (isCustom && customName) {
+                    suggestionPromises.push(addSuggestedDestination({ name: customName }));
+                    finalDestinations[day] = null;
+                    finalSuggestedDests[day] = customName;
                 } else {
                     finalDestinations[day] = selectedId || null;
+                    finalSuggestedDests[day] = null;
                 }
             } else {
-                 finalDestinations[day] = null; // Unchecked means not using the bus
+                 finalDestinations[day] = null;
+                 finalSuggestedDests[day] = null;
             }
         }
         if (hasError) return;
+        
+        try {
+            await Promise.all(suggestionPromises);
+            if (suggestionPromises.length > 0) {
+                 toast({ title: "제안 제출됨", description: `새로운 방과후 목적지들이 제안되었습니다.` });
+            }
+        } catch(e) {
+            toast({ title: "오류", description: "방과후 목적지 제안 중 오류 발생", variant: "destructive" });
+            return;
+        }
 
-        const updateData: Partial<Student> = { afterSchoolDestinations: finalDestinations };
+        const updateData: Partial<Student> = { 
+            afterSchoolDestinations: finalDestinations,
+            suggestedAfterSchoolDestinations: finalSuggestedDests
+        };
 
          try {
             if (existingStudent) {
@@ -190,8 +220,10 @@ export default function ApplyPage() {
                     grade: grade.trim(),
                     class: studentClass.trim(),
                     gender,
-                    mainDestinationId: null,
+                    morningDestinationId: null,
+                    afternoonDestinationId: null,
                     afterSchoolDestinations: finalDestinations,
+                    suggestedAfterSchoolDestinations: finalSuggestedDests
                 };
                 const addedStudent = await addStudent(newStudentData);
                 setAllStudents(prevStudents => [...prevStudents, addedStudent]);
@@ -270,13 +302,13 @@ export default function ApplyPage() {
                      <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 font-headline"><Bus /> 등/하교 버스</CardTitle>
-                             <CardDescription>등/하교 시 하차할 목적지를 선택하고 신청하세요.</CardDescription>
+                             <CardDescription>등교, 하교 시 하차할 목적지를 선택하고 신청하세요. 하나만 신청 가능합니다.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                              <div className="space-y-2">
-                                <Label htmlFor="mainDestinationId">등/하교 목적지</Label>
-                                <Select name="mainDestinationId" value={mainDestinationId || ''} onValueChange={setMainDestinationId} disabled={useCustomMainDest}>
-                                    <SelectTrigger id="mainDestinationId">
+                                <Label htmlFor="morningDestinationId">등교 목적지</Label>
+                                <Select name="morningDestinationId" value={morningDestinationId || ''} onValueChange={setMorningDestinationId} disabled={useCustomMorningDest}>
+                                    <SelectTrigger id="morningDestinationId">
                                         <SelectValue placeholder="목적지 선택" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -285,17 +317,44 @@ export default function ApplyPage() {
                                 </Select>
                             </div>
                              <div className="flex items-center space-x-2">
-                                <Checkbox id="useCustomMainDest" checked={useCustomMainDest} onCheckedChange={(checked) => setUseCustomMainDest(checked as boolean)} />
-                                <label htmlFor="useCustomMainDest" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    찾는 목적지가 없나요? 직접 입력하세요.
+                                <Checkbox id="useCustomMorningDest" checked={useCustomMorningDest} onCheckedChange={(checked) => setUseCustomMorningDest(checked as boolean)} />
+                                <label htmlFor="useCustomMorningDest" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    등교 목적지가 없나요? 직접 입력하세요.
                                 </label>
                             </div>
-                            {useCustomMainDest && (
+                            {useCustomMorningDest && (
                                 <div className="space-y-2">
-                                    <Label htmlFor="customMainDestName">새 목적지 이름</Label>
-                                    <Input id="customMainDestName" value={customMainDestName} onChange={e => setCustomMainDestName(e.target.value)} placeholder="예: 서초역 1번 출구" />
+                                    <Label htmlFor="customMorningDestName">새 등교 목적지 이름</Label>
+                                    <Input id="customMorningDestName" value={customMorningDestName} onChange={e => setCustomMorningDestName(e.target.value)} placeholder="예: 서초역 1번 출구" />
                                 </div>
                             )}
+                            
+                            <Separator />
+
+                            <div className="space-y-2">
+                                <Label htmlFor="afternoonDestinationId">하교 목적지</Label>
+                                <Select name="afternoonDestinationId" value={afternoonDestinationId || ''} onValueChange={setAfternoonDestinationId} disabled={useCustomAfternoonDest}>
+                                    <SelectTrigger id="afternoonDestinationId">
+                                        <SelectValue placeholder="목적지 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="flex items-center space-x-2">
+                                <Checkbox id="useCustomAfternoonDest" checked={useCustomAfternoonDest} onCheckedChange={(checked) => setUseCustomAfternoonDest(checked as boolean)} />
+                                <label htmlFor="useCustomAfternoonDest" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    하교 목적지가 없나요? 직접 입력하세요.
+                                </label>
+                            </div>
+                            {useCustomAfternoonDest && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="customAfternoonDestName">새 하교 목적지 이름</Label>
+                                    <Input id="customAfternoonDestName" value={customAfternoonDestName} onChange={e => setCustomAfternoonDestName(e.target.value)} placeholder="예: 강남역 5번 출구" />
+                                </div>
+                            )}
+                            
                             <Button onClick={handleMainSubmit} className="w-full">등/하교 버스 신청</Button>
                         </CardContent>
                     </Card>

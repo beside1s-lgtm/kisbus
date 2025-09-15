@@ -115,7 +115,14 @@ export function BusSeatMap({
   }
 
   const getDestinationName = (student: Student) => {
-      const destId = routeType === 'AfterSchool' ? student.afterSchoolDestinations?.[dayOfWeek] : student.mainDestinationId;
+      let destId: string | null = null;
+      if (routeType === 'Morning') {
+        destId = student.morningDestinationId;
+      } else if (routeType === 'Afternoon') {
+        destId = student.afternoonDestinationId;
+      } else if (routeType === 'AfterSchool') {
+        destId = student.afterSchoolDestinations?.[dayOfWeek] || null;
+      }
       return destinations.find(d => d.id === destId)?.name || 'N/A';
   }
 

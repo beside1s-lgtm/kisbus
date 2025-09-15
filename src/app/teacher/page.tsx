@@ -175,10 +175,14 @@ export default function TeacherPage() {
   }, [currentRoute, students]);
   
   const findRoutesForStudent = async (student: Student): Promise<Route[]> => {
-    const isAfterSchool = selectedRouteType === 'AfterSchool';
-    const destId = isAfterSchool 
-      ? student.afterSchoolDestinations?.[selectedDay] 
-      : student.mainDestinationId;
+    let destId: string | null = null;
+    if (selectedRouteType === 'Morning') {
+        destId = student.morningDestinationId;
+    } else if (selectedRouteType === 'Afternoon') {
+        destId = student.afternoonDestinationId;
+    } else if (selectedRouteType === 'AfterSchool') {
+        destId = student.afterSchoolDestinations?.[selectedDay] || null;
+    }
       
     if (!destId) return [];
     
@@ -400,7 +404,13 @@ export default function TeacherPage() {
                     </Avatar>
                     <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
                     <p className="text-sm text-muted-foreground">
-                        목적지: {destinations.find(d => d.id === (selectedRouteType === 'AfterSchool' ? selectedStudent.afterSchoolDestinations?.[selectedDay] : selectedStudent.mainDestinationId))?.name || '해당 없음'}
+                        목적지: {destinations.find(d => {
+                            let destId: string | null = null;
+                            if (selectedRouteType === 'Morning') destId = selectedStudent.morningDestinationId;
+                            else if (selectedRouteType === 'Afternoon') destId = selectedStudent.afternoonDestinationId;
+                            else if (selectedRouteType === 'AfterSchool') destId = selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
+                            return d.id === destId;
+                        })?.name || '해당 없음'}
                     </p>
                 </div>
                 <Separator className="my-4" />

@@ -11,7 +11,7 @@ import { Checkbox } from '../ui/checkbox';
 interface DraggableStudentCardProps {
   student: Student;
   destinations: Destination[];
-  onDestinationChange: (studentId: string, newDestinationId: string, type: 'main' | 'afterSchool') => void;
+  onDestinationChange: (studentId: string, newDestinationId: string, type: 'morning' | 'afternoon' | 'afterSchool') => void;
   className?: string;
   isChecked: boolean;
   onCheckedChange: (isChecked: boolean) => void;
@@ -36,10 +36,20 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     }
     // We don't set data here anymore because react-beautiful-dnd handles it.
   };
+  
+  let destinationId: string | null | undefined = null;
+  let destinationType: 'morning' | 'afternoon' | 'afterSchool' = 'morning';
 
-  const isAfterSchoolRoute = routeType === 'AfterSchool';
-  const destinationId = isAfterSchoolRoute ? student.afterSchoolDestinations?.[dayOfWeek] : student.mainDestinationId;
-  const destinationType = isAfterSchoolRoute ? 'afterSchool' : 'main';
+  if (routeType === 'Morning') {
+    destinationId = student.morningDestinationId;
+    destinationType = 'morning';
+  } else if (routeType === 'Afternoon') {
+    destinationId = student.afternoonDestinationId;
+    destinationType = 'afternoon';
+  } else if (routeType === 'AfterSchool') {
+    destinationId = student.afterSchoolDestinations?.[dayOfWeek];
+    destinationType = 'afterSchool';
+  }
 
   const studentDestinationName = destinations.find(d => d.id === destinationId)?.name || '미지정';
   

@@ -240,6 +240,12 @@ export const saveGroupLeaderRecords = async (routeId: string, records: Omit<Grou
 // Suggested Destinations (using a simple 'suggestedDestinations' collection)
 export const getSuggestedDestinations = () => fetchCollection<Destination>('suggestedDestinations');
 export const addSuggestedDestination = async (destination: { name: string }) => {
+    // Check main destinations first
+    const mainDestQ = query(collection(db, "destinations"), where("name", "==", destination.name));
+    const mainDestSnap = await getDocs(mainDestQ);
+    if (!mainDestSnap.empty) return; // Already exists as a main destination
+
+    // Check suggested destinations
     const q = query(collection(db, "suggestedDestinations"), where("name", "==", destination.name));
     const querySnapshot = await getDocs(q);
     if (querySnapshot.empty) {
