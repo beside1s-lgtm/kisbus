@@ -6,7 +6,7 @@ export type Student = {
   grade: string;
   class: string;
   gender: 'Male' | 'Female';
-  isGroupLeader: boolean;
+  isGroupLeader?: boolean;
   daysAsGroupLeader: number;
   groupLeaderStartDate?: string;
   groupLeaderEndDate?: string;

@@ -167,18 +167,38 @@ export const updateAllBusRoutesSeating = async (busId: string, seating: SeatingA
 // Group Leader Records
 export const getGroupLeaderRecords = (routeId: string) => fetchCollection<GroupLeaderRecord>(`routes/${routeId}/groupLeaderRecords`);
 
-export const saveGroupLeaderRecords = async (routeId: string, records: GroupLeaderRecord[]) => {
+export const saveGroupLeaderRecords = async (routeId: string, records: Omit<GroupLeaderRecord, 'name'>[]) => {
     const batch = writeBatch(db);
     const recordsCollection = collection(db, `routes/${routeId}/groupLeaderRecords`);
-    // Simple approach: clear and re-add. For high-frequency, use individual updates.
+    
+    // First, fetch existing records to avoid overwriting them all, which can be destructive.
     const snapshot = await getDocs(recordsCollection);
-    snapshot.docs.forEach(d => batch.delete(d.ref));
+    const existingRecords = snapshot.docs.map(d => d.data() as GroupLeaderRecord);
+
+    const recordsToUpdate = new Map<string, Omit<GroupLeaderRecord, 'name'>>();
+    records.forEach(r => recordsToUpdate.set(r.studentId + '_' + r.startDate, r));
+
+    const recordsToDelete: string[] = [];
+
+    // Check existing records against new ones
+    existingRecords.forEach(existing => {
+        const key = existing.studentId + '_' + existing.startDate;
+        if (!recordsToUpdate.has(key)) {
+            // If an existing record is not in the new list, it might have been deleted locally
+            // This part of logic depends on how you handle deletions.
+            // For now, let's assume we are only adding/updating.
+        }
+    });
+
+    // Add or update records
     records.forEach(record => {
         const docRef = doc(recordsCollection, record.studentId + '_' + record.startDate);
-        batch.set(docRef, record);
+        batch.set(docRef, record, { merge: true });
     });
+    
     await batch.commit();
 }
+
 
 // Suggested Destinations (using a simple 'suggestedDestinations' collection)
 export const getSuggestedDestinations = () => fetchCollection<Destination>('suggestedDestinations');

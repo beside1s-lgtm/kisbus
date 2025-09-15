@@ -153,8 +153,9 @@ export default function TeacherPage() {
   
   // Save GroupLeaderRecords
   useEffect(() => {
-    if (currentRoute && groupLeaderRecords.length) {
-      saveGroupLeaderRecords(currentRoute.id, groupLeaderRecords).catch(e => console.error("Failed to save leader records", e));
+    if (currentRoute && groupLeaderRecords.length > 0) {
+      const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
+      saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
     }
   }, [groupLeaderRecords, currentRoute]);
 
@@ -230,6 +231,13 @@ export default function TeacherPage() {
         record.endDate = dateStr;
         record.days = differenceInDays(new Date(dateStr), new Date(record.startDate)) + 1;
     } else { // Promote
+        // End any other active leader's term
+        const currentLeaderIndex = newRecords.findIndex(r => r.endDate === null);
+        if (currentLeaderIndex > -1) {
+            newRecords[currentLeaderIndex].endDate = dateStr;
+            newRecords[currentLeaderIndex].days = differenceInDays(new Date(dateStr), new Date(newRecords[currentLeaderIndex].startDate)) + 1;
+        }
+
         newRecords.push({
             studentId,
             name: formatStudentName(student),
@@ -239,7 +247,7 @@ export default function TeacherPage() {
         });
     }
 
-    setGroupLeaderRecords(newRecords); // This will trigger the save effect
+    setGroupLeaderRecords(newRecords);
     
     // Update local student state for immediate UI feedback
     const isNowLeader = newRecords.some(r => r.studentId === studentId && r.endDate === null);
