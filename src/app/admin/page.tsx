@@ -51,6 +51,17 @@ const dayLabels: { [key in DayOfWeek]: string } = {
     Saturday: '토요일',
 };
 
+const sortBuses = (buses: Bus[]): Bus[] => {
+  return buses.sort((a, b) => {
+    const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+    const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+    return a.name.localeCompare(b.name);
+  });
+};
+
 const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
@@ -94,7 +105,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
 
         try {
             const newBus = await handleAddBus(newBusData);
-            setBuses(prev => [...prev, newBus]);
+            setBuses(prev => sortBuses([...prev, newBus]));
             toast({ title: "성공", description: "버스가 추가되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "버스 추가에 실패했습니다.", variant: 'destructive' });
@@ -158,7 +169,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
 
                 try {
                     const addedBuses = await Promise.all(newBusesData.map(busData => handleAddBus(busData)));
-                    setBuses(prev => [...prev, ...addedBuses]);
+                    setBuses(prev => sortBuses([...prev, ...addedBuses]));
                     toast({ title: "성공", description: `${addedBuses.length}개의 버스가 일괄 등록되었습니다.` });
                 } catch (error) {
                     toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
@@ -1013,22 +1024,24 @@ const StudentManagementTab = ({
                 const allWeekdays: DayOfWeek[] = ['Monday', ...weekdays];
                 
                 // Copy to the same route type for other weekdays (e.g., Tue-Fri Morning)
-                const sameTypeRoutesToCopy = routes.filter(r => 
-                    r.busId === selectedBusId &&
-                    weekdays.includes(r.dayOfWeek) &&
-                    r.type === selectedRouteType
-                );
-                await copySeatingPlan(newSeatingPlan, sameTypeRoutesToCopy, students);
-
-                // Copy to the other main route type (Morning -> Afternoon or vice-versa)
-                const otherMainRouteType: RouteType | null = selectedRouteType === 'Morning' ? 'Afternoon' : selectedRouteType === 'Afternoon' ? 'Morning' : null;
-                if (otherMainRouteType) {
-                    const otherTypeRoutesToCopy = routes.filter(r => 
+                if (selectedRouteType !== 'AfterSchool') {
+                    const sameTypeRoutesToCopy = routes.filter(r => 
                         r.busId === selectedBusId &&
-                        allWeekdays.includes(r.dayOfWeek) &&
-                        r.type === otherMainRouteType
+                        weekdays.includes(r.dayOfWeek) &&
+                        r.type === selectedRouteType
                     );
-                    await copySeatingPlan(newSeatingPlan, otherTypeRoutesToCopy, students);
+                    await copySeatingPlan(newSeatingPlan, sameTypeRoutesToCopy, students);
+
+                    // Copy to the other main route type (Morning -> Afternoon or vice-versa)
+                    const otherMainRouteType: RouteType | null = selectedRouteType === 'Morning' ? 'Afternoon' : selectedRouteType === 'Afternoon' ? 'Morning' : null;
+                    if (otherMainRouteType) {
+                        const otherTypeRoutesToCopy = routes.filter(r => 
+                            r.busId === selectedBusId &&
+                            allWeekdays.includes(r.dayOfWeek) &&
+                            r.type === otherMainRouteType
+                        );
+                        await copySeatingPlan(newSeatingPlan, otherTypeRoutesToCopy, students);
+                    }
                 }
                 
                 // Refetch all routes to update state correctly after all DB operations
@@ -1248,15 +1261,29 @@ const StudentManagementTab = ({
             const seatNumber = parseInt(destination.droppableId.replace('seat-', ''));
             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
-            if (targetSeatIndex !== -1 && newSeating[targetSeatIndex].studentId) {
-                toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다. 자리를 바꾸려면 좌석 간에 이동하세요.", variant: "destructive" });
-                return;
-            }
-
-            if (targetSeatIndex !== -1) {
+            if (targetSeatIndex !== -1 && newSeating[targetSeatIndex].studentId) { // Seat is occupied, SWAP
+                const studentInDestinationSeatId = newSeating[targetSeatIndex].studentId;
+                
+                // Find where the dragged student was (should not be in a seat, but as a fallback)
+                const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
+                
+                // Put student from destination seat into unassigned list (effectively)
+                // by removing the dragged student from their original seat (if any)
+                if (sourceSeatIndex > -1) {
+                    newSeating[sourceSeatIndex].studentId = studentInDestinationSeatId;
+                }
+                
+                // Put dragged student into destination seat
                 newSeating[targetSeatIndex].studentId = studentId;
-                handleSeatUpdate(newSeating);
+
+                toast({ title: "알림", description: "좌석을 교환했습니다." });
+
+            } else { // Seat is empty
+                 if (targetSeatIndex !== -1) {
+                    newSeating[targetSeatIndex].studentId = studentId;
+                }
             }
+             handleSeatUpdate(newSeating);
         }
         // Case 2: Moving from a seat to another seat (or swapping)
         else if (source.droppableId.startsWith('seat-') && destination.droppableId.startsWith('seat-')) {
@@ -1598,13 +1625,14 @@ export default function AdminPage() {
                     getDestinations(),
                     getSuggestedDestinations(),
                 ]);
-                setBuses(busesData);
+                const sortedBuses = sortBuses(busesData);
+                setBuses(sortedBuses);
                 setStudents(studentsData);
                 setRoutes(routesData);
                 setDestinations(destinationsData);
                 setSuggestedDestinations(suggestionsData);
-                if (busesData.length > 0 && !selectedBusId) {
-                  setSelectedBusId(busesData[0].id);
+                if (sortedBuses.length > 0 && !selectedBusId) {
+                  setSelectedBusId(sortedBuses[0].id);
                 }
             } catch (error) {
                 console.error("Failed to fetch initial data:", error);
