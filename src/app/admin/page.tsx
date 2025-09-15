@@ -1,5 +1,4 @@
 
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Papa from 'papaparse';
@@ -1230,7 +1229,7 @@ const StudentManagementTab = ({
                             </div>
                         </CardHeader>
                         <CardContent>
-                           {selectedBus && (
+                           {selectedBus && currentRoute && (
                                 <BusSeatMap
                                     bus={selectedBus}
                                     seating={currentRoute.seating}
@@ -1302,18 +1301,7 @@ const StudentManagementTab = ({
     );
 };
 
-const AdminPageFilter = ({
-    buses,
-    selectedBusId,
-    setSelectedBusId,
-    selectedDay,
-    setSelectedDay,
-    selectedRouteType,
-    setSelectedRouteType,
-    days,
-    dayLabels,
-    loading
-}: {
+interface AdminPageFilterProps {
     buses: Bus[];
     selectedBusId: string | null;
     setSelectedBusId: (id: string | null) => void;
@@ -1324,6 +1312,19 @@ const AdminPageFilter = ({
     days: DayOfWeek[];
     dayLabels: { [key in DayOfWeek]: string };
     loading: boolean;
+}
+
+const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
+    buses,
+    selectedBusId,
+    setSelectedBusId,
+    selectedDay,
+    setSelectedDay,
+    selectedRouteType,
+    setSelectedRouteType,
+    days,
+    dayLabels,
+    loading
 }) => {
     return (
         <Card className="mb-6">
@@ -1349,7 +1350,7 @@ const AdminPageFilter = ({
                     <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
                       <SelectTrigger>
                         <SelectValue placeholder="요일을 선택하세요" />
-                      </Trigger>
+                      </SelectTrigger>
                       <SelectContent>
                         {days.map((day) => (
                           <SelectItem key={day} value={day}>
@@ -1491,3 +1492,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
