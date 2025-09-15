@@ -11,7 +11,8 @@ import {
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations,
     updateStudentsInBatch,
-    unassignStudentFromAllRoutes
+    unassignStudentFromAllRoutes,
+    updateSeatingForBusRoutes
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -837,10 +838,8 @@ const StudentManagementTab = ({
     
         const oldRoutes = [...routes];
     
-        // 1. Collect all students who should be on THIS route
         const studentsForThisRoute = students.filter(s => currentRoute.stops.includes(s.destinationId!));
 
-        // 2. Sort students by grade
         const gradeToValue = (grade: string) => {
             if (grade.toLowerCase().startsWith('k')) return 0;
             const num = parseInt(grade.replace(/\D/g, ''));
@@ -860,10 +859,10 @@ const StudentManagementTab = ({
                 return 'aisle';
             }
             const col = (seatNumber - 1) % 4;
-            if (capacity === 45 && seatNumber > 40) { // Last row of 5
+            if (capacity === 45 && seatNumber > 40) {
                 return seatNumber === 41 || seatNumber === 45 ? 'window' : 'aisle';
             }
-            if (capacity === 29 && seatNumber > 24) { // Last row of 5
+            if (capacity === 29 && seatNumber > 24) {
                 return seatNumber === 25 || seatNumber === 29 ? 'window' : 'aisle';
             }
             return col === 0 || col === 3 ? 'window' : 'aisle';
@@ -886,7 +885,6 @@ const StudentManagementTab = ({
         const seatPairs = getSeatPairs(selectedBus.capacity);
         const routeStopOrder = currentRoute.stops;
     
-        // 3. Pair male and female students
         while (males.length > 0 && females.length > 0) {
             const male = males.shift()!;
             const female = females.shift()!;
@@ -896,7 +894,6 @@ const StudentManagementTab = ({
                 if (!occupiedSeats.has(pair[0]) && !occupiedSeats.has(pair[1])) {
                     const [seat1, seat2] = pair;
     
-                    // 4. Assign window/aisle based on destination
                     const maleStopIndex = routeStopOrder.indexOf(male.destinationId!);
                     const femaleStopIndex = routeStopOrder.indexOf(female.destinationId!);
     
@@ -926,7 +923,6 @@ const StudentManagementTab = ({
             }
         }
     
-        // 5. Assign remaining students to empty seats
         const remainingStudents = [...males, ...females].sort((a,b) => gradeToValue(a.grade) - gradeToValue(b.grade));
         const emptySeats = newSeatingPlan.filter(s => !s.studentId).map(s => s.seatNumber);
         
@@ -940,23 +936,50 @@ const StudentManagementTab = ({
             }
         }
     
-        // 6. Update current route
-        const newRoutes = routes.map(route => {
-            if (route.id === currentRoute.id) {
-                return { ...route, seating: newSeatingPlan };
-            }
-            return route;
-        });
-        setRoutes(newRoutes);
+        // If today is Monday, copy to all week days (Mon-Fri) for both routes
+        if (selectedDay === 'Monday') {
+            const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+            const routeTypes: RouteType[] = ['Morning', 'Afternoon'];
+            const routesToUpdate = routes.filter(r => 
+                r.busId === selectedBusId && 
+                weekdays.includes(r.dayOfWeek)
+            );
+            
+            const newRoutes = routes.map(route => {
+                if (routesToUpdate.some(u => u.id === route.id)) {
+                    return { ...route, seating: newSeatingPlan };
+                }
+                return route;
+            });
+            setRoutes(newRoutes);
     
-        try {
-            await updateRouteSeating(currentRoute.id, newSeatingPlan);
-            toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
-        } catch (error) {
-            setRoutes(oldRoutes); // Revert on failure
-            toast({ title: "오류", description: "랜덤 배정 실패", variant: 'destructive' });
+            try {
+                const routeIdsToUpdate = routesToUpdate.map(r => r.id);
+                await updateSeatingForBusRoutes(routeIdsToUpdate, newSeatingPlan);
+                toast({ title: "성공", description: "랜덤 배정이 완료되었고, 월-금 노선에 복사되었습니다." });
+            } catch (error) {
+                setRoutes(oldRoutes);
+                toast({ title: "오류", description: "랜덤 배정 및 복사 실패", variant: 'destructive' });
+            }
+        } else {
+             // Update only current route if not Monday
+            const newRoutes = routes.map(route => {
+                if (route.id === currentRoute.id) {
+                    return { ...route, seating: newSeatingPlan };
+                }
+                return route;
+            });
+            setRoutes(newRoutes);
+        
+            try {
+                await updateRouteSeating(currentRoute.id, newSeatingPlan);
+                toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
+            } catch (error) {
+                setRoutes(oldRoutes); // Revert on failure
+                toast({ title: "오류", description: "랜덤 배정 실패", variant: 'destructive' });
+            }
         }
-    }, [selectedBus, students, routes, currentRoute, setRoutes, toast]);
+    }, [selectedBus, students, routes, currentRoute, setRoutes, toast, selectedDay]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,목적지";
@@ -1108,16 +1131,16 @@ const StudentManagementTab = ({
         // Case 1: Moving from unassigned list to a seat
         if (source.droppableId === 'unassigned-students' && destination.droppableId.startsWith('seat-')) {
             const seatNumber = parseInt(destination.droppableId.replace('seat-', ''));
-            const targetSeat = newSeating.find(s => s.seatNumber === seatNumber);
-            const sourceSeat = newSeating.find(s => s.studentId === studentId);
+            const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+            const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
 
-            if (targetSeat && targetSeat.studentId) {
+            if (targetSeatIndex !== -1 && newSeating[targetSeatIndex].studentId) {
                 toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
                 return;
             }
 
-            if (targetSeat) targetSeat.studentId = studentId;
-            if (sourceSeat) sourceSeat.studentId = null; // Un-seat from previous position if any
+            if (targetSeatIndex !== -1) newSeating[targetSeatIndex].studentId = studentId;
+            if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null; // Un-seat from previous position if any
 
             handleSeatUpdate(newSeating);
         }
@@ -1128,16 +1151,16 @@ const StudentManagementTab = ({
             
             if(sourceSeatNumber === destinationSeatNumber) return;
 
-            const sourceSeat = newSeating.find(s => s.seatNumber === sourceSeatNumber);
-            const destinationSeat = newSeating.find(s => s.seatNumber === destinationSeatNumber);
+            const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === sourceSeatNumber);
+            const destinationSeatIndex = newSeating.findIndex(s => s.seatNumber === destinationSeatNumber);
 
-            if (destinationSeat && destinationSeat.studentId) {
+            if (destinationSeatIndex !== -1 && newSeating[destinationSeatIndex].studentId) {
                  toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
                 return;
             }
 
-            if (sourceSeat) sourceSeat.studentId = null;
-            if (destinationSeat) destinationSeat.studentId = studentId;
+            if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null;
+            if (destinationSeatIndex !== -1) newSeating[destinationSeatIndex].studentId = studentId;
             
             handleSeatUpdate(newSeating);
         }

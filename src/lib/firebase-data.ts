@@ -139,6 +139,16 @@ export const addRoute = async (route: Omit<Route, 'id'>) => {
 export const updateRouteSeating = async (routeId: string, seating: SeatingAssignment[]) => {
   await updateDoc(doc(db, 'routes', routeId), { seating });
 };
+
+export const updateSeatingForBusRoutes = async (routeIds: string[], seating: SeatingAssignment[]) => {
+    const batch = writeBatch(db);
+    routeIds.forEach(routeId => {
+        const docRef = doc(db, 'routes', routeId);
+        batch.update(docRef, { seating });
+    });
+    await batch.commit();
+};
+
 export const updateRouteStops = async (routeId: string, stops: string[]) => {
     await updateDoc(doc(db, 'routes', routeId), { stops });
 }
