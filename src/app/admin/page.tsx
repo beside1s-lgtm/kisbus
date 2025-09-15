@@ -131,7 +131,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
             "Bus 12,15-seater",
             "# 타입은 15-seater, 29-seater, 45-seater 중 하나를 입력해야 합니다."
         ];
-        const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + examples.join("\n");
+        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + examples.join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -347,7 +347,7 @@ const BusConfigurationTab = ({
   const handleDownloadDestinationTemplate = () => {
     const headers = "목적지 이름";
     const example = "강남역";
-    const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
+    const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -1066,7 +1066,7 @@ const StudentManagementTab = ({
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 ID,학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
         const example = "STUDENT_ID_123,김민준,G1,C1,Male,강남역,서초역,양재역,양재역,양재역,양재역,양재역,";
-        const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
+        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -1090,7 +1090,7 @@ const StudentManagementTab = ({
             return [s.id, s.name, s.grade, s.class, s.gender, morningDestName, afternoonDestName, afterSchoolDestName].join(',');
         }).join('\n');
 
-        const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + csvData;
+        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + csvData;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -1709,3 +1709,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
