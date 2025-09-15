@@ -448,31 +448,34 @@ const BusConfigurationTab = ({
   };
 
   const removeStopFromRoute = async (stopId: string) => {
-        if (!currentRoute) return;
+    if (!currentRoute) return;
 
-        setRoutes(prevRoutes => {
-            const newRoutes = prevRoutes.map(route => {
-                if (route.id === currentRoute.id) {
-                    return {
-                        ...route,
-                        stops: route.stops.filter(id => id !== stopId)
-                    };
-                }
-                return route;
-            });
-            
-            const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id);
-            if (routeToUpdate) {
-                updateRouteStops(currentRoute.id, routeToUpdate.stops).catch(error => {
-                    console.error("Failed to update stops in DB:", error);
-                    toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
-                    setRoutes(prevRoutes); // Revert to previous state
-                });
+    setRoutes(prevRoutes => {
+        const newRoutes = prevRoutes.map(route => {
+            if (route.id === currentRoute.id) {
+                // Create a new route object with a new stops array
+                return {
+                    ...route,
+                    stops: route.stops.filter(id => id !== stopId)
+                };
             }
-
-            return newRoutes;
+            return route;
         });
-    };
+        
+        // Find the updated route to save to DB
+        const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id);
+        if (routeToUpdate) {
+            updateRouteStops(currentRoute.id, routeToUpdate.stops).catch(error => {
+                console.error("Failed to update stops in DB:", error);
+                toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
+                // Revert to previous state on error
+                setRoutes(prevRoutes); 
+            });
+        }
+
+        return newRoutes;
+    });
+};
   
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -1244,7 +1247,7 @@ const StudentManagementTab = ({
                         <CardContent>
                            {selectedBus && currentRoute && (
                             <Droppable droppableId="bus-seat-map">
-                                {(provided) => (
+                                {(provided, snapshot) => (
                                     <div ref={provided.innerRef} {...provided.droppableProps} className="flex-grow">
                                         <BusSeatMap
                                             bus={selectedBus}
@@ -1255,6 +1258,7 @@ const StudentManagementTab = ({
                                               if (studentId) unassignStudent(studentId);
                                             }}
                                             draggable={true}
+                                            isDropZoneActive={snapshot.isDraggingOver}
                                         />
                                         {provided.placeholder}
                                     </div>

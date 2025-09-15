@@ -19,6 +19,7 @@ interface BusSeatMapProps {
   absentStudentIds?: string[];
   boardedStudentIds?: string[];
   highlightedStudentId?: string | null;
+  isDropZoneActive?: boolean;
 }
 
 // Provided layout from the image for 45-seater
@@ -87,6 +88,7 @@ export function BusSeatMap({
   absentStudentIds = [],
   boardedStudentIds = [],
   highlightedStudentId = null,
+  isDropZoneActive = false,
 }: BusSeatMapProps) {
   const highlightedSeatRef = useRef<HTMLDivElement>(null);
   
@@ -115,7 +117,10 @@ export function BusSeatMap({
 
   return (
     <TooltipProvider>
-      <div className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
+      <div className={cn(
+          "p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto",
+          isDropZoneActive && "[&>div>div]:scale-100" // Prevents jiggling
+      )}>
         {hasFrontDriver && (
             <div className="mb-4 flex justify-start">
                  <div className="w-1/5">
