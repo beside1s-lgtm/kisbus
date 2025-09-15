@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Bus, Student, Destination } from '@/lib/types';
+import { Bus, Student, Destination, RouteType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Crown, User as UserIcon, XCircle, CircleUserRound } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -19,6 +19,7 @@ interface BusSeatMapProps {
   absentStudentIds?: string[];
   boardedStudentIds?: string[];
   highlightedStudentId?: string | null;
+  routeType?: RouteType;
 }
 
 const SEAT_MAP_45: (number | null)[] = [
@@ -84,6 +85,7 @@ export function BusSeatMap({
   absentStudentIds = [],
   boardedStudentIds = [],
   highlightedStudentId = null,
+  routeType = 'Morning',
 }: BusSeatMapProps) {
   const highlightedSeatRef = useRef<HTMLDivElement>(null);
   
@@ -108,6 +110,11 @@ export function BusSeatMap({
     const grade = student.grade.replace(/\D/g, '');
     const studentClass = student.class.replace(/\D/g, '');
     return `${grade}${studentClass} ${student.name}`;
+  }
+
+  const getDestinationName = (student: Student) => {
+      const destId = routeType === 'AfterSchool' ? student.afterSchoolDestinationId : student.mainDestinationId;
+      return destinations.find(d => d.id === destId)?.name || 'N/A';
   }
 
   return (
@@ -171,7 +178,7 @@ export function BusSeatMap({
                           >
                             <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
                             {student ? (
-                                <Draggable draggableId={student.id} index={0}>
+                                <Draggable draggableId={student.id} index={seat.seatNumber}>
                                     {(provided, snapshot) => (
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -182,7 +189,7 @@ export function BusSeatMap({
                                                     className={cn(
                                                         'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
                                                         draggable && 'cursor-grab active:cursor-grabbing',
-                                                        snapshot.isDragging ? 'bg-muted/50 border-2 border-dashed text-transparent' : 'bg-card',
+                                                         snapshot.isDragging ? 'bg-muted/50 border-2 border-dashed text-transparent' : 'bg-card',
                                                         isBoarded && !snapshot.isDragging && 'bg-green-300 dark:bg-green-800',
                                                         isHighlighted && !snapshot.isDragging && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
                                                         isAbsent && !snapshot.isDragging && 'bg-destructive/20 text-destructive-foreground/50 opacity-60'
@@ -199,7 +206,7 @@ export function BusSeatMap({
                                             </TooltipTrigger>
                                             <TooltipContent>
                                                 <p>이름: {formatStudentName(student)}</p>
-                                                <p>목적지: {destinations.find(d => d.id === student.destinationId)?.name || 'N/A'}</p>
+                                                <p>목적지: {getDestinationName(student)}</p>
                                             </TooltipContent>
                                         </Tooltip>
                                     )}

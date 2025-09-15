@@ -2,7 +2,8 @@
 export type Student = {
   id: string;
   name: string;
-  destinationId: string | null;
+  mainDestinationId: string | null;
+  afterSchoolDestinationId: string | null;
   grade: string;
   class: string;
   gender: 'Male' | 'Female';

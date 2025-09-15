@@ -679,7 +679,7 @@ const StudentManagementTab = ({
     filterComponent: React.ReactNode;
 }) => {
     const { toast } = useToast();
-    const [newStudentForm, setNewStudentForm] = useState({ name: '', grade: '', class: '', gender: 'Male' as 'Male' | 'Female', destinationId: '' });
+    const [newStudentForm, setNewStudentForm] = useState<Partial<NewStudent>>({ gender: 'Male' });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
@@ -833,8 +833,11 @@ const StudentManagementTab = ({
         if (!selectedBus || !currentRoute) return;
     
         const oldRoutes = [...routes];
-    
-        const studentsForThisRoute = students.filter(s => currentRoute.stops.includes(s.destinationId!));
+
+        const studentsForThisRoute = students.filter(s => {
+            const destId = selectedRouteType === 'AfterSchool' ? s.afterSchoolDestinationId : s.mainDestinationId;
+            return destId && currentRoute.stops.includes(destId);
+        });
 
         const gradeToValue = (grade: string) => {
             if (grade.toLowerCase().startsWith('k')) return 0;
@@ -890,8 +893,11 @@ const StudentManagementTab = ({
                 if (!occupiedSeats.has(pair[0]) && !occupiedSeats.has(pair[1])) {
                     const [seat1, seat2] = pair;
     
-                    const maleStopIndex = routeStopOrder.indexOf(male.destinationId!);
-                    const femaleStopIndex = routeStopOrder.indexOf(female.destinationId!);
+                    const maleDestId = selectedRouteType === 'AfterSchool' ? male.afterSchoolDestinationId : male.mainDestinationId;
+                    const femaleDestId = selectedRouteType === 'AfterSchool' ? female.afterSchoolDestinationId : female.mainDestinationId;
+
+                    const maleStopIndex = routeStopOrder.indexOf(maleDestId!);
+                    const femaleStopIndex = routeStopOrder.indexOf(femaleDestId!);
     
                     let studentForWindow = (maleStopIndex > femaleStopIndex) ? male : female;
                     let studentForAisle = (maleStopIndex > femaleStopIndex) ? female : male;
@@ -976,11 +982,11 @@ const StudentManagementTab = ({
                 toast({ title: "오류", description: "랜덤 배정 실패", variant: 'destructive' });
             }
         }
-    }, [selectedBus, students, routes, currentRoute, setRoutes, toast, selectedDay]);
+    }, [selectedBus, students, routes, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
     
     const handleDownloadStudentTemplate = () => {
-        const headers = "학생 이름,학년,반,성별,목적지";
-        const example = "김민준,G1,C1,Male,강남역";
+        const headers = "학생 이름,학년,반,성별,등하교 목적지,방과후 목적지";
+        const example = "김민준,G1,C1,Male,강남역,서초역";
         const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -997,10 +1003,11 @@ const StudentManagementTab = ({
             return;
         }
 
-        const headers = "학생 ID,학생 이름,학년,반,성별,목적지";
+        const headers = "학생 ID,학생 이름,학년,반,성별,등하교 목적지,방과후 목적지";
         const csvData = unassignedStudents.map(s => {
-            const destName = destinations.find(d => d.id === s.destinationId)?.name || '';
-            return [s.id, s.name, s.grade, s.class, s.gender, destName].join(',');
+            const mainDestName = destinations.find(d => d.id === s.mainDestinationId)?.name || '';
+            const afterSchoolDestName = destinations.find(d => d.id === s.afterSchoolDestinationId)?.name || '';
+            return [s.id, s.name, s.grade, s.class, s.gender, mainDestName, afterSchoolDestName].join(',');
         }).join('\n');
 
         const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + csvData;
@@ -1021,17 +1028,24 @@ const StudentManagementTab = ({
             header: true,
             skipEmptyLines: true,
             complete: async (results) => {
-                const studentsToUpdate: { id: string; destinationId: string }[] = [];
+                const studentsToUpdate: { id: string; mainDestinationId?: string, afterSchoolDestinationId?: string }[] = [];
                 const studentsToAdd: NewStudent[] = [];
 
                 results.data.forEach((row: any) => {
-                    const destName = (row['목적지'] || '').trim();
-                    const destination = destinations.find(d => d.name === destName);
+                    const mainDestName = (row['등하교 목적지'] || '').trim();
+                    const afterSchoolDestName = (row['방과후 목적지'] || '').trim();
+                    
+                    const mainDestination = destinations.find(d => d.name === mainDestName);
+                    const afterSchoolDestination = destinations.find(d => d.name === afterSchoolDestName);
+
                     const studentId = (row['학생 ID'] || '').trim();
                     
                     if (studentId) { // Existing student to update
-                        if (destination) {
-                            studentsToUpdate.push({ id: studentId, destinationId: destination.id });
+                        const studentUpdate: { id: string; mainDestinationId?: string, afterSchoolDestinationId?: string } = { id: studentId };
+                        if (mainDestination) studentUpdate.mainDestinationId = mainDestination.id;
+                        if (afterSchoolDestination) studentUpdate.afterSchoolDestinationId = afterSchoolDestination.id;
+                        if(studentUpdate.mainDestinationId || studentUpdate.afterSchoolDestinationId) {
+                           studentsToUpdate.push(studentUpdate);
                         }
                     } else { // New student to add
                         const newStudent: NewStudent = {
@@ -1039,16 +1053,17 @@ const StudentManagementTab = ({
                             grade: (row['학년'] || '').trim(),
                             class: (row['반'] || '').trim(),
                             gender: (row['성별'] || '').trim() as 'Male' | 'Female',
-                            destinationId: destination?.id || null
+                            mainDestinationId: mainDestination?.id || null,
+                            afterSchoolDestinationId: afterSchoolDestination?.id || null
                         };
-                        if (newStudent.name && newStudent.grade && newStudent.class && newStudent.gender && newStudent.destinationId) {
+                        if (newStudent.name && newStudent.grade && newStudent.class && newStudent.gender) {
                             studentsToAdd.push(newStudent);
                         }
                     }
                 });
 
                 if (studentsToUpdate.length === 0 && studentsToAdd.length === 0) {
-                    toast({ title: "오류", description: "유효한 학생 데이터를 찾을 수 없거나 목적지가 존재하지 않습니다. 학생 ID가 있는 경우 목적지만 업데이트됩니다.", variant: "destructive" });
+                    toast({ title: "오류", description: "유효한 학생 데이터를 찾을 수 없거나 목적지가 존재하지 않습니다.", variant: "destructive" });
                     return;
                 }
 
@@ -1061,8 +1076,8 @@ const StudentManagementTab = ({
                         const updatedIds = new Set(studentsToUpdate.map(s => s.id));
                         setStudents(prev => prev.map(s => {
                             if (updatedIds.has(s.id)) {
-                                const updatedStudent = studentsToUpdate.find(u => u.id === s.id);
-                                return { ...s, destinationId: updatedStudent!.destinationId };
+                                const updatedStudentData = studentsToUpdate.find(u => u.id === s.id);
+                                return { ...s, ...updatedStudentData };
                             }
                             return s;
                         }));
@@ -1092,26 +1107,27 @@ const StudentManagementTab = ({
     };
     
      const handleAddStudent = async () => {
-        const { name, grade, class: studentClass, gender, destinationId } = newStudentForm;
-        if (!name || !grade || !studentClass || !gender || !destinationId) {
-            toast({ title: "오류", description: "모든 필드를 입력해주세요.", variant: "destructive" });
+        const { name, grade, class: studentClass, gender, mainDestinationId, afterSchoolDestinationId } = newStudentForm;
+        if (!name || !grade || !studentClass || !gender) {
+            toast({ title: "오류", description: "목적지를 제외한 모든 필드를 입력해주세요.", variant: "destructive" });
             return;
         }
         try {
-            const newStudentData: NewStudent = { name, grade, class: studentClass, gender, destinationId };
+            const newStudentData: NewStudent = { name, grade, class: studentClass, gender, mainDestinationId: mainDestinationId || null, afterSchoolDestinationId: afterSchoolDestinationId || null };
             const newStudent = await addStudent(newStudentData);
             setStudents(prev => [...prev, newStudent]);
-            setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', destinationId: '' });
+            setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', mainDestinationId: '', afterSchoolDestinationId: '' });
             toast({ title: "성공", description: "학생이 추가되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "학생 추가 실패", variant: "destructive" });
         }
     };
 
-    const handleDestinationChange = async (studentId: string, newDestinationId: string) => {
+    const handleDestinationChange = async (studentId: string, newDestinationId: string, type: 'main' | 'afterSchool') => {
         try {
-            await updateStudent(studentId, { destinationId: newDestinationId });
-            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, destinationId: newDestinationId } : s));
+            const fieldToUpdate = type === 'main' ? 'mainDestinationId' : 'afterSchoolDestinationId';
+            await updateStudent(studentId, { [fieldToUpdate]: newDestinationId });
+            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, [fieldToUpdate]: newDestinationId } : s));
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
@@ -1129,15 +1145,19 @@ const StudentManagementTab = ({
         if (source.droppableId === 'unassigned-students' && destination.droppableId.startsWith('seat-')) {
             const seatNumber = parseInt(destination.droppableId.replace('seat-', ''));
             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
-            const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
 
             if (targetSeatIndex !== -1 && newSeating[targetSeatIndex].studentId) {
                 toast({ title: "오류", description: "이미 다른 학생이 배정된 좌석입니다.", variant: "destructive" });
                 return;
             }
 
-            if (targetSeatIndex !== -1) newSeating[targetSeatIndex].studentId = studentId;
-            if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null; // Un-seat from previous position if any
+            if (targetSeatIndex !== -1) {
+                // If student was in another seat, unseat them first
+                const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
+                if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null;
+                
+                newSeating[targetSeatIndex].studentId = studentId;
+            }
 
             handleSeatUpdate(newSeating);
         }
@@ -1151,12 +1171,11 @@ const StudentManagementTab = ({
             const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === sourceSeatNumber);
             const destinationSeatIndex = newSeating.findIndex(s => s.seatNumber === destinationSeatNumber);
 
-            // If the destination seat is occupied, swap students
             if (destinationSeatIndex !== -1 && newSeating[destinationSeatIndex].studentId) {
                 const studentInDestSeat = newSeating[destinationSeatIndex].studentId;
                 if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = studentInDestSeat;
                 if (destinationSeatIndex !== -1) newSeating[destinationSeatIndex].studentId = studentId;
-            } else { // If the destination seat is empty, just move
+            } else { 
                 if (sourceSeatIndex !== -1) newSeating[sourceSeatIndex].studentId = null;
                 if (destinationSeatIndex !== -1) newSeating[destinationSeatIndex].studentId = studentId;
             }
@@ -1227,15 +1246,15 @@ const StudentManagementTab = ({
                                         <div className="grid gap-4 py-4">
                                             <div className="grid grid-cols-4 items-center gap-4">
                                                 <Label htmlFor="name" className="text-right">이름</Label>
-                                                <Input id="name" value={newStudentForm.name} onChange={e => setNewStudentForm(p => ({...p, name: e.target.value}))} className="col-span-3" />
+                                                <Input id="name" value={newStudentForm.name || ''} onChange={e => setNewStudentForm(p => ({...p, name: e.target.value}))} className="col-span-3" />
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
                                                 <Label htmlFor="grade" className="text-right">학년</Label>
-                                                <Input id="grade" value={newStudentForm.grade} onChange={e => setNewStudentForm(p => ({...p, grade: e.target.value}))} placeholder="예: G1" className="col-span-3" />
+                                                <Input id="grade" value={newStudentForm.grade || ''} onChange={e => setNewStudentForm(p => ({...p, grade: e.target.value}))} placeholder="예: G1" className="col-span-3" />
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
                                                 <Label htmlFor="class" className="text-right">반</Label>
-                                                <Input id="class" value={newStudentForm.class} onChange={e => setNewStudentForm(p => ({...p, class: e.target.value}))} placeholder="예: C1" className="col-span-3" />
+                                                <Input id="class" value={newStudentForm.class || ''} onChange={e => setNewStudentForm(p => ({...p, class: e.target.value}))} placeholder="예: C1" className="col-span-3" />
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
                                                 <Label htmlFor="gender" className="text-right">성별</Label>
@@ -1250,8 +1269,19 @@ const StudentManagementTab = ({
                                                 </Select>
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="destination" className="text-right">목적지</Label>
-                                                <Select value={newStudentForm.destinationId} onValueChange={(v) => setNewStudentForm(p => ({...p, destinationId: v}))}>
+                                                <Label htmlFor="destination" className="text-right">등/하교 목적지</Label>
+                                                <Select value={newStudentForm.mainDestinationId || ''} onValueChange={(v) => setNewStudentForm(p => ({...p, mainDestinationId: v}))}>
+                                                    <SelectTrigger className="col-span-3">
+                                                        <SelectValue placeholder="목적지 선택" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                             <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="destination" className="text-right">방과후 목적지</Label>
+                                                <Select value={newStudentForm.afterSchoolDestinationId || ''} onValueChange={(v) => setNewStudentForm(p => ({...p, afterSchoolDestinationId: v}))}>
                                                     <SelectTrigger className="col-span-3">
                                                         <SelectValue placeholder="목적지 선택" />
                                                     </SelectTrigger>
@@ -1277,6 +1307,7 @@ const StudentManagementTab = ({
                                         if (studentId) unassignStudent(studentId);
                                     }}
                                     draggable={true}
+                                    routeType={selectedRouteType}
                                 />
                            )}
                         </CardContent>
@@ -1331,6 +1362,7 @@ const StudentManagementTab = ({
                                                             onDestinationChange={handleDestinationChange}
                                                             isChecked={selectedStudentIds.has(student.id)}
                                                             onCheckedChange={(isChecked) => handleToggleStudentSelection(student.id, isChecked)}
+                                                            routeType={selectedRouteType}
                                                         />
                                                     </div>
                                                 )}

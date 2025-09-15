@@ -1,7 +1,7 @@
 
 'use client';
 import React from 'react';
-import { Student, Destination } from '@/lib/types';
+import { Student, Destination, RouteType } from '@/lib/types';
 import { Card } from '../ui/card';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,10 +11,11 @@ import { Checkbox } from '../ui/checkbox';
 interface DraggableStudentCardProps {
   student: Student;
   destinations: Destination[];
-  onDestinationChange: (studentId: string, newDestinationId: string) => void;
+  onDestinationChange: (studentId: string, newDestinationId: string, type: 'main' | 'afterSchool') => void;
   className?: string;
   isChecked: boolean;
   onCheckedChange: (isChecked: boolean) => void;
+  routeType: RouteType;
 }
 
 export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ 
@@ -23,7 +24,8 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     onDestinationChange, 
     className,
     isChecked,
-    onCheckedChange
+    onCheckedChange,
+    routeType
 }) => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     if (e.target instanceof HTMLElement && (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role=checkbox]'))) {
@@ -33,7 +35,11 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     // We don't set data here anymore because react-beautiful-dnd handles it.
   };
 
-  const studentDestinationName = destinations.find(d => d.id === student.destinationId)?.name || '미지정';
+  const isAfterSchoolRoute = routeType === 'AfterSchool';
+  const destinationId = isAfterSchoolRoute ? student.afterSchoolDestinationId : student.mainDestinationId;
+  const destinationType = isAfterSchoolRoute ? 'afterSchool' : 'main';
+
+  const studentDestinationName = destinations.find(d => d.id === destinationId)?.name || '미지정';
   
   const formatStudentName = (student: Student) => {
     const grade = student.grade.replace(/\D/g, '');
@@ -52,8 +58,8 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
       <GripVertical className="h-5 w-5 text-muted-foreground" />
       <span className="text-sm font-medium flex-1">{formatStudentName(student)}</span>
       <Select 
-        value={student.destinationId || ''} 
-        onValueChange={(newDestId) => onDestinationChange(student.id, newDestId)}
+        value={destinationId || ''} 
+        onValueChange={(newDestId) => onDestinationChange(student.id, newDestId, destinationType)}
       >
         <SelectTrigger className="w-[150px] text-xs">
             <SelectValue placeholder="목적지 선택">{studentDestinationName}</SelectValue>

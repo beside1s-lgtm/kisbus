@@ -12,12 +12,14 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, PlusCircle } from 'lucide-react';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { MainLayout } from '@/components/layout/main-layout';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function ApplyPage() {
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [formData, setFormData] = useState<Partial<NewStudent>>({ gender: 'Male' });
     const [newDestinationName, setNewDestinationName] = useState('');
     const [isSuggesting, setIsSuggesting] = useState(false);
+    const [applyForAfterSchool, setApplyForAfterSchool] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -35,13 +37,19 @@ export default function ApplyPage() {
 
     const handleSelectChange = (name: keyof NewStudent, value: string) => {
         setFormData(prev => ({ ...prev, [name]: value }));
-         if(name === 'destinationId') {
+         if(name === 'mainDestinationId') {
             setIsSuggesting(false);
         }
     };
 
     const validateForm = (data: Partial<NewStudent>): data is NewStudent => {
-        return !!data.name && !!data.grade && !!data.class && !!data.gender && (!!data.destinationId || isSuggesting);
+        const baseInfoValid = !!data.name && !!data.grade && !!data.class && !!data.gender;
+        if (!baseInfoValid) return false;
+
+        const mainDestinationValid = !!data.mainDestinationId || isSuggesting;
+        const afterSchoolDestinationValid = applyForAfterSchool ? !!data.afterSchoolDestinationId : true;
+
+        return mainDestinationValid && afterSchoolDestinationValid;
     }
 
     const submitApplication = async (studentData: NewStudent) => {
@@ -53,6 +61,7 @@ export default function ApplyPage() {
             });
             setFormData({ gender: 'Male' });
             setNewDestinationName('');
+            setApplyForAfterSchool(false);
         } catch (error) {
             console.error("Error submitting application:", error);
             toast({ title: "오류", description: "신청 제출에 실패했습니다.", variant: 'destructive' });
@@ -61,11 +70,18 @@ export default function ApplyPage() {
     
     const handleApplicationSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!validateForm(formData)) {
+        
+        const finalStudentData: Partial<NewStudent> = {
+            ...formData,
+            afterSchoolDestinationId: applyForAfterSchool ? formData.afterSchoolDestinationId : null,
+        };
+
+        if (!validateForm(finalStudentData)) {
             toast({ title: "오류", description: "모든 필수 필드를 입력하거나 목적지를 제안해주세요.", variant: 'destructive' });
             return;
         }
-        await submitApplication(formData);
+
+        await submitApplication(finalStudentData as NewStudent);
     };
 
     const handleSuggestionSubmit = async () => {
@@ -81,24 +97,22 @@ export default function ApplyPage() {
         }
 
         try {
-            // 1. Add to suggestions
+            // This is a simplified approach. In a real app, you might want to wait for approval
+            // before making it selectable. Here we just submit with a special marker.
+            const suggestedDestinationId = `suggested: ${newDestinationName.trim()}`;
+            
             await addSuggestedDestination({ name: newDestinationName.trim() });
             
-            // 2. Submit application with suggested destination info
-            const studentDataWithSuggestion: NewStudent = {
-                name,
-                grade,
-                class: studentClass,
-                gender,
-                destinationId: `suggested: ${newDestinationName.trim()}`
-            };
-            await submitApplication(studentDataWithSuggestion);
+            // Assume suggestion applies to main destination for simplicity here
+            setFormData(prev => ({...prev, mainDestinationId: suggestedDestinationId }));
+            setIsSuggesting(false);
             
-            // 3. Close dialog
+            toast({ title: "제안 제출됨", description: "새로운 목적지가 제안되었습니다. 목록에서 선택하여 신청을 완료해주세요."})
+
             document.getElementById('suggest-dest-dialog-close')?.click();
         } catch (error) {
-            console.error("Error submitting suggestion and application:", error);
-            toast({ title: "오류", description: "제안 및 신청 처리에 실패했습니다.", variant: "destructive" });
+            console.error("Error submitting suggestion:", error);
+            toast({ title: "오류", description: "제안 처리에 실패했습니다.", variant: "destructive" });
         }
     }
 
@@ -124,10 +138,10 @@ export default function ApplyPage() {
                                     <Input id="name" name="name" placeholder="예: 김민준" required value={formData.name || ''} onChange={handleInputChange} />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="destination">목적지</Label>
+                                    <Label htmlFor="mainDestinationId">등/하교 목적지</Label>
                                     <div className="flex gap-2">
-                                        <Select name="destinationId" required={!isSuggesting} value={formData.destinationId || ''} onValueChange={(v) => handleSelectChange('destinationId', v)}>
-                                            <SelectTrigger id="destination">
+                                        <Select name="mainDestinationId" required={!isSuggesting} value={formData.mainDestinationId || ''} onValueChange={(v) => handleSelectChange('mainDestinationId', v)}>
+                                            <SelectTrigger id="mainDestinationId">
                                                 <SelectValue placeholder="목적지 선택" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -142,11 +156,11 @@ export default function ApplyPage() {
                                             </DialogTrigger>
                                             <DialogContent>
                                                 <DialogHeader>
-                                                    <DialogTitle>신규 목적지 제안 및 신청</DialogTitle>
+                                                    <DialogTitle>신규 목적지 제안</DialogTitle>
                                                 </DialogHeader>
                                                 <div className="grid gap-4 py-4">
                                                     <p className="text-sm text-muted-foreground">
-                                                        목록에 원하는 목적지가 없나요? 새로운 목적지를 제안하고 바로 탑승을 신청하세요. 관리자 승인 후 노선에 추가됩니다.
+                                                        목록에 원하는 목적지가 없나요? 새로운 목적지를 제안해주세요. 관리자 승인 후 노선에 추가됩니다.
                                                     </p>
                                                     <Input 
                                                         placeholder="예: 서초역" 
@@ -154,7 +168,7 @@ export default function ApplyPage() {
                                                         onChange={(e) => setNewDestinationName(e.target.value)}
                                                     />
                                                 </div>
-                                                <Button onClick={handleSuggestionSubmit}>제안 및 신청하기</Button>
+                                                <Button onClick={handleSuggestionSubmit}>제안하기</Button>
                                                 <DialogClose id="suggest-dest-dialog-close" />
                                             </DialogContent>
                                         </Dialog>
@@ -166,7 +180,7 @@ export default function ApplyPage() {
                                     )}
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="grade">학년</Label>
                                     <Input id="grade" name="grade" placeholder="예: G1" required value={formData.grade || ''} onChange={handleInputChange} />
@@ -188,6 +202,31 @@ export default function ApplyPage() {
                                     </Select>
                                 </div>
                             </div>
+                            <div className="space-y-4 rounded-md border p-4">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox id="afterSchool" checked={applyForAfterSchool} onCheckedChange={(checked) => setApplyForAfterSchool(checked as boolean)} />
+                                    <label
+                                        htmlFor="afterSchool"
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                    >
+                                        방과후 버스 탑승 신청
+                                    </label>
+                                </div>
+                                {applyForAfterSchool && (
+                                     <div className="space-y-2">
+                                        <Label htmlFor="afterSchoolDestinationId">방과후 목적지</Label>
+                                        <Select name="afterSchoolDestinationId" required={applyForAfterSchool} value={formData.afterSchoolDestinationId || ''} onValueChange={(v) => handleSelectChange('afterSchoolDestinationId', v)}>
+                                            <SelectTrigger id="afterSchoolDestinationId">
+                                                <SelectValue placeholder="방과후 하차 목적지 선택" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">방과후 수업 후 하차할 목적지를 선택하세요. (등/하교 목적지와 달라도 됩니다.)</p>
+                                    </div>
+                                )}
+                            </div>
                             <Button type="submit" className="w-full" disabled={isSuggesting}>신청하기</Button>
                         </form>
                     </CardContent>
@@ -196,4 +235,3 @@ export default function ApplyPage() {
         </MainLayout>
     );
 }
-

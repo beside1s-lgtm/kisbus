@@ -175,14 +175,13 @@ export default function TeacherPage() {
   }, [currentRoute, students]);
   
   const findRoutesForStudent = async (student: Student): Promise<Route[]> => {
-    if (!student.destinationId) return [];
+    const destId = selectedRouteType === 'AfterSchool' ? student.afterSchoolDestinationId : student.mainDestinationId;
+    if (!destId) return [];
     
-    // Find routes that include the student's destination
-    const relevantRoutes = await getRoutesByStop(student.destinationId);
+    const relevantRoutes = await getRoutesByStop(destId);
     
-    // Filter for today's day of the week
-    const dayIndex = getDay(new Date()); // 0-6
-    if (dayIndex === 0) return []; // No routes on Sunday
+    const dayIndex = getDay(new Date());
+    if (dayIndex === 0) return [];
     const todayDayOfWeek = days[dayIndex - 1];
 
     return relevantRoutes.filter(r => r.dayOfWeek === todayDayOfWeek);
@@ -218,7 +217,7 @@ export default function TeacherPage() {
         toast({ title: "오류", description: `${route.id} 노선 결석 처리 실패`, variant: "destructive"});
       }
     });
-  }, [today, toast, days]);
+  }, [today, toast, days, selectedRouteType]);
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
@@ -397,7 +396,7 @@ export default function TeacherPage() {
                     </Avatar>
                     <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
                     <p className="text-sm text-muted-foreground">
-                        목적지: {destinations.find(d => d.id === selectedStudent.destinationId)?.name || '해당 없음'}
+                        목적지: {destinations.find(d => d.id === (selectedRouteType === 'AfterSchool' ? selectedStudent.afterSchoolDestinationId : selectedStudent.mainDestinationId))?.name || '해당 없음'}
                     </p>
                 </div>
                 <Separator className="my-4" />
@@ -454,6 +453,7 @@ export default function TeacherPage() {
                         onSeatClick={handleSeatClick}
                         absentStudentIds={absentStudentIds}
                         boardedStudentIds={boardedStudentIds}
+                        routeType={selectedRouteType}
                     />
                 ) : (
                     <div className="text-center py-10 text-muted-foreground">
@@ -504,7 +504,7 @@ export default function TeacherPage() {
             </CardContent>
             </Card>
 
-             <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
+             <GroupLeaderManager records={groupLeaderRecords} setRecords={setRecords} />
         </div>
         </div>
       </DragDropContext>

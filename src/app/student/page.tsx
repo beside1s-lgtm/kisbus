@@ -211,6 +211,7 @@ export default function StudentPage() {
                         draggable={false}
                         highlightedStudentId={selectedStudentId}
                         boardedStudentIds={boardedStudentIds}
+                        routeType={selectedRouteType}
                     />
                 ) : (
                     <Alert>
