@@ -183,12 +183,13 @@ export function BusSeatMap({
                                             isBoarded && 'bg-green-300 dark:bg-green-800',
                                             isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
                                             isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60',
-                                            student && student.isGroupLeader && !isBoarded && 'border-4 border-yellow-400',
-                                            student && student.isGroupLeader && isBoarded && 'border-4 border-yellow-600 dark:border-yellow-300',
-                                            snapshot.isDragging && 'shadow-xl scale-105 z-50'
+                                            snapshot.isDragging && 'shadow-xl scale-105 z-50',
+                                            // Make the original spot empty while dragging
+                                            snapshot.isDragging ? 'bg-muted/50 border-2 border-dashed text-transparent' : (student ? 'bg-card' : 'bg-muted/50 border-2 border-dashed')
+
                                         )}
                                     >
-                                        {student ? (
+                                        {(student && !snapshot.isDragging) ? (
                                             <>
                                                 {student.isGroupLeader && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
                                                 {isAbsent && <XCircle className="absolute w-3 h-3 text-destructive" />}
