@@ -1,5 +1,4 @@
 
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Papa from 'papaparse';
@@ -620,6 +619,20 @@ const BusConfigurationTab = ({
     }
   };
   
+  const handleResetTeachers = async () => {
+    if (!selectedBus) return;
+    try {
+        await updateBus(selectedBus.id, { teacherIds: [] });
+        setBuses(prevBuses => prevBuses.map(b => 
+            b.id === selectedBus.id ? { ...b, teacherIds: [] } : b
+        ));
+        toast({ title: "성공", description: "담당 선생님 배정이 초기화되었습니다." });
+    } catch (error) {
+        console.error("Error resetting teachers:", error);
+        toast({ title: "오류", description: "초기화 중 오류가 발생했습니다.", variant: "destructive" });
+    }
+  };
+  
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
@@ -821,14 +834,31 @@ const BusConfigurationTab = ({
                                     <div className="text-sm text-muted-foreground">배정된 선생님이 없습니다.</div>
                                 )}
                             </CardContent>
-                            <CardFooter className="flex gap-2">
-                               <Button onClick={assignRandomTeachers} className="flex-1"><UserCog className="mr-2"/>재배정</Button>
+                            <CardFooter className="grid grid-cols-3 gap-2">
+                               <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>재배정</Button>
                                 <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
                                     <DialogTrigger asChild>
-                                        <Button variant="outline" className="flex-1"><Pencil className="mr-2"/>수동 변경</Button>
+                                        <Button variant="outline"><Pencil className="mr-2"/>수동 변경</Button>
                                     </DialogTrigger>
                                     <TeacherAssignmentDialog bus={selectedBus} allBuses={buses} teachers={teachers} setBuses={setBuses} onOpenChange={setIsTeacherDialogOpen} />
                                 </Dialog>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" disabled={!assignedTeachers || assignedTeachers.length === 0}><RotateCcw className="mr-2"/>초기화</Button>
+                                    </AlertDialogTrigger>
+                                     <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>정말 모든 담당 선생님 배정을 해제하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                이 작업은 되돌릴 수 없습니다. 이 버스의 모든 담당 선생님 배정이 초기화됩니다.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>취소</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleResetTeachers}>해제</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </CardFooter>
                         </Card>
                     )}
