@@ -12,7 +12,7 @@ import {
     addRoute, updateRouteSeating, updateRouteStops, clearAllSuggestedDestinations,
     updateStudentsInBatch,
     unassignStudentFromAllRoutes,
-    addTeachersInBatch, updateRoute
+    addTeachersInBatch, updateRoute, deleteAllDestinations
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -305,10 +305,13 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
     const { toast } = useToast();
 
     useEffect(() => {
-        setSelectedTeacherIds(currentRoute.teacherIds || []);
+        if (currentRoute) {
+            setSelectedTeacherIds(currentRoute.teacherIds || []);
+        }
     }, [currentRoute]);
     
     const assignedToOtherRoutesIds = useMemo(() => {
+        if (!currentRoute) return new Set<string>();
         // Find teacher IDs assigned to other routes of the same type (Morning/Afternoon vs AfterSchool) on the same day
         const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
         const relevantRouteTypes = isCommuteRoute ? ['Morning', 'Afternoon'] : ['AfterSchool'];
@@ -326,6 +329,7 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
     }, [allRoutes, currentRoute]);
 
     const handleSave = async () => {
+        if (!currentRoute) return;
         try {
             await updateRoute(currentRoute.id, { teacherIds: selectedTeacherIds });
             setRoutes(prevRoutes => prevRoutes.map(r =>
@@ -474,6 +478,18 @@ const BusConfigurationTab = ({
             toast({ title: "성공", description: "목적지가 삭제되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 삭제 실패", variant: 'destructive' });
+        }
+    };
+    
+    const handleClearAllDestinations = async () => {
+        try {
+            await deleteAllDestinations();
+            setDestinations([]);
+            // Also update routes to have empty stops
+            setRoutes(prev => prev.map(r => ({ ...r, stops: [] })));
+            toast({ title: "성공", description: "모든 목적지가 삭제되었습니다." });
+        } catch (error) {
+            toast({ title: "오류", description: "목적지 삭제 중 오류가 발생했습니다.", variant: 'destructive' });
         }
     };
   
@@ -882,6 +898,23 @@ const BusConfigurationTab = ({
                                         <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
                                     </DialogContent>
                                 </Dialog>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" /> 전체 삭제</Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>정말 모든 목적지를 삭제하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                이 작업은 되돌릴 수 없습니다. 모든 목적지와 모든 노선의 경유지 정보가 영구적으로 삭제됩니다.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>취소</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleClearAllDestinations}>삭제</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </div>
                             <div className="relative mb-4">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

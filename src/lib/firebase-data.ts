@@ -159,6 +159,21 @@ export const addDestinationsInBatch = async (destinations: NewDestination[]): Pr
     return newDestinations;
 }
 export const deleteDestination = (destinationId: string) => deleteDoc(doc(db, 'destinations', destinationId));
+export const deleteAllDestinations = async () => {
+    const batch = writeBatch(db);
+
+    // Delete all documents in the 'destinations' collection
+    const destSnapshot = await getDocs(collection(db, 'destinations'));
+    destSnapshot.forEach(doc => batch.delete(doc.ref));
+
+    // Clear the 'stops' array in all routes
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    routesSnapshot.forEach(doc => {
+        batch.update(doc.ref, { stops: [] });
+    });
+
+    await batch.commit();
+};
 
 // Teachers
 export const getTeachers = () => fetchCollection<Teacher>('teachers');
