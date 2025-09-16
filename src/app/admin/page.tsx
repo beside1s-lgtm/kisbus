@@ -308,13 +308,21 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
     }, [currentRoute]);
     
     const assignedToOtherRoutesIds = useMemo(() => {
-        const otherRoutes = allRoutes.filter(r => r.id !== currentRoute.id);
+        // Find teacher IDs assigned to other routes of the same type (Morning/Afternoon vs AfterSchool) on the same day
+        const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
+        const relevantRouteTypes = isCommuteRoute ? ['Morning', 'Afternoon'] : ['AfterSchool'];
+
+        const otherRoutes = allRoutes.filter(r => 
+            r.id !== currentRoute.id && 
+            r.dayOfWeek === currentRoute.dayOfWeek &&
+            relevantRouteTypes.includes(r.type)
+        );
         const ids = new Set<string>();
         otherRoutes.forEach(r => {
             r.teacherIds?.forEach(id => ids.add(id));
         });
         return ids;
-    }, [allRoutes, currentRoute.id]);
+    }, [allRoutes, currentRoute.id, currentRoute.dayOfWeek, currentRoute.type]);
 
     const handleSave = async () => {
         try {
@@ -623,12 +631,19 @@ const BusConfigurationTab = ({
 
     let numToAssign = 1;
     if (selectedBus.type === '45-seater') {
-        numToAssign = teachers.length >= 2 ? 2 : teachers.length;
+        numToAssign = 2;
     }
 
+    const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
+    const relevantRouteTypes = isCommuteRoute ? ['Morning', 'Afternoon'] : ['AfterSchool'];
+
     const availableTeachers = teachers.filter(teacher => {
+        // Check if teacher is assigned to another route on the same day and same route type group (commute vs afterschool)
         const isAssignedToOtherRoute = routes.some(route => 
-            route.id !== currentRoute.id && route.teacherIds?.includes(teacher.id)
+            route.id !== currentRoute.id && 
+            route.dayOfWeek === currentRoute.dayOfWeek &&
+            relevantRouteTypes.includes(route.type) &&
+            route.teacherIds?.includes(teacher.id)
         );
         return !isAssignedToOtherRoute;
     });
@@ -674,14 +689,13 @@ const BusConfigurationTab = ({
     }
 
     const teacherIdsToCopy = currentRoute.teacherIds || [];
-    const targetRouteType = currentRoute.type;
     const targetBusId = currentRoute.busId;
     const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
     const routesToUpdate = routes.filter(r => 
         r.busId === targetBusId && 
         weekdays.includes(r.dayOfWeek) && 
-        r.type === targetRouteType
+        (r.type === 'Morning' || r.type === 'Afternoon')
     );
 
     try {
@@ -700,7 +714,7 @@ const BusConfigurationTab = ({
                 return r;
             })
         );
-        toast({title: "성공", description: `평일(${targetRouteType}) 노선에 담당 선생님 정보가 복사되었습니다.`});
+        toast({title: "성공", description: `평일 등/하교 노선에 담당 선생님 정보가 복사되었습니다.`});
     } catch (error) {
         console.error("Error copying teachers:", error);
         toast({title: "오류", description: "복사 중 오류가 발생했습니다.", variant: 'destructive'});
@@ -1324,35 +1338,12 @@ const StudentManagementTab = ({
         
                 let routesToCopyTo: Route[] = [];
         
-                if (selectedRouteType === 'Morning') {
-                    // Other weekdays, same route type
-                    routesToCopyTo = routes.filter(r => 
+                if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
+                     routesToCopyTo = routes.filter(r => 
                         r.busId === selectedBusId &&
                         weekdays.includes(r.dayOfWeek) &&
-                        r.type === 'Morning'
+                        (r.type === 'Morning' || r.type === 'Afternoon')
                     );
-                    // All weekdays, Afternoon route type
-                     const afternoonRoutes = routes.filter(r => 
-                        r.busId === selectedBusId &&
-                        allWeekdays.includes(r.dayOfWeek) &&
-                        r.type === 'Afternoon'
-                    );
-                    routesToCopyTo.push(...afternoonRoutes);
-
-                } else if (selectedRouteType === 'Afternoon') {
-                     // Other weekdays, same route type
-                    routesToCopyTo = routes.filter(r => 
-                        r.busId === selectedBusId &&
-                        weekdays.includes(r.dayOfWeek) &&
-                        r.type === 'Afternoon'
-                    );
-                     // All weekdays, Morning route type
-                    const morningRoutes = routes.filter(r => 
-                        r.busId === selectedBusId &&
-                        allWeekdays.includes(r.dayOfWeek) &&
-                        r.type === 'Morning'
-                    );
-                    routesToCopyTo.push(...morningRoutes);
                 }
         
                 if (routesToCopyTo.length > 0) {
