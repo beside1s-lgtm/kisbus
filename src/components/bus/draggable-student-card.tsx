@@ -17,6 +17,7 @@ interface DraggableStudentCardProps {
   onCheckedChange: (isChecked: boolean) => void;
   routeType: RouteType;
   dayOfWeek: DayOfWeek;
+  isDragging?: boolean;
 }
 
 export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ 
@@ -27,7 +28,8 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     isChecked,
     onCheckedChange,
     routeType,
-    dayOfWeek
+    dayOfWeek,
+    isDragging = false,
 }) => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     if (e.target instanceof HTMLElement && (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role=checkbox]'))) {
@@ -72,8 +74,9 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
       <Select 
         value={destinationId || ''} 
         onValueChange={(newDestId) => onDestinationChange(student.id, newDestId, destinationType)}
+        disabled={isDragging}
       >
-        <SelectTrigger className="w-[150px] text-xs">
+        <SelectTrigger className={cn("w-[150px] text-xs", isDragging && "hidden")}>
             <SelectValue placeholder="목적지 선택">{studentDestinationName}</SelectValue>
         </SelectTrigger>
         <SelectContent>
@@ -88,6 +91,8 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
         checked={isChecked}
         onCheckedChange={onCheckedChange}
         aria-label={`Select ${student.name}`}
+        className={cn(isDragging && "hidden")}
+        disabled={isDragging}
       />
     </Card>
   );

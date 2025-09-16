@@ -13,6 +13,7 @@ import { UserPlus, Bus, Clock } from 'lucide-react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { Combobox } from '@/components/ui/combobox';
 
 const daysOfWeek: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const dayLabels: Record<DayOfWeek, string> = {
@@ -48,7 +49,6 @@ export default function ApplyPage() {
     const [useCustomAfterSchoolDests, setUseCustomAfterSchoolDests] = useState<Partial<Record<DayOfWeek, boolean>>>({});
     const [customAfterSchoolDestNames, setCustomAfterSchoolDestNames] = useState<Partial<Record<DayOfWeek, string>>>({});
 
-
     const { toast } = useToast();
 
     useEffect(() => {
@@ -57,11 +57,15 @@ export default function ApplyPage() {
                 getDestinations(),
                 getStudents()
             ]);
+            // Sort destinations by name
+            destinationsData.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
             setDestinations(destinationsData);
             setAllStudents(studentsData);
         };
         fetchData();
     }, []);
+
+    const destinationOptions = destinations.map(d => ({ value: d.id, label: d.name }));
 
     const validateBaseInfo = () => {
         if (!name.trim() || !grade.trim() || !studentClass.trim() || !gender) {
@@ -310,14 +314,13 @@ export default function ApplyPage() {
                         <CardContent className="space-y-4">
                              <div className="space-y-2">
                                 <Label htmlFor="morningDestinationId">등교 목적지</Label>
-                                <Select name="morningDestinationId" value={morningDestinationId || ''} onValueChange={setMorningDestinationId} disabled={useCustomMorningDest}>
-                                    <SelectTrigger id="morningDestinationId">
-                                        <SelectValue placeholder="목적지 선택" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                <Combobox 
+                                    options={destinationOptions}
+                                    value={morningDestinationId}
+                                    onSelect={setMorningDestinationId}
+                                    placeholder="목적지 선택 또는 검색..."
+                                    disabled={useCustomMorningDest}
+                                />
                             </div>
                              <div className="flex items-center space-x-2">
                                 <Checkbox id="useCustomMorningDest" checked={useCustomMorningDest} onCheckedChange={(checked) => setUseCustomMorningDest(checked as boolean)} />
@@ -336,14 +339,13 @@ export default function ApplyPage() {
 
                             <div className="space-y-2">
                                 <Label htmlFor="afternoonDestinationId">하교 목적지</Label>
-                                <Select name="afternoonDestinationId" value={afternoonDestinationId || ''} onValueChange={setAfternoonDestinationId} disabled={useCustomAfternoonDest}>
-                                    <SelectTrigger id="afternoonDestinationId">
-                                        <SelectValue placeholder="목적지 선택" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                <Combobox 
+                                    options={destinationOptions}
+                                    value={afternoonDestinationId}
+                                    onSelect={setAfternoonDestinationId}
+                                    placeholder="목적지 선택 또는 검색..."
+                                    disabled={useCustomAfternoonDest}
+                                />
                             </div>
                              <div className="flex items-center space-x-2">
                                 <Checkbox id="useCustomAfternoonDest" checked={useCustomAfternoonDest} onCheckedChange={(checked) => setUseCustomAfternoonDest(checked as boolean)} />
@@ -387,16 +389,13 @@ export default function ApplyPage() {
                             {daysOfWeek.map(day => afterSchoolDays[day] && (
                                 <div key={day} className="p-3 border rounded-md space-y-3">
                                     <Label className="font-semibold">{dayLabels[day]}요일 목적지</Label>
-                                     <Select
-                                        value={afterSchoolDestinations[day] || ''}
-                                        onValueChange={(value) => setAfterSchoolDestinations(prev => ({...prev, [day]: value}))}
+                                     <Combobox 
+                                        options={destinationOptions}
+                                        value={afterSchoolDestinations[day]}
+                                        onSelect={(value) => setAfterSchoolDestinations(prev => ({...prev, [day]: value}))}
+                                        placeholder="목적지 선택 또는 검색..."
                                         disabled={!!useCustomAfterSchoolDests[day]}
-                                    >
-                                        <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
-                                        <SelectContent>
-                                            {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
+                                    />
                                      <div className="flex items-center space-x-2">
                                         <Checkbox 
                                             id={`custom-day-${day}`}

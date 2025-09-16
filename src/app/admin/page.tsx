@@ -966,7 +966,7 @@ const BusConfigurationTab = ({
                                     <DialogTrigger asChild>
                                         <Button variant="outline"><Pencil className="mr-2"/>수동 변경</Button>
                                     </DialogTrigger>
-                                    <TeacherAssignmentDialog currentRoute={currentRoute} allRoutes={routes} teachers={teachers} setRoutes={setRoutes} onOpenChange={setIsTeacherDialogOpen} />
+                                    {currentRoute && <TeacherAssignmentDialog currentRoute={currentRoute} allRoutes={routes} teachers={teachers} setRoutes={setRoutes} onOpenChange={setIsTeacherDialogOpen} />}
                                 </Dialog>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -1830,7 +1830,7 @@ const StudentManagementTab = ({
                                     <div ref={provided.innerRef} {...provided.droppableProps}>
                                         {unassignedStudents.length > 0 ? unassignedStudents.map((student, index) => (
                                             <Draggable key={student.id} draggableId={student.id} index={index}>
-                                                {(provided) => (
+                                                {(provided, snapshot) => (
                                                     <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
                                                         <DraggableStudentCard 
                                                             student={student} 
@@ -1840,6 +1840,7 @@ const StudentManagementTab = ({
                                                             onCheckedChange={(isChecked) => handleToggleStudentSelection(student.id, isChecked)}
                                                             routeType={selectedRouteType}
                                                             dayOfWeek={selectedDay}
+                                                            isDragging={snapshot.isDragging}
                                                         />
                                                     </div>
                                                 )}
