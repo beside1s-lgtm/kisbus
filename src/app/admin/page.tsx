@@ -296,13 +296,15 @@ const TeacherAssignmentDialog = ({ bus, teachers, setBuses, onOpenChange }: { bu
         );
     };
 
+    const sortedTeachers = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
+
     return (
         <DialogContent>
             <DialogHeader>
                 <DialogTitle>{bus.name} 담당 선생님 변경</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                {teachers.map(teacher => (
+                {sortedTeachers.map(teacher => (
                     <div key={teacher.id} className="flex items-center space-x-2">
                         <Checkbox
                             id={`teacher-${teacher.id}`}
@@ -1263,12 +1265,12 @@ const StudentManagementTab = ({
             return;
         }
 
-        const headers = "학생 ID,학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지";
+        const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지";
         const csvData = unassignedStudents.map(s => {
             const morningDestName = destinations.find(d => d.id === s.morningDestinationId)?.name || '';
             const afternoonDestName = destinations.find(d => d.id === s.afternoonDestinationId)?.name || '';
             const afterSchoolDestName = destinations.find(d => d.id === (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null))?.name || '';
-            return [s.id, s.name, s.grade, s.class, s.gender, morningDestName, afternoonDestName, afterSchoolDestName].join(',');
+            return [s.name, s.grade, s.class, s.gender, morningDestName, afternoonDestName, afterSchoolDestName].join(',');
         }).join('\n');
 
         const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + csvData;
