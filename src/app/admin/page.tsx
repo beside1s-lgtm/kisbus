@@ -322,7 +322,7 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
             r.teacherIds?.forEach(id => ids.add(id));
         });
         return ids;
-    }, [allRoutes, currentRoute.id, currentRoute.dayOfWeek, currentRoute.type]);
+    }, [allRoutes, currentRoute]);
 
     const handleSave = async () => {
         try {
@@ -345,9 +345,6 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
 
     const sortedTeachers = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
     
-    const bus = useMemo(() => getBuses().then(buses => buses.find(b => b.id === currentRoute.busId)), [currentRoute.busId]);
-
-
     return (
         <DialogContent>
             <DialogHeader>
@@ -670,12 +667,47 @@ const BusConfigurationTab = ({
   
   const handleResetTeachers = async () => {
     if (!currentRoute) return;
+
+    const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
+    const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    let routesToUpdate: Route[] = [];
+
+    if (isCommuteRoute) {
+        routesToUpdate = routes.filter(r => 
+            r.busId === currentRoute.busId &&
+            weekdays.includes(r.dayOfWeek) &&
+            (r.type === 'Morning' || r.type === 'Afternoon')
+        );
+    } else { // AfterSchool
+        routesToUpdate = routes.filter(r =>
+            r.busId === currentRoute.busId &&
+            r.type === 'AfterSchool'
+        );
+    }
+
+    if (routesToUpdate.length === 0) {
+        toast({ title: "알림", description: "초기화할 노선이 없습니다." });
+        return;
+    }
+
     try {
-        await updateRoute(currentRoute.id, { teacherIds: [] });
-        setRoutes(prevRoutes => prevRoutes.map(r => 
-            r.id === currentRoute.id ? { ...r, teacherIds: [] } : r
-        ));
-        toast({ title: "성공", description: "담당 선생님 배정이 초기화되었습니다." });
+        const batch = writeBatch(db);
+        routesToUpdate.forEach(route => {
+            const routeRef = doc(db, 'routes', route.id);
+            batch.update(routeRef, { teacherIds: [] });
+        });
+        await batch.commit();
+
+        setRoutes(prevRoutes => 
+            prevRoutes.map(r => {
+                if (routesToUpdate.some(updated => updated.id === r.id)) {
+                    return { ...r, teacherIds: [] };
+                }
+                return r;
+            })
+        );
+        toast({ title: "성공", description: "관련된 모든 노선의 담당 선생님 배정이 초기화되었습니다." });
     } catch (error) {
         console.error("Error resetting teachers:", error);
         toast({ title: "오류", description: "초기화 중 오류가 발생했습니다.", variant: "destructive" });
@@ -941,9 +973,9 @@ const BusConfigurationTab = ({
                                     </AlertDialogTrigger>
                                      <AlertDialogContent>
                                         <AlertDialogHeader>
-                                            <AlertDialogTitle>정말 모든 담당 선생님 배정을 해제하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogTitle>정말 담당 선생님 배정을 초기화하시겠습니까?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                이 작업은 되돌릴 수 없습니다. 이 노선의 모든 담당 선생님 배정이 초기화됩니다.
+                                                이 작업은 되돌릴 수 없습니다. 현재 버스의 연관된 모든 노선(등/하교 또는 방과후)의 담당 선생님 배정이 초기화됩니다.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
