@@ -1,4 +1,5 @@
 
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Papa from 'papaparse';
@@ -275,6 +276,10 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
 const TeacherAssignmentDialog = ({ bus, allBuses, teachers, setBuses, onOpenChange }: { bus: Bus, allBuses: Bus[], teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>>, onOpenChange: (open: boolean) => void }) => {
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>(bus.teacherIds || []);
     const { toast } = useToast();
+
+    useEffect(() => {
+        setSelectedTeacherIds(bus.teacherIds || []);
+    }, [bus]);
 
     const assignedToOtherBusesIds = useMemo(() => {
         const otherBuses = allBuses.filter(b => b.id !== bus.id);
