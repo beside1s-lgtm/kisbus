@@ -63,6 +63,10 @@ const sortBuses = (buses: Bus[]): Bus[] => {
   });
 };
 
+const sortDestinations = (destinations: Destination[]): Destination[] => {
+    return destinations.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+};
+
 const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
@@ -386,7 +390,7 @@ const BusConfigurationTab = ({
 
         try {
             const newDest = await addDestination({ name: trimmedName });
-            setDestinations(prev => [...prev, newDest]);
+            setDestinations(prev => sortDestinations([...prev, newDest]));
             setNewDestinationName('');
             toast({ title: "성공", description: "목적지가 추가되었습니다." });
         } catch (error) {
@@ -437,7 +441,7 @@ const BusConfigurationTab = ({
 
             try {
                 const addedDests = await addDestinationsInBatch(newDestinationsData);
-                setDestinations(prev => [...prev, ...addedDests]);
+                setDestinations(prev => sortDestinations([...prev, ...addedDests]));
                 toast({ title: "성공", description: `${addedDests.length}개의 목적지가 일괄 등록되었습니다.` });
             } catch (error) {
                 toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
@@ -470,7 +474,7 @@ const BusConfigurationTab = ({
         await approveSuggestedDestination(suggestion);
         setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
         const newDests = await getDestinations(); // Re-fetch all destinations
-        setDestinations(newDests);
+        setDestinations(sortDestinations(newDests));
         toast({ title: "성공", description: "제안된 목적지가 승인되었습니다."});
     } catch (error) {
         toast({ title: "오류", description: "승인 처리 중 오류 발생", variant: 'destructive'});
@@ -566,12 +570,9 @@ const BusConfigurationTab = ({
     }
 
     let numToAssign = 1;
-    if (selectedBus.type === '45-seater' && teachers.length >= 2) {
-        numToAssign = 2;
-    } else if (selectedBus.type === '45-seater' && teachers.length < 2) {
-        numToAssign = teachers.length;
+    if (selectedBus.type === '45-seater') {
+        numToAssign = teachers.length >= 2 ? 2 : teachers.length;
     }
-
 
     const shuffledTeachers = [...teachers].sort(() => 0.5 - Math.random());
     const assignedTeacherIds = shuffledTeachers.slice(0, numToAssign).map(t => t.id);
@@ -1865,7 +1866,7 @@ export default function AdminPage() {
                 setBuses(sortedBuses);
                 setStudents(studentsData);
                 setRoutes(routesData);
-                setDestinations(destinationsData);
+                setDestinations(sortDestinations(destinationsData));
                 setSuggestedDestinations(suggestionsData);
                 setTeachers(teachersData);
 
