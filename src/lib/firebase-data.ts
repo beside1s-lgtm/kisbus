@@ -56,10 +56,6 @@ export const deleteBus = async (busId: string) => {
     await batch.commit();
     await deleteDoc(doc(db, 'buses', busId));
 };
-export const updateBus = async (busId: string, data: Partial<Bus>) => {
-    await updateDoc(doc(db, 'buses', busId), data);
-}
-
 
 // Students
 export const getStudents = () => fetchCollection<Student>('students');
@@ -210,29 +206,13 @@ export const updateRouteSeating = async (routeId: string, seating: SeatingAssign
   await updateDoc(doc(db, 'routes', routeId), { seating });
 };
 
-export const updateSeatingForBusRoutes = async (routeIds: string[], seating: SeatingAssignment[]) => {
-    const batch = writeBatch(db);
-    routeIds.forEach(routeId => {
-        const docRef = doc(db, 'routes', routeId);
-        batch.update(docRef, { seating });
-    });
-    await batch.commit();
-};
+export const updateRoute = async (routeId: string, data: Partial<Route>) => {
+    await updateDoc(doc(db, 'routes', routeId), data);
+}
 
 export const updateRouteStops = async (routeId: string, stops: string[]) => {
     await updateDoc(doc(db, 'routes', routeId), { stops });
 }
-
-export const updateAllBusRoutesSeating = async (busId: string, seating: SeatingAssignment[]) => {
-    const q = query(collection(db, "routes"), where("busId", "==", busId));
-    const querySnapshot = await getDocs(q);
-    const batch = writeBatch(db);
-    querySnapshot.forEach(doc => {
-        batch.update(doc.ref, { seating });
-    });
-    await batch.commit();
-}
-
 
 // Group Leader Records
 export const getGroupLeaderRecords = (routeId: string) => fetchCollection<GroupLeaderRecord>(`routes/${routeId}/groupLeaderRecords`);

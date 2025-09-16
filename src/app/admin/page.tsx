@@ -6,20 +6,20 @@ import Papa from 'papaparse';
 import { DragDropContext, Droppable, Draggable, OnDragEndResponder } from '@hello-pangea/dnd';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations, getTeachers,
-    addBus, deleteBus, updateBus,
+    addBus, deleteBus,
     addStudent, updateStudent, deleteStudentsInBatch,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
-    addRoute, updateRouteSeating, updateRouteStops, updateAllBusRoutesSeating, clearAllSuggestedDestinations,
+    addRoute, updateRouteSeating, updateRouteStops, clearAllSuggestedDestinations,
     updateStudentsInBatch,
     unassignStudentFromAllRoutes,
-    updateSeatingForBusRoutes, addTeachersInBatch
+    addTeachersInBatch, updateRoute
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search, Copy, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -67,13 +67,14 @@ const sortDestinations = (destinations: Destination[]): Destination[] => {
     return destinations.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 };
 
-const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
+const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[], routes: Route[], teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
     const { toast } = useToast();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const routeTypes: RouteType[] = ['Morning', 'Afternoon', 'AfterSchool'];
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [teacherViewType, setTeacherViewType] = useState<'MorningAndAfternoon' | 'AfterSchool'>('MorningAndAfternoon');
 
     const handleAddBus = async (busData: NewBus) => {
         try {
@@ -87,6 +88,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                         type: type,
                         stops: [],
                         seating: generateInitialSeating(newBus.capacity),
+                        teacherIds: [],
                     })
                 )
             );
@@ -189,52 +191,75 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
             fileInputRef.current.value = "";
         }
     };
+    
+    const getTeachersForBus = (busId: string) => {
+        const relevantRouteType = teacherViewType === 'MorningAndAfternoon' ? 'Morning' : 'AfterSchool';
+        // Display Monday's teachers as representative
+        const relevantRoute = routes.find(r => r.busId === busId && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
+        if (!relevantRoute || !relevantRoute.teacherIds) return '미배정';
+
+        const teacherNames = relevantRoute.teacherIds
+            .map(id => teachers.find(t => t.id === id)?.name)
+            .filter(Boolean);
+
+        return teacherNames.length > 0 ? teacherNames.join(', ') : '미배정';
+    };
+
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>버스 목록</CardTitle>
-                <CardDescription>새로운 버스를 추가하거나 기존 버스를 삭제합니다.</CardDescription>
+                <CardDescription>새로운 버스를 추가하거나 기존 버스를 삭제합니다. 담당 선생님은 월요일 기준으로 표시됩니다.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex justify-end gap-2 mb-4">
-                    <Button variant="outline" onClick={handleDownloadBusTemplate}><Download className="mr-2" /> 템플릿</Button>
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
-                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button><PlusCircle className="mr-2" /> 새 버스 추가</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader><DialogTitle>새 버스 추가</DialogTitle></DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="bus-name" className="text-right">버스 번호</Label>
-                                    <Input id="bus-name" placeholder="예: Bus 04" className="col-span-3" value={newBusName} onChange={e => setNewBusName(e.target.value)} />
+                <div className="flex justify-between items-center mb-4">
+                    <Tabs value={teacherViewType} onValueChange={(v) => setTeacherViewType(v as any)} className="w-auto">
+                      <TabsList className="grid grid-cols-2">
+                        <TabsTrigger value="MorningAndAfternoon">등하교</TabsTrigger>
+                        <TabsTrigger value="AfterSchool">방과후</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={handleDownloadBusTemplate}><Download className="mr-2" /> 템플릿</Button>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button><PlusCircle className="mr-2" /> 새 버스 추가</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader><DialogTitle>새 버스 추가</DialogTitle></DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="bus-name" className="text-right">버스 번호</Label>
+                                        <Input id="bus-name" placeholder="예: Bus 04" className="col-span-3" value={newBusName} onChange={e => setNewBusName(e.target.value)} />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="bus-type" className="text-right">타입</Label>
+                                        <Select onValueChange={(v) => setNewBusType(v as any)} value={newBusType}>
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="타입 선택" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="15-seater">15인승</SelectItem>
+                                                <SelectItem value="29-seater">29인승</SelectItem>
+                                                <SelectItem value="45-seater">45인승</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="bus-type" className="text-right">타입</Label>
-                                     <Select onValueChange={(v) => setNewBusType(v as any)} value={newBusType}>
-                                        <SelectTrigger className="col-span-3">
-                                            <SelectValue placeholder="타입 선택" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="15-seater">15인승</SelectItem>
-                                            <SelectItem value="29-seater">29인승</SelectItem>
-                                            <SelectItem value="45-seater">45인승</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                            <Button onClick={handleManualAddBus}>추가</Button>
-                        </DialogContent>
-                    </Dialog>
+                                <Button onClick={handleManualAddBus}>추가</Button>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </div>
                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>버스 번호</TableHead>
                             <TableHead>타입</TableHead>
+                            <TableHead>담당 선생님</TableHead>
                             <TableHead className="text-right">작업</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -243,6 +268,7 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
                             <TableRow key={bus.id}>
                                 <TableCell>{bus.name}</TableCell>
                                 <TableCell>{bus.type}</TableCell>
+                                <TableCell>{getTeachersForBus(bus.id)}</TableCell>
                                 <TableCell className="text-right">
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
@@ -273,28 +299,28 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
     );
 };
 
-const TeacherAssignmentDialog = ({ bus, allBuses, teachers, setBuses, onOpenChange }: { bus: Bus, allBuses: Bus[], teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>>, onOpenChange: (open: boolean) => void }) => {
-    const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>(bus.teacherIds || []);
+const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes, onOpenChange }: { currentRoute: Route, allRoutes: Route[], teachers: Teacher[], setRoutes: React.Dispatch<React.SetStateAction<Route[]>>, onOpenChange: (open: boolean) => void }) => {
+    const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
     const { toast } = useToast();
 
     useEffect(() => {
-        setSelectedTeacherIds(bus.teacherIds || []);
-    }, [bus]);
-
-    const assignedToOtherBusesIds = useMemo(() => {
-        const otherBuses = allBuses.filter(b => b.id !== bus.id);
+        setSelectedTeacherIds(currentRoute.teacherIds || []);
+    }, [currentRoute]);
+    
+    const assignedToOtherRoutesIds = useMemo(() => {
+        const otherRoutes = allRoutes.filter(r => r.id !== currentRoute.id);
         const ids = new Set<string>();
-        otherBuses.forEach(b => {
-            b.teacherIds?.forEach(id => ids.add(id));
+        otherRoutes.forEach(r => {
+            r.teacherIds?.forEach(id => ids.add(id));
         });
         return ids;
-    }, [allBuses, bus.id]);
+    }, [allRoutes, currentRoute.id]);
 
     const handleSave = async () => {
         try {
-            await updateBus(bus.id, { teacherIds: selectedTeacherIds });
-            setBuses(prevBuses => prevBuses.map(b =>
-                b.id === bus.id ? { ...b, teacherIds: selectedTeacherIds } : b
+            await updateRoute(currentRoute.id, { teacherIds: selectedTeacherIds });
+            setRoutes(prevRoutes => prevRoutes.map(r =>
+                r.id === currentRoute.id ? { ...r, teacherIds: selectedTeacherIds } : r
             ));
             toast({ title: "성공", description: "담당 선생님이 변경되었습니다." });
             onOpenChange(false);
@@ -310,17 +336,20 @@ const TeacherAssignmentDialog = ({ bus, allBuses, teachers, setBuses, onOpenChan
     };
 
     const sortedTeachers = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
+    
+    const bus = useMemo(() => getBuses().then(buses => buses.find(b => b.id === currentRoute.busId)), [currentRoute.busId]);
+
 
     return (
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>{bus.name} 담당 선생님 변경</DialogTitle>
+                <DialogTitle>담당 선생님 변경</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
                 {sortedTeachers.map(teacher => {
-                    const isAssignedToOtherBus = assignedToOtherBusesIds.has(teacher.id);
-                    const isAssignedToCurrentBus = selectedTeacherIds.includes(teacher.id);
-                    const isDisabled = isAssignedToOtherBus && !isAssignedToCurrentBus;
+                    const isAssignedToOtherRoute = assignedToOtherRoutesIds.has(teacher.id);
+                    const isAssignedToCurrentRoute = selectedTeacherIds.includes(teacher.id);
+                    const isDisabled = isAssignedToOtherRoute && !isAssignedToCurrentRoute;
 
                     return (
                         <div key={teacher.id} className="flex items-center space-x-2">
@@ -332,7 +361,7 @@ const TeacherAssignmentDialog = ({ bus, allBuses, teachers, setBuses, onOpenChan
                             />
                             <Label htmlFor={`teacher-${teacher.id}`} className={cn(isDisabled && "text-muted-foreground")}>
                                 {teacher.name}
-                                {isDisabled && <span className="text-xs ml-2">(다른 버스에 배정됨)</span>}
+                                {isDisabled && <span className="text-xs ml-2">(다른 노선에 배정됨)</span>}
                             </Label>
                         </div>
                     );
@@ -349,7 +378,6 @@ const TeacherAssignmentDialog = ({ bus, allBuses, teachers, setBuses, onOpenChan
 
 const BusConfigurationTab = ({
   buses,
-  setBuses,
   routes,
   setRoutes,
   destinations,
@@ -363,7 +391,6 @@ const BusConfigurationTab = ({
   filterComponent
 }: {
   buses: Bus[];
-  setBuses: React.Dispatch<React.SetStateAction<Bus[]>>;
   routes: Route[];
   setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
@@ -388,6 +415,7 @@ const BusConfigurationTab = ({
   }, [buses, selectedBusId]);
   
   const currentRoute = useMemo(() => {
+    if (!selectedBusId) return null;
     return routes.find(r =>
         r.busId === selectedBusId &&
         r.dayOfWeek === selectedDay &&
@@ -410,9 +438,9 @@ const BusConfigurationTab = ({
   };
 
     const assignedTeachers = useMemo(() => {
-        if (!selectedBus || !selectedBus.teacherIds) return [];
-        return selectedBus.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
-    }, [selectedBus, teachers]);
+        if (!currentRoute || !currentRoute.teacherIds) return [];
+        return currentRoute.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
+    }, [currentRoute, teachers]);
   
    const handleAddDestination = async () => {
         const trimmedName = newDestinationName.trim();
@@ -532,16 +560,9 @@ const BusConfigurationTab = ({
 
     if (!destination) return;
 
-    // Find the actual current route from the state, not from the memoized value
-    const latestCurrentRoute = routes.find(r =>
-        r.busId === selectedBusId &&
-        r.dayOfWeek === selectedDay &&
-        r.type === selectedRouteType
-    );
+    if (!currentRoute) return;
 
-    if (!latestCurrentRoute) return;
-
-    const currentStopIds = latestCurrentRoute.stops || [];
+    const currentStopIds = currentRoute.stops || [];
 
     // Moving from all destinations list to the route list
     if (source.droppableId === 'all-destinations' && destination.droppableId === 'route-stops') {
@@ -552,9 +573,9 @@ const BusConfigurationTab = ({
         const newStopIds = Array.from(currentStopIds);
         newStopIds.splice(destination.index, 0, draggableId);
 
-        const newRoutes = routes.map(r => r.id === latestCurrentRoute.id ? { ...r, stops: newStopIds } : r);
+        const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
         setRoutes(newRoutes);
-        await updateRouteStops(latestCurrentRoute.id, newStopIds);
+        await updateRouteStops(currentRoute.id, newStopIds);
     }
     // Reordering within the route list
     else if (source.droppableId === 'route-stops' && destination.droppableId === 'route-stops') {
@@ -562,41 +583,37 @@ const BusConfigurationTab = ({
         const [reorderedItem] = newStopIds.splice(source.index, 1);
         newStopIds.splice(destination.index, 0, reorderedItem);
 
-        const newRoutes = routes.map(r => r.id === latestCurrentRoute.id ? { ...r, stops: newStopIds } : r);
+        const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
         setRoutes(newRoutes);
-        await updateRouteStops(latestCurrentRoute.id, newStopIds);
+        await updateRouteStops(currentRoute.id, newStopIds);
     }
   };
 
   const removeStopFromRoute = (stopId: string) => {
-    const latestCurrentRoute = routes.find(r =>
-        r.busId === selectedBusId &&
-        r.dayOfWeek === selectedDay &&
-        r.type === selectedRouteType
-    );
-    if (!latestCurrentRoute) return;
+    if (!currentRoute) return;
 
-    const newStopIds = latestCurrentRoute.stops.filter(id => id !== stopId);
+    const newStopIds = currentRoute.stops.filter(id => id !== stopId);
     
+    const originalRoutes = routes;
     setRoutes(prevRoutes =>
         prevRoutes.map(route =>
-            route.id === latestCurrentRoute.id
+            route.id === currentRoute.id
                 ? { ...route, stops: newStopIds }
                 : route
         )
     );
 
-    updateRouteStops(latestCurrentRoute.id, newStopIds).catch(error => {
+    updateRouteStops(currentRoute.id, newStopIds).catch(error => {
         console.error("Failed to update stops in DB:", error);
         toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
         // Revert to previous state on error
-        setRoutes(routes); 
+        setRoutes(originalRoutes); 
     });
 };
 
   const assignRandomTeachers = async () => {
-    if (!selectedBus) {
-        toast({ title: "오류", description: "버스를 선택해주세요.", variant: 'destructive' });
+    if (!selectedBus || !currentRoute) {
+        toast({ title: "오류", description: "노선을 선택해주세요.", variant: 'destructive' });
         return;
     }
     if (teachers.length === 0) {
@@ -609,13 +626,25 @@ const BusConfigurationTab = ({
         numToAssign = teachers.length >= 2 ? 2 : teachers.length;
     }
 
-    const shuffledTeachers = [...teachers].sort(() => 0.5 - Math.random());
+    const availableTeachers = teachers.filter(teacher => {
+        const isAssignedToOtherRoute = routes.some(route => 
+            route.id !== currentRoute.id && route.teacherIds?.includes(teacher.id)
+        );
+        return !isAssignedToOtherRoute;
+    });
+
+    if (availableTeachers.length < numToAssign) {
+        toast({ title: "알림", description: `배정 가능한 선생님이 부족합니다. (${availableTeachers.length}명 가능)`, variant: "default" });
+        numToAssign = availableTeachers.length;
+    }
+
+    const shuffledTeachers = [...availableTeachers].sort(() => 0.5 - Math.random());
     const assignedTeacherIds = shuffledTeachers.slice(0, numToAssign).map(t => t.id);
 
     try {
-        await updateBus(selectedBus.id, { teacherIds: assignedTeacherIds });
-        setBuses(prevBuses => prevBuses.map(b => 
-            b.id === selectedBus.id ? { ...b, teacherIds: assignedTeacherIds } : b
+        await updateRoute(currentRoute.id, { teacherIds: assignedTeacherIds });
+        setRoutes(prevRoutes => prevRoutes.map(r => 
+            r.id === currentRoute.id ? { ...r, teacherIds: assignedTeacherIds } : r
         ));
         toast({ title: "성공", description: "담당 선생님이 배정되었습니다." });
     } catch (error) {
@@ -625,11 +654,11 @@ const BusConfigurationTab = ({
   };
   
   const handleResetTeachers = async () => {
-    if (!selectedBus) return;
+    if (!currentRoute) return;
     try {
-        await updateBus(selectedBus.id, { teacherIds: [] });
-        setBuses(prevBuses => prevBuses.map(b => 
-            b.id === selectedBus.id ? { ...b, teacherIds: [] } : b
+        await updateRoute(currentRoute.id, { teacherIds: [] });
+        setRoutes(prevRoutes => prevRoutes.map(r => 
+            r.id === currentRoute.id ? { ...r, teacherIds: [] } : r
         ));
         toast({ title: "성공", description: "담당 선생님 배정이 초기화되었습니다." });
     } catch (error) {
@@ -638,6 +667,46 @@ const BusConfigurationTab = ({
     }
   };
   
+  const handleCopyToAllWeekdays = async () => {
+    if (!currentRoute) {
+        toast({title: "오류", description: "현재 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
+        return;
+    }
+
+    const teacherIdsToCopy = currentRoute.teacherIds || [];
+    const targetRouteType = currentRoute.type;
+    const targetBusId = currentRoute.busId;
+    const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    const routesToUpdate = routes.filter(r => 
+        r.busId === targetBusId && 
+        weekdays.includes(r.dayOfWeek) && 
+        r.type === targetRouteType
+    );
+
+    try {
+        const batch = writeBatch(db);
+        routesToUpdate.forEach(route => {
+            const routeRef = doc(db, 'routes', route.id);
+            batch.update(routeRef, { teacherIds: teacherIdsToCopy });
+        });
+        await batch.commit();
+
+        setRoutes(prevRoutes => 
+            prevRoutes.map(r => {
+                if (routesToUpdate.some(updated => updated.id === r.id)) {
+                    return {...r, teacherIds: teacherIdsToCopy};
+                }
+                return r;
+            })
+        );
+        toast({title: "성공", description: `평일(${targetRouteType}) 노선에 담당 선생님 정보가 복사되었습니다.`});
+    } catch (error) {
+        console.error("Error copying teachers:", error);
+        toast({title: "오류", description: "복사 중 오류가 발생했습니다.", variant: 'destructive'});
+    }
+  };
+
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
@@ -651,12 +720,12 @@ const BusConfigurationTab = ({
                     </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {selectedBus ? (
+                        {selectedBus && currentRoute ? (
                             <Card>
                                 <CardHeader>
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <CardTitle>{selectedBus.name} - {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
+                                            <CardTitle>{selectedBus.name} - {dayLabels[selectedDay]} {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
                                             <CardDescription>드래그하여 노선 순서를 정하고, 'X'를 눌러 삭제합니다.</CardDescription>
                                         </div>
                                     </div>
@@ -824,11 +893,11 @@ const BusConfigurationTab = ({
                         </CardContent>
                     </Card>
 
-                    {selectedBus && (
+                    {selectedBus && currentRoute && (
                         <Card>
                             <CardHeader>
                                 <CardTitle>담당 선생님 배정</CardTitle>
-                                <CardDescription>현재 선택된 버스({selectedBus.name})의 담당 선생님을 배정합니다.</CardDescription>
+                                <CardDescription>현재 선택된 노선({selectedBus.name} - {dayLabels[selectedDay]} {selectedRouteType})의 담당 선생님을 배정합니다.</CardDescription>
                             </CardHeader>
                              <CardContent>
                                 {assignedTeachers.length > 0 ? (
@@ -838,6 +907,11 @@ const BusConfigurationTab = ({
                                 ) : (
                                     <div className="text-sm text-muted-foreground">배정된 선생님이 없습니다.</div>
                                 )}
+                                {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
+                                     <Button variant="link" onClick={handleCopyToAllWeekdays} className="p-0 h-auto mt-2 text-sm">
+                                        <Copy className="mr-2"/> 현재 배정을 모든 평일 등/하교 노선에 복사
+                                    </Button>
+                                )}
                             </CardContent>
                             <CardFooter className="grid grid-cols-3 gap-2">
                                <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>재배정</Button>
@@ -845,7 +919,7 @@ const BusConfigurationTab = ({
                                     <DialogTrigger asChild>
                                         <Button variant="outline"><Pencil className="mr-2"/>수동 변경</Button>
                                     </DialogTrigger>
-                                    <TeacherAssignmentDialog bus={selectedBus} allBuses={buses} teachers={teachers} setBuses={setBuses} onOpenChange={setIsTeacherDialogOpen} />
+                                    <TeacherAssignmentDialog currentRoute={currentRoute} allRoutes={routes} teachers={teachers} setRoutes={setRoutes} onOpenChange={setIsTeacherDialogOpen} />
                                 </Dialog>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -855,7 +929,7 @@ const BusConfigurationTab = ({
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>정말 모든 담당 선생님 배정을 해제하시겠습니까?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                이 작업은 되돌릴 수 없습니다. 이 버스의 모든 담당 선생님 배정이 초기화됩니다.
+                                                이 작업은 되돌릴 수 없습니다. 이 노선의 모든 담당 선생님 배정이 초기화됩니다.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -1055,7 +1129,7 @@ const StudentManagementTab = ({
 
         try {
             await updateRouteSeating(currentRoute.id, emptySeating);
-            toast({ title: "성공", description: `${selectedBus.name}의 ${selectedDay} ${selectedRouteType} 노선 좌석 배정이 초기화되었습니다.` });
+            toast({ title: "성공", description: `${selectedBus.name}의 ${dayLabels[selectedDay]} ${selectedRouteType} 노선 좌석 배정이 초기화되었습니다.` });
         } catch (error) {
             setRoutes(oldRoutes);
             toast({ title: "오류", description: "좌석 초기화 실패", variant: 'destructive' });
@@ -1319,12 +1393,17 @@ const StudentManagementTab = ({
             return;
         }
 
-        const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지";
+        const headers = ["학생 이름","학년","반","성별","목적지"].join(',');
         const csvData = unassignedStudents.map(s => {
-            const morningDestName = destinations.find(d => d.id === s.morningDestinationId)?.name || '';
-            const afternoonDestName = destinations.find(d => d.id === s.afternoonDestinationId)?.name || '';
-            const afterSchoolDestName = destinations.find(d => d.id === (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null))?.name || '';
-            return [s.name, s.grade, s.class, s.gender, morningDestName, afternoonDestName, afterSchoolDestName].join(',');
+            let destName = '';
+             if (selectedRouteType === 'Morning') {
+                destName = destinations.find(d => d.id === s.morningDestinationId)?.name || '';
+            } else if (selectedRouteType === 'Afternoon') {
+                destName = destinations.find(d => d.id === s.afternoonDestinationId)?.name || '';
+            } else if (selectedRouteType === 'AfterSchool') {
+                destName = destinations.find(d => d.id === (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null))?.name || '';
+            }
+            return [s.name, s.grade, s.class, s.gender, destName].join(',');
         }).join('\n');
 
         const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + csvData;
@@ -1786,7 +1865,7 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
 
                 try {
                     const addedTeachers = await addTeachersInBatch(newTeachersData);
-                    setTeachers(prev => [...prev, ...addedTeachers]);
+                    setTeachers(prev => [...prev, ...addedTeachers].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
                     toast({ title: "성공", description: `${addedTeachers.length}명의 선생님이 일괄 등록되었습니다.` });
                 } catch (error) {
                     toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
@@ -1944,7 +2023,7 @@ export default function AdminPage() {
                 setRoutes(routesData);
                 setDestinations(sortDestinations(destinationsData));
                 setSuggestedDestinations(suggestionsData);
-                setTeachers(teachersData);
+                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
 
                 if (sortedBuses.length > 0 && !selectedBusId) {
                   setSelectedBusId(sortedBuses[0].id);
@@ -1988,7 +2067,7 @@ export default function AdminPage() {
                         <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
                     </TabsList>
                     <TabsContent value="bus-registration" className="mt-6">
-                        <BusRegistrationTab buses={buses} setBuses={setBuses} />
+                        <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} setBuses={setBuses} />
                     </TabsContent>
                      <TabsContent value="teacher-management" className="mt-6">
                         <TeacherManagementTab teachers={teachers} setTeachers={setTeachers} />
@@ -1996,7 +2075,6 @@ export default function AdminPage() {
                     <TabsContent value="bus-configuration" className="mt-6">
                         <BusConfigurationTab
                             buses={buses}
-                            setBuses={setBuses}
                             routes={routes}
                             setRoutes={setRoutes}
                             destinations={destinations}
@@ -2030,5 +2108,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-    

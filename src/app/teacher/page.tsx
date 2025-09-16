@@ -137,9 +137,9 @@ export default function TeacherPage() {
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
     const assignedTeachers = useMemo(() => {
-        if (!selectedBus || !selectedBus.teacherIds) return [];
-        return selectedBus.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
-    }, [selectedBus, teachers]);
+        if (!currentRoute || !currentRoute.teacherIds) return [];
+        return currentRoute.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
+    }, [currentRoute, teachers]);
 
   // Firestore real-time listener for attendance
   useEffect(() => {

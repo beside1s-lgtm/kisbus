@@ -24,7 +24,6 @@ export type Bus = {
   name: string;
   capacity: 15 | 29 | 45;
   type: '15-seater' | '29-seater' | '45-seater';
-  teacherIds?: string[];
 };
 export type NewBus = Omit<Bus, 'id'>;
 
@@ -53,6 +52,7 @@ export type Route = {
   type: RouteType;
   stops: string[]; // ordered list of destination IDs
   seating: SeatingAssignment[];
+  teacherIds?: string[];
 };
 
 export type AttendanceRecord = {
