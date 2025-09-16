@@ -273,9 +273,18 @@ const BusRegistrationTab = ({ buses, setBuses }: { buses: Bus[], setBuses: React
     );
 };
 
-const TeacherAssignmentDialog = ({ bus, teachers, setBuses, onOpenChange }: { bus: Bus, teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>>, onOpenChange: (open: boolean) => void }) => {
+const TeacherAssignmentDialog = ({ bus, allBuses, teachers, setBuses, onOpenChange }: { bus: Bus, allBuses: Bus[], teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>>, onOpenChange: (open: boolean) => void }) => {
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>(bus.teacherIds || []);
     const { toast } = useToast();
+
+    const assignedToOtherBusesIds = useMemo(() => {
+        const otherBuses = allBuses.filter(b => b.id !== bus.id);
+        const ids = new Set<string>();
+        otherBuses.forEach(b => {
+            b.teacherIds?.forEach(id => ids.add(id));
+        });
+        return ids;
+    }, [allBuses, bus.id]);
 
     const handleSave = async () => {
         try {
@@ -304,16 +313,26 @@ const TeacherAssignmentDialog = ({ bus, teachers, setBuses, onOpenChange }: { bu
                 <DialogTitle>{bus.name} 담당 선생님 변경</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                {sortedTeachers.map(teacher => (
-                    <div key={teacher.id} className="flex items-center space-x-2">
-                        <Checkbox
-                            id={`teacher-${teacher.id}`}
-                            checked={selectedTeacherIds.includes(teacher.id)}
-                            onCheckedChange={(checked) => handleCheckboxChange(teacher.id, checked as boolean)}
-                        />
-                        <Label htmlFor={`teacher-${teacher.id}`}>{teacher.name}</Label>
-                    </div>
-                ))}
+                {sortedTeachers.map(teacher => {
+                    const isAssignedToOtherBus = assignedToOtherBusesIds.has(teacher.id);
+                    const isAssignedToCurrentBus = selectedTeacherIds.includes(teacher.id);
+                    const isDisabled = isAssignedToOtherBus && !isAssignedToCurrentBus;
+
+                    return (
+                        <div key={teacher.id} className="flex items-center space-x-2">
+                            <Checkbox
+                                id={`teacher-${teacher.id}`}
+                                checked={selectedTeacherIds.includes(teacher.id)}
+                                onCheckedChange={(checked) => handleCheckboxChange(teacher.id, checked as boolean)}
+                                disabled={isDisabled}
+                            />
+                            <Label htmlFor={`teacher-${teacher.id}`} className={cn(isDisabled && "text-muted-foreground")}>
+                                {teacher.name}
+                                {isDisabled && <span className="text-xs ml-2">(다른 버스에 배정됨)</span>}
+                            </Label>
+                        </div>
+                    );
+                })}
             </div>
             <DialogFooter>
                 <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
@@ -808,7 +827,7 @@ const BusConfigurationTab = ({
                                     <DialogTrigger asChild>
                                         <Button variant="outline" className="flex-1"><Pencil className="mr-2"/>수동 변경</Button>
                                     </DialogTrigger>
-                                    <TeacherAssignmentDialog bus={selectedBus} teachers={teachers} setBuses={setBuses} onOpenChange={setIsTeacherDialogOpen} />
+                                    <TeacherAssignmentDialog bus={selectedBus} allBuses={buses} teachers={teachers} setBuses={setBuses} onOpenChange={setIsTeacherDialogOpen} />
                                 </Dialog>
                             </CardFooter>
                         </Card>
@@ -1976,3 +1995,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
