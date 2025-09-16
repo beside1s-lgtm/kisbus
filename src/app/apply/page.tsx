@@ -93,7 +93,7 @@ export default function ApplyPage() {
         }
 
         const existingStudent = findExistingStudent();
-        let updateData: Partial<Student> = {};
+        let updateData: Partial<Student> = { applicationStatus: 'pending' };
         
         try {
             if (useCustomMorningDest && customMorningDestName.trim()) {
@@ -122,7 +122,7 @@ export default function ApplyPage() {
 
         try {
             if (existingStudent) {
-                await updateStudent(existingStudent.id, updateData);
+                await updateStudent(existingStudent.id, { ...existingStudent, ...updateData });
                 setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } : s));
             } else {
                 const newStudentData: NewStudent = {
@@ -135,6 +135,7 @@ export default function ApplyPage() {
                     afterSchoolDestinations: {},
                     suggestedMorningDestination: updateData.suggestedMorningDestination || null,
                     suggestedAfternoonDestination: updateData.suggestedAfternoonDestination || null,
+                    applicationStatus: 'pending',
                 };
                 const addedStudent = await addStudent(newStudentData);
                 setAllStudents(prevStudents => [...prevStudents, addedStudent]);
@@ -207,12 +208,13 @@ export default function ApplyPage() {
 
         const updateData: Partial<Student> = { 
             afterSchoolDestinations: finalDestinations,
-            suggestedAfterSchoolDestinations: finalSuggestedDests
+            suggestedAfterSchoolDestinations: finalSuggestedDests,
+            applicationStatus: 'pending'
         };
 
          try {
             if (existingStudent) {
-                await updateStudent(existingStudent.id, updateData);
+                await updateStudent(existingStudent.id, { ...existingStudent, ...updateData });
                 setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } : s));
             } else {
                  const newStudentData: NewStudent = {
@@ -223,7 +225,8 @@ export default function ApplyPage() {
                     morningDestinationId: null,
                     afternoonDestinationId: null,
                     afterSchoolDestinations: finalDestinations,
-                    suggestedAfterSchoolDestinations: finalSuggestedDests
+                    suggestedAfterSchoolDestinations: finalSuggestedDests,
+                    applicationStatus: 'pending'
                 };
                 const addedStudent = await addStudent(newStudentData);
                 setAllStudents(prevStudents => [...prevStudents, addedStudent]);

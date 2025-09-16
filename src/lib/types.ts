@@ -15,6 +15,7 @@ export type Student = {
   suggestedMorningDestination?: string | null;
   suggestedAfternoonDestination?: string | null;
   suggestedAfterSchoolDestinations?: Partial<Record<DayOfWeek, string | null>>;
+  applicationStatus?: 'pending' | 'reviewed';
 };
 export type NewStudent = Omit<Student, 'id' | 'isGroupLeader' | 'daysAsGroupLeader'>;
 

@@ -19,7 +19,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search, Copy, Check } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,6 +35,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -1481,6 +1482,7 @@ const StudentManagementTab = ({
                         morningDestinationId: morningDestName ? findDestId(morningDestName) : null,
                         afternoonDestinationId: afternoonDestName ? findDestId(afternoonDestName) : null,
                         afterSchoolDestinations: hasAfterSchool ? afterSchoolDests : {},
+                        applicationStatus: 'pending'
                     };
                     studentsToProcess.push(studentData);
                 });
@@ -1535,7 +1537,8 @@ const StudentManagementTab = ({
                 gender, 
                 morningDestinationId: morningDestinationId || null, 
                 afternoonDestinationId: afternoonDestinationId || null,
-                afterSchoolDestinations: afterSchoolDestinations || {} 
+                afterSchoolDestinations: afterSchoolDestinations || {},
+                applicationStatus: 'pending'
             };
             const newStudent = await addStudent(newStudentData);
 
@@ -1555,23 +1558,28 @@ const StudentManagementTab = ({
 
     const handleDestinationChange = async (studentId: string, newDestinationId: string, type: 'morning' | 'afternoon' | 'afterSchool') => {
         try {
-            let updateData: Partial<Student>;
+            let updateData: Partial<Student> = { applicationStatus: 'pending' };
 
             if (type === 'morning') {
-                 updateData = { morningDestinationId: newDestinationId };
+                 updateData.morningDestinationId = newDestinationId;
             } else if (type === 'afternoon') {
-                 updateData = { afternoonDestinationId: newDestinationId };
+                 updateData.afternoonDestinationId = newDestinationId;
             } else {
                  const student = students.find(s => s.id === studentId);
                  if (!student) return;
                  const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [selectedDay]: newDestinationId };
-                 updateData = { afterSchoolDestinations: newAfterSchoolDests };
+                 updateData.afterSchoolDestinations = newAfterSchoolDests;
             }
-
+            
+            // This will also handle unassigning from routes
             await updateStudent(studentId, updateData);
+            
+            // Refetch all students and routes to reflect changes
+            const [refetchedStudents, refetchedRoutes] = await Promise.all([getStudents(), getRoutes()]);
+            setStudents(refetchedStudents);
+            setRoutes(refetchedRoutes);
 
-            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, ...updateData } : s));
-            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다." });
+            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 좌석 배정이 해제되었을 수 있습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
         }
@@ -2025,8 +2033,13 @@ export default function AdminPage() {
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
     const [loading, setLoading] = useState(true);
+    const { toast } = useToast();
 
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    const pendingStudents = useMemo(() => {
+        return students.filter(s => s.applicationStatus === 'pending');
+    }, [students]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -2060,6 +2073,19 @@ export default function AdminPage() {
         fetchData();
     }, []);
 
+    const handleAcknowledgeAll = async () => {
+        const pendingStudentIds = pendingStudents.map(s => s.id);
+        if (pendingStudentIds.length === 0) return;
+
+        try {
+            await updateStudentsInBatch(pendingStudentIds.map(id => ({ id, applicationStatus: 'reviewed' })));
+            setStudents(prev => prev.map(s => pendingStudentIds.includes(s.id) ? { ...s, applicationStatus: 'reviewed' } : s));
+            toast({ title: "성공", description: "모든 신청을 확인 완료 처리했습니다." });
+        } catch (error) {
+            toast({ title: "오류", description: "처리 중 오류가 발생했습니다.", variant: "destructive" });
+        }
+    };
+
     const filterComponent = (
         <AdminPageFilter
             buses={buses}
@@ -2082,6 +2108,19 @@ export default function AdminPage() {
                     <p>데이터를 불러오는 중입니다...</p>
                 </div>
             ) : (
+                <>
+                {pendingStudents.length > 0 && (
+                    <Alert className="mb-6">
+                        <Bell className="h-4 w-4" />
+                        <AlertTitle>신규/변경 신청 도착</AlertTitle>
+                        <AlertDescription className="flex justify-between items-center">
+                            {pendingStudents.length}건의 신규 또는 변경된 탑승 신청이 있습니다.
+                             <Button onClick={handleAcknowledgeAll}>
+                                <Check className="mr-2" /> 모두 확인 완료로 변경
+                            </Button>
+                        </AlertDescription>
+                    </Alert>
+                )}
                 <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
                     <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
@@ -2127,6 +2166,7 @@ export default function AdminPage() {
                         />
                     </TabsContent>
                 </Tabs>
+                </>
             )}
         </MainLayout>
     );

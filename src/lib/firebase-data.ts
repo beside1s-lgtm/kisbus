@@ -71,8 +71,12 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
     if (!querySnapshot.empty) {
         // Student exists, update them
         const docRef = querySnapshot.docs[0].ref;
-        await updateDoc(docRef, student);
+        await updateDoc(docRef, student as Partial<Student>);
         const docSnap = await getDoc(docRef);
+        
+        // Unassign from routes because their destination might have changed
+        await unassignStudentFromAllRoutes(docRef.id);
+        
         return { id: docRef.id, ...docSnap.data() } as Student;
     } else {
         // Student doesn't exist, create new
@@ -84,6 +88,11 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 
 export const updateStudent = async (studentId: string, data: Partial<Student>) => {
     await updateDoc(doc(db, 'students', studentId), data);
+    // Unassign from routes if destination info has changed
+    const hasDestinationChanged = 'morningDestinationId' in data || 'afternoonDestinationId' in data || 'afterSchoolDestinations' in data;
+    if (hasDestinationChanged) {
+        await unassignStudentFromAllRoutes(studentId);
+    }
 }
 export const updateStudentsInBatch = async (students: (Partial<Student> & {id: string})[]) => {
     const batch = writeBatch(db);
@@ -288,15 +297,16 @@ export const unassignStudentFromAllRoutes = async (studentId: string) => {
 
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
+        let seatingChanged = false;
         const newSeating = routeData.seating.map(seat => {
             if (seat.studentId === studentId) {
+                seatingChanged = true;
                 return { ...seat, studentId: null };
             }
             return seat;
         });
 
-        // Check if the seating actually changed to avoid unnecessary writes
-        if (JSON.stringify(newSeating) !== JSON.stringify(routeData.seating)) {
+        if (seatingChanged) {
             batch.update(routeDoc.ref, { seating: newSeating });
         }
     });
