@@ -135,12 +135,21 @@ export const addDestination = (destination: NewDestination) => addDocument<Desti
 export const addDestinationsInBatch = async (destinations: NewDestination[]): Promise<Destination[]> => {
     const batch = writeBatch(db);
     const newDestinations: Destination[] = [];
-    destinations.forEach(dest => {
-        const docRef = doc(collection(db, 'destinations'));
-        batch.set(docRef, dest);
-        newDestinations.push({ id: docRef.id, ...dest });
-    });
-    await batch.commit();
+    const existingDestsSnapshot = await getDocs(collection(db, 'destinations'));
+    const existingNames = new Set(existingDestsSnapshot.docs.map(doc => doc.data().name.toLowerCase()));
+
+    for (const dest of destinations) {
+        if (!existingNames.has(dest.name.toLowerCase())) {
+            const docRef = doc(collection(db, 'destinations'));
+            batch.set(docRef, dest);
+            newDestinations.push({ id: docRef.id, ...dest });
+            existingNames.add(dest.name.toLowerCase()); // prevent adding duplicates from the same batch
+        }
+    }
+    
+    if (newDestinations.length > 0) {
+        await batch.commit();
+    }
     return newDestinations;
 }
 export const deleteDestination = (destinationId: string) => deleteDoc(doc(db, 'destinations', destinationId));

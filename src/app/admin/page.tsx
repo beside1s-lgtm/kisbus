@@ -380,7 +380,7 @@ const BusConfigurationTab = ({
         if (!trimmedName) return;
 
         if (destinations.some(d => d.name.toLowerCase() === trimmedName.toLowerCase())) {
-            toast({ title: "오류", description: "이미 존재하는 목적지입니다.", variant: 'destructive' });
+            toast({ title: "알림", description: "이미 존재하는 목적지입니다.", variant: 'default' });
             return;
         }
 
@@ -425,12 +425,13 @@ const BusConfigurationTab = ({
         header: true,
         skipEmptyLines: true,
         complete: async (results) => {
+            const existingNames = new Set(destinations.map(d => d.name.toLowerCase()));
             const newDestinationsData: NewDestination[] = results.data.map((row: any) => ({
                 name: (row['목적지 이름'] || row['name'] || '').trim()
-            })).filter(dest => dest.name);
+            })).filter(dest => dest.name && !existingNames.has(dest.name.toLowerCase()));
 
             if (newDestinationsData.length === 0) {
-                toast({ title: "오류", description: "파일에서 유효한 목적지 데이터를 찾을 수 없습니다. 헤더가 '목적지 이름'으로 되어있는지 확인하세요.", variant: "destructive" });
+                toast({ title: "알림", description: "새로 추가할 목적지가 없거나 모두 중복된 이름입니다.", variant: "default" });
                 return;
             }
 
@@ -565,9 +566,12 @@ const BusConfigurationTab = ({
     }
 
     let numToAssign = 1;
-    if (selectedBus.type === '45-seater') {
-        numToAssign = Math.min(teachers.length, 2);
+    if (selectedBus.type === '45-seater' && teachers.length >= 2) {
+        numToAssign = 2;
+    } else if (selectedBus.type === '45-seater' && teachers.length < 2) {
+        numToAssign = teachers.length;
     }
+
 
     const shuffledTeachers = [...teachers].sort(() => 0.5 - Math.random());
     const assignedTeacherIds = shuffledTeachers.slice(0, numToAssign).map(t => t.id);
@@ -1042,8 +1046,6 @@ const StudentManagementTab = ({
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
     
-        const oldRoutes = [...routes];
-
         const studentsForThisRoute = students.filter(s => {
             let destId: string | null = null;
             if (selectedRouteType === 'Morning') {
@@ -1211,11 +1213,10 @@ const StudentManagementTab = ({
             setRoutes(updatedRoutes);
 
         } catch (error) {
-            setRoutes(oldRoutes); // Revert on failure
             console.error("Randomization error:", error);
             toast({ title: "오류", description: "랜덤 배정 또는 복사 중 오류가 발생했습니다.", variant: 'destructive' });
         }
-    }, [selectedBus, students, routes, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
+    }, [selectedBus, students, routes, setRoutes, toast, selectedDay, selectedRouteType, currentRoute?.id, currentRoute?.stops]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 ID,학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
@@ -1415,29 +1416,23 @@ const StudentManagementTab = ({
             const seatNumber = parseInt(destination.droppableId.replace('seat-', ''));
             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
-            if (targetSeatIndex !== -1 && newSeating[targetSeatIndex].studentId) { // Seat is occupied, SWAP
-                const studentInDestinationSeatId = newSeating[targetSeatIndex].studentId;
-                
-                // Find where the dragged student was (should not be in a seat, but as a fallback)
-                const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
-                
-                // Put student from destination seat into unassigned list (effectively)
-                // by removing the dragged student from their original seat (if any)
-                if (sourceSeatIndex > -1) {
-                    newSeating[sourceSeatIndex].studentId = studentInDestinationSeatId;
+            if (targetSeatIndex !== -1) {
+                // If the seat is occupied, swap the students
+                if (newSeating[targetSeatIndex].studentId) {
+                    const studentInDestinationSeatId = newSeating[targetSeatIndex].studentId;
+                    
+                    const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
+                    if (sourceSeatIndex !== -1) {
+                        newSeating[sourceSeatIndex].studentId = studentInDestinationSeatId;
+                    }
+                    toast({ title: "알림", description: "좌석을 교환했습니다." });
                 }
                 
-                // Put dragged student into destination seat
+                // Place the dragged student in the destination seat
                 newSeating[targetSeatIndex].studentId = studentId;
 
-                toast({ title: "알림", description: "좌석을 교환했습니다." });
-
-            } else { // Seat is empty
-                 if (targetSeatIndex !== -1) {
-                    newSeating[targetSeatIndex].studentId = studentId;
-                }
+                handleSeatUpdate(newSeating);
             }
-             handleSeatUpdate(newSeating);
         }
         // Case 2: Moving from a seat to another seat (or swapping)
         else if (source.droppableId.startsWith('seat-') && destination.droppableId.startsWith('seat-')) {
