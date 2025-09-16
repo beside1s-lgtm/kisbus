@@ -262,16 +262,19 @@ export const saveGroupLeaderRecords = async (routeId: string, records: Omit<Grou
 // Suggested Destinations (using a simple 'suggestedDestinations' collection)
 export const getSuggestedDestinations = () => fetchCollection<Destination>('suggestedDestinations');
 export const addSuggestedDestination = async (destination: { name: string }) => {
+    const trimmedName = destination.name.trim();
+    if (!trimmedName) return;
+
     // Check main destinations first
-    const mainDestQ = query(collection(db, "destinations"), where("name", "==", destination.name));
+    const mainDestQ = query(collection(db, "destinations"), where("name", "==", trimmedName));
     const mainDestSnap = await getDocs(mainDestQ);
     if (!mainDestSnap.empty) return; // Already exists as a main destination
 
     // Check suggested destinations
-    const q = query(collection(db, "suggestedDestinations"), where("name", "==", destination.name));
-    const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) {
-        await addDocument<Destination>('suggestedDestinations', destination);
+    const suggestedDestQ = query(collection(db, "suggestedDestinations"), where("name", "==", trimmedName));
+    const suggestedDestSnap = await getDocs(suggestedDestQ);
+    if (suggestedDestSnap.empty) {
+        await addDocument<Destination>('suggestedDestinations', { name: trimmedName });
     }
 }
 export const approveSuggestedDestination = async (suggestion: Destination) => {
