@@ -19,7 +19,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -352,6 +352,7 @@ const BusConfigurationTab = ({
   filterComponent: React.ReactNode;
 }) => {
   const [newDestinationName, setNewDestinationName] = useState('');
+  const [destinationSearchQuery, setDestinationSearchQuery] = useState('');
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
@@ -368,6 +369,15 @@ const BusConfigurationTab = ({
         r.type === selectedRouteType
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+
+  const filteredDestinations = useMemo(() => {
+    if (!destinationSearchQuery) {
+        return destinations;
+    }
+    return destinations.filter(dest => 
+        dest.name.toLowerCase().includes(destinationSearchQuery.toLowerCase())
+    );
+  }, [destinations, destinationSearchQuery]);
 
   const getStopsForCurrentRoute = () => {
     if (!currentRoute) return [];
@@ -718,14 +728,24 @@ const BusConfigurationTab = ({
                                     </DialogContent>
                                 </Dialog>
                             </div>
+                            <div className="relative mb-4">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    type="search"
+                                    placeholder="목적지 검색..."
+                                    className="pl-8 w-full"
+                                    value={destinationSearchQuery}
+                                    onChange={(e) => setDestinationSearchQuery(e.target.value)}
+                                />
+                            </div>
                             <Droppable droppableId="all-destinations" isDropDisabled={true}>
                                 {(provided) => (
                                     <div
                                         ref={provided.innerRef}
                                         {...provided.droppableProps}
-                                        className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] bg-muted/50"
+                                        className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] max-h-[30vh] overflow-y-auto bg-muted/50"
                                     >
-                                        {destinations.map((dest, index) => (
+                                        {filteredDestinations.map((dest, index) => (
                                              <Draggable key={dest.id} draggableId={dest.id} index={index}>
                                                 {(provided, snapshot) => (
                                                     <div
@@ -1425,12 +1445,21 @@ const StudentManagementTab = ({
                     const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
                     if (sourceSeatIndex !== -1) {
                         newSeating[sourceSeatIndex].studentId = studentInDestinationSeatId;
+                    } else { // Student came from unassigned list, so put the seat student there
+                        // This part makes less sense if we are unassigning them, better to just swap on bus.
+                        // Let's stick to swapping only seat-to-seat
                     }
                     toast({ title: "알림", description: "좌석을 교환했습니다." });
                 }
                 
                 // Place the dragged student in the destination seat
                 newSeating[targetSeatIndex].studentId = studentId;
+
+                // If student was on another seat, clear that one
+                const originalSeatIndex = newSeating.findIndex(s => s.studentId === studentId && s.seatNumber !== seatNumber);
+                if (originalSeatIndex !== -1) {
+                    newSeating[originalSeatIndex].studentId = null;
+                }
 
                 handleSeatUpdate(newSeating);
             }
@@ -1954,7 +1983,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-    
-
-    
