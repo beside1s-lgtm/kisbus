@@ -81,7 +81,8 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
     } else {
         // Student doesn't exist, create new
         const docRef = await addDoc(collection(db, 'students'), student);
-        return { id: docRef.id, ...student } as Student;
+        const newStudentDoc = await getDoc(docRef);
+        return { id: docRef.id, ...newStudentDoc.data() } as Student;
     }
 };
 

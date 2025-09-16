@@ -1052,7 +1052,7 @@ const StudentManagementTab = ({
 
                 if (isEligible) {
                     const targetSeatIndex = newSeatingForTarget.findIndex(s => s.seatNumber === sourceSeat.seatNumber);
-                    if (targetSeatIndex !== -1) {
+                    if (targetSeatIndex !== -1 && !newSeatingForTarget[targetSeatIndex].studentId) { // Ensure seat is empty before assigning
                         newSeatingForTarget[targetSeatIndex].studentId = student.id;
                     }
                 }
@@ -1195,29 +1195,34 @@ const StudentManagementTab = ({
                 let routesToCopyTo: Route[] = [];
         
                 if (selectedRouteType === 'Morning') {
-                    const otherMorningRoutes = routes.filter(r => 
+                    // Other weekdays, same route type
+                    routesToCopyTo = routes.filter(r => 
                         r.busId === selectedBusId &&
                         weekdays.includes(r.dayOfWeek) &&
                         r.type === 'Morning'
                     );
-                    const allAfternoonRoutes = routes.filter(r => 
+                    // All weekdays, Afternoon route type
+                     const afternoonRoutes = routes.filter(r => 
                         r.busId === selectedBusId &&
                         allWeekdays.includes(r.dayOfWeek) &&
                         r.type === 'Afternoon'
                     );
-                    routesToCopyTo = [...otherMorningRoutes, ...allAfternoonRoutes];
+                    routesToCopyTo.push(...afternoonRoutes);
+
                 } else if (selectedRouteType === 'Afternoon') {
-                     const otherAfternoonRoutes = routes.filter(r => 
+                     // Other weekdays, same route type
+                    routesToCopyTo = routes.filter(r => 
                         r.busId === selectedBusId &&
                         weekdays.includes(r.dayOfWeek) &&
                         r.type === 'Afternoon'
                     );
-                    const allMorningRoutes = routes.filter(r => 
+                     // All weekdays, Morning route type
+                    const morningRoutes = routes.filter(r => 
                         r.busId === selectedBusId &&
                         allWeekdays.includes(r.dayOfWeek) &&
                         r.type === 'Morning'
                     );
-                    routesToCopyTo = [...otherAfternoonRoutes, ...allMorningRoutes];
+                    routesToCopyTo.push(...morningRoutes);
                 }
         
                 if (routesToCopyTo.length > 0) {
@@ -1240,8 +1245,8 @@ const StudentManagementTab = ({
     }, [selectedBus, students, routes, setRoutes, toast, selectedDay, selectedRouteType, currentRoute?.id, currentRoute?.stops]);
     
     const handleDownloadStudentTemplate = () => {
-        const headers = "학생 ID,학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
-        const example = "STUDENT_ID_123,김민준,G1,C1,Male,강남역,서초역,양재역,양재역,양재역,양재역,양재역,";
+        const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
+        const example = "김민준,G1,C1,Male,강남역,서초역,양재역,양재역,양재역,양재역,양재역,";
         const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -1284,22 +1289,21 @@ const StudentManagementTab = ({
             header: true,
             skipEmptyLines: true,
             complete: async (results) => {
-                const studentsToUpdate: { id: string; data: Partial<Student> }[] = [];
-                const studentsToAdd: NewStudent[] = [];
+                const studentsToProcess: NewStudent[] = [];
                 const allDestinations = [...destinations];
-
+    
                 const findDestId = (name: string) => allDestinations.find(d => d.name === name)?.id || null;
-
+    
                 results.data.forEach((row: any) => {
-                    const studentId = (row['학생 ID'] || '').trim();
-                    const studentData: Partial<Student> = {};
-
+                    const name = (row['학생 이름'] || '').trim();
+                    const grade = (row['학년'] || '').trim();
+                    const studentClass = (row['반'] || '').trim();
+                    
+                    if (!name || !grade || !studentClass) return;
+    
                     const morningDestName = (row['등교 목적지'] || '').trim();
-                    if(morningDestName) studentData.morningDestinationId = findDestId(morningDestName);
-
                     const afternoonDestName = (row['하교 목적지'] || '').trim();
-                    if(afternoonDestName) studentData.afternoonDestinationId = findDestId(afternoonDestName);
-
+    
                     const afterSchoolDests: Partial<Record<DayOfWeek, string | null>> = {};
                     let hasAfterSchool = false;
                     days.forEach(day => {
@@ -1310,58 +1314,41 @@ const StudentManagementTab = ({
                             hasAfterSchool = true;
                         }
                     });
-                    if(hasAfterSchool) studentData.afterSchoolDestinations = afterSchoolDests;
-
-                    if (studentId) { // Existing student to update
-                        if (Object.keys(studentData).length > 0) {
-                            studentsToUpdate.push({ id: studentId, data: studentData });
-                        }
-                    } else { // New student to add
-                        const newStudent: NewStudent = {
-                            name: (row['학생 이름'] || '').trim(),
-                            grade: (row['학년'] || '').trim(),
-                            class: (row['반'] || '').trim(),
-                            gender: (row['성별'] || '').trim() as 'Male' | 'Female',
-                            morningDestinationId: studentData.morningDestinationId || null,
-                            afternoonDestinationId: studentData.afternoonDestinationId || null,
-                            afterSchoolDestinations: studentData.afterSchoolDestinations || {},
-                        };
-                        if (newStudent.name && newStudent.grade && newStudent.class && newStudent.gender) {
-                            studentsToAdd.push(newStudent);
-                        }
-                    }
+                    
+                    const studentData: NewStudent = {
+                        name: name,
+                        grade: grade,
+                        class: studentClass,
+                        gender: (row['성별'] || 'Male').trim() as 'Male' | 'Female',
+                        morningDestinationId: morningDestName ? findDestId(morningDestName) : null,
+                        afternoonDestinationId: afternoonDestName ? findDestId(afternoonDestName) : null,
+                        afterSchoolDestinations: hasAfterSchool ? afterSchoolDests : {},
+                    };
+                    studentsToProcess.push(studentData);
                 });
-
-                if (studentsToUpdate.length === 0 && studentsToAdd.length === 0) {
+    
+                if (studentsToProcess.length === 0) {
                     toast({ title: "오류", description: "유효한 학생 데이터를 찾을 수 없거나 목적지가 존재하지 않습니다.", variant: "destructive" });
                     return;
                 }
-
+    
                 try {
-                    let updateCount = 0;
-                    let addCount = 0;
+                    const processedStudents = await Promise.all(studentsToProcess.map(s => addStudent(s)));
 
-                    if (studentsToUpdate.length > 0) {
-                        await updateStudentsInBatch(studentsToUpdate.map(s => ({id: s.id, ...s.data})));
-                        const updatedIds = new Set(studentsToUpdate.map(s => s.id));
-                        setStudents(prev => prev.map(s => {
-                            if (updatedIds.has(s.id)) {
-                                const updatedStudentData = studentsToUpdate.find(u => u.id === s.id);
-                                return { ...s, ...updatedStudentData?.data };
-                            }
-                            return s;
-                        }));
-                        updateCount = studentsToUpdate.length;
-                    }
+                    const newStudentList = [...students];
+                    processedStudents.forEach(processedStudent => {
+                        const index = newStudentList.findIndex(s => s.id === processedStudent.id);
+                        if (index !== -1) {
+                            newStudentList[index] = processedStudent; // Update existing
+                        } else {
+                            newStudentList.push(processedStudent); // Add new
+                        }
+                    });
 
-                    if (studentsToAdd.length > 0) {
-                        const addedStudents = await Promise.all(studentsToAdd.map(s => addStudent(s)));
-                        setStudents(prev => [...prev, ...addedStudents]);
-                        addCount = addedStudents.length;
-                    }
+                    setStudents(newStudentList);
                     
-                    toast({ title: "성공", description: `${addCount}명의 학생이 추가되고 ${updateCount}명의 학생 정보가 업데이트되었습니다.` });
-
+                    toast({ title: "성공", description: `${processedStudents.length}명의 학생 정보가 추가/업데이트되었습니다.` });
+    
                 } catch (error) {
                     console.error(error);
                     toast({ title: "오류", description: "일괄 처리 중 오류 발생", variant: "destructive" });
@@ -1393,11 +1380,18 @@ const StudentManagementTab = ({
                 afterSchoolDestinations: afterSchoolDestinations || {} 
             };
             const newStudent = await addStudent(newStudentData);
-            setStudents(prev => [...prev, newStudent]);
+
+            const studentExists = students.some(s => s.id === newStudent.id);
+            if (studentExists) {
+                setStudents(prev => prev.map(s => s.id === newStudent.id ? newStudent : s));
+            } else {
+                setStudents(prev => [...prev, newStudent]);
+            }
+
             setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', morningDestinationId: null, afternoonDestinationId: null, afterSchoolDestinations: {} });
-            toast({ title: "성공", description: "학생이 추가되었습니다." });
+            toast({ title: "성공", description: "학생 정보가 추가/업데이트되었습니다." });
         } catch (error) {
-            toast({ title: "오류", description: "학생 추가 실패", variant: "destructive" });
+            toast({ title: "오류", description: "학생 추가/업데이트 실패", variant: "destructive" });
         }
     };
 
@@ -1445,10 +1439,7 @@ const StudentManagementTab = ({
                     const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
                     if (sourceSeatIndex !== -1) {
                         newSeating[sourceSeatIndex].studentId = studentInDestinationSeatId;
-                    } else { // Student came from unassigned list, so put the seat student there
-                        // This part makes less sense if we are unassigning them, better to just swap on bus.
-                        // Let's stick to swapping only seat-to-seat
-                    }
+                    } 
                     toast({ title: "알림", description: "좌석을 교환했습니다." });
                 }
                 
