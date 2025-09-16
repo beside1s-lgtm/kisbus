@@ -12,7 +12,8 @@ import {
     addRoute, updateRouteSeating, updateRouteStops, clearAllSuggestedDestinations,
     updateStudentsInBatch,
     unassignStudentFromAllRoutes,
-    addTeachersInBatch, updateRoute, deleteAllDestinations
+    addTeachersInBatch, updateRoute, deleteAllDestinations,
+    copySeatingPlan
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -1217,62 +1218,35 @@ const StudentManagementTab = ({
 
     }, [selectedBus, currentRoute, routes, setRoutes, toast, selectedDay, selectedRouteType]);
 
-    const getStudentsForRoute = (route: Route, allStudents: Student[]): Student[] => {
-        const studentIdsOnRoute = new Set(
-            route.seating.map(s => s.studentId).filter(Boolean)
-        );
-    
-        return allStudents.filter(s => {
-            // Check if student is eligible for this route type
-            let isEligible = false;
-            if (route.type === 'Morning') {
-                isEligible = !!s.morningDestinationId;
-            } else if (route.type === 'Afternoon') {
-                isEligible = !!s.afternoonDestinationId;
-            } else if (route.type === 'AfterSchool') {
-                isEligible = !!s.afterSchoolDestinations?.[route.dayOfWeek];
-            }
-    
-            // Return if they are eligible OR already on this bus (for copying existing assignments)
-            return isEligible || studentIdsOnRoute.has(s.id);
-        });
-    };
-
-    const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentId: string | null }[], targetRoutes: Route[], allStudents: Student[]) => {
-        const batch = writeBatch(db);
+    const handleCopySeatingToWeekdays = useCallback(async () => {
+        if (!currentRoute || !currentRoute.seating) {
+            toast({ title: "오류", description: "복사할 원본 노선을 찾을 수 없습니다.", variant: "destructive" });
+            return;
+        }
         
-        for (const targetRoute of targetRoutes) {
-            const newSeatingForTarget = generateInitialSeating(targetRoute.seating.length);
-            
-            sourcePlan.forEach(sourceSeat => {
-                if (!sourceSeat.studentId) return;
+        const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        const targetRoutes = routes.filter(r => 
+            r.busId === currentRoute.busId && 
+            weekdays.includes(r.dayOfWeek) &&
+            (r.type === 'Morning' || r.type === 'Afternoon') &&
+            r.id !== currentRoute.id
+        );
 
-                const student = allStudents.find(s => s.id === sourceSeat.studentId);
-                if (!student) return;
-
-                let isEligible = false;
-                if (targetRoute.type === 'Morning') {
-                    isEligible = !!student.morningDestinationId && targetRoute.stops.includes(student.morningDestinationId);
-                } else if (targetRoute.type === 'Afternoon') {
-                    isEligible = !!student.afternoonDestinationId && targetRoute.stops.includes(student.afternoonDestinationId);
-                } else if (targetRoute.type === 'AfterSchool') {
-                    const destId = student.afterSchoolDestinations?.[targetRoute.dayOfWeek];
-                    isEligible = !!destId && targetRoute.stops.includes(destId);
-                }
-
-                if (isEligible) {
-                    const targetSeatIndex = newSeatingForTarget.findIndex(s => s.seatNumber === sourceSeat.seatNumber);
-                    if (targetSeatIndex !== -1 && !newSeatingForTarget[targetSeatIndex].studentId) { // Ensure seat is empty before assigning
-                        newSeatingForTarget[targetSeatIndex].studentId = student.id;
-                    }
-                }
-            });
-
-            batch.update(doc(db, 'routes', targetRoute.id), { seating: newSeatingForTarget });
+        if(targetRoutes.length === 0) {
+            toast({title: "알림", description: "복사할 다른 평일 등/하교 노선이 없습니다."});
+            return;
         }
 
-        await batch.commit();
-    };
+        try {
+            await copySeatingPlan(currentRoute.seating, targetRoutes, students);
+            const updatedRoutes = await getRoutes();
+            setRoutes(updatedRoutes);
+            toast({title: "성공", description: "현재 좌석 배치를 모든 평일 등/하교 노선에 복사했습니다."});
+        } catch (error) {
+            console.error("Error copying seating plan:", error);
+            toast({title: "오류", description: "좌석 배치 복사 중 오류가 발생했습니다.", variant: "destructive"});
+        }
+    }, [currentRoute, routes, students, setRoutes, toast]);
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
@@ -1398,26 +1372,19 @@ const StudentManagementTab = ({
         try {
             await updateRouteSeating(currentRoute.id, newSeatingPlan);
         
-            if (selectedDay === 'Monday') {
-                const weekdays: DayOfWeek[] = ['Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-                const allWeekdays: DayOfWeek[] = ['Monday', ...weekdays];
-        
-                let routesToCopyTo: Route[] = [];
-        
-                if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
-                     routesToCopyTo = routes.filter(r => 
-                        r.busId === selectedBusId &&
-                        weekdays.includes(r.dayOfWeek) &&
-                        (r.type === 'Morning' || r.type === 'Afternoon')
-                    );
-                }
+            if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
+                const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                const routesToCopyTo = routes.filter(r => 
+                    r.busId === selectedBusId &&
+                    weekdays.includes(r.dayOfWeek) &&
+                    (r.type === 'Morning' || r.type === 'Afternoon') &&
+                    r.id !== currentRoute.id
+                );
         
                 if (routesToCopyTo.length > 0) {
                     await copySeatingPlan(newSeatingPlan, routesToCopyTo, students);
                 }
-        
                 toast({ title: "성공", description: "랜덤 배정이 완료되었고, 평일 등/하교 노선에 복사되었습니다." });
-        
             } else {
                 toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
             }
@@ -1712,6 +1679,9 @@ const StudentManagementTab = ({
                                <CardDescription>미배정 학생을 드래그하여 배정하거나, 좌석을 클릭하여 배정을 해제하세요.</CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
+                                {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
+                                    <Button variant="outline" onClick={handleCopySeatingToWeekdays}><Copy className="mr-2" /> 평일 등/하교에 복사</Button>
+                                )}
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button variant="outline"><RotateCcw className="mr-2" /> 좌석 초기화</Button>

@@ -238,6 +238,49 @@ export const updateRouteStops = async (routeId: string, stops: string[]) => {
     await updateDoc(doc(db, 'routes', routeId), { stops });
 }
 
+export const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentId: string | null }[], targetRoutes: Route[], allStudents: Student[]) => {
+    const batch = writeBatch(db);
+    
+    const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
+        return Array.from({ length: capacity }, (_, i) => ({
+            seatNumber: i + 1,
+            studentId: null,
+        }));
+    };
+    
+    for (const targetRoute of targetRoutes) {
+        const newSeatingForTarget = generateInitialSeating(targetRoute.seating.length);
+        
+        sourcePlan.forEach(sourceSeat => {
+            if (!sourceSeat.studentId) return;
+
+            const student = allStudents.find(s => s.id === sourceSeat.studentId);
+            if (!student) return;
+
+            let isEligible = false;
+            if (targetRoute.type === 'Morning') {
+                isEligible = !!student.morningDestinationId && targetRoute.stops.includes(student.morningDestinationId);
+            } else if (targetRoute.type === 'Afternoon') {
+                isEligible = !!student.afternoonDestinationId && targetRoute.stops.includes(student.afternoonDestinationId);
+            } else if (targetRoute.type === 'AfterSchool') {
+                const destId = student.afterSchoolDestinations?.[targetRoute.dayOfWeek];
+                isEligible = !!destId && targetRoute.stops.includes(destId);
+            }
+
+            if (isEligible) {
+                const targetSeatIndex = newSeatingForTarget.findIndex(s => s.seatNumber === sourceSeat.seatNumber);
+                if (targetSeatIndex !== -1 && !newSeatingForTarget[targetSeatIndex].studentId) { // Ensure seat is empty before assigning
+                    newSeatingForTarget[targetSeatIndex].studentId = student.id;
+                }
+            }
+        });
+
+        batch.update(doc(db, 'routes', targetRoute.id), { seating: newSeatingForTarget });
+    }
+
+    await batch.commit();
+};
+
 // Group Leader Records
 export const getGroupLeaderRecords = (routeId: string) => fetchCollection<GroupLeaderRecord>(`routes/${routeId}/groupLeaderRecords`);
 
