@@ -573,7 +573,7 @@ const BusConfigurationTab = ({
         setSuggestedDestinations([]);
         toast({ title: "성공", description: "모든 제안된 목적지가 삭제되었습니다." });
     } catch (error) {
-        toast({ title: "오류", description: "삭제 중 오류가 발생했습니다.", variant: 'destructive' });
+        toast({ title: "오류", description: "삭제 중 오류가 발생했습니다.", variant: "destructive" });
     }
   };
 
@@ -1059,8 +1059,11 @@ const StudentManagementTab = ({
     const [newStudentForm, setNewStudentForm] = useState<Partial<NewStudent>>({ gender: 'Male' });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-    const [showCopySeatingDialog, setShowCopySeatingDialog] = useState(false);
-    const [randomSeatingPlan, setRandomSeatingPlan] = useState<{ seatNumber: number; studentId: string | null }[] | null>(null);
+    const [isCopySeatingDialogOpen, setCopySeatingDialogOpen] = useState(false);
+    const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
+    const [daysToCopyTo, setDaysToCopyTo] = useState<Partial<Record<DayOfWeek, boolean>>>(() => 
+        weekdays.reduce((acc, day) => ({ ...acc, [day]: true }), {})
+    );
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
@@ -1220,34 +1223,45 @@ const StudentManagementTab = ({
 
     }, [selectedBus, currentRoute, routes, setRoutes, toast, selectedDay, selectedRouteType]);
 
-    const handleCopySeatingToWeekdays = useCallback(async () => {
+    const handleCopySeating = useCallback(async (copyType: 'Morning' | 'Afternoon') => {
         if (!currentRoute || !currentRoute.seating) {
             toast({ title: "오류", description: "복사할 원본 노선을 찾을 수 없습니다.", variant: "destructive" });
             return;
         }
-        
-        const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        const targetRoutes = routes.filter(r => 
-            r.busId === currentRoute.busId && 
-            weekdays.includes(r.dayOfWeek) &&
-            (r.type === 'Morning' || r.type === 'Afternoon')
+
+        const selectedDays = weekdays.filter(day => daysToCopyTo[day]);
+        if (selectedDays.length === 0) {
+            toast({ title: "알림", description: "복사할 요일을 선택해주세요." });
+            return;
+        }
+
+        const targetRoutes = routes.filter(r =>
+            r.busId === currentRoute.busId &&
+            selectedDays.includes(r.dayOfWeek) &&
+            r.type === copyType
         );
 
-        if(targetRoutes.length === 0) {
-            toast({title: "알림", description: "복사할 다른 평일 등/하교 노선이 없습니다."});
+        if (targetRoutes.length === 0) {
+            toast({ title: "알림", description: "복사할 대상 노선이 없습니다." });
             return;
         }
 
         try {
-            await copySeatingPlan(currentRoute.seating, targetRoutes, students);
+            await copySeatingPlan(currentRoute.seating, targetRoutes);
             const updatedRoutes = await getRoutes();
             setRoutes(updatedRoutes);
-            toast({title: "성공", description: "현재 좌석 배치를 모든 평일 등/하교 노선에 복사했습니다."});
+            toast({ title: "성공", description: `현재 좌석 배치를 선택된 요일의 ${copyType === 'Morning' ? '등교' : '하교'} 노선에 복사했습니다.` });
+            setCopySeatingDialogOpen(false);
         } catch (error) {
             console.error("Error copying seating plan:", error);
-            toast({title: "오류", description: "좌석 배치 복사 중 오류가 발생했습니다.", variant: "destructive"});
+            toast({ title: "오류", description: "좌석 배치 복사 중 오류가 발생했습니다.", variant: "destructive" });
         }
-    }, [currentRoute, routes, students, setRoutes, toast]);
+    }, [currentRoute, routes, students, setRoutes, toast, daysToCopyTo, weekdays]);
+
+    const handleToggleAllCopyToDays = (checked: boolean) => {
+        const newDaysToCopyTo = weekdays.reduce((acc, day) => ({ ...acc, [day]: checked }), {});
+        setDaysToCopyTo(newDaysToCopyTo);
+    };
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
@@ -1379,41 +1393,14 @@ const StudentManagementTab = ({
             toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
 
             if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
-                setRandomSeatingPlan(newSeatingPlan);
-                setShowCopySeatingDialog(true);
+                setCopySeatingDialogOpen(true);
             }
 
         } catch (error) {
             console.error("Randomization error:", error);
             toast({ title: "오류", description: "랜덤 배정 중 오류가 발생했습니다.", variant: 'destructive' });
         }
-    }, [selectedBus, students, routes, setRoutes, toast, selectedDay, selectedRouteType, currentRoute]);
-    
-    const handleConfirmCopyRandomSeating = async () => {
-        if (!randomSeatingPlan || !currentRoute) {
-            setShowCopySeatingDialog(false);
-            return;
-        };
-
-        const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        const targetRoutes = routes.filter(r => 
-            r.busId === currentRoute.busId &&
-            weekdays.includes(r.dayOfWeek) &&
-            (r.type === 'Morning' || r.type === 'Afternoon')
-        );
-
-        try {
-            await copySeatingPlan(randomSeatingPlan, targetRoutes, students);
-            const updatedRoutes = await getRoutes();
-            setRoutes(updatedRoutes);
-            toast({ title: "성공", description: "랜덤 배정 결과를 평일 등/하교 노선에 복사했습니다." });
-        } catch (error) {
-             toast({ title: "오류", description: "랜덤 배정 복사 중 오류 발생", variant: "destructive" });
-        } finally {
-            setShowCopySeatingDialog(false);
-            setRandomSeatingPlan(null);
-        }
-    };
+    }, [selectedBus, students, routes, setRoutes, toast, selectedDay, selectedRouteType, currentRoute, handleCopySeating]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
@@ -1697,7 +1684,44 @@ const StudentManagementTab = ({
                             </div>
                             <div className="flex items-center gap-2">
                                 {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
-                                    <Button variant="outline" onClick={handleCopySeatingToWeekdays}><Copy className="mr-2" /> 평일 등/하교에 복사</Button>
+                                    <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline"><Copy className="mr-2" /> 좌석 복사</Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>좌석 배치 복사</DialogTitle>
+                                                <CardDescription>현재 좌석 배치를 선택한 요일의 등교 또는 하교 노선에 복사합니다.</CardDescription>
+                                            </DialogHeader>
+                                            <div className="space-y-4 py-4">
+                                                <Label>복사할 요일 선택</Label>
+                                                <div className="flex items-center space-x-2">
+                                                    <Checkbox
+                                                        id="copy-all-days"
+                                                        checked={weekdays.every(day => daysToCopyTo[day])}
+                                                        onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
+                                                    />
+                                                    <Label htmlFor="copy-all-days">모두 선택</Label>
+                                                </div>
+                                                <div className="grid grid-cols-5 gap-2">
+                                                    {weekdays.map(day => (
+                                                        <div key={day} className="flex items-center space-x-2">
+                                                            <Checkbox
+                                                                id={`copy-day-${day}`}
+                                                                checked={!!daysToCopyTo[day]}
+                                                                onCheckedChange={(checked) => setDaysToCopyTo(prev => ({ ...prev, [day]: checked }))}
+                                                            />
+                                                            <Label htmlFor={`copy-day-${day}`}>{dayLabels[day].charAt(0)}</Label>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <DialogFooter className="grid grid-cols-2 gap-2">
+                                                <Button onClick={() => handleCopySeating('Morning')}>선택한 요일 등교에 복사</Button>
+                                                <Button onClick={() => handleCopySeating('Afternoon')}>선택한 요일 하교에 복사</Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
                                 )}
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -1793,7 +1817,6 @@ const StudentManagementTab = ({
                         </CardHeader>
                         <CardContent>
                            {selectedBus && currentRoute && (
-                                <>
                                 <BusSeatMap
                                     bus={selectedBus}
                                     seating={currentRoute.seating}
@@ -1806,21 +1829,6 @@ const StudentManagementTab = ({
                                     routeType={selectedRouteType}
                                     dayOfWeek={selectedDay}
                                 />
-                                <AlertDialog open={showCopySeatingDialog} onOpenChange={setShowCopySeatingDialog}>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                        <AlertDialogTitle>랜덤 배정 결과 복사</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            현재 랜덤 배정 결과를 모든 평일 등/하교 노선에 복사하시겠습니까?
-                                        </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                        <AlertDialogCancel onClick={() => setRandomSeatingPlan(null)}>아니요</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleConfirmCopyRandomSeating}>네, 복사합니다</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                                </>
                            )}
                         </CardContent>
                     </Card>
