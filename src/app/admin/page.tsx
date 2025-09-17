@@ -1189,6 +1189,7 @@ const StudentManagementTab = ({
         weekdays.reduce((acc, day) => ({ ...acc, [day]: true }), {})
     );
     const [routeTypesToCopyTo, setRouteTypesToCopyTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
+    const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
 
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -1218,9 +1219,18 @@ const StudentManagementTab = ({
         });
 
     }, [students, currentRoute, selectedRouteType, selectedDay]);
+
+    const filteredUnassignedStudents = useMemo(() => {
+        if (!unassignedSearchQuery) {
+            return unassignedStudents;
+        }
+        return unassignedStudents.filter(student =>
+            student.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase())
+        );
+    }, [unassignedStudents, unassignedSearchQuery]);
     
      const handleToggleSelectAll = () => {
-        const allUnassignedIds = unassignedStudents.map(s => s.id);
+        const allUnassignedIds = filteredUnassignedStudents.map(s => s.id);
         if (selectedStudentIds.size === allUnassignedIds.length) {
             setSelectedStudentIds(new Set());
         } else {
@@ -1993,13 +2003,23 @@ const StudentManagementTab = ({
                         </CardHeader>
                         <Separator />
                          <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
+                            <div className="relative mb-4">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    type="search"
+                                    placeholder="학생 이름 검색..."
+                                    className="pl-8 w-full"
+                                    value={unassignedSearchQuery}
+                                    onChange={(e) => setUnassignedSearchQuery(e.target.value)}
+                                />
+                            </div>
                              <div className="flex justify-end mb-2 gap-2 flex-wrap">
                                  <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
                                  <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
                                  <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록/수정</Button>
                                  <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
                                  <Button size="sm" variant="outline" onClick={handleToggleSelectAll}>
-                                    {selectedStudentIds.size === unassignedStudents.length && unassignedStudents.length > 0 ? '선택 해제' : '모두 선택'}
+                                    {selectedStudentIds.size === filteredUnassignedStudents.length && filteredUnassignedStudents.length > 0 ? '선택 해제' : '모두 선택'}
                                  </Button>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -2024,7 +2044,7 @@ const StudentManagementTab = ({
                              <Droppable droppableId="unassigned-students">
                                 {(provided) => (
                                     <div ref={provided.innerRef} {...provided.droppableProps}>
-                                        {unassignedStudents.length > 0 ? unassignedStudents.map((student, index) => (
+                                        {filteredUnassignedStudents.length > 0 ? filteredUnassignedStudents.map((student, index) => (
                                             <Draggable key={student.id} draggableId={student.id} index={index}>
                                                 {(provided, snapshot) => (
                                                     <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
