@@ -2183,7 +2183,6 @@ interface AdminPageFilterProps {
     setSelectedRouteType: (type: RouteType) => void;
     days: DayOfWeek[];
     dayLabels: { [key in DayOfWeek]: string };
-    loading: boolean;
 }
 
 const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
@@ -2196,7 +2195,6 @@ const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
     setSelectedRouteType,
     days,
     dayLabels,
-    loading
 }) => {
     return (
         <Card className="mb-6">
@@ -2204,7 +2202,7 @@ const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <Label className="text-sm font-medium">버스</Label>
-                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId} disabled={loading}>
+                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
                       <SelectTrigger>
                         <SelectValue placeholder="버스를 선택하세요" />
                       </SelectTrigger>
@@ -2219,7 +2217,7 @@ const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
                   </div>
                   <div>
                     <Label className="text-sm font-medium">요일</Label>
-                    <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
+                    <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
                       <SelectTrigger>
                         <SelectValue placeholder="요일을 선택하세요" />
                       </SelectTrigger>
@@ -2236,9 +2234,9 @@ const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
                     <Label className="text-sm font-medium">경로</Label>
                     <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
                       <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
-                        <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
-                        <TabsTrigger value="AfterSchool" disabled={loading}>방과후</TabsTrigger>
+                        <TabsTrigger value="Morning">등교</TabsTrigger>
+                        <TabsTrigger value="Afternoon">하교</TabsTrigger>
+                        <TabsTrigger value="AfterSchool">방과후</TabsTrigger>
                       </TabsList>
                     </Tabs>
                   </div>
@@ -2248,54 +2246,51 @@ const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
     );
 };
 
+interface AdminPageContentProps {
+    buses: Bus[];
+    students: Student[];
+    routes: Route[];
+    destinations: Destination[];
+    suggestedDestinations: Destination[];
+    teachers: Teacher[];
+    pendingStudents: Student[];
+    setBuses: React.Dispatch<React.SetStateAction<Bus[]>>;
+    setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
+    setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
+    setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
+    setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
+    setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>>;
+    setPendingStudents: React.Dispatch<React.SetStateAction<Student[]>>;
+}
 
-export default function AdminPage() {
-    const [buses, setBuses] = useState<Bus[]>([]);
-    const [students, setStudents] = useState<Student[]>([]);
-    const [routes, setRoutes] = useState<Route[]>([]);
-    const [destinations, setDestinations] = useState<Destination[]>([]);
-    const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
-    const [teachers, setTeachers] = useState<Teacher[]>([]);
-    
+const AdminPageContent: React.FC<AdminPageContentProps> = ({
+    buses,
+    students,
+    routes,
+    destinations,
+    suggestedDestinations,
+    teachers,
+    pendingStudents,
+    setBuses,
+    setStudents,
+    setRoutes,
+    setDestinations,
+    setSuggestedDestinations,
+    setTeachers,
+    setPendingStudents,
+}) => {
     const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
-    const [loading, setLoading] = useState(true);
-    const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
     const { toast } = useToast();
-
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     useEffect(() => {
-        const fetchInitialData = async () => {
-            setLoading(true);
-            try {
-                const [busesData, studentsData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
-                    getBuses(), getStudents(), getRoutes(), getDestinations(), getSuggestedDestinations(), getTeachers(),
-                ]);
-                const sortedBuses = sortBuses(busesData);
-                setBuses(sortedBuses);
-                setStudents(studentsData);
-                setRoutes(routesData);
-                setDestinations(sortDestinations(destinationsData));
-                setSuggestedDestinations(suggestionsData);
-                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
-                setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
-
-                if (sortedBuses.length > 0 && !selectedBusId) {
-                  setSelectedBusId(sortedBuses[0].id);
-                }
-            } catch (error) {
-                console.error("Failed to fetch initial data:", error);
-                toast({ title: "오류", description: "초기 데이터 로딩 중 오류가 발생했습니다.", variant: "destructive" });
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchInitialData();
-    }, [toast]); // Removed selectedBusId from dependency array
+        if (buses.length > 0 && !selectedBusId) {
+            setSelectedBusId(buses[0].id);
+        }
+    }, [buses, selectedBusId]);
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
@@ -2322,9 +2317,111 @@ export default function AdminPage() {
             setSelectedRouteType={setSelectedRouteType}
             days={days}
             dayLabels={dayLabels}
-            loading={loading}
         />
     )
+
+    return (
+        <>
+            {pendingStudents.length > 0 && (
+                <Alert className="mb-6">
+                    <Bell className="h-4 w-4" />
+                    <AlertTitle>신규/변경 신청 도착</AlertTitle>
+                    <AlertDescription className="flex justify-between items-center">
+                        {pendingStudents.length}건의 신규 또는 변경된 탑승 신청이 있습니다.
+                         <Button onClick={handleAcknowledgeAll}>
+                            <Check className="mr-2" /> 모두 확인 완료로 변경
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            )}
+            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
+                <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
+                    <TabsTrigger value="teacher-management">선생님 관리</TabsTrigger>
+                    <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
+                    <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
+                </TabsList>
+                <TabsContent value="bus-registration" className="mt-6">
+                    <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} setBuses={setBuses} />
+                </TabsContent>
+                 <TabsContent value="teacher-management" className="mt-6">
+                    <TeacherManagementTab teachers={teachers} setTeachers={setTeachers} />
+                </TabsContent>
+                <TabsContent value="bus-configuration" className="mt-6">
+                    <BusConfigurationTab
+                        buses={buses}
+                        routes={routes}
+                        setRoutes={setRoutes}
+                        destinations={destinations}
+                        setDestinations={setDestinations}
+                        suggestedDestinations={suggestedDestinations}
+                        setSuggestedDestinations={setSuggestedDestinations}
+                        teachers={teachers}
+                        selectedDay={selectedDay}
+                        selectedRouteType={selectedRouteType}
+                        selectedBusId={selectedBusId}
+                        filterComponent={filterComponent}
+                    />
+                </TabsContent>
+                <TabsContent value="student-management" className="mt-6">
+                    <StudentManagementTab 
+                        students={students} 
+                        setStudents={setStudents}
+                        buses={buses}
+                        routes={routes} 
+                        setRoutes={setRoutes}
+                        destinations={destinations}
+                        selectedBusId={selectedBusId}
+                        selectedDay={selectedDay}
+                        selectedRouteType={selectedRouteType}
+                        days={days}
+                        filterComponent={filterComponent}
+                    />
+                </TabsContent>
+            </Tabs>
+        </>
+    );
+};
+
+
+export default function AdminPage() {
+    const [buses, setBuses] = useState<Bus[]>([]);
+    const [students, setStudents] = useState<Student[]>([]);
+    const [routes, setRoutes] = useState<Route[]>([]);
+    const [destinations, setDestinations] = useState<Destination[]>([]);
+    const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
+    const { toast } = useToast();
+    
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            setLoading(true);
+            try {
+                const [busesData, studentsData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
+                    getBuses(), getStudents(), getRoutes(), getDestinations(), getSuggestedDestinations(), getTeachers(),
+                ]);
+                const sortedBuses = sortBuses(busesData);
+                setBuses(sortedBuses);
+                setStudents(studentsData);
+                setRoutes(routesData);
+                setDestinations(sortDestinations(destinationsData));
+                setSuggestedDestinations(suggestionsData);
+                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+                setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
+
+            } catch (error) {
+                console.error("Failed to fetch initial data:", error);
+                toast({ title: "오류", description: "초기 데이터 로딩 중 오류가 발생했습니다.", variant: "destructive" });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchInitialData();
+    }, [toast]);
+
 
     return (
         <MainLayout>
@@ -2333,65 +2430,22 @@ export default function AdminPage() {
                     <p>데이터를 불러오는 중입니다...</p>
                 </div>
             ) : (
-                <>
-                {pendingStudents.length > 0 && (
-                    <Alert className="mb-6">
-                        <Bell className="h-4 w-4" />
-                        <AlertTitle>신규/변경 신청 도착</AlertTitle>
-                        <AlertDescription className="flex justify-between items-center">
-                            {pendingStudents.length}건의 신규 또는 변경된 탑승 신청이 있습니다.
-                             <Button onClick={handleAcknowledgeAll}>
-                                <Check className="mr-2" /> 모두 확인 완료로 변경
-                            </Button>
-                        </AlertDescription>
-                    </Alert>
-                )}
-                <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
-                        <TabsTrigger value="teacher-management">선생님 관리</TabsTrigger>
-                        <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
-                        <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="bus-registration" className="mt-6">
-                        <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} setBuses={setBuses} />
-                    </TabsContent>
-                     <TabsContent value="teacher-management" className="mt-6">
-                        <TeacherManagementTab teachers={teachers} setTeachers={setTeachers} />
-                    </TabsContent>
-                    <TabsContent value="bus-configuration" className="mt-6">
-                        <BusConfigurationTab
-                            buses={buses}
-                            routes={routes}
-                            setRoutes={setRoutes}
-                            destinations={destinations}
-                            setDestinations={setDestinations}
-                            suggestedDestinations={suggestedDestinations}
-                            setSuggestedDestinations={setSuggestedDestinations}
-                            teachers={teachers}
-                            selectedDay={selectedDay}
-                            selectedRouteType={selectedRouteType}
-                            selectedBusId={selectedBusId}
-                            filterComponent={filterComponent}
-                        />
-                    </TabsContent>
-                    <TabsContent value="student-management" className="mt-6">
-                        <StudentManagementTab 
-                            students={students} 
-                            setStudents={setStudents}
-                            buses={buses}
-                            routes={routes} 
-                            setRoutes={setRoutes}
-                            destinations={destinations}
-                            selectedBusId={selectedBusId}
-                            selectedDay={selectedDay}
-                            selectedRouteType={selectedRouteType}
-                            days={days}
-                            filterComponent={filterComponent}
-                        />
-                    </TabsContent>
-                </Tabs>
-                </>
+                <AdminPageContent
+                    buses={buses}
+                    students={students}
+                    routes={routes}
+                    destinations={destinations}
+                    suggestedDestinations={suggestedDestinations}
+                    teachers={teachers}
+                    pendingStudents={pendingStudents}
+                    setBuses={setBuses}
+                    setStudents={setStudents}
+                    setRoutes={setRoutes}
+                    setDestinations={setDestinations}
+                    setSuggestedDestinations={setSuggestedDestinations}
+                    setTeachers={setTeachers}
+                    setPendingStudents={setPendingStudents}
+                />
             )}
         </MainLayout>
     );

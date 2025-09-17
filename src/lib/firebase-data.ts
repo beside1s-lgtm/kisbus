@@ -267,19 +267,20 @@ export const saveGroupLeaderRecords = async (routeId: string, records: Omit<Grou
 
     // Fetch existing records to check for deletions
     const snapshot = await getDocs(recordsCollection);
-    const existingRecordIds = new Set(snapshot.docs.map(d => d.id));
+    const existingRecords = new Map(snapshot.docs.map(d => [d.id, d.data()]));
     const newRecordIds = new Set(records.map(r => r.studentId + '_' + r.startDate));
 
-    // Delete records that are no longer in the list
-    existingRecordIds.forEach(id => {
+    // Delete records that are no longer in the local state
+    for (const [id] of existingRecords.entries()) {
         if (!newRecordIds.has(id)) {
             batch.delete(doc(recordsCollection, id));
         }
-    });
-
-    // Add or update records
+    }
+    
+    // Add or update records from local state
     records.forEach(record => {
-        const docRef = doc(recordsCollection, record.studentId + '_' + record.startDate);
+        const recordId = record.studentId + '_' + record.startDate;
+        const docRef = doc(recordsCollection, recordId);
         batch.set(docRef, record, { merge: true });
     });
     
@@ -371,4 +372,3 @@ export const onAttendanceUpdate = (routeId: string, date: string, callback: (rec
     }
   });
 };
-
