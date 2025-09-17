@@ -238,17 +238,25 @@ export const updateRouteStops = async (routeId: string, stops: string[]) => {
     await updateDoc(doc(db, 'routes', routeId), { stops });
 }
 
-export const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentId: string | null }[], targetRoutes: Route[], allStudents: Student[]) => {
+export const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentId: string | null }[], targetRoutes: Route[]) => {
     const batch = writeBatch(db);
-    
+
     for (const targetRoute of targetRoutes) {
-        // Directly use the sourcePlan to update the target route's seating.
-        // This ensures an exact copy without any eligibility checks.
         batch.update(doc(db, 'routes', targetRoute.id), { seating: sourcePlan });
     }
 
     await batch.commit();
 };
+
+export const copyRoutePlan = async (sourceStops: string[], targetRoutes: Route[]) => {
+    const batch = writeBatch(db);
+
+    for (const targetRoute of targetRoutes) {
+        batch.update(doc(db, 'routes', targetRoute.id), { stops: sourceStops });
+    }
+
+    await batch.commit();
+}
 
 // Group Leader Records
 export const getGroupLeaderRecords = (routeId: string) => fetchCollection<GroupLeaderRecord>(`routes/${routeId}/groupLeaderRecords`);

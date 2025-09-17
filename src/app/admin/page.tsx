@@ -13,7 +13,8 @@ import {
     updateStudentsInBatch,
     unassignStudentFromAllRoutes,
     addTeachersInBatch, updateRoute, deleteAllDestinations,
-    copySeatingPlan
+    copySeatingPlan,
+    copyRoutePlan
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -420,6 +421,15 @@ const BusConfigurationTab = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
   
+  // States for route copy dialog
+  const [isCopyRouteDialogOpen, setCopyRouteDialogOpen] = useState(false);
+  const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
+  const [daysToCopyRouteTo, setDaysToCopyRouteTo] = useState<Partial<Record<DayOfWeek, boolean>>>(
+      () => weekdays.reduce((acc, day) => ({ ...acc, [day]: true }), {})
+  );
+  const [routeTypesToCopyRouteTo, setRouteTypesToCopyRouteTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
+
+
   const selectedBus = useMemo(() => {
     if (!selectedBusId) return null;
     return buses.find(b => b.id === selectedBusId);
@@ -770,6 +780,52 @@ const BusConfigurationTab = ({
         toast({title: "오류", description: "복사 중 오류가 발생했습니다.", variant: 'destructive'});
     }
   };
+  
+  const handleCopyRoute = useCallback(async () => {
+      if (!currentRoute) {
+          toast({ title: "오류", description: "복사할 원본 노선을 찾을 수 없습니다.", variant: "destructive" });
+          return;
+      }
+
+      const selectedDays = weekdays.filter(day => daysToCopyRouteTo[day]);
+      const selectedRouteTypes = (['Morning', 'Afternoon'] as const).filter(type => routeTypesToCopyRouteTo[type]);
+
+      if (selectedDays.length === 0 || selectedRouteTypes.length === 0) {
+          toast({ title: "알림", description: "복사할 요일과 경로 유형(등교/하교)을 하나 이상 선택해주세요." });
+          return;
+      }
+
+      const targetRoutes = routes.filter(r =>
+          r.busId === currentRoute.busId &&
+          selectedDays.includes(r.dayOfWeek) &&
+          selectedRouteTypes.includes(r.type as 'Morning' | 'Afternoon') &&
+          r.id !== currentRoute.id // Don't copy to self
+      );
+
+      if (targetRoutes.length === 0) {
+          toast({ title: "알림", description: "복사할 대상 노선이 없습니다." });
+          return;
+      }
+      
+      try {
+          await copyRoutePlan(currentRoute.stops, targetRoutes);
+          
+          const updatedRoutes = await getRoutes();
+          setRoutes(updatedRoutes);
+          
+          toast({ title: "성공", description: "현재 노선 구성을 선택된 요일의 노선에 복사했습니다." });
+          setCopyRouteDialogOpen(false);
+      } catch (error) {
+          console.error("Error copying route plan:", error);
+          toast({ title: "오류", description: "노선 구성 복사 중 오류가 발생했습니다.", variant: "destructive" });
+      }
+  }, [currentRoute, routes, setRoutes, toast, daysToCopyRouteTo, routeTypesToCopyRouteTo, weekdays]);
+
+  const handleToggleAllCopyToDays = (checked: boolean) => {
+      const newDays = weekdays.reduce((acc, day) => ({ ...acc, [day]: checked }), {});
+      setDaysToCopyRouteTo(newDays);
+  };
+
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -777,11 +833,75 @@ const BusConfigurationTab = ({
             {filterComponent}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                 <Card>
-                    <CardHeader>
-                    <CardTitle>버스 노선 설정</CardTitle>
-                    <CardDescription>
-                        전체 목적지 목록에서 오른쪽 노선 순서로 목적지를 드래그하여 추가하세요.
-                    </CardDescription>
+                    <CardHeader className="flex-row justify-between items-center">
+                        <div>
+                            <CardTitle>버스 노선 설정</CardTitle>
+                            <CardDescription>
+                                전체 목적지 목록에서 오른쪽 노선 순서로 목적지를 드래그하여 추가하세요.
+                            </CardDescription>
+                        </div>
+                         <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" disabled={!currentRoute}>
+                                    <Copy className="mr-2" /> 노선 복사
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>노선 구성 복사</DialogTitle>
+                                    <CardDescription>현재 노선의 정류장 구성을 다른 평일 등/하교 노선에 복사합니다.</CardDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div>
+                                        <Label>복사할 요일 선택</Label>
+                                        <div className="flex items-center space-x-2 mt-2">
+                                            <Checkbox
+                                                id="copy-route-all-days"
+                                                checked={weekdays.every(day => daysToCopyRouteTo[day])}
+                                                onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
+                                            />
+                                            <Label htmlFor="copy-route-all-days">모두 선택</Label>
+                                        </div>
+                                        <div className="grid grid-cols-5 gap-2 mt-2">
+                                            {weekdays.map(day => (
+                                                <div key={`route-day-${day}`} className="flex items-center space-x-2">
+                                                    <Checkbox
+                                                        id={`copy-route-day-${day}`}
+                                                        checked={!!daysToCopyRouteTo[day]}
+                                                        onCheckedChange={(checked) => setDaysToCopyRouteTo(prev => ({ ...prev, [day]: checked }))}
+                                                    />
+                                                    <Label htmlFor={`copy-route-day-${day}`}>{dayLabels[day].charAt(0)}</Label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Label>복사할 경로 유형</Label>
+                                        <div className="flex items-center space-x-4 mt-2">
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id="copy-route-type-morning"
+                                                    checked={!!routeTypesToCopyRouteTo.Morning}
+                                                    onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Morning: checked as boolean }))}
+                                                />
+                                                <Label htmlFor="copy-route-type-morning">등교</Label>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id="copy-route-type-afternoon"
+                                                    checked={!!routeTypesToCopyRouteTo.Afternoon}
+                                                    onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Afternoon: checked as boolean }))}
+                                                />
+                                                <Label htmlFor="copy-route-type-afternoon">하교</Label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button onClick={handleCopyRoute} className="w-full">복사</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     </CardHeader>
                     <CardContent>
                         {selectedBus && currentRoute ? (
@@ -1232,9 +1352,9 @@ const StudentManagementTab = ({
         }
 
         const selectedDays = weekdays.filter(day => daysToCopyTo[day]);
-        const selectedRouteTypes = (['Morning', 'Afternoon'] as const).filter(type => routeTypesToCopyTo[type]);
+        const selectedTypes = (['Morning', 'Afternoon'] as const).filter(type => routeTypesToCopyTo[type]);
 
-        if (selectedDays.length === 0 || selectedRouteTypes.length === 0) {
+        if (selectedDays.length === 0 || selectedTypes.length === 0) {
             toast({ title: "알림", description: "복사할 요일과 경로 유형(등교/하교)을 하나 이상 선택해주세요." });
             return;
         }
@@ -1242,7 +1362,8 @@ const StudentManagementTab = ({
         const targetRoutes = routes.filter(r =>
             r.busId === currentRoute.busId &&
             selectedDays.includes(r.dayOfWeek) &&
-            selectedRouteTypes.includes(r.type as 'Morning' | 'Afternoon')
+            selectedTypes.includes(r.type as 'Morning' | 'Afternoon') &&
+            r.id !== currentRoute.id // Don't copy to self
         );
 
         if (targetRoutes.length === 0) {
