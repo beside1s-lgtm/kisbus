@@ -48,13 +48,16 @@ const SEAT_MAP_29: (number | null)[] = [
 ];
 
 const SEAT_MAP_15: (number | null)[] = [
-    null, null, 1,
-    2, 3, null,
-    4, 5, null,
-    6, 7, null,
-    8, 9, 10,
-    11, 12, null,
-    13, 14, 15
+  // 운전석 라인
+  null, 1, 2, null, // 운전석, 보조석1, 보조석2
+  // 2번째 줄
+  3, 4, null, 5,
+  // 3번째 줄
+  6, 7, null, 8,
+  // 4번째 줄 (뒷문 앞)
+  9, 10, null, 11,
+  // 마지막 줄
+  12, 13, 14, 15
 ];
 
 const getLayoutInfo = (capacity: number) => {
@@ -66,7 +69,7 @@ const getLayoutInfo = (capacity: number) => {
     }
     if (capacity === 15) {
          return { 
-            gridClass: 'grid-cols-3 gap-1 md:gap-2',
+            gridClass: 'grid-cols-4 gap-1 md:gap-2',
             seatMap: SEAT_MAP_15,
             hasFrontDriver: false
         };
@@ -171,11 +174,12 @@ export function BusSeatMap({
             </div>
         )}
          {!hasFrontDriver && bus.capacity === 15 && (
-             <div className="grid grid-cols-3 gap-1 md:gap-2 mb-4">
+             <div className="grid grid-cols-4 gap-1 md:gap-2 mb-4">
                  <div className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
                     <CircleUserRound className="w-5 h-5" />
                     <span className="mt-1 text-[9px] font-medium">운전석</span>
                 </div>
+                <div></div>
                 <div></div>
                 <div className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
                     <span className="text-[9px] font-medium">출입문</span>
