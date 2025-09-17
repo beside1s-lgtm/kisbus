@@ -2323,7 +2323,7 @@ export default function AdminPage() {
             await updateStudentsInBatch(pendingStudentIds.map(id => ({ id, applicationStatus: 'reviewed' })));
             setStudents(prev => prev.map(s => pendingStudentIds.includes(s.id) ? { ...s, applicationStatus: 'reviewed' } : s));
             setPendingStudents([]);
-            toast({ title: "성공", description: "모든 신청을 확인 완료 처리했습니다." });
+            toast({ title: "성공", description: "모든 신청을 확인 완료로 변경했습니다." });
         } catch (error) {
             toast({ title: "오류", description: "처리 중 오류가 발생했습니다.", variant: "destructive" });
         }
