@@ -1064,6 +1064,8 @@ const StudentManagementTab = ({
     const [daysToCopyTo, setDaysToCopyTo] = useState<Partial<Record<DayOfWeek, boolean>>>(() => 
         weekdays.reduce((acc, day) => ({ ...acc, [day]: true }), {})
     );
+    const [routeTypesToCopyTo, setRouteTypesToCopyTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
+
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
@@ -1223,22 +1225,24 @@ const StudentManagementTab = ({
 
     }, [selectedBus, currentRoute, routes, setRoutes, toast, selectedDay, selectedRouteType]);
 
-    const handleCopySeating = useCallback(async (copyType: 'Morning' | 'Afternoon') => {
+    const handleCopySeating = useCallback(async () => {
         if (!currentRoute || !currentRoute.seating) {
             toast({ title: "오류", description: "복사할 원본 노선을 찾을 수 없습니다.", variant: "destructive" });
             return;
         }
 
         const selectedDays = weekdays.filter(day => daysToCopyTo[day]);
-        if (selectedDays.length === 0) {
-            toast({ title: "알림", description: "복사할 요일을 선택해주세요." });
+        const selectedRouteTypes = (['Morning', 'Afternoon'] as const).filter(type => routeTypesToCopyTo[type]);
+
+        if (selectedDays.length === 0 || selectedRouteTypes.length === 0) {
+            toast({ title: "알림", description: "복사할 요일과 경로 유형(등교/하교)을 하나 이상 선택해주세요." });
             return;
         }
-
+        
         const targetRoutes = routes.filter(r =>
             r.busId === currentRoute.busId &&
             selectedDays.includes(r.dayOfWeek) &&
-            r.type === copyType
+            selectedRouteTypes.includes(r.type as 'Morning' | 'Afternoon')
         );
 
         if (targetRoutes.length === 0) {
@@ -1250,13 +1254,13 @@ const StudentManagementTab = ({
             await copySeatingPlan(currentRoute.seating, targetRoutes);
             const updatedRoutes = await getRoutes();
             setRoutes(updatedRoutes);
-            toast({ title: "성공", description: `현재 좌석 배치를 선택된 요일의 ${copyType === 'Morning' ? '등교' : '하교'} 노선에 복사했습니다.` });
+            toast({ title: "성공", description: `현재 좌석 배치를 선택된 요일의 노선에 복사했습니다.` });
             setCopySeatingDialogOpen(false);
         } catch (error) {
             console.error("Error copying seating plan:", error);
             toast({ title: "오류", description: "좌석 배치 복사 중 오류가 발생했습니다.", variant: "destructive" });
         }
-    }, [currentRoute, routes, students, setRoutes, toast, daysToCopyTo, weekdays]);
+    }, [currentRoute, routes, setRoutes, toast, daysToCopyTo, weekdays, routeTypesToCopyTo]);
 
     const handleToggleAllCopyToDays = (checked: boolean) => {
         const newDaysToCopyTo = weekdays.reduce((acc, day) => ({ ...acc, [day]: checked }), {});
@@ -1400,7 +1404,7 @@ const StudentManagementTab = ({
             console.error("Randomization error:", error);
             toast({ title: "오류", description: "랜덤 배정 중 오류가 발생했습니다.", variant: 'destructive' });
         }
-    }, [selectedBus, students, routes, setRoutes, toast, selectedDay, selectedRouteType, currentRoute, handleCopySeating]);
+    }, [selectedBus, students, routes, setRoutes, toast, selectedDay, selectedRouteType, currentRoute]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
@@ -1694,31 +1698,53 @@ const StudentManagementTab = ({
                                                 <CardDescription>현재 좌석 배치를 선택한 요일의 등교 또는 하교 노선에 복사합니다.</CardDescription>
                                             </DialogHeader>
                                             <div className="space-y-4 py-4">
-                                                <Label>복사할 요일 선택</Label>
-                                                <div className="flex items-center space-x-2">
-                                                    <Checkbox
-                                                        id="copy-all-days"
-                                                        checked={weekdays.every(day => daysToCopyTo[day])}
-                                                        onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
-                                                    />
-                                                    <Label htmlFor="copy-all-days">모두 선택</Label>
+                                                <div>
+                                                    <Label>복사할 요일 선택</Label>
+                                                    <div className="flex items-center space-x-2 mt-2">
+                                                        <Checkbox
+                                                            id="copy-all-days"
+                                                            checked={weekdays.every(day => daysToCopyTo[day])}
+                                                            onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
+                                                        />
+                                                        <Label htmlFor="copy-all-days">모두 선택</Label>
+                                                    </div>
+                                                    <div className="grid grid-cols-5 gap-2 mt-2">
+                                                        {weekdays.map(day => (
+                                                            <div key={day} className="flex items-center space-x-2">
+                                                                <Checkbox
+                                                                    id={`copy-day-${day}`}
+                                                                    checked={!!daysToCopyTo[day]}
+                                                                    onCheckedChange={(checked) => setDaysToCopyTo(prev => ({ ...prev, [day]: checked }))}
+                                                                />
+                                                                <Label htmlFor={`copy-day-${day}`}>{dayLabels[day].charAt(0)}</Label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                                <div className="grid grid-cols-5 gap-2">
-                                                    {weekdays.map(day => (
-                                                        <div key={day} className="flex items-center space-x-2">
+                                                <div>
+                                                    <Label>복사할 경로 유형</Label>
+                                                    <div className="flex items-center space-x-4 mt-2">
+                                                        <div className="flex items-center space-x-2">
                                                             <Checkbox
-                                                                id={`copy-day-${day}`}
-                                                                checked={!!daysToCopyTo[day]}
-                                                                onCheckedChange={(checked) => setDaysToCopyTo(prev => ({ ...prev, [day]: checked }))}
+                                                                id="copy-type-morning"
+                                                                checked={!!routeTypesToCopyTo.Morning}
+                                                                onCheckedChange={(checked) => setRouteTypesToCopyTo(prev => ({ ...prev, Morning: checked as boolean }))}
                                                             />
-                                                            <Label htmlFor={`copy-day-${day}`}>{dayLabels[day].charAt(0)}</Label>
+                                                            <Label htmlFor="copy-type-morning">등교</Label>
                                                         </div>
-                                                    ))}
+                                                        <div className="flex items-center space-x-2">
+                                                            <Checkbox
+                                                                id="copy-type-afternoon"
+                                                                checked={!!routeTypesToCopyTo.Afternoon}
+                                                                onCheckedChange={(checked) => setRouteTypesToCopyTo(prev => ({ ...prev, Afternoon: checked as boolean }))}
+                                                            />
+                                                            <Label htmlFor="copy-type-afternoon">하교</Label>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <DialogFooter className="grid grid-cols-2 gap-2">
-                                                <Button onClick={() => handleCopySeating('Morning')}>선택한 요일 등교에 복사</Button>
-                                                <Button onClick={() => handleCopySeating('Afternoon')}>선택한 요일 하교에 복사</Button>
+                                            <DialogFooter>
+                                                <Button onClick={handleCopySeating} className="w-full">복사</Button>
                                             </DialogFooter>
                                         </DialogContent>
                                     </Dialog>
@@ -2216,3 +2242,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
