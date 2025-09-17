@@ -251,11 +251,11 @@ export const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentI
     for (const targetRoute of targetRoutes) {
         const newSeatingForTarget = generateInitialSeating(targetRoute.seating.length);
         
-        sourcePlan.forEach(sourceSeat => {
-            if (!sourceSeat.studentId) return;
+        for (const sourceSeat of sourcePlan) {
+            if (!sourceSeat.studentId) continue;
 
             const student = allStudents.find(s => s.id === sourceSeat.studentId);
-            if (!student) return;
+            if (!student) continue;
 
             let isEligible = false;
             if (targetRoute.type === 'Morning') {
@@ -269,11 +269,11 @@ export const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentI
 
             if (isEligible) {
                 const targetSeatIndex = newSeatingForTarget.findIndex(s => s.seatNumber === sourceSeat.seatNumber);
-                if (targetSeatIndex !== -1 && !newSeatingForTarget[targetSeatIndex].studentId) { // Ensure seat is empty before assigning
+                if (targetSeatIndex !== -1 && !newSeatingForTarget[targetSeatIndex].studentId) {
                     newSeatingForTarget[targetSeatIndex].studentId = student.id;
                 }
             }
-        });
+        }
 
         batch.update(doc(db, 'routes', targetRoute.id), { seating: newSeatingForTarget });
     }
