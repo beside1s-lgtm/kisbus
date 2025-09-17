@@ -1554,7 +1554,7 @@ const StudentManagementTab = ({
         document.body.removeChild(link);
     };
 
-    const handleDownloadUnassignedStudents = () => {
+    const handleDownloadUnassignedStudents = useCallback(() => {
         if (unassignedStudents.length === 0) {
             toast({ title: "알림", description: "미배정 학생이 없습니다."});
             return;
@@ -1581,7 +1581,7 @@ const StudentManagementTab = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    };
+    }, [unassignedStudents, selectedRouteType, selectedDay, destinations, toast]);
 
     const handleStudentFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
