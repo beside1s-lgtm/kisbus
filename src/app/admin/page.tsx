@@ -495,13 +495,16 @@ const BusConfigurationTab = ({
     };
     
     const handleClearAllDestinations = async () => {
+        const { dismiss } = toast({ title: "처리 중", description: "모든 목적지를 삭제하고 있습니다..." });
         try {
             await deleteAllDestinations();
             setDestinations([]);
             // Also update routes to have empty stops
             setRoutes(prev => prev.map(r => ({ ...r, stops: [] })));
+            dismiss();
             toast({ title: "성공", description: "모든 목적지가 삭제되었습니다." });
         } catch (error) {
+            dismiss();
             toast({ title: "오류", description: "목적지 삭제 중 오류가 발생했습니다.", variant: 'destructive' });
         }
     };
@@ -582,11 +585,14 @@ const BusConfigurationTab = ({
   };
 
   const handleClearAllSuggestions = async () => {
+    const { dismiss } = toast({ title: "처리 중", description: "모든 제안을 삭제하고 있습니다..." });
     try {
         await clearAllSuggestedDestinations();
         setSuggestedDestinations([]);
+        dismiss();
         toast({ title: "성공", description: "모든 제안된 목적지가 삭제되었습니다." });
     } catch (error) {
+        dismiss();
         toast({ title: "오류", description: "삭제 중 오류가 발생했습니다.", variant: "destructive" });
     }
   };
@@ -1254,6 +1260,7 @@ const StudentManagementTab = ({
             return;
         }
 
+        const { dismiss } = toast({ title: "처리 중", description: "선택한 학생들을 삭제하고 있습니다..." });
         try {
             const idsToDelete = Array.from(selectedStudentIds);
             await deleteStudentsInBatch(idsToDelete);
@@ -1271,8 +1278,10 @@ const StudentManagementTab = ({
             setRoutes(newRoutes);
             
             setSelectedStudentIds(new Set());
+            dismiss();
             toast({ title: "성공", description: `${idsToDelete.length}명의 학생이 삭제되었습니다.` });
         } catch (error) {
+            dismiss();
             console.error("Error deleting students:", error);
             toast({ title: "오류", description: "학생 삭제 중 오류가 발생했습니다.", variant: "destructive" });
         }
@@ -1539,7 +1548,7 @@ const StudentManagementTab = ({
             console.error("Randomization error:", error);
             toast({ title: "오류", description: "랜덤 배정 중 오류가 발생했습니다.", variant: 'destructive' });
         }
-    }, [selectedBus, students, routes, setRoutes, toast, selectedDay, selectedRouteType, currentRoute]);
+    }, [selectedBus, students, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
@@ -2258,11 +2267,11 @@ export default function AdminPage() {
 
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-    const fetchDataForTab = useCallback(async (tab: string) => {
-        setLoading(true);
-        try {
-            if (tab === 'student-management') {
-                 const [busesData, studentsData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            setLoading(true);
+            try {
+                const [busesData, studentsData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
                     getBuses(), getStudents(), getRoutes(), getDestinations(), getSuggestedDestinations(), getTeachers(),
                 ]);
                 const sortedBuses = sortBuses(busesData);
@@ -2277,43 +2286,16 @@ export default function AdminPage() {
                 if (sortedBuses.length > 0 && !selectedBusId) {
                   setSelectedBusId(sortedBuses[0].id);
                 }
-            } else if (tab === 'bus-configuration') {
-                 const [busesData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
-                    getBuses(), getRoutes(), getDestinations(), getSuggestedDestinations(), getTeachers(),
-                ]);
-                const sortedBuses = sortBuses(busesData);
-                setBuses(sortedBuses);
-                setRoutes(routesData);
-                setDestinations(sortDestinations(destinationsData));
-                setSuggestedDestinations(suggestionsData);
-                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
-                if (sortedBuses.length > 0 && !selectedBusId) {
-                  setSelectedBusId(sortedBuses[0].id);
-                }
-            } else if (tab === 'bus-registration') {
-                const [busesData, routesData, teachersData] = await Promise.all([getBuses(), getRoutes(), getTeachers()]);
-                setBuses(sortBuses(busesData));
-                setRoutes(routesData);
-                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
-            } else if (tab === 'teacher-management') {
-                const teachersData = await getTeachers();
-                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+            } catch (error) {
+                console.error("Failed to fetch initial data:", error);
+                toast({ title: "오류", description: "초기 데이터 로딩 중 오류가 발생했습니다.", variant: "destructive" });
+            } finally {
+                setLoading(false);
             }
-             // Initial fetch for student applications on any tab
-            const studentsData = await getStudents();
-            setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
+        };
 
-        } catch (error) {
-            console.error("Failed to fetch data for tab:", tab, error);
-            toast({ title: "오류", description: "데이터를 불러오는 중 오류가 발생했습니다.", variant: "destructive" });
-        } finally {
-            setLoading(false);
-        }
-    }, [selectedBusId, toast]);
-
-    useEffect(() => {
-        fetchDataForTab(activeTab);
-    }, [activeTab, fetchDataForTab]);
+        fetchInitialData();
+    }, [toast]); // Removed selectedBusId from dependency array
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
@@ -2414,5 +2396,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-    
-    

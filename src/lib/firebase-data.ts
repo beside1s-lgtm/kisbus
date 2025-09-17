@@ -264,23 +264,16 @@ export const getGroupLeaderRecords = (routeId: string) => fetchCollection<GroupL
 export const saveGroupLeaderRecords = async (routeId: string, records: Omit<GroupLeaderRecord, 'name'>[]) => {
     const batch = writeBatch(db);
     const recordsCollection = collection(db, `routes/${routeId}/groupLeaderRecords`);
-    
-    // First, fetch existing records to avoid overwriting them all, which can be destructive.
+
+    // Fetch existing records to check for deletions
     const snapshot = await getDocs(recordsCollection);
-    const existingRecords = snapshot.docs.map(d => d.data() as GroupLeaderRecord);
+    const existingRecordIds = new Set(snapshot.docs.map(d => d.id));
+    const newRecordIds = new Set(records.map(r => r.studentId + '_' + r.startDate));
 
-    const recordsToUpdate = new Map<string, Omit<GroupLeaderRecord, 'name'>>();
-    records.forEach(r => recordsToUpdate.set(r.studentId + '_' + r.startDate, r));
-
-    const recordsToDelete: string[] = [];
-
-    // Check existing records against new ones
-    existingRecords.forEach(existing => {
-        const key = existing.studentId + '_' + existing.startDate;
-        if (!recordsToUpdate.has(key)) {
-            // If an existing record is not in the new list, it might have been deleted locally
-            // This part of logic depends on how you handle deletions.
-            // For now, let's assume we are only adding/updating.
+    // Delete records that are no longer in the list
+    existingRecordIds.forEach(id => {
+        if (!newRecordIds.has(id)) {
+            batch.delete(doc(recordsCollection, id));
         }
     });
 
@@ -378,3 +371,4 @@ export const onAttendanceUpdate = (routeId: string, date: string, callback: (rec
     }
   });
 };
+
