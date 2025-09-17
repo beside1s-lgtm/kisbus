@@ -1440,7 +1440,7 @@ const StudentManagementTab = ({
             const pairs: [number, number][] = [];
             const numRows = Math.ceil(capacity / 4);
              if (capacity === 15) {
-                return [[2,3], [4,5], [6,7], [8,9], [10,11], [13,14]];
+                return [[1,2], [4,5], [7,8], [10,11]];
             }
             for (let row = 0; row < numRows; row++) {
                 const base = row * 4 + 1;
@@ -1707,22 +1707,13 @@ const StudentManagementTab = ({
                  updateData.afterSchoolDestinations = newAfterSchoolDests;
             }
             
-            // This will also handle unassigning from routes
             await updateStudent(studentId, updateData);
             
-            // Just update local state instead of full refetch
-            setStudents(prevStudents => prevStudents.map(s => 
-                s.id === studentId ? { ...s, ...updateData } : s
-            ));
+            const updatedStudents = await getStudents();
+            setStudents(updatedStudents);
             
-            // Student might now be unassigned from current route, so a re-render of this component is needed,
-            // but we don't need to refetch all routes.
-            setRoutes(prevRoutes => prevRoutes.map(r => ({
-                ...r,
-                seating: r.seating.map(seat => 
-                    seat.studentId === studentId ? { ...seat, studentId: null } : seat
-                )
-            })));
+            const updatedRoutes = await getRoutes();
+            setRoutes(updatedRoutes);
 
 
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 좌석 배정이 해제되었을 수 있습니다." });
