@@ -1225,7 +1225,8 @@ const StudentManagementTab = ({
         );
     }, [unassignedStudents, unassignedSearchQuery]);
     
-     const handleToggleSelectAll = useCallback(() => {
+    const handleToggleSelectAll = useCallback(() => {
+        if (!filteredUnassignedStudents) return;
         const allUnassignedIds = filteredUnassignedStudents.map(s => s.id);
         if (selectedStudentIds.size === allUnassignedIds.length) {
             setSelectedStudentIds(new Set());
@@ -1233,6 +1234,7 @@ const StudentManagementTab = ({
             setSelectedStudentIds(new Set(allUnassignedIds));
         }
     }, [filteredUnassignedStudents, selectedStudentIds.size]);
+
     
     const handleToggleStudentSelection = useCallback((studentId: string, isChecked: boolean) => {
         const newSelection = new Set(selectedStudentIds);
@@ -2436,3 +2438,4 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
