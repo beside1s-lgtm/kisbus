@@ -648,7 +648,7 @@ const BusConfigurationTab = ({
     });
 };
 
-  const assignRandomTeachers = async () => {
+  const assignRandomTeachers = useCallback(async () => {
     if (!selectedBus || !currentRoute) {
         toast({ title: "오류", description: "노선을 선택해주세요.", variant: 'destructive' });
         return;
@@ -695,7 +695,7 @@ const BusConfigurationTab = ({
         console.error("Error assigning teachers:", error);
         toast({ title: "오류", description: "선생님 배정 중 오류가 발생했습니다.", variant: 'destructive' });
     }
-  };
+  }, [selectedBus, currentRoute, teachers, routes, setRoutes, toast]);
   
   const handleResetTeachers = async () => {
     if (!currentRoute) return;
@@ -2414,3 +2414,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+    
