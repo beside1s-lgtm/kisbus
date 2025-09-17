@@ -1700,7 +1700,7 @@ const StudentManagementTab = ({
         }
     };
 
-    const handleDestinationChange = async (studentId: string, newDestinationId: string, type: 'morning' | 'afternoon' | 'afterSchool') => {
+    const handleDestinationChange = useCallback(async (studentId: string, newDestinationId: string, type: 'morning' | 'afternoon' | 'afterSchool') => {
         try {
             let updateData: Partial<Student> = { applicationStatus: 'pending' };
 
@@ -1727,7 +1727,7 @@ const StudentManagementTab = ({
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
         }
-    };
+    }, [students, selectedDay, setStudents, setRoutes, toast]);
 
     const onDragEnd: OnDragEndResponder = (result) => {
         const { source, destination, draggableId: studentId } = result;
