@@ -402,7 +402,6 @@ const BusConfigurationTab = ({
   selectedDay,
   selectedRouteType,
   selectedBusId,
-  filterComponent
 }: {
   buses: Bus[];
   routes: Route[];
@@ -415,7 +414,6 @@ const BusConfigurationTab = ({
   selectedDay: DayOfWeek;
   selectedRouteType: RouteType;
   selectedBusId: string | null;
-  filterComponent: React.ReactNode;
 }) => {
   const [newDestinationName, setNewDestinationName] = useState('');
   const [destinationSearchQuery, setDestinationSearchQuery] = useState('');
@@ -840,7 +838,6 @@ const BusConfigurationTab = ({
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
-            {filterComponent}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                 <Card>
                     <CardHeader className="flex-row justify-between items-center">
@@ -1171,7 +1168,6 @@ const StudentManagementTab = ({
     selectedDay,
     selectedRouteType,
     days,
-    filterComponent,
 }:{
     students: Student[],
     setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
@@ -1183,7 +1179,6 @@ const StudentManagementTab = ({
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
     days: DayOfWeek[];
-    filterComponent: React.ReactNode;
 }) => {
     const { toast } = useToast();
     const [newStudentForm, setNewStudentForm] = useState<Partial<NewStudent>>({ gender: 'Male' });
@@ -1804,7 +1799,6 @@ const StudentManagementTab = ({
     if (!selectedBusId) {
        return (
             <div className="space-y-6">
-                {filterComponent}
                 <div className="p-4 text-center text-muted-foreground">버스를 선택하여 학생을 관리하세요.</div>
             </div>
        );
@@ -1813,7 +1807,6 @@ const StudentManagementTab = ({
      if (!currentRoute) {
         return (
             <div className="space-y-6">
-                {filterComponent}
                 <div className="p-4 text-center text-muted-foreground">선택된 조건에 해당하는 노선 정보를 찾을 수 없습니다.</div>
             </div>
         );
@@ -1822,7 +1815,6 @@ const StudentManagementTab = ({
     return (
         <DragDropContext onDragEnd={onDragEnd}>
         <div className="space-y-6">
-            {filterComponent}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
@@ -2305,21 +2297,7 @@ const AdminPageContent: React.FC<AdminPageContentProps> = ({
             toast({ title: "오류", description: "처리 중 오류가 발생했습니다.", variant: "destructive" });
         }
     };
-
-    const filterComponent = (
-        <AdminPageFilter
-            buses={buses}
-            selectedBusId={selectedBusId}
-            setSelectedBusId={setSelectedBusId}
-            selectedDay={selectedDay}
-            setSelectedDay={setSelectedDay}
-            selectedRouteType={selectedRouteType}
-            setSelectedRouteType={setSelectedRouteType}
-            days={days}
-            dayLabels={dayLabels}
-        />
-    )
-
+    
     return (
         <>
             {pendingStudents.length > 0 && (
@@ -2348,6 +2326,17 @@ const AdminPageContent: React.FC<AdminPageContentProps> = ({
                     <TeacherManagementTab teachers={teachers} setTeachers={setTeachers} />
                 </TabsContent>
                 <TabsContent value="bus-configuration" className="mt-6">
+                    <AdminPageFilter
+                        buses={buses}
+                        selectedBusId={selectedBusId}
+                        setSelectedBusId={setSelectedBusId}
+                        selectedDay={selectedDay}
+                        setSelectedDay={setSelectedDay}
+                        selectedRouteType={selectedRouteType}
+                        setSelectedRouteType={setSelectedRouteType}
+                        days={days}
+                        dayLabels={dayLabels}
+                    />
                     <BusConfigurationTab
                         buses={buses}
                         routes={routes}
@@ -2360,10 +2349,20 @@ const AdminPageContent: React.FC<AdminPageContentProps> = ({
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
                         selectedBusId={selectedBusId}
-                        filterComponent={filterComponent}
                     />
                 </TabsContent>
                 <TabsContent value="student-management" className="mt-6">
+                    <AdminPageFilter
+                        buses={buses}
+                        selectedBusId={selectedBusId}
+                        setSelectedBusId={setSelectedBusId}
+                        selectedDay={selectedDay}
+                        setSelectedDay={setSelectedDay}
+                        selectedRouteType={selectedRouteType}
+                        setSelectedRouteType={setSelectedRouteType}
+                        days={days}
+                        dayLabels={dayLabels}
+                    />
                     <StudentManagementTab 
                         students={students} 
                         setStudents={setStudents}
@@ -2375,7 +2374,6 @@ const AdminPageContent: React.FC<AdminPageContentProps> = ({
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
                         days={days}
-                        filterComponent={filterComponent}
                     />
                 </TabsContent>
             </Tabs>

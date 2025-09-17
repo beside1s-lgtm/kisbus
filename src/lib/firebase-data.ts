@@ -259,35 +259,38 @@ export const copyRoutePlan = async (sourceStops: string[], targetRoutes: Route[]
 }
 
 // Group Leader Records
-export const getGroupLeaderRecords = (routeId: string) => fetchCollection<GroupLeaderRecord>(`routes/${routeId}/groupLeaderRecords`);
+export const getGroupLeaderRecords = async (routeId: string): Promise<GroupLeaderRecord[]> => {
+    const recordsSnapshot = await getDocs(collection(db, `routes/${routeId}/groupLeaderRecords`));
+    return recordsSnapshot.docs.map(doc => doc.data() as GroupLeaderRecord);
+};
 
-export const saveGroupLeaderRecords = async (routeId: string, records: Omit<GroupLeaderRecord, 'name'>[]) => {
+export const saveGroupLeaderRecords = async (routeId: string, records: GroupLeaderRecord[]) => {
     const batch = writeBatch(db);
     const recordsCollection = collection(db, `routes/${routeId}/groupLeaderRecords`);
 
-    // Fetch existing records to know which ones to delete
-    const snapshot = await getDocs(recordsCollection);
-    const existingRecordIds = new Set(snapshot.docs.map(d => d.id));
+    // Get all existing records from Firestore for this route
+    const existingRecordsSnapshot = await getDocs(recordsCollection);
+    const existingRecordIds = new Set(existingRecordsSnapshot.docs.map(d => d.id));
     
-    // Set of current record IDs from the local state
-    const currentRecordIds = new Set(records.map(r => r.studentId + '_' + r.startDate));
+    // Get all record IDs from the local state
+    const localRecordIds = new Set(records.map(r => r.studentId + '_' + r.startDate));
 
-    // Delete records that are not in the current local state
-    for (const id of existingRecordIds) {
-        if (!currentRecordIds.has(id)) {
+    // Delete records from Firestore that are no longer in the local state
+    existingRecordIds.forEach(id => {
+        if (!localRecordIds.has(id)) {
             batch.delete(doc(recordsCollection, id));
         }
-    }
+    });
     
-    // Add or update records from the local state
-    for (const record of records) {
+    // Add or update records from the local state to Firestore
+    records.forEach(record => {
         const recordId = record.studentId + '_' + record.startDate;
         const docRef = doc(recordsCollection, recordId);
         batch.set(docRef, record);
-    }
+    });
     
     await batch.commit();
-}
+};
 
 
 // Suggested Destinations (using a simple 'suggestedDestinations' collection)
