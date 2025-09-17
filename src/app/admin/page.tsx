@@ -176,12 +176,14 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                     toast({ title: "오류", description: "파일에서 유효한 버스 데이터를 찾을 수 없습니다. 헤더가 '번호', '타입'으로 되어있는지, 타입이 15-seater, 29-seater, 45-seater 중 하나인지 확인하세요.", variant: "destructive" });
                     return;
                 }
-
+                const { dismiss } = toast({ title: "처리 중", description: "버스를 일괄 등록하고 있습니다..." });
                 try {
                     const addedBuses = await Promise.all(newBusesData.map(busData => handleAddBus(busData)));
                     setBuses(prev => sortBuses([...prev, ...addedBuses]));
+                    dismiss();
                     toast({ title: "성공", description: `${addedBuses.length}개의 버스가 일괄 등록되었습니다.` });
                 } catch (error) {
+                    dismiss();
                     toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
                 }
             },
@@ -534,12 +536,14 @@ const BusConfigurationTab = ({
                 toast({ title: "알림", description: "새로 추가할 목적지가 없거나 모두 중복된 이름입니다.", variant: "default" });
                 return;
             }
-
+            const { dismiss } = toast({ title: "처리 중", description: "목적지를 일괄 등록하고 있습니다..." });
             try {
                 const addedDests = await addDestinationsInBatch(newDestinationsData);
                 setDestinations(prev => sortDestinations([...prev, ...addedDests]));
+                dismiss();
                 toast({ title: "성공", description: `${addedDests.length}개의 목적지가 일괄 등록되었습니다.` });
             } catch (error) {
+                dismiss();
                 toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
             }
         },
@@ -1620,7 +1624,7 @@ const StudentManagementTab = ({
                     toast({ title: "오류", description: "유효한 학생 데이터를 찾을 수 없거나 목적지가 존재하지 않습니다.", variant: "destructive" });
                     return;
                 }
-    
+                const { dismiss } = toast({ title: "처리 중", description: "학생 정보를 일괄 처리하고 있습니다..." });
                 try {
                     const processedStudents = await Promise.all(studentsToProcess.map(s => addStudent(s)));
 
@@ -1635,11 +1639,12 @@ const StudentManagementTab = ({
                     });
 
                     setStudents(newStudentList);
-                    
+                    dismiss();
                     toast({ title: "성공", description: `${processedStudents.length}명의 학생 정보가 추가/업데이트되었습니다.` });
     
                 } catch (error) {
                     console.error(error);
+                    dismiss();
                     toast({ title: "오류", description: "일괄 처리 중 오류 발생", variant: "destructive" });
                 }
             },
@@ -2086,11 +2091,14 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
                     return;
                 }
 
+                const { dismiss } = toast({ title: "처리 중", description: "선생님 명단을 일괄 등록하고 있습니다..." });
                 try {
                     const addedTeachers = await addTeachersInBatch(newTeachersData);
                     setTeachers(prev => [...prev, ...addedTeachers].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+                    dismiss();
                     toast({ title: "성공", description: `${addedTeachers.length}명의 선생님이 일괄 등록되었습니다.` });
                 } catch (error) {
+                    dismiss();
                     toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
                 }
             },
@@ -2225,25 +2233,17 @@ export default function AdminPage() {
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
     const [loading, setLoading] = useState(true);
+    const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
     const { toast } = useToast();
 
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-    const pendingStudents = useMemo(() => {
-        return students.filter(s => s.applicationStatus === 'pending');
-    }, [students]);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const [busesData, studentsData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
-                    getBuses(),
-                    getStudents(),
-                    getRoutes(),
-                    getDestinations(),
-                    getSuggestedDestinations(),
-                    getTeachers(),
+    const fetchDataForTab = useCallback(async (tab: string) => {
+        setLoading(true);
+        try {
+            if (tab === 'student-management') {
+                 const [busesData, studentsData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
+                    getBuses(), getStudents(), getRoutes(), getDestinations(), getSuggestedDestinations(), getTeachers(),
                 ]);
                 const sortedBuses = sortBuses(busesData);
                 setBuses(sortedBuses);
@@ -2252,18 +2252,48 @@ export default function AdminPage() {
                 setDestinations(sortDestinations(destinationsData));
                 setSuggestedDestinations(suggestionsData);
                 setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+                setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
 
                 if (sortedBuses.length > 0 && !selectedBusId) {
                   setSelectedBusId(sortedBuses[0].id);
                 }
-            } catch (error) {
-                console.error("Failed to fetch initial data:", error);
-            } finally {
-                setLoading(false);
+            } else if (tab === 'bus-configuration') {
+                 const [busesData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
+                    getBuses(), getRoutes(), getDestinations(), getSuggestedDestinations(), getTeachers(),
+                ]);
+                const sortedBuses = sortBuses(busesData);
+                setBuses(sortedBuses);
+                setRoutes(routesData);
+                setDestinations(sortDestinations(destinationsData));
+                setSuggestedDestinations(suggestionsData);
+                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+                if (sortedBuses.length > 0 && !selectedBusId) {
+                  setSelectedBusId(sortedBuses[0].id);
+                }
+            } else if (tab === 'bus-registration') {
+                const [busesData, routesData, teachersData] = await Promise.all([getBuses(), getRoutes(), getTeachers()]);
+                setBuses(sortBuses(busesData));
+                setRoutes(routesData);
+                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+            } else if (tab === 'teacher-management') {
+                const teachersData = await getTeachers();
+                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
             }
-        };
-        fetchData();
-    }, []);
+             // Initial fetch for student applications on any tab
+            const studentsData = await getStudents();
+            setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
+
+        } catch (error) {
+            console.error("Failed to fetch data for tab:", tab, error);
+            toast({ title: "오류", description: "데이터를 불러오는 중 오류가 발생했습니다.", variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedBusId, toast]);
+
+    useEffect(() => {
+        fetchDataForTab(activeTab);
+    }, [activeTab, fetchDataForTab]);
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
@@ -2272,6 +2302,7 @@ export default function AdminPage() {
         try {
             await updateStudentsInBatch(pendingStudentIds.map(id => ({ id, applicationStatus: 'reviewed' })));
             setStudents(prev => prev.map(s => pendingStudentIds.includes(s.id) ? { ...s, applicationStatus: 'reviewed' } : s));
+            setPendingStudents([]);
             toast({ title: "성공", description: "모든 신청을 확인 완료 처리했습니다." });
         } catch (error) {
             toast({ title: "오류", description: "처리 중 오류가 발생했습니다.", variant: "destructive" });
@@ -2363,5 +2394,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-    
