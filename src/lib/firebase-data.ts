@@ -265,24 +265,26 @@ export const saveGroupLeaderRecords = async (routeId: string, records: Omit<Grou
     const batch = writeBatch(db);
     const recordsCollection = collection(db, `routes/${routeId}/groupLeaderRecords`);
 
-    // Fetch existing records to check for deletions
+    // Fetch existing records to know which ones to delete
     const snapshot = await getDocs(recordsCollection);
-    const existingRecords = new Map(snapshot.docs.map(d => [d.id, d.data()]));
-    const newRecordIds = new Set(records.map(r => r.studentId + '_' + r.startDate));
+    const existingRecordIds = new Set(snapshot.docs.map(d => d.id));
+    
+    // Set of current record IDs from the local state
+    const currentRecordIds = new Set(records.map(r => r.studentId + '_' + r.startDate));
 
-    // Delete records that are no longer in the local state
-    for (const [id] of existingRecords.entries()) {
-        if (!newRecordIds.has(id)) {
+    // Delete records that are not in the current local state
+    for (const id of existingRecordIds) {
+        if (!currentRecordIds.has(id)) {
             batch.delete(doc(recordsCollection, id));
         }
     }
     
-    // Add or update records from local state
-    records.forEach(record => {
+    // Add or update records from the local state
+    for (const record of records) {
         const recordId = record.studentId + '_' + record.startDate;
         const docRef = doc(recordsCollection, recordId);
-        batch.set(docRef, record, { merge: true });
-    });
+        batch.set(docRef, record);
+    }
     
     await batch.commit();
 }
