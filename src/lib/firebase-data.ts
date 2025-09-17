@@ -272,21 +272,22 @@ export const saveGroupLeaderRecords = async (routeId: string, records: GroupLead
     const existingRecordsSnapshot = await getDocs(recordsCollection);
     const existingRecordIds = new Set(existingRecordsSnapshot.docs.map(d => d.id));
     
-    // Get all record IDs from the local state
-    const localRecordIds = new Set(records.map(r => r.studentId + '_' + r.startDate));
+    const localRecordIds = new Set<string>();
+
+    records.forEach(record => {
+        // Ensure a unique and consistent ID for each record
+        const recordId = record.studentId + '_' + record.startDate;
+        localRecordIds.add(recordId);
+        const docRef = doc(recordsCollection, recordId);
+        // Use set with merge to create or update the record
+        batch.set(docRef, record, { merge: true });
+    });
 
     // Delete records from Firestore that are no longer in the local state
     existingRecordIds.forEach(id => {
         if (!localRecordIds.has(id)) {
             batch.delete(doc(recordsCollection, id));
         }
-    });
-    
-    // Add or update records from the local state to Firestore
-    records.forEach(record => {
-        const recordId = record.studentId + '_' + record.startDate;
-        const docRef = doc(recordsCollection, recordId);
-        batch.set(docRef, record);
     });
     
     await batch.commit();

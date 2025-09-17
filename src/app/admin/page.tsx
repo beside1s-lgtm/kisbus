@@ -453,10 +453,10 @@ const BusConfigurationTab = ({
     );
   }, [destinations, destinationSearchQuery]);
 
-  const getStopsForCurrentRoute = () => {
+  const getStopsForCurrentRoute = useCallback(() => {
     if (!currentRoute) return [];
     return currentRoute.stops.map(stopId => destinations.find(d => d.id === stopId)!).filter(Boolean);
-  };
+  }, [currentRoute, destinations]);
 
     const assignedTeachers = useMemo(() => {
         if (!currentRoute || !currentRoute.teacherIds) return [];
@@ -596,12 +596,10 @@ const BusConfigurationTab = ({
   };
 
 
-  const handleDragEnd: OnDragEndResponder = async (result) => {
+  const handleDragEnd: OnDragEndResponder = useCallback(async (result) => {
     const { source, destination, draggableId } = result;
 
-    if (!destination) return;
-
-    if (!currentRoute) return;
+    if (!destination || !currentRoute) return;
 
     const currentStopIds = currentRoute.stops || [];
 
@@ -613,9 +611,8 @@ const BusConfigurationTab = ({
         }
         const newStopIds = Array.from(currentStopIds);
         newStopIds.splice(destination.index, 0, draggableId);
-
-        const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
-        setRoutes(newRoutes);
+        
+        setRoutes(prev => prev.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r));
         await updateRouteStops(currentRoute.id, newStopIds);
     }
     // Reordering within the route list
@@ -624,18 +621,16 @@ const BusConfigurationTab = ({
         const [reorderedItem] = newStopIds.splice(source.index, 1);
         newStopIds.splice(destination.index, 0, reorderedItem);
 
-        const newRoutes = routes.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r);
-        setRoutes(newRoutes);
+        setRoutes(prev => prev.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r));
         await updateRouteStops(currentRoute.id, newStopIds);
     }
-  };
+  }, [currentRoute, setRoutes, toast]);
 
-  const removeStopFromRoute = (stopId: string) => {
+  const removeStopFromRoute = useCallback((stopId: string) => {
     if (!currentRoute) return;
 
     const newStopIds = currentRoute.stops.filter(id => id !== stopId);
     
-    const originalRoutes = routes;
     setRoutes(prevRoutes =>
         prevRoutes.map(route =>
             route.id === currentRoute.id
@@ -647,10 +642,10 @@ const BusConfigurationTab = ({
     updateRouteStops(currentRoute.id, newStopIds).catch(error => {
         console.error("Failed to update stops in DB:", error);
         toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
-        // Revert to previous state on error
-        setRoutes(originalRoutes); 
+        // Revert on error - re-fetch might be safer
+        getRoutes().then(setRoutes);
     });
-};
+}, [currentRoute, setRoutes, toast]);
 
   const assignRandomTeachers = useCallback(async () => {
     if (!selectedBus || !currentRoute) {
@@ -701,7 +696,7 @@ const BusConfigurationTab = ({
     }
   }, [selectedBus, currentRoute, teachers, routes, setRoutes, toast]);
   
-  const handleResetTeachers = async () => {
+  const handleResetTeachers = useCallback(async () => {
     if (!currentRoute) return;
 
     const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
@@ -748,9 +743,9 @@ const BusConfigurationTab = ({
         console.error("Error resetting teachers:", error);
         toast({ title: "오류", description: "초기화 중 오류가 발생했습니다.", variant: "destructive" });
     }
-  };
+  }, [currentRoute, routes, setRoutes, toast]);
   
-  const handleCopyToAllWeekdays = async () => {
+  const handleCopyToAllWeekdays = useCallback(async () => {
     if (!currentRoute) {
         toast({title: "오류", description: "현재 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
         return;
@@ -787,7 +782,7 @@ const BusConfigurationTab = ({
         console.error("Error copying teachers:", error);
         toast({title: "오류", description: "복사 중 오류가 발생했습니다.", variant: 'destructive'});
     }
-  };
+  }, [currentRoute, routes, setRoutes, toast]);
   
   const handleCopyRoute = useCallback(async () => {
       if (!currentRoute) {
@@ -1205,9 +1200,15 @@ const StudentManagementTab = ({
     
     const unassignedStudents = useMemo(() => {
         if (!currentRoute) return [];
-        const assignedStudentIds = new Set(currentRoute.seating.map(s => s.studentId).filter(Boolean));
-        
+
+        // 1. Get a set of student IDs who are already seated on the *current* route. This is very fast.
+        const assignedStudentIdsOnCurrentRoute = new Set(
+            currentRoute.seating.map(s => s.studentId).filter(Boolean)
+        );
+
+        // 2. Filter the main students list.
         return students.filter(student => {
+            // A student must have a destination for this route type to be considered.
             let hasDestination = false;
             if (selectedRouteType === 'Morning') {
                 hasDestination = !!student.morningDestinationId;
@@ -1216,9 +1217,11 @@ const StudentManagementTab = ({
             } else if (selectedRouteType === 'AfterSchool') {
                 hasDestination = student.afterSchoolDestinations ? !!student.afterSchoolDestinations[selectedDay] : false;
             }
-            return hasDestination && !assignedStudentIds.has(student.id);
-        });
 
+            // The student is "unassigned" if they have a destination for this route
+            // AND they are not currently seated on this specific bus route.
+            return hasDestination && !assignedStudentIdsOnCurrentRoute.has(student.id);
+        });
     }, [students, currentRoute, selectedRouteType, selectedDay]);
 
     const filteredUnassignedStudents = useMemo(() => {
@@ -1230,16 +1233,16 @@ const StudentManagementTab = ({
         );
     }, [unassignedStudents, unassignedSearchQuery]);
     
-     const handleToggleSelectAll = () => {
+     const handleToggleSelectAll = useCallback(() => {
         const allUnassignedIds = filteredUnassignedStudents.map(s => s.id);
         if (selectedStudentIds.size === allUnassignedIds.length) {
             setSelectedStudentIds(new Set());
         } else {
             setSelectedStudentIds(new Set(allUnassignedIds));
         }
-    };
+    }, [filteredUnassignedStudents, selectedStudentIds.size]);
     
-    const handleToggleStudentSelection = (studentId: string, isChecked: boolean) => {
+    const handleToggleStudentSelection = useCallback((studentId: string, isChecked: boolean) => {
         const newSelection = new Set(selectedStudentIds);
         if (isChecked) {
             newSelection.add(studentId);
@@ -1247,9 +1250,9 @@ const StudentManagementTab = ({
             newSelection.delete(studentId);
         }
         setSelectedStudentIds(newSelection);
-    };
+    }, [selectedStudentIds]);
 
-    const handleDeleteSelectedStudents = async () => {
+    const handleDeleteSelectedStudents = useCallback(async () => {
         if (selectedStudentIds.size === 0) {
             toast({ title: "알림", description: "삭제할 학생을 선택해주세요." });
             return;
@@ -1280,60 +1283,46 @@ const StudentManagementTab = ({
             console.error("Error deleting students:", error);
             toast({ title: "오류", description: "학생 삭제 중 오류가 발생했습니다.", variant: "destructive" });
         }
-    };
+    }, [routes, selectedStudentIds, setRoutes, setStudents, toast]);
 
     const handleSeatUpdate = useCallback(async (newSeating: {seatNumber: number; studentId: string | null}[]) => {
         if (!currentRoute) return;
-
-        const oldRoutes = [...routes];
         
-        let newRoutes = routes.map(route => {
+        setRoutes(prevRoutes => prevRoutes.map(route => {
             if (route.id === currentRoute.id) {
                 return { ...route, seating: newSeating };
             }
             return route;
-        });
-        
-        setRoutes(newRoutes);
+        }));
 
         try {
             await updateRouteSeating(currentRoute.id, newSeating);
         } catch (error) {
-            setRoutes(oldRoutes);
-            toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
+             toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
+             // Re-fetch to be safe
+             getRoutes().then(setRoutes);
         }
-    }, [currentRoute, routes, setRoutes, toast]);
+    }, [currentRoute, setRoutes, toast]);
 
     const unassignStudent = useCallback(async (studentId: string) => {
         if (!currentRoute) return;
-
-        const oldRoutes = [...routes];
         
-        const newRoutes = routes.map(route => {
-            if (route.id === currentRoute.id) {
-                return {
-                    ...route,
-                    seating: route.seating.map(seat =>
-                        seat.studentId === studentId ? { ...seat, studentId: null } : seat
-                    )
-                };
-            }
-            return route;
-        });
-
-        setRoutes(newRoutes);
+        const newSeating = currentRoute.seating.map(seat =>
+            seat.studentId === studentId ? { ...seat, studentId: null } : seat
+        );
+        
+        setRoutes(prevRoutes => prevRoutes.map(route => 
+            route.id === currentRoute.id ? { ...route, seating: newSeating } : route
+        ));
         
         try {
-             const routeToUpdate = newRoutes.find(r => r.id === currentRoute.id);
-             if (routeToUpdate) {
-                await updateRouteSeating(currentRoute.id, routeToUpdate.seating);
-                toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
-             }
+             await updateRouteSeating(currentRoute.id, newSeating);
+             toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
         } catch(e) {
-            setRoutes(oldRoutes); // Revert on error
             toast({ title: "오류", description: "좌석 배정 해제 실패", variant: 'destructive'});
+            getRoutes().then(setRoutes);
         }
-    }, [routes, currentRoute, setRoutes, toast]);
+    }, [currentRoute, setRoutes, toast]);
 
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
@@ -1342,26 +1331,24 @@ const StudentManagementTab = ({
         }
         if (!currentRoute) return;
 
-        const oldRoutes = [...routes];
         const emptySeating = generateInitialSeating(selectedBus.capacity);
 
-        const newRoutes = routes.map(route => {
+        setRoutes(prevRoutes => prevRoutes.map(route => {
             if (route.id === currentRoute.id) {
                 return { ...route, seating: emptySeating };
             }
             return route;
-        });
-        setRoutes(newRoutes);
+        }));
 
         try {
             await updateRouteSeating(currentRoute.id, emptySeating);
             toast({ title: "성공", description: `${selectedBus.name}의 ${dayLabels[selectedDay]} ${selectedRouteType} 노선 좌석 배정이 초기화되었습니다.` });
         } catch (error) {
-            setRoutes(oldRoutes);
             toast({ title: "오류", description: "좌석 초기화 실패", variant: 'destructive' });
+            getRoutes().then(setRoutes);
         }
 
-    }, [selectedBus, currentRoute, routes, setRoutes, toast, selectedDay, selectedRouteType]);
+    }, [selectedBus, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
 
     const handleCopySeating = useCallback(async () => {
         if (!currentRoute || !currentRoute.seating) {
@@ -1401,10 +1388,10 @@ const StudentManagementTab = ({
         }
     }, [currentRoute, routes, setRoutes, toast, daysToCopyTo, weekdays, routeTypesToCopyTo]);
 
-    const handleToggleAllCopyToDays = (checked: boolean) => {
+    const handleToggleAllCopyToDays = useCallback((checked: boolean) => {
         const newDaysToCopyTo = weekdays.reduce((acc, day) => ({ ...acc, [day]: checked }), {});
         setDaysToCopyTo(newDaysToCopyTo);
-    };
+    }, [weekdays]);
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
@@ -1708,13 +1695,14 @@ const StudentManagementTab = ({
         try {
             let updateData: Partial<Student> = { applicationStatus: 'pending' };
 
+            const student = students.find(s => s.id === studentId);
+            if (!student) return;
+
             if (type === 'morning') {
                  updateData.morningDestinationId = newDestinationId;
             } else if (type === 'afternoon') {
                  updateData.afternoonDestinationId = newDestinationId;
             } else {
-                 const student = students.find(s => s.id === studentId);
-                 if (!student) return;
                  const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [selectedDay]: newDestinationId };
                  updateData.afterSchoolDestinations = newAfterSchoolDests;
             }
@@ -1722,10 +1710,20 @@ const StudentManagementTab = ({
             // This will also handle unassigning from routes
             await updateStudent(studentId, updateData);
             
-            // Refetch all students and routes to reflect changes
-            const [refetchedStudents, refetchedRoutes] = await Promise.all([getStudents(), getRoutes()]);
-            setStudents(refetchedStudents);
-            setRoutes(refetchedRoutes);
+            // Just update local state instead of full refetch
+            setStudents(prevStudents => prevStudents.map(s => 
+                s.id === studentId ? { ...s, ...updateData } : s
+            ));
+            
+            // Student might now be unassigned from current route, so a re-render of this component is needed,
+            // but we don't need to refetch all routes.
+            setRoutes(prevRoutes => prevRoutes.map(r => ({
+                ...r,
+                seating: r.seating.map(seat => 
+                    seat.studentId === studentId ? { ...seat, studentId: null } : seat
+                )
+            })));
+
 
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 좌석 배정이 해제되었을 수 있습니다." });
         } catch (error) {
@@ -1733,7 +1731,7 @@ const StudentManagementTab = ({
         }
     }, [students, selectedDay, setStudents, setRoutes, toast]);
 
-    const onDragEnd: OnDragEndResponder = (result) => {
+    const onDragEnd: OnDragEndResponder = useCallback((result) => {
         const { source, destination, draggableId: studentId } = result;
 
         if (!destination || !currentRoute) return;
@@ -1794,7 +1792,7 @@ const StudentManagementTab = ({
         else if (source.droppableId.startsWith('seat-') && destination.droppableId === 'unassigned-students') {
             unassignStudent(studentId);
         }
-    };
+    }, [currentRoute, handleSeatUpdate, unassignStudent, toast]);
 
     if (!selectedBusId) {
        return (
@@ -2326,7 +2324,7 @@ const AdminPageContent: React.FC<AdminPageContentProps> = ({
                     <TeacherManagementTab teachers={teachers} setTeachers={setTeachers} />
                 </TabsContent>
                 <TabsContent value="bus-configuration" className="mt-6">
-                    <AdminPageFilter
+                     <AdminPageFilter
                         buses={buses}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
