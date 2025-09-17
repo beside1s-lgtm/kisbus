@@ -924,7 +924,7 @@ const BusConfigurationTab = ({
                                         <div
                                             ref={provided.innerRef}
                                             {...provided.droppableProps}
-                                            className={cn("flex flex-col gap-2 p-2 border rounded-md min-h-[150px] bg-muted/50", snapshot.isDraggingOver && "bg-primary/10")}
+                                            className={cn("flex flex-col gap-2 p-2 border rounded-md min-h-[150px] max-h-[40vh] overflow-y-auto bg-muted/50", snapshot.isDraggingOver && "bg-primary/10")}
                                         >
                                             {getStopsForCurrentRoute().map((dest, index) => (
                                                 <Draggable key={dest.id} draggableId={dest.id} index={index}>
