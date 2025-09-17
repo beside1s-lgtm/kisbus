@@ -1200,15 +1200,10 @@ const StudentManagementTab = ({
     
     const unassignedStudents = useMemo(() => {
         if (!currentRoute) return [];
-
-        // 1. Get a set of student IDs who are already seated on the *current* route. This is very fast.
         const assignedStudentIdsOnCurrentRoute = new Set(
             currentRoute.seating.map(s => s.studentId).filter(Boolean)
         );
-
-        // 2. Filter the main students list.
         return students.filter(student => {
-            // A student must have a destination for this route type to be considered.
             let hasDestination = false;
             if (selectedRouteType === 'Morning') {
                 hasDestination = !!student.morningDestinationId;
@@ -1217,9 +1212,6 @@ const StudentManagementTab = ({
             } else if (selectedRouteType === 'AfterSchool') {
                 hasDestination = student.afterSchoolDestinations ? !!student.afterSchoolDestinations[selectedDay] : false;
             }
-
-            // The student is "unassigned" if they have a destination for this route
-            // AND they are not currently seated on this specific bus route.
             return hasDestination && !assignedStudentIdsOnCurrentRoute.has(student.id);
         });
     }, [students, currentRoute, selectedRouteType, selectedDay]);
@@ -1422,26 +1414,33 @@ const StudentManagementTab = ({
         const occupiedSeats = new Set<number>();
     
         const getSeatType = (seatNumber: number, capacity: number): 'window' | 'aisle' => {
-            if (capacity === 15) {
-                if ([1, 2, 4, 6, 8, 10, 13, 14].includes(seatNumber)) return 'window';
-                return 'aisle';
+            if (capacity === 15) { // 12-seat layout
+                 const col = (seatNumber -1) % 4;
+                 return col === 0 || col === 3 ? 'window' : 'aisle';
             }
-            const col = (seatNumber - 1) % 4;
-            if (capacity === 45 && seatNumber > 40) {
-                return seatNumber === 41 || seatNumber === 45 ? 'window' : 'aisle';
+            if (capacity === 29) {
+                 const col = (seatNumber - 1) % 4;
+                 if (seatNumber > 24) return seatNumber === 25 || seatNumber === 29 ? 'window' : 'aisle';
+                 return col === 0 || col === 3 ? 'window' : 'aisle';
             }
-            if (capacity === 29 && seatNumber > 24) {
-                return seatNumber === 25 || seatNumber === 29 ? 'window' : 'aisle';
+            if (capacity === 45) {
+                 const col = (seatNumber - 1) % 4;
+                 if (seatNumber > 40) return seatNumber === 41 || seatNumber === 45 ? 'window' : 'aisle';
+                 return col === 0 || col === 3 ? 'window' : 'aisle';
             }
-            return col === 0 || col === 3 ? 'window' : 'aisle';
+            return 'aisle';
         };
         
         const getSeatPairs = (capacity: number): [number, number][] => {
             const pairs: [number, number][] = [];
-            const numRows = Math.ceil(capacity / 4);
-             if (capacity === 15) {
-                return [[1,2], [4,5], [7,8], [10,11]];
+             if (capacity === 15) { // 12-seat layout
+                for (let row = 0; row < 4; row++) {
+                    const base = row * 4 + 1;
+                    pairs.push([base, base + 1]);
+                }
+                return pairs;
             }
+            const numRows = Math.ceil(capacity / 4);
             for (let row = 0; row < numRows; row++) {
                 const base = row * 4 + 1;
                 if (base + 1 <= capacity && !((capacity === 45 && base + 1 > 40) || (capacity === 29 && base + 1 > 24))) pairs.push([base, base + 1]);
