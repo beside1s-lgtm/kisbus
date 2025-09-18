@@ -180,35 +180,47 @@ const renderSeat = (seatNumber: number | null, index: number) => {
     );
 
     if (draggable) {
+      const droppableId = `seat-${seat.seatNumber}`;
       return (
-        <div 
-          data-seat-number={seat.seatNumber}
-          key={seat.seatNumber}
-          onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-          className={cn(seatDynamicClasses, 'p-1 bg-muted/50 border-2', student ? 'border-transparent' : 'border-dashed')}
-        >
-          <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
-          {student ? (
-            <Draggable draggableId={student.id} index={seat.seatNumber}>
-              {(provided, snapshot) => (
-                <div
-                  ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
-                  {...provided.draggableProps}
-                  {...provided.dragHandleProps}
-                  className={cn(
-                    'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
-                    'cursor-grab active:cursor-grabbing',
-                    snapshot.isDragging ? 'opacity-0' : 'opacity-100'
-                  )}
-                >
-                  {renderSeatContent(student, isHighlighted, isBoarded, isAbsent)}
-                </div>
+        <Droppable droppableId={droppableId} key={droppableId}>
+          {(provided, snapshot) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              data-seat-number={seat.seatNumber}
+              onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+              className={cn(
+                  seatDynamicClasses,
+                  'p-1 bg-muted/50 border-2',
+                  student ? 'border-transparent' : 'border-dashed',
+                  snapshot.isDraggingOver && 'bg-primary/20'
               )}
-            </Draggable>
-          ) : (
-            <UserIcon className="w-4 h-4 text-muted-foreground" />
+            >
+              <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+              {student ? (
+                <Draggable draggableId={student.id} index={seat.seatNumber}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      className={cn(
+                        'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
+                        'cursor-grab active:cursor-grabbing',
+                        snapshot.isDragging ? 'opacity-75 shadow-lg' : 'opacity-100'
+                      )}
+                    >
+                      {renderSeatContent(student, isHighlighted, isBoarded, isAbsent)}
+                    </div>
+                  )}
+                </Draggable>
+              ) : (
+                <UserIcon className="w-4 h-4 text-muted-foreground" />
+              )}
+              {provided.placeholder}
+            </div>
           )}
-        </div>
+        </Droppable>
       );
     }
 
@@ -238,27 +250,19 @@ const renderSeat = (seatNumber: number | null, index: number) => {
                 {hasFrontDriver && (
                     <div className="mb-4 flex justify-start">
                         <div className={cn("relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground", bus.capacity === 15 ? 'w-[calc(25%-0.5rem)]' : 'w-[calc(20%-0.5rem)]' )}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M20 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M3 11V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v5"/><path d="M3 11h18"/><path d="M12 3v8"/><path d="m5 11 2 2"/><path d'="m17 11-2 2"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M20 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M3 11V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v5"/><path d="M3 11h18"/><path d="M12 3v8"/><path d="m5 11 2 2"/><path d="m17 11-2 2"/></svg>
                             <span className="mt-1 text-[9px] font-medium">운전석</span>
                         </div>
                     </div>
                 )}
-                <Droppable droppableId="bus-seat-map-grid" isDropDisabled={!draggable}>
-                    {(provided, snapshot) => (
-                        <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            className={cn(
-                                'grid', 
-                                gridClass,
-                                snapshot.isDraggingOver && "bg-primary/10"
-                            )}
-                        >
-                            {seatMap.map((seatNumber, index) => renderSeat(seatNumber, index))}
-                            {provided.placeholder}
-                        </div>
+                <div
+                    className={cn(
+                        'grid', 
+                        gridClass
                     )}
-                </Droppable>
+                >
+                    {seatMap.map((seatNumber, index) => renderSeat(seatNumber, index))}
+                </div>
             </div>
         </TooltipProvider>
     </div>

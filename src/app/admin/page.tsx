@@ -652,7 +652,7 @@ const BusConfigurationTab = ({
                     : route
             )
         );
-    };
+    }
 }, [currentRoute, setRoutes, toast]);
 
   const assignRandomTeachers = useCallback(async () => {
@@ -1202,7 +1202,6 @@ const StudentManagementTab = ({
     const [routeTypesToCopyTo, setRouteTypesToCopyTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
     
     const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
-    const [destinationSearchQuery, setDestinationSearchQuery] = useState('');
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
 
 
@@ -1244,18 +1243,20 @@ const StudentManagementTab = ({
 
             if (!hasDestinationForThisRoute) return false;
 
-            const nameMatch = !unassignedSearchQuery || student.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase());
-            
-            const destName = destinations.find(d => d.id === destId)?.name.toLowerCase() || '';
-            const destMatch = !destinationSearchQuery || destName.includes(destinationSearchQuery.toLowerCase());
+            if (!unassignedSearchQuery) return true;
 
-            return nameMatch && destMatch;
+            const lowerCaseQuery = unassignedSearchQuery.toLowerCase();
+            const nameMatch = student.name.toLowerCase().includes(lowerCaseQuery);
+            const destName = destinations.find(d => d.id === destId)?.name.toLowerCase() || '';
+            const destMatch = destName.includes(lowerCaseQuery);
+
+            return nameMatch || destMatch;
         });
 
         const sortedUnassigned = unassigned.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
         setFilteredUnassignedStudents(sortedUnassigned);
 
-    }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinationSearchQuery, destinations]);
+    }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations]);
     
     const handleToggleSelectAll = useCallback(() => {
         if (!filteredUnassignedStudents) return;
@@ -1794,7 +1795,6 @@ const StudentManagementTab = ({
                      return;
                 }
                 newSeating[targetSeatIndex].studentId = studentId;
-                setFilteredUnassignedStudents(prev => prev.filter(s => s.id !== studentId));
             }
         }
         // Case 2: Moving from a seat to another seat (swapping)
@@ -1819,7 +1819,6 @@ const StudentManagementTab = ({
              const studentToUnassign = students.find(s => s.id === studentId);
              if(studentToUnassign) {
                 newSeating = newSeating.map(seat => seat.studentId === studentId ? { ...seat, studentId: null } : seat);
-                setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
              }
         } else {
             return;
@@ -2037,27 +2036,15 @@ const StudentManagementTab = ({
                         </CardHeader>
                         <Separator />
                          <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
-                            <div className="grid grid-cols-2 gap-2 mb-4">
-                                <div className="relative">
-                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        type="search"
-                                        placeholder="학생 이름 검색..."
-                                        className="pl-8 w-full"
-                                        value={unassignedSearchQuery}
-                                        onChange={(e) => setUnassignedSearchQuery(e.target.value)}
-                                    />
-                                </div>
-                                 <div className="relative">
-                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        type="search"
-                                        placeholder="목적지 검색..."
-                                        className="pl-8 w-full"
-                                        value={destinationSearchQuery}
-                                        onChange={(e) => setDestinationSearchQuery(e.target.value)}
-                                    />
-                                </div>
+                            <div className="relative mb-4">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    type="search"
+                                    placeholder="학생 이름 또는 목적지 검색..."
+                                    className="pl-8 w-full"
+                                    value={unassignedSearchQuery}
+                                    onChange={(e) => setUnassignedSearchQuery(e.target.value)}
+                                />
                             </div>
                              <div className="flex justify-end mb-2 gap-2 flex-wrap">
                                  <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
@@ -2090,7 +2077,7 @@ const StudentManagementTab = ({
                              <Droppable droppableId="unassigned-students">
                                 {(provided, snapshot) => (
                                     <div ref={provided.innerRef} {...provided.droppableProps} className={cn("min-h-[200px]", snapshot.isDraggingOver && "bg-muted")}>
-                                        {filteredUnassignedStudents.length > 0 ? filteredUnassignedStudents.map((student, index) => (
+                                        {filteredUnassignedStudents.map((student, index) => (
                                             <Draggable key={student.id} draggableId={student.id} index={index}>
                                                 {(provided, snapshot) => (
                                                     <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
@@ -2106,9 +2093,7 @@ const StudentManagementTab = ({
                                                     </div>
                                                 )}
                                             </Draggable>
-                                        )) : (
-                                            <p className="text-sm text-muted-foreground text-center py-4">모든 학생이 배정되었거나, 이 노선 유형에 해당하는 학생이 없습니다.</p>
-                                        )}
+                                        ))}
                                         {provided.placeholder}
                                     </div>
                                 )}
@@ -2488,4 +2473,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
