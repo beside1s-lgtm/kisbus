@@ -1,4 +1,6 @@
 
+'use client';
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DragDropContext, OnDragEndResponder } from '@hello-pangea/dnd';
 import { 
@@ -35,7 +37,6 @@ const sortBuses = (buses: Bus[]): Bus[] => {
   });
 };
 
-'use client';
 function TeacherPageContent({
     initialBuses,
     initialStudents,
@@ -561,3 +562,5 @@ export default async function TeacherPage() {
         />
     );
 }
+
+    
