@@ -3,7 +3,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Papa from 'papaparse';
-import { DragDropContext, Droppable, Draggable, OnDragEndResponder } from '@hello-pangea/dnd';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations, getTeachers,
     addBus, deleteBus,
@@ -21,7 +20,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { StudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeftRight } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeftRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -418,6 +417,10 @@ const BusConfigurationTab = ({
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
+
+  // States for button-based stop management
+  const [selectedRouteStopId, setSelectedRouteStopId] = useState<string | null>(null);
+  const [selectedAllDestId, setSelectedAllDestId] = useState<string | null>(null);
   
   // States for route copy dialog
   const [isCopyRouteDialogOpen, setCopyRouteDialogOpen] = useState(false);
@@ -441,6 +444,13 @@ const BusConfigurationTab = ({
         r.type === selectedRouteType
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+
+  useEffect(() => {
+      // Reset selections when route changes
+      setSelectedRouteStopId(null);
+      setSelectedAllDestId(null);
+  }, [currentRoute]);
+
 
   const filteredDestinations = useMemo(() => {
     if (!destinationSearchQuery) {
@@ -593,50 +603,56 @@ const BusConfigurationTab = ({
     }
   };
 
+    const handleSelectRouteStop = (stopId: string) => {
+        setSelectedRouteStopId(prev => prev === stopId ? null : stopId);
+        setSelectedAllDestId(null);
+    };
 
-  const handleDragEnd: OnDragEndResponder = useCallback(async (result) => {
-    const { source, destination, draggableId } = result;
+    const handleSelectAllDest = (destId: string) => {
+        setSelectedAllDestId(prev => prev === destId ? null : destId);
+        setSelectedRouteStopId(null);
+    };
 
-    if (!destination || !currentRoute) return;
+  const handleMoveStop = useCallback((direction: 'up' | 'down') => {
+      if (!currentRoute || !selectedRouteStopId) return;
 
-    const currentStopIds = currentRoute.stops || [];
+      const currentStopIds = currentRoute.stops || [];
+      const index = currentStopIds.indexOf(selectedRouteStopId);
 
-    // Moving from all destinations list to the route list
-    if (source.droppableId === 'all-destinations' && destination.droppableId === 'route-stops') {
-        if (currentStopIds.includes(draggableId)) {
-            toast({ title: "오류", description: "이미 노선에 추가된 목적지입니다.", variant: 'destructive' });
-            return;
+      if (index === -1) return;
+
+      const newStopIds = [...currentStopIds];
+      if (direction === 'up' && index > 0) {
+          [newStopIds[index - 1], newStopIds[index]] = [newStopIds[index], newStopIds[index - 1]];
+      } else if (direction === 'down' && index < newStopIds.length - 1) {
+          [newStopIds[index], newStopIds[index + 1]] = [newStopIds[index + 1], newStopIds[index]];
+      } else {
+          return; // Cannot move further
+      }
+      updateRouteStops(currentRoute.id, newStopIds);
+  }, [currentRoute, selectedRouteStopId]);
+
+    const handleTransferStop = useCallback(async () => {
+        if (!currentRoute) return;
+        const currentStopIds = currentRoute.stops || [];
+
+        // Add from all destinations to route
+        if (selectedAllDestId) {
+            if (currentStopIds.includes(selectedAllDestId)) {
+                toast({ title: "오류", description: "이미 노선에 추가된 목적지입니다.", variant: 'destructive' });
+                return;
+            }
+            const newStopIds = [...currentStopIds, selectedAllDestId];
+            await updateRouteStops(currentRoute.id, newStopIds);
+            setSelectedAllDestId(null);
         }
-        const newStopIds = Array.from(currentStopIds);
-        newStopIds.splice(destination.index, 0, draggableId);
-        
-        // Local state update will be handled by the onSnapshot listener
-        await updateRouteStops(currentRoute.id, newStopIds);
-    }
-    // Reordering within the route list
-    else if (source.droppableId === 'route-stops' && destination.droppableId === 'route-stops') {
-        const newStopIds = Array.from(currentStopIds);
-        const [reorderedItem] = newStopIds.splice(source.index, 1);
-        newStopIds.splice(destination.index, 0, reorderedItem);
-
-        // Local state update will be handled by the onSnapshot listener
-        await updateRouteStops(currentRoute.id, newStopIds);
-    }
-  }, [currentRoute, toast]);
-
-  const removeStopFromRoute = useCallback(async (stopId: string) => {
-    if (!currentRoute) return;
-
-    const newStopIds = currentRoute.stops.filter(id => id !== stopId);
-    
-    try {
-      // Local state update will be handled by the onSnapshot listener
-      await updateRouteStops(currentRoute.id, newStopIds);
-    } catch(error) {
-        console.error("Failed to update stops in DB:", error);
-        toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
-    }
-}, [currentRoute, toast]);
+        // Remove from route to all destinations
+        else if (selectedRouteStopId) {
+            const newStopIds = currentStopIds.filter(id => id !== selectedRouteStopId);
+            await updateRouteStops(currentRoute.id, newStopIds);
+            setSelectedRouteStopId(null);
+        }
+    }, [currentRoute, selectedAllDestId, selectedRouteStopId, toast]);
 
   const assignRandomTeachers = useCallback(async () => {
     if (!selectedBus || !currentRoute) {
@@ -805,323 +821,312 @@ const BusConfigurationTab = ({
 
 
   return (
-    <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                <Card>
-                    <CardHeader className="flex-row justify-between items-center">
-                        <div>
-                            <CardTitle>버스 노선 설정</CardTitle>
-                            <CardDescription>
-                                전체 목적지 목록에서 오른쪽 노선 순서로 목적지를 드래그하여 추가하세요.
-                            </CardDescription>
-                        </div>
-                         <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button variant="outline" disabled={!currentRoute}>
-                                    <Copy className="mr-2" /> 노선 복사
-                                </Button>
-                            </DialogTrigger>
+    <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            <Card className="md:col-span-1">
+                <CardHeader>
+                <CardTitle>전체 목적지 목록</CardTitle>
+                <CardDescription>
+                    목적지를 선택하고 화살표 버튼을 눌러 노선에 추가하세요.
+                </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex justify-end gap-2 mb-4">
+                        <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                        <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
+                    </div>
+                     <div className="flex justify-end gap-2 mb-4">
+                        <Dialog>
+                            <DialogTrigger asChild><Button className="w-full"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
                             <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>노선 구성 복사</DialogTitle>
-                                    <CardDescription>현재 노선의 정류장 구성을 다른 평일 등/하교 노선에 복사합니다.</CardDescription>
-                                </DialogHeader>
-                                <div className="space-y-4 py-4">
-                                    <div>
-                                        <Label>복사할 요일 선택</Label>
-                                        <div className="flex items-center space-x-2 mt-2">
-                                            <Checkbox
-                                                id="copy-route-all-days"
-                                                checked={weekdays.every(day => daysToCopyRouteTo[day])}
-                                                onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
-                                            />
-                                            <Label htmlFor="copy-route-all-days">모두 선택</Label>
-                                        </div>
-                                        <div className="grid grid-cols-5 gap-2 mt-2">
-                                            {weekdays.map(day => (
-                                                <div key={`route-day-${day}`} className="flex items-center space-x-2">
-                                                    <Checkbox
-                                                        id={`copy-route-day-${day}`}
-                                                        checked={!!daysToCopyRouteTo[day]}
-                                                        onCheckedChange={(checked) => setDaysToCopyRouteTo(prev => ({ ...prev, [day]: checked }))}
-                                                    />
-                                                    <Label htmlFor={`copy-route-day-${day}`}>{dayLabels[day].charAt(0)}</Label>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <Label>복사할 경로 유형</Label>
-                                        <div className="flex items-center space-x-4 mt-2">
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="copy-route-type-morning"
-                                                    checked={!!routeTypesToCopyRouteTo.Morning}
-                                                    onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Morning: checked as boolean }))}
-                                                />
-                                                <Label htmlFor="copy-route-type-morning">등교</Label>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="copy-route-type-afternoon"
-                                                    checked={!!routeTypesToCopyRouteTo.Afternoon}
-                                                    onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Afternoon: checked as boolean }))}
-                                                />
-                                                <Label htmlFor="copy-route-type-afternoon">하교</Label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <DialogFooter>
-                                    <Button onClick={handleCopyRoute} className="w-full">복사</Button>
-                                </DialogFooter>
+                                <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
+                                <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
+                                <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
                             </DialogContent>
                         </Dialog>
-                    </CardHeader>
-                    <CardContent>
-                        {selectedBus && currentRoute ? (
-                            <Card>
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <CardTitle>{selectedBus.name} - {dayLabels[selectedDay]} {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
-                                            <CardDescription>드래그하여 노선 순서를 정하고, 'X'를 눌러 삭제합니다.</CardDescription>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                            <CardContent>
-                                <Droppable droppableId="route-stops">
-                                    {(provided, snapshot) => (
-                                        <div
-                                            ref={provided.innerRef}
-                                            {...provided.droppableProps}
-                                            className={cn("flex flex-col gap-2 p-2 border rounded-md min-h-[150px] max-h-[40vh] overflow-y-auto bg-muted/50", snapshot.isDraggingOver && "bg-primary/10")}
-                                        >
-                                            {getStopsForCurrentRoute().map((dest, index) => (
-                                                <Draggable key={dest.id} draggableId={dest.id} index={index}>
-                                                    {(provided, snapshot) => (
-                                                         <div
-                                                            ref={provided.innerRef}
-                                                            {...provided.draggableProps}
-                                                            {...provided.dragHandleProps}
-                                                            className={cn("p-2 flex items-center gap-2 rounded-md", snapshot.isDragging ? "bg-card shadow-lg" : "bg-card/80")}
-                                                        >
-                                                            <GripVertical className="h-5 w-5 text-muted-foreground" />
-                                                            <span className="flex-1 text-sm font-medium">{dest.name}</span>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeStopFromRoute(dest.id)}>
-                                                                <X className="h-4 w-4 text-destructive" />
-                                                            </Button>
-                                                        </div>
-                                                    )}
-                                                </Draggable>
-                                            ))}
-                                            {provided.placeholder}
-                                        </div>
-                                    )}
-                                </Droppable>
-                            </CardContent>
-                            </Card>
-                        ) : (
-                            <div className="text-center text-muted-foreground py-10">버스를 선택하여 노선을 확인하세요.</div>
-                        )}
-                    </CardContent>
-                </Card>
-                
-                <div className="space-y-6">
-                    {suggestedDestinations.length > 0 && (
-                        <Card>
-                            <CardHeader>
-                            <CardTitle>신규 목적지 신청</CardTitle>
-                            <CardDescription>
-                                학생들이 제안한 새로운 목적지입니다. 클릭하여 전체 목적지 목록에 추가하세요.
-                            </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                            <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
-                                {suggestedDestinations.map(suggestion => (
-                                <Badge 
-                                    key={suggestion.id}
-                                    variant="outline" 
-                                    onClick={() => handleApproveSuggestion(suggestion)}
-                                    className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
-                                >
-                                    {suggestion.name}
-                                </Badge>
-                                ))}
-                            </div>
-                            </CardContent>
-                             <CardFooter>
-                                <AlertDialog>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" className="w-full"><Trash2 className="mr-2 h-4 w-4" /> 전체 삭제</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>정말 모든 목적지를 삭제하시겠습니까?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        이 작업은 되돌릴 수 없습니다. 모든 목적지와 모든 노선의 경유지 정보가 영구적으로 삭제됩니다.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClearAllDestinations}>삭제</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                    <div className="relative mb-4">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            type="search"
+                            placeholder="목적지 검색..."
+                            className="pl-8 w-full"
+                            value={destinationSearchQuery}
+                            onChange={(e) => setDestinationSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex flex-col gap-2 p-2 border rounded-md min-h-[300px] max-h-[40vh] overflow-y-auto bg-muted/50">
+                        {filteredDestinations.map((dest) => (
+                            <div
+                                key={dest.id}
+                                onClick={() => handleSelectAllDest(dest.id)}
+                                className={cn(
+                                    "p-2 flex items-center gap-2 rounded-md cursor-pointer hover:bg-primary/10",
+                                    selectedAllDestId === dest.id && "bg-primary/20 ring-2 ring-primary"
+                                )}
+                            >
+                                <span className="flex-1 text-sm font-medium">{dest.name}</span>
+                                <AlertDialog onOpenChange={(open) => open && setSelectedAllDestId(null)}>
                                     <AlertDialogTrigger asChild>
-                                        <Button variant="destructive" className="w-full">
-                                            <Trash2 className="mr-2 h-4 w-4" /> 모두 삭제
+                                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                                            <X className="w-3 h-3 text-destructive" />
                                         </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
-                                        <AlertDialogTitle>정말 모든 제안을 삭제하시겠습니까?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            이 작업은 되돌릴 수 없습니다. 승인되지 않은 모든 목적지 제안이 영구적으로 삭제됩니다.
-                                        </AlertDialogDescription>
+                                            <AlertDialogTitle>정말 이 목적지를 삭제하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogDescription>이 작업은 되돌릴 수 없습니다.</AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
-                                        <AlertDialogCancel>취소</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleClearAllSuggestions}>삭제</AlertDialogAction>
+                                            <AlertDialogCancel>취소</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteDestination(dest.id)}>삭제</AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                            </CardFooter>
-                        </Card>
-                    )}
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
 
+             <div className="flex flex-col items-center justify-center gap-2">
+                <Button 
+                    variant="outline"
+                    size="icon"
+                    onClick={handleTransferStop}
+                    disabled={!currentRoute || (!selectedAllDestId && !selectedRouteStopId)}
+                >
+                    <ArrowLeftRight className="h-5 w-5" />
+                </Button>
+            </div>
+
+
+            <Card className="md:col-span-1">
+                 <CardHeader className="flex-row justify-between items-center">
+                    <div>
+                        <CardTitle>버스 노선 설정</CardTitle>
+                        <CardDescription>
+                            화살표 버튼을 이용해 목적지를 추가/제거하고 순서를 변경하세요.
+                        </CardDescription>
+                    </div>
+                     <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" disabled={!currentRoute}>
+                                <Copy className="mr-2" /> 노선 복사
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>노선 구성 복사</DialogTitle>
+                                <CardDescription>현재 노선의 정류장 구성을 다른 평일 등/하교 노선에 복사합니다.</CardDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                                <div>
+                                    <Label>복사할 요일 선택</Label>
+                                    <div className="flex items-center space-x-2 mt-2">
+                                        <Checkbox
+                                            id="copy-route-all-days"
+                                            checked={weekdays.every(day => daysToCopyRouteTo[day])}
+                                            onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
+                                        />
+                                        <Label htmlFor="copy-route-all-days">모두 선택</Label>
+                                    </div>
+                                    <div className="grid grid-cols-5 gap-2 mt-2">
+                                        {weekdays.map(day => (
+                                            <div key={`route-day-${day}`} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`copy-route-day-${day}`}
+                                                    checked={!!daysToCopyRouteTo[day]}
+                                                    onCheckedChange={(checked) => setDaysToCopyRouteTo(prev => ({ ...prev, [day]: checked }))}
+                                                />
+                                                <Label htmlFor={`copy-route-day-${day}`}>{dayLabels[day].charAt(0)}</Label>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label>복사할 경로 유형</Label>
+                                    <div className="flex items-center space-x-4 mt-2">
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id="copy-route-type-morning"
+                                                checked={!!routeTypesToCopyRouteTo.Morning}
+                                                onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Morning: checked as boolean }))}
+                                            />
+                                            <Label htmlFor="copy-route-type-morning">등교</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id="copy-route-type-afternoon"
+                                                checked={!!routeTypesToCopyRouteTo.Afternoon}
+                                                onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Afternoon: checked as boolean }))}
+                                            />
+                                            <Label htmlFor="copy-route-type-afternoon">하교</Label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button onClick={handleCopyRoute} className="w-full">복사</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </CardHeader>
+                <CardContent>
+                    {selectedBus && currentRoute ? (
+                        <Card>
+                            <CardHeader>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <CardTitle>{selectedBus.name} - {dayLabels[selectedDay]} {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
+                                        <CardDescription>정류장을 클릭하여 선택하고 순서를 변경하세요.</CardDescription>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <Button variant="outline" size="icon" onClick={() => handleMoveStop('up')} disabled={!selectedRouteStopId}><ArrowUp className="h-4 w-4"/></Button>
+                                        <Button variant="outline" size="icon" onClick={() => handleMoveStop('down')} disabled={!selectedRouteStopId}><ArrowDown className="h-4 w-4"/></Button>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-col gap-2 p-2 border rounded-md min-h-[300px] max-h-[40vh] overflow-y-auto bg-muted/50">
+                                {getStopsForCurrentRoute().map((dest) => (
+                                     <div
+                                        key={dest.id}
+                                        onClick={() => handleSelectRouteStop(dest.id)}
+                                        className={cn(
+                                            "p-2 flex items-center gap-2 rounded-md cursor-pointer hover:bg-primary/10",
+                                            "bg-card/80",
+                                            selectedRouteStopId === dest.id && "bg-primary/20 ring-2 ring-primary"
+                                        )}
+                                    >
+                                        <span className="flex-1 text-sm font-medium">{dest.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                        </Card>
+                    ) : (
+                        <div className="text-center text-muted-foreground py-10">버스를 선택하여 노선을 확인하세요.</div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {suggestedDestinations.length > 0 && (
                     <Card>
                         <CardHeader>
-                        <CardTitle>전체 목적지 목록</CardTitle>
+                        <CardTitle>신규 목적지 신청</CardTitle>
                         <CardDescription>
-                            모든 버스 노선에서 사용할 수 있는 목적지 목록입니다.
+                            학생들이 제안한 새로운 목적지입니다. 클릭하여 전체 목적지 목록에 추가하세요.
                         </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex justify-end gap-2 mb-4">
-                                <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
-                                <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
-                                <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
-                                <Dialog>
-                                    <DialogTrigger asChild><Button><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
-                                    <DialogContent>
-                                        <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
-                                        <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
-                                        <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
-                                    </DialogContent>
-                                </Dialog>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" /> 전체 삭제</Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>정말 모든 목적지를 삭제하시겠습니까?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                이 작업은 되돌릴 수 없습니다. 모든 목적지와 모든 노선의 경유지 정보가 영구적으로 삭제됩니다.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>취소</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleClearAllDestinations}>삭제</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </div>
-                            <div className="relative mb-4">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input 
-                                    type="search"
-                                    placeholder="목적지 검색..."
-                                    className="pl-8 w-full"
-                                    value={destinationSearchQuery}
-                                    onChange={(e) => setDestinationSearchQuery(e.target.value)}
-                                />
-                            </div>
-                            <Droppable droppableId="all-destinations" isDropDisabled={true}>
-                                {(provided) => (
-                                    <div
-                                        ref={provided.innerRef}
-                                        {...provided.droppableProps}
-                                        className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[100px] max-h-[30vh] overflow-y-auto bg-muted/50"
-                                    >
-                                        {filteredDestinations.map((dest, index) => (
-                                             <Draggable key={dest.id} draggableId={dest.id} index={index}>
-                                                {(provided, snapshot) => (
-                                                    <div
-                                                        ref={provided.innerRef}
-                                                        {...provided.draggableProps}
-                                                        {...provided.dragHandleProps}
-                                                        className={cn("rounded-full border px-3 py-1 text-sm font-semibold transition-colors flex items-center gap-1", snapshot.isDragging && "shadow-lg")}
-                                                    >
-                                                        {dest.name}
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="h-5 w-5 -mr-2">
-                                                                    <X className="w-3 h-3 text-destructive" />
-                                                                </Button>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>정말 이 목적지를 삭제하시겠습니까?</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
-                                                                        이 작업은 되돌릴 수 없습니다.
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>취소</AlertDialogCancel>
-                                                                    <AlertDialogAction onClick={() => handleDeleteDestination(dest.id)}>삭제</AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                    </div>
-                                                )}
-                                            </Draggable>
-                                        ))}
-                                        {provided.placeholder}
-                                    </div>
-                                )}
-                            </Droppable>
+                        <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
+                            {suggestedDestinations.map(suggestion => (
+                            <Badge 
+                                key={suggestion.id}
+                                variant="outline" 
+                                onClick={() => handleApproveSuggestion(suggestion)}
+                                className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
+                            >
+                                {suggestion.name}
+                            </Badge>
+                            ))}
+                        </div>
                         </CardContent>
-                    </Card>
-
-                    {selectedBus && currentRoute && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>담당 선생님 배정</CardTitle>
-                                <CardDescription>현재 선택된 노선({selectedBus.name} - {dayLabels[selectedDay]} {selectedRouteType})의 담당 선생님을 배정합니다.</CardDescription>
-                            </CardHeader>
-                             <CardContent>
-                                {assignedTeachers.length > 0 ? (
-                                    <div className="text-sm text-muted-foreground">
-                                        <strong>담당 선생님:</strong> {assignedTeachers.map(t => t.name).join(', ')}
-                                    </div>
-                                ) : (
-                                    <div className="text-sm text-muted-foreground">배정된 선생님이 없습니다.</div>
-                                )}
-                                {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
-                                     <Button variant="link" onClick={handleCopyToAllWeekdays} className="p-0 h-auto mt-2 text-sm">
-                                        <Copy className="mr-2"/> 현재 배정을 모든 평일 등/하교 노선에 복사
+                            <CardFooter>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" className="w-full">
+                                        <Trash2 className="mr-2 h-4 w-4" /> 모두 삭제
                                     </Button>
-                                )}
-                            </CardContent>
-                            <CardFooter className="grid grid-cols-3 gap-2">
-                               <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>재배정</Button>
-                                <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline"><Pencil className="mr-2"/>수동 변경</Button>
-                                    </DialogTrigger>
-                                    {currentRoute && <TeacherAssignmentDialog currentRoute={currentRoute} allRoutes={routes} teachers={teachers} setRoutes={setRoutes} onOpenChange={setIsTeacherDialogOpen} />}
-                                </Dialog>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="destructive" disabled={!assignedTeachers || assignedTeachers.length === 0}><RotateCcw className="mr-2"/>초기화</Button>
-                                    </AlertDialogTrigger>
-                                     <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>정말 담당 선생님 배정을 초기화하시겠습니까?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                이 작업은 되돌릴 수 없습니다. 현재 버스의 연관된 모든 노선(등/하교 또는 방과후)의 담당 선생님 배정이 초기화됩니다.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>취소</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleResetTeachers}>해제</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </CardFooter>
-                        </Card>
-                    )}
-                </div>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>정말 모든 제안을 삭제하시겠습니까?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        이 작업은 되돌릴 수 없습니다. 승인되지 않은 모든 목적지 제안이 영구적으로 삭제됩니다.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClearAllSuggestions}>삭제</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </CardFooter>
+                    </Card>
+                )}
+
+                {selectedBus && currentRoute && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>담당 선생님 배정</CardTitle>
+                            <CardDescription>현재 선택된 노선({selectedBus.name} - {dayLabels[selectedDay]} {selectedRouteType})의 담당 선생님을 배정합니다.</CardDescription>
+                        </CardHeader>
+                            <CardContent>
+                            {assignedTeachers.length > 0 ? (
+                                <div className="text-sm text-muted-foreground">
+                                    <strong>담당 선생님:</strong> {assignedTeachers.map(t => t.name).join(', ')}
+                                </div>
+                            ) : (
+                                <div className="text-sm text-muted-foreground">배정된 선생님이 없습니다.</div>
+                            )}
+                            {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
+                                    <Button variant="link" onClick={handleCopyToAllWeekdays} className="p-0 h-auto mt-2 text-sm">
+                                    <Copy className="mr-2"/> 현재 배정을 모든 평일 등/하교 노선에 복사
+                                </Button>
+                            )}
+                        </CardContent>
+                        <CardFooter className="grid grid-cols-3 gap-2">
+                            <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>재배정</Button>
+                            <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline"><Pencil className="mr-2"/>수동 변경</Button>
+                                </DialogTrigger>
+                                {currentRoute && <TeacherAssignmentDialog currentRoute={currentRoute} allRoutes={routes} teachers={teachers} setRoutes={setRoutes} onOpenChange={setIsTeacherDialogOpen} />}
+                            </Dialog>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" disabled={!assignedTeachers || assignedTeachers.length === 0}><RotateCcw className="mr-2"/>초기화</Button>
+                                </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>정말 담당 선생님 배정을 초기화하시겠습니까?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            이 작업은 되돌릴 수 없습니다. 현재 버스의 연관된 모든 노선(등/하교 또는 방과후)의 담당 선생님 배정이 초기화됩니다.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>취소</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleResetTeachers}>해제</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </CardFooter>
+                    </Card>
+                )}
             </div>
         </div>
-    </DragDropContext>
+    </div>
   );
 };
 
@@ -1190,7 +1195,6 @@ const StudentManagementTab = ({
         const unassigned = students.filter(student => {
             if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
 
-            let hasDestinationForThisRoute = false;
             let destId: string | null = null;
             let destName: string | null = null;
 
@@ -1204,11 +1208,8 @@ const StudentManagementTab = ({
                 destId = student.afterSchoolDestinations ? student.afterSchoolDestinations[selectedDay] : null;
                 destName = student.suggestedAfterSchoolDestinations ? student.suggestedAfterSchoolDestinations[selectedDay] : null;
             }
-
-            // A student is considered to have a destination if they have an ID for an existing one,
-            // OR if they have a name for a suggested one.
-            hasDestinationForThisRoute = !!destId || !!destName;
-
+            
+            const hasDestinationForThisRoute = !!(currentRoute.stops.includes(destId || '') || destName);
             if (!hasDestinationForThisRoute) return false;
 
             if (!unassignedSearchQuery) return true;
@@ -2156,10 +2157,10 @@ const AdminPageFilter: React.FC<{
         if (morningRoute && morningRoute.stops.length > 0) {
             const stopNames = morningRoute.stops.slice(0, 3).map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
             if (stopNames.length > 0) {
-                return `${bus.name} (${bus.type}) - ${stopNames.join(', ')}...`;
+                return `${bus.name} - ${stopNames.join(', ')}...`;
             }
         }
-        return `${bus.name} (${bus.type})`;
+        return bus.name;
     };
     return (
         <Card className="mb-6">
