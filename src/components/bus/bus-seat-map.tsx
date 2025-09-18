@@ -183,7 +183,7 @@ export function BusSeatMap({
                 const isHighlighted = student ? highlightedStudentId === student.id : false;
 
                 const seatBaseClasses = cn(
-                  'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm',
+                  'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm h-full w-full',
                   onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg',
                   isBoarded && 'bg-green-300 dark:bg-green-800 border-solid',
                   isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
@@ -201,7 +201,7 @@ export function BusSeatMap({
                             onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
                             className={cn(
                               seatBaseClasses,
-                              'bg-muted/50 border-2 border-dashed h-full w-full',
+                              'bg-muted/50 border-2 border-dashed',
                               snapshot.isDraggingOver && 'bg-primary/20'
                             )}
                           >
@@ -224,7 +224,7 @@ export function BusSeatMap({
                                 )}
                               </Draggable>
                             ) : (
-                              <UserIcon className="w-4 h-4 text-muted-foreground self-center my-auto" />
+                              <UserIcon className="w-4 h-4 text-muted-foreground self-center" />
                             )}
                             {provided.placeholder}
                           </div>
@@ -239,13 +239,13 @@ export function BusSeatMap({
                   <div key={seatNumber} className="p-1">
                     <div
                       onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-                      className={cn(seatBaseClasses, 'bg-card border h-full w-full')}
+                      className={cn(seatBaseClasses, 'bg-card border')}
                     >
                       <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
                       {student ? (
                         renderSeatContent(student, isHighlighted, isBoarded, isAbsent)
                       ) : (
-                        <UserIcon className="w-4 h-4 text-muted-foreground self-center my-auto" />
+                        <UserIcon className="w-4 h-4 text-muted-foreground self-center" />
                       )}
                     </div>
                   </div>
