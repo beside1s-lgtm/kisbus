@@ -21,7 +21,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, Ne
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { DraggableStudentCard } from '@/components/bus/draggable-student-card';
+import { StudentCard } from '@/components/bus/draggable-student-card';
 import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -1163,6 +1163,7 @@ const StudentManagementTab = ({
     
     const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
+    const [selectedSeatNumber, setSelectedSeatNumber] = useState<number | null>(null);
 
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -1274,21 +1275,55 @@ const StudentManagementTab = ({
         }
     }, [currentRoute, toast]);
 
-    const unassignStudent = useCallback(async (studentId: string) => {
+    const handleStudentCardClick = useCallback(async (studentId: string) => {
+        if (!selectedSeatNumber || !currentRoute) {
+            toast({ title: "알림", description: "먼저 좌석을 선택해주세요."});
+            return;
+        }
+
+        // Check if student is already seated somewhere else on this route
+        const isAlreadySeated = currentRoute.seating.some(s => s.studentId === studentId);
+        if (isAlreadySeated) {
+            toast({ title: "알림", description: "이미 다른 좌석에 배정된 학생입니다."});
+            return;
+        }
+
+        const newSeating = [...currentRoute.seating];
+        const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeatNumber);
+
+        if (targetSeatIndex !== -1) {
+            // Check if the seat is already occupied
+            if (newSeating[targetSeatIndex].studentId) {
+                toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석을 선택해주세요."});
+                return;
+            }
+            newSeating[targetSeatIndex].studentId = studentId;
+            await handleSeatUpdate(newSeating);
+            setSelectedSeatNumber(null); // Reset selection after assignment
+            toast({ title: "성공", description: "학생이 좌석에 배정되었습니다."});
+        }
+    }, [selectedSeatNumber, currentRoute, toast, handleSeatUpdate]);
+
+    const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
         if (!currentRoute) return;
-        
-        const studentToUnassign = students.find(s => s.id === studentId);
-        if (!studentToUnassign) return;
 
-        const newSeating = currentRoute.seating.map(seat =>
-            seat.studentId === studentId ? { ...seat, studentId: null } : seat
-        );
-        
-        await handleSeatUpdate(newSeating);
-        
-        toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
+        if (studentId) {
+            // Unassign student
+            const newSeating = currentRoute.seating.map(seat => 
+                seat.studentId === studentId ? { ...seat, studentId: null } : seat
+            );
+            await handleSeatUpdate(newSeating);
+            toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
+            // Also ensure the now empty seat is not selected
+            if (selectedSeatNumber === seatNumber) {
+                setSelectedSeatNumber(null);
+            }
+        } else {
+            // Select empty seat
+            setSelectedSeatNumber(seatNumber);
+        }
+    }, [currentRoute, selectedSeatNumber, handleSeatUpdate, toast]);
 
-    }, [currentRoute, students, handleSeatUpdate, toast]);
 
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
@@ -1694,77 +1729,13 @@ const StudentManagementTab = ({
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 모든 노선에서 좌석 배정이 해제되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
+            // Re-fetch data on error to be safe
             const freshStudents = await getStudents();
             const freshRoutes = await getRoutes();
             setStudents(freshStudents);
             setRoutes(freshRoutes);
         }
     }, [students, selectedDay, setStudents, setRoutes, toast]);
-
-    const onDragEnd: OnDragEndResponder = useCallback(async (result) => {
-        const { source, destination, draggableId: studentId } = result;
-
-        if (!destination || !currentRoute) return;
-
-        const sourceDroppableId = source.droppableId;
-        
-        let newSeating = [...currentRoute.seating];
-
-        // Case 1: Moving from unassigned list to the seat grid
-        if (sourceDroppableId === 'unassigned-students' && destination.droppableId === 'bus-seat-map-grid') {
-            const seatNumberAttr = destination.droppableProps['data-seat-number'];
-            const seatNumber = seatNumberAttr ? parseInt(seatNumberAttr, 10) : null;
-            
-            if (seatNumber) {
-                const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
-
-                if (targetSeatIndex !== -1) {
-                    if (newSeating[targetSeatIndex].studentId) {
-                        toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석에 배정해주세요." });
-                        return;
-                    }
-                    // unassign from source seat if any
-                    const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
-                    if (sourceSeatIndex > -1) {
-                      newSeating[sourceSeatIndex].studentId = null;
-                    }
-                    
-                    newSeating[targetSeatIndex].studentId = studentId;
-                }
-            } else {
-                 return; // Dropped outside a valid seat
-            }
-        }
-        // Case 2: Moving from a seat to another seat (swapping)
-        else if (sourceDroppableId.startsWith('seat-') && destination.droppableId.startsWith('seat-')) {
-            const sourceSeatNumber = parseInt(source.droppableId.replace('seat-', ''));
-            const destinationSeatNumber = parseInt(destination.droppableId.replace('seat-', ''));
-            
-            if(sourceSeatNumber === destinationSeatNumber) return;
-
-            const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === sourceSeatNumber);
-            const destinationSeatIndex = newSeating.findIndex(s => s.seatNumber === destinationSeatNumber);
-
-            if (sourceSeatIndex !== -1 && destinationSeatIndex !== -1) {
-                const studentInSourceSeat = newSeating[sourceSeatIndex].studentId;
-                const studentInDestinationSeat = newSeating[destinationSeatIndex].studentId;
-                newSeating[destinationSeatIndex].studentId = studentInSourceSeat;
-                newSeating[sourceSeatIndex].studentId = studentInDestinationSeat;
-            }
-        }
-         // Case 3: Moving from a seat back to the unassigned list
-        else if (source.droppableId.startsWith('seat-') && destination.droppableId === 'unassigned-students') {
-             const studentToUnassign = students.find(s => s.id === studentId);
-             if(studentToUnassign) {
-                newSeating = newSeating.map(seat => seat.studentId === studentId ? { ...seat, studentId: null } : seat);
-             }
-        } else {
-            return;
-        }
-
-        await handleSeatUpdate(newSeating);
-
-    }, [currentRoute, students, toast, handleSeatUpdate]);
 
     if (!selectedBusId) {
        return (
@@ -1783,7 +1754,6 @@ const StudentManagementTab = ({
     }
 
     return (
-        <DragDropContext onDragEnd={onDragEnd}>
         <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
@@ -1791,7 +1761,7 @@ const StudentManagementTab = ({
                         <CardHeader className="flex-row items-center justify-between">
                             <div>
                                <CardTitle className="font-headline">좌석표</CardTitle>
-                               <CardDescription>미배정 학생을 드래그하여 배정하거나, 좌석을 클릭하여 배정을 해제하세요.</CardDescription>
+                               <CardDescription>빈 좌석을 클릭하여 선택한 후, 미배정 학생을 클릭하여 배정하세요.</CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
                                 {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
@@ -1955,10 +1925,8 @@ const StudentManagementTab = ({
                                     seating={currentRoute.seating}
                                     students={students}
                                     destinations={destinations}
-                                    onSeatClick={(seatNumber, studentId) => {
-                                        if (studentId) unassignStudent(studentId);
-                                    }}
-                                    draggable={true}
+                                    onSeatClick={handleSeatClick}
+                                    highlightedSeatNumber={selectedSeatNumber}
                                     routeType={selectedRouteType}
                                     dayOfWeek={selectedDay}
                                 />
@@ -1970,7 +1938,7 @@ const StudentManagementTab = ({
                      <Card className="sticky top-20">
                         <CardHeader>
                             <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : `(${dayLabels[selectedDay]}) 방과후`})</CardTitle>
-                            <CardDescription>드래그하여 빈 좌석에 배정하세요.</CardDescription>
+                            <CardDescription>좌석을 먼저 선택한 후, 학생을 클릭하여 배정하세요.</CardDescription>
                         </CardHeader>
                         <Separator />
                          <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
@@ -2012,36 +1980,25 @@ const StudentManagementTab = ({
                                     </AlertDialogContent>
                                 </AlertDialog>
                              </div>
-                             <Droppable droppableId="unassigned-students">
-                                {(provided, snapshot) => (
-                                    <div ref={provided.innerRef} {...provided.droppableProps} className={cn("min-h-[200px]", snapshot.isDraggingOver && "bg-muted")}>
-                                        {filteredUnassignedStudents.map((student, index) => (
-                                            <Draggable key={student.id} draggableId={student.id} index={index}>
-                                                {(provided, snapshot) => (
-                                                    <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                                        <DraggableStudentCard 
-                                                            student={student} 
-                                                            destinations={destinations}
-                                                            isChecked={selectedStudentIds.has(student.id)}
-                                                            onCheckedChange={(isChecked) => handleToggleStudentSelection(student.id, isChecked)}
-                                                            routeType={selectedRouteType}
-                                                            dayOfWeek={selectedDay}
-                                                            isDragging={snapshot.isDragging}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </Draggable>
-                                        ))}
-                                        {provided.placeholder}
-                                    </div>
-                                )}
-                            </Droppable>
+                            <div className="min-h-[200px]">
+                                {filteredUnassignedStudents.map((student, index) => (
+                                    <StudentCard 
+                                        key={student.id}
+                                        student={student} 
+                                        destinations={destinations}
+                                        isChecked={selectedStudentIds.has(student.id)}
+                                        onCheckedChange={(isChecked) => handleToggleStudentSelection(student.id, isChecked)}
+                                        onClick={() => handleStudentCardClick(student.id)}
+                                        routeType={selectedRouteType}
+                                        dayOfWeek={selectedDay}
+                                    />
+                                ))}
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
             </div>
         </div>
-        </DragDropContext>
     );
 };
 

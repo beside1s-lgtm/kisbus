@@ -3,30 +3,29 @@
 import React from 'react';
 import { Student, Destination, RouteType, DayOfWeek } from '@/lib/types';
 import { Card } from '../ui/card';
-import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '../ui/checkbox';
 
-interface DraggableStudentCardProps {
+interface StudentCardProps {
   student: Student;
   destinations: Destination[];
   className?: string;
   isChecked: boolean;
   onCheckedChange: (isChecked: boolean) => void;
+  onClick: () => void;
   routeType: RouteType;
   dayOfWeek: DayOfWeek;
-  isDragging?: boolean;
 }
 
-export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({ 
+export const StudentCard: React.FC<StudentCardProps> = ({ 
     student, 
     destinations, 
     className,
     isChecked,
     onCheckedChange,
+    onClick,
     routeType,
     dayOfWeek,
-    isDragging = false,
 }) => {
   
   let destinationId: string | null | undefined = null;
@@ -50,22 +49,20 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
   return (
     <Card
       className={cn(
-        'p-2 mb-2 flex items-center gap-2 cursor-grab active:cursor-grabbing bg-card hover:bg-muted/80 transition-colors',
-        isDragging && 'shadow-lg max-w-20 truncate',
+        'p-2 mb-2 flex items-center gap-2 cursor-pointer bg-card hover:bg-muted/80 transition-colors',
         className
       )}
+      onClick={onClick}
     >
-      <GripVertical className="h-5 w-5 text-muted-foreground" />
       <div className="flex-1 truncate">
         <span className="text-sm font-medium">{formatStudentName(student)}</span>
-        <p className={cn("text-xs text-muted-foreground", isDragging && "hidden")}>{studentDestinationName}</p>
+        <p className="text-xs text-muted-foreground">{studentDestinationName}</p>
       </div>
       <Checkbox
         checked={isChecked}
         onCheckedChange={onCheckedChange}
         aria-label={`Select ${student.name}`}
-        className={cn(isDragging && "hidden")}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()} // Prevent card click when checkbox is clicked
       />
     </Card>
   );
