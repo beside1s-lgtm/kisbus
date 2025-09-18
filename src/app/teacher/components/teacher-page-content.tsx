@@ -58,15 +58,15 @@ export function TeacherPageContent({
   const { toast } = useToast();
 
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
-  const dayLabels: { [key in DayOfWeek]: string } = {
+  const dayLabels: { [key in DayOfWeek]: string } = useMemo(() =>({
       Monday: '월요일',
       Tuesday: '화요일',
       Wednesday: '수요일',
       Thursday: '목요일',
       Friday: '금요일',
       Saturday: '토요일',
-  }
-  const today = format(new Date(), 'yyyy-MM-dd');
+  }), []);
+  const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   const formatStudentName = (student: Student | null) => {
     if (!student) return '';
@@ -94,7 +94,9 @@ export function TeacherPageContent({
     } else {
         setSelectedRouteType('Morning');
     }
+  }, [days]);
 
+  useEffect(() => {
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
         setRoutes(routesData);
         setLoading(false);
@@ -103,7 +105,7 @@ export function TeacherPageContent({
     return () => {
         unsubscribeRoutes();
     };
-  }, [days]);
+  }, []);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
@@ -180,27 +182,19 @@ export function TeacherPageContent({
   }, [currentRoute, students]);
   
   const findRoutesForStudent = useCallback(async (student: Student): Promise<Route[]> => {
-    let destId: string | null = null;
-    if (selectedRouteType === 'Morning') {
-        destId = student.morningDestinationId;
-    } else if (selectedRouteType === 'Afternoon') {
-        destId = student.afternoonDestinationId;
-    } else if (selectedRouteType === 'AfterSchool') {
-        destId = student.afterSchoolDestinations?.[selectedDay] || null;
-    }
-      
-    if (!destId) return [];
-    
-    // Get all routes for that stop
-    const relevantRoutes = await getRoutesByStop(destId);
-    
-    // Filter by the current day of the week
-    const dayIndex = getDay(new Date());
-    if (dayIndex === 0) return []; // Sunday
-    const todayDayOfWeek = days[dayIndex - 1];
+      const studentDay = selectedDay;
 
-    return relevantRoutes.filter(r => r.dayOfWeek === todayDayOfWeek);
-  }, [days, selectedDay, selectedRouteType]);
+      let destId: string | null = null;
+      if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
+      else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
+      else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[studentDay] || null;
+      
+      if (!destId) return [];
+      
+      const relevantRoutes = await getRoutesByStop(destId);
+      
+      return relevantRoutes.filter(r => r.dayOfWeek === studentDay);
+  }, [selectedDay, selectedRouteType]);
 
   const toggleAbsence = useCallback(async (student: Student) => {
     const studentRoutes = await findRoutesForStudent(student);
@@ -357,7 +351,7 @@ export function TeacherPageContent({
             <SelectContent>
             {days.map((day) => (
                 <SelectItem key={day} value={day}>
-                {dayLabels[day]}
+                  {dayLabels[day]}
                 </SelectItem>
             ))}
             </SelectContent>
@@ -477,7 +471,6 @@ export function TeacherPageContent({
                         seating={currentRoute.seating}
                         students={students}
                         destinations={destinations}
-                        draggable={false}
                         onSeatClick={handleSeatClick}
                         absentStudentIds={absentStudentIds}
                         boardedStudentIds={boardedStudentIds}

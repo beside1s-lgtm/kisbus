@@ -13,6 +13,7 @@ interface BusSeatMapProps {
   students: Student[];
   destinations: Destination[];
   onSeatClick?: (seatNumber: number, studentId: string | null) => void;
+  onSeatContextMenu?: (e: React.MouseEvent, seatNumber: number) => void;
   absentStudentIds?: string[];
   boardedStudentIds?: string[];
   highlightedStudentId?: string | null;
@@ -78,6 +79,7 @@ export function BusSeatMap({
   students,
   destinations,
   onSeatClick,
+  onSeatContextMenu,
   absentStudentIds = [],
   boardedStudentIds = [],
   highlightedStudentId = null,
@@ -127,6 +129,7 @@ export function BusSeatMap({
       <div
         data-cy="scroll-container"
         className="p-2 border rounded-lg bg-muted/20 overflow-auto"
+        onContextMenu={onSeatContextMenu ? (e) => onSeatContextMenu(e, 0) : undefined}
       >
         {hasFrontDriver && (
           <div className="mb-4 flex justify-start">
@@ -149,7 +152,7 @@ export function BusSeatMap({
             const isAbsent = !!student && absentStudentIds.includes(student.id);
             const isBoarded = !!student && boardedStudentIds.includes(student.id);
             const isHighlightedByStudent = !!student && highlightedStudentId === student.id;
-            const isHighlightedBySeat = !student && highlightedSeatNumber === seat.seatNumber;
+            const isHighlightedBySeat = highlightedSeatNumber === seat.seatNumber;
 
             const isHighlighted = isHighlightedByStudent || isHighlightedBySeat;
 

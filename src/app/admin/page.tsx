@@ -22,7 +22,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { StudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, GripVertical, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeftRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1163,7 +1163,9 @@ const StudentManagementTab = ({
     
     const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
-    const [selectedSeatNumber, setSelectedSeatNumber] = useState<number | null>(null);
+    
+    // Seat assignment state
+    const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
 
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -1218,6 +1220,11 @@ const StudentManagementTab = ({
         setFilteredUnassignedStudents(sortedUnassigned);
 
     }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations]);
+    
+    useEffect(() => {
+        // Reset seat selection when route changes
+        setSelectedSeat(null);
+    }, [currentRoute]);
     
     const handleToggleSelectAll = useCallback(() => {
         if (!filteredUnassignedStudents) return;
@@ -1276,53 +1283,74 @@ const StudentManagementTab = ({
     }, [currentRoute, toast]);
 
     const handleStudentCardClick = useCallback(async (studentId: string) => {
-        if (!selectedSeatNumber || !currentRoute) {
-            toast({ title: "알림", description: "먼저 좌석을 선택해주세요."});
-            return;
-        }
+        if (!currentRoute) return;
 
-        // Check if student is already seated somewhere else on this route
-        const isAlreadySeated = currentRoute.seating.some(s => s.studentId === studentId);
-        if (isAlreadySeated) {
-            toast({ title: "알림", description: "이미 다른 좌석에 배정된 학생입니다."});
-            return;
-        }
-
-        const newSeating = [...currentRoute.seating];
-        const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeatNumber);
-
-        if (targetSeatIndex !== -1) {
-            // Check if the seat is already occupied
-            if (newSeating[targetSeatIndex].studentId) {
-                toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석을 선택해주세요."});
+        // If an empty seat is selected, assign the student to it
+        if (selectedSeat && !selectedSeat.studentId) {
+            const isAlreadySeated = currentRoute.seating.some(s => s.studentId === studentId);
+            if (isAlreadySeated) {
+                toast({ title: "알림", description: "이미 다른 좌석에 배정된 학생입니다."});
                 return;
             }
-            newSeating[targetSeatIndex].studentId = studentId;
-            await handleSeatUpdate(newSeating);
-            setSelectedSeatNumber(null); // Reset selection after assignment
-            toast({ title: "성공", description: "학생이 좌석에 배정되었습니다."});
+
+            const newSeating = [...currentRoute.seating];
+            const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
+
+            if (targetSeatIndex !== -1) {
+                newSeating[targetSeatIndex].studentId = studentId;
+                await handleSeatUpdate(newSeating);
+                setSelectedSeat(null); // Reset selection after assignment
+                toast({ title: "성공", description: "학생이 좌석에 배정되었습니다."});
+            }
+        } else {
+             toast({ title: "알림", description: "먼저 빈 좌석을 선택해주세요."});
         }
-    }, [selectedSeatNumber, currentRoute, toast, handleSeatUpdate]);
+    }, [selectedSeat, currentRoute, toast, handleSeatUpdate]);
 
     const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
         if (!currentRoute) return;
+    
+        const newSeating = [...currentRoute.seating];
+    
+        if (selectedSeat) { // A seat is already selected (for swap or assignment)
+            if (selectedSeat.studentId) { // An occupied seat was selected first
+                const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
+                const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
-        if (studentId) {
-            // Unassign student
-            const newSeating = currentRoute.seating.map(seat => 
-                seat.studentId === studentId ? { ...seat, studentId: null } : seat
-            );
-            await handleSeatUpdate(newSeating);
-            toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
-            // Also ensure the now empty seat is not selected
-            if (selectedSeatNumber === seatNumber) {
-                setSelectedSeatNumber(null);
+                if (sourceSeatIndex === -1 || targetSeatIndex === -1) return;
+    
+                if (selectedSeat.seatNumber === seatNumber) { // Clicked the same seat again to unassign
+                    newSeating[sourceSeatIndex].studentId = null;
+                    toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다." });
+                } else { // Swapping students or moving to an empty seat
+                    const sourceStudentId = newSeating[sourceSeatIndex].studentId;
+                    const targetStudentId = newSeating[targetSeatIndex].studentId;
+                    newSeating[sourceSeatIndex].studentId = targetStudentId;
+                    newSeating[targetSeatIndex].studentId = sourceStudentId;
+                    toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+                }
+                
+                await handleSeatUpdate(newSeating);
+                setSelectedSeat(null);
+    
+            } else { // An empty seat was selected first, now handle assignment
+                // This case is handled by handleStudentCardClick, so we just reset the selection if another empty seat is clicked.
+                if (!studentId) {
+                    setSelectedSeat({ seatNumber, studentId });
+                }
             }
-        } else {
-            // Select empty seat
-            setSelectedSeatNumber(seatNumber);
+        } else { // No seat is selected, this is the first click
+            setSelectedSeat({ seatNumber, studentId });
         }
-    }, [currentRoute, selectedSeatNumber, handleSeatUpdate, toast]);
+    }, [currentRoute, selectedSeat, handleSeatUpdate, toast]);
+    
+    const handleSeatContextMenu = (e: React.MouseEvent) => {
+        if (selectedSeat) {
+            e.preventDefault();
+            setSelectedSeat(null);
+            toast({ title: "취소", description: "좌석 선택이 취소되었습니다." });
+        }
+    };
 
 
     const handleResetSeating = useCallback(async () => {
@@ -1754,14 +1782,16 @@ const StudentManagementTab = ({
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" onContextMenu={handleSeatContextMenu}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
                         <CardHeader className="flex-row items-center justify-between">
                             <div>
                                <CardTitle className="font-headline">좌석표</CardTitle>
-                               <CardDescription>빈 좌석을 클릭하여 선택한 후, 미배정 학생을 클릭하여 배정하세요.</CardDescription>
+                               <CardDescription>
+                                {selectedSeat?.studentId ? "교체할 다른 좌석을 선택하거나, 같은 좌석을 다시 클릭하여 배정 해제하세요." : "좌석을 클릭하여 학생을 배정하거나 교체하세요. 우클릭으로 선택을 취소할 수 있습니다."}
+                               </CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
                                 {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
@@ -1926,7 +1956,7 @@ const StudentManagementTab = ({
                                     students={students}
                                     destinations={destinations}
                                     onSeatClick={handleSeatClick}
-                                    highlightedSeatNumber={selectedSeatNumber}
+                                    highlightedSeatNumber={selectedSeat?.seatNumber}
                                     routeType={selectedRouteType}
                                     dayOfWeek={selectedDay}
                                 />
@@ -1938,7 +1968,9 @@ const StudentManagementTab = ({
                      <Card className="sticky top-20">
                         <CardHeader>
                             <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : `(${dayLabels[selectedDay]}) 방과후`})</CardTitle>
-                            <CardDescription>좌석을 먼저 선택한 후, 학생을 클릭하여 배정하세요.</CardDescription>
+                            <CardDescription>
+                                {selectedSeat && !selectedSeat.studentId ? "학생을 클릭하여 선택된 빈 좌석에 배정하세요." : "먼저 빈 좌석을 선택한 후 학생을 클릭하여 배정하세요."}
+                            </CardDescription>
                         </CardHeader>
                         <Separator />
                          <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
@@ -1981,7 +2013,7 @@ const StudentManagementTab = ({
                                 </AlertDialog>
                              </div>
                             <div className="min-h-[200px]">
-                                {filteredUnassignedStudents.map((student, index) => (
+                                {filteredUnassignedStudents.map((student) => (
                                     <StudentCard 
                                         key={student.id}
                                         student={student} 

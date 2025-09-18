@@ -54,16 +54,16 @@ export const StudentCard: React.FC<StudentCardProps> = ({
       )}
       onClick={onClick}
     >
-      <div className="flex-1 truncate">
-        <span className="text-sm font-medium">{formatStudentName(student)}</span>
-        <p className="text-xs text-muted-foreground">{studentDestinationName}</p>
-      </div>
       <Checkbox
         checked={isChecked}
         onCheckedChange={onCheckedChange}
         aria-label={`Select ${student.name}`}
         onClick={(e) => e.stopPropagation()} // Prevent card click when checkbox is clicked
       />
+      <div className="flex-1 truncate">
+        <span className="text-sm font-medium">{formatStudentName(student)}</span>
+        <p className="text-xs text-muted-foreground">{studentDestinationName}</p>
+      </div>
     </Card>
   );
 };
