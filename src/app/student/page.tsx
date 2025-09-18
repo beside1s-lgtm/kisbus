@@ -11,18 +11,27 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { Label } from '@/components/ui/label';
 import { format, getDay } from 'date-fns';
 
-export default function StudentPage() {
-  const [buses, setBuses] = useState<Bus[]>([]);
-  const [allStudents, setAllStudents] = useState<Student[]>([]);
+// This is the client component that will handle state and interactions
+function StudentPageContent({
+    initialBuses,
+    initialStudents,
+    initialDestinations,
+}: {
+    initialBuses: Bus[],
+    initialStudents: Student[],
+    initialDestinations: Destination[],
+}) {
+  const [buses, setBuses] = useState<Bus[]>(initialBuses);
+  const [allStudents, setAllStudents] = useState<Student[]>(initialStudents);
+  const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [destinations, setDestinations] = useState<Destination[]>([]);
   
-  const [selectedBusId, setSelectedBusId] = useState<string>('');
+  const [selectedBusId, setSelectedBusId] = useState<string>(initialBuses.length > 0 ? initialBuses[0].id : '');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Still used for route loading
 
   const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayLabels: { [key in DayOfWeek]: string } = {
@@ -45,7 +54,6 @@ export default function StudentPage() {
   useEffect(() => {
     // Set selectedDay to today's day of the week
     const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
-    // Sunday (0) will default to Monday
     if (dayIndex > 0 && dayIndex < 7) { // Monday(1) to Saturday(6)
         setSelectedDay(days[dayIndex - 1]);
     } else {
@@ -62,32 +70,11 @@ export default function StudentPage() {
     } else {
         setSelectedRouteType('Morning');
     }
-
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [busesData, studentsData, destinationsData] = await Promise.all([
-          getBuses(),
-          getStudents(),
-          getDestinations(),
-        ]);
-        setBuses(busesData);
-        setAllStudents(studentsData);
-        setDestinations(destinationsData);
-        if (busesData.length > 0 && !selectedBusId) {
-          setSelectedBusId(busesData[0].id);
-        }
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
     
+    // Routes are the main real-time data needed
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
         setRoutes(routesData);
-        if(loading) setLoading(false);
+        setLoading(false);
     });
 
     return () => {
@@ -125,7 +112,7 @@ export default function StudentPage() {
 
     return allStudents
       .filter(student => studentIdsOnRoute.includes(student.id))
-      .sort((a,b) => a.name.localeCompare(b.name));
+      .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
   }, [currentRoute, allStudents]);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -197,7 +184,7 @@ export default function StudentPage() {
     <MainLayout headerContent={headerContent}>
       {loading ? (
         <div className="flex justify-center items-center h-64">
-            <p>데이터를 불러오는 중입니다...</p>
+            <p>실시간 노선 정보를 불러오는 중입니다...</p>
         </div>
       ) : (
         <div>
@@ -235,4 +222,22 @@ export default function StudentPage() {
       )}
     </MainLayout>
   );
+}
+
+
+// This is the Server Component that fetches initial data
+export default async function StudentPage() {
+    const [buses, students, destinations] = await Promise.all([
+        getBuses(),
+        getStudents(),
+        getDestinations(),
+    ]);
+
+    return (
+        <StudentPageContent 
+            initialBuses={buses}
+            initialStudents={students}
+            initialDestinations={destinations}
+        />
+    );
 }

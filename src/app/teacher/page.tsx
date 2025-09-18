@@ -1,5 +1,4 @@
 
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DragDropContext, OnDragEndResponder } from '@hello-pangea/dnd';
@@ -37,14 +36,24 @@ const sortBuses = (buses: Bus[]): Bus[] => {
   });
 };
 
-export default function TeacherPage() {
-  const [buses, setBuses] = useState<Bus[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+function TeacherPageContent({
+    initialBuses,
+    initialStudents,
+    initialDestinations,
+    initialTeachers
+}: {
+    initialBuses: Bus[];
+    initialStudents: Student[];
+    initialDestinations: Destination[];
+    initialTeachers: Teacher[];
+}) {
+  const [buses, setBuses] = useState<Bus[]>(initialBuses);
+  const [students, setStudents] = useState<Student[]>(initialStudents);
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
+  const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
   
-  const [selectedBusId, setSelectedBusId] = useState<string>('');
+  const [selectedBusId, setSelectedBusId] = useState<string>(initialBuses.length > 0 ? initialBuses[0].id : '');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
   
@@ -78,7 +87,6 @@ export default function TeacherPage() {
   useEffect(() => {
     // Set selectedDay to today's day of the week
     const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
-    // Sunday (0) will default to Monday
     if (dayIndex > 0 && dayIndex < 7) { // Monday(1) to Saturday(6)
         setSelectedDay(days[dayIndex - 1]);
     } else {
@@ -96,42 +104,15 @@ export default function TeacherPage() {
         setSelectedRouteType('Morning');
     }
 
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [busesData, studentsData, destinationsData, teachersData] = await Promise.all([
-                getBuses(),
-                getStudents(),
-                getDestinations(),
-                getTeachers(),
-            ]);
-            const sortedBuses = sortBuses(busesData);
-            setBuses(sortedBuses);
-            setStudents(studentsData);
-            setDestinations(destinationsData);
-            setTeachers(teachersData);
-            if (sortedBuses.length > 0 && !selectedBusId) {
-                setSelectedBusId(sortedBuses[0].id);
-            }
-        } catch (error) {
-            console.error("Failed to fetch data", error);
-            toast({ title: "오류", description: "데이터 로딩 실패", variant: "destructive" });
-        } finally {
-            setLoading(false);
-        }
-    };
-    fetchData();
-
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
         setRoutes(routesData);
-        if(loading) setLoading(false);
+        setLoading(false);
     });
 
     return () => {
         unsubscribeRoutes();
     };
-  }, [toast, loading]);
+  }, []);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
@@ -197,7 +178,7 @@ export default function TeacherPage() {
       return Array.from(studentIdsOnRoute)
           .map(id => students.find(s => s.id === id))
           .filter((s): s is Student => !!s)
-          .sort((a,b) => a.name.localeCompare(b.name));
+          .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
   }, [currentRoute, students]);
   
   const findRoutesForStudent = async (student: Student): Promise<Route[]> => {
@@ -251,7 +232,7 @@ export default function TeacherPage() {
         toast({ title: "오류", description: `${route.id} 노선 결석 처리 실패`, variant: "destructive"});
       }
     });
-  }, [today, toast, days, selectedRouteType, selectedDay]);
+  }, [today, toast, days, selectedRouteType, selectedDay, findRoutesForStudent]);
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
@@ -472,7 +453,7 @@ export default function TeacherPage() {
   return (
     <MainLayout headerContent={headerContent}>
       {loading ? (
-        <div className="flex justify-center items-center h-64"><p>데이터를 불러오는 중입니다...</p></div>
+        <div className="flex justify-center items-center h-64"><p>실시간 노선 정보를 불러오는 중입니다...</p></div>
       ) : (
       <DragDropContext onDragEnd={onDragEnd}>
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -560,3 +541,23 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+
+
+export default async function TeacherPage() {
+    const [busesData, studentsData, destinationsData, teachersData] = await Promise.all([
+        getBuses(),
+        getStudents(),
+        getDestinations(),
+        getTeachers(),
+    ]);
+
+    return (
+        <TeacherPageContent
+            initialBuses={sortBuses(busesData)}
+            initialStudents={studentsData}
+            initialDestinations={destinationsData}
+            initialTeachers={teachersData}
+        />
+    );
+}
+
