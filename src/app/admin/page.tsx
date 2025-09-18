@@ -626,7 +626,7 @@ const BusConfigurationTab = ({
     }
   }, [currentRoute, setRoutes, toast]);
 
-  const removeStopFromRoute = useCallback((stopId: string) => {
+  const removeStopFromRoute = useCallback(async (stopId: string) => {
     if (!currentRoute) return;
 
     const newStopIds = currentRoute.stops.filter(id => id !== stopId);
@@ -639,12 +639,20 @@ const BusConfigurationTab = ({
         )
     );
 
-    updateRouteStops(currentRoute.id, newStopIds).catch(error => {
+    try {
+      await updateRouteStops(currentRoute.id, newStopIds);
+    } catch(error) {
         console.error("Failed to update stops in DB:", error);
         toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
-        // Revert on error - re-fetch might be safer
-        getRoutes().then(setRoutes);
-    });
+        // Revert on error
+        setRoutes(prevRoutes =>
+            prevRoutes.map(route =>
+                route.id === currentRoute.id
+                    ? { ...route, stops: currentRoute.stops }
+                    : route
+            )
+        );
+    };
 }, [currentRoute, setRoutes, toast]);
 
   const assignRandomTeachers = useCallback(async () => {
@@ -1305,7 +1313,7 @@ const StudentManagementTab = ({
             await updateRouteSeating(currentRoute.id, newSeating);
         } catch (error) {
              toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
-             // Re-fetch to be safe
+             // Revert on error
              getRoutes().then(setRoutes);
         }
     }, [currentRoute, setRoutes, toast]);
