@@ -34,15 +34,15 @@ export function StudentPageContent({
   const [loading, setLoading] = useState(true); // Still used for route loading
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const dayLabels: { [key in DayOfWeek]: string } = {
+  const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
+  const dayLabels: { [key in DayOfWeek]: string } = useMemo(() => ({
       Monday: '월요일',
       Tuesday: '화요일',
       Wednesday: '수요일',
       Thursday: '목요일',
       Friday: '금요일',
       Saturday: '토요일',
-  }
+  }), []);
 
   const formatStudentName = (student: Student) => {
     if (!student) return '';
@@ -50,6 +50,27 @@ export function StudentPageContent({
     const studentClass = student.class.replace(/\D/g, '');
     return `${grade}${studentClass} ${student.name}`;
   }
+
+   useEffect(() => {
+    // Set selectedDay to today's day of the week, and routeType based on time. Runs only once on mount.
+    const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
+    if (dayIndex > 0 && dayIndex < 7) { // Monday(1) to Saturday(6)
+        setSelectedDay(days[dayIndex - 1]);
+    } else {
+        setSelectedDay('Monday');
+    }
+    
+    // Set route type based on Vietnam time
+    const now = new Date();
+    const vietnamHour = (now.getUTCHours() + 7) % 24;
+    if (vietnamHour >= 16) {
+        setSelectedRouteType('AfterSchool');
+    } else if (vietnamHour >= 12) { // Changed from 9 to 12 to better reflect afternoon
+        setSelectedRouteType('Afternoon');
+    } else {
+        setSelectedRouteType('Morning');
+    }
+  }, [days]); // days is stable
 
   useEffect(() => {
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
@@ -155,7 +176,7 @@ export function StudentPageContent({
             </SelectContent>
           </Select>
         </div>
-        <div className="w-[140px]">
+        <div className="w-[200px]">
             <Label className="text-xs">학생 이름</Label>
             <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={!currentRoute}>
                 <SelectTrigger>
