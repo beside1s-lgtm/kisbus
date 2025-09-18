@@ -180,7 +180,7 @@ function TeacherPageContent({
           .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
   }, [currentRoute, students]);
   
-  const findRoutesForStudent = async (student: Student): Promise<Route[]> => {
+  const findRoutesForStudent = useCallback(async (student: Student): Promise<Route[]> => {
     let destId: string | null = null;
     if (selectedRouteType === 'Morning') {
         destId = student.morningDestinationId;
@@ -199,7 +199,7 @@ function TeacherPageContent({
     const todayDayOfWeek = days[dayIndex - 1];
 
     return relevantRoutes.filter(r => r.dayOfWeek === todayDayOfWeek);
-  }
+  }, [days, selectedDay, selectedRouteType]);
 
   const toggleAbsence = useCallback(async (student: Student) => {
     const studentRoutes = await findRoutesForStudent(student);
@@ -231,7 +231,7 @@ function TeacherPageContent({
         toast({ title: "오류", description: `${route.id} 노선 결석 처리 실패`, variant: "destructive"});
       }
     });
-  }, [today, toast, days, selectedRouteType, selectedDay, findRoutesForStudent]);
+  }, [today, toast, findRoutesForStudent]);
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
@@ -542,6 +542,7 @@ function TeacherPageContent({
 }
 
 
+// This is the Server Component that fetches initial data
 export default async function TeacherPage() {
     const [busesData, studentsData, destinationsData, teachersData] = await Promise.all([
         getBuses(),
