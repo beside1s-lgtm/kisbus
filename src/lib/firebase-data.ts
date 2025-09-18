@@ -330,9 +330,12 @@ export const clearAllSuggestedDestinations = async () => {
 };
 
 export const unassignStudentFromAllRoutes = async (studentId: string) => {
-    const routesSnapshot = await getDocs(collection(db, 'routes'));
-    const batch = writeBatch(db);
+    if (!studentId) return;
 
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    if (routesSnapshot.empty) return;
+
+    const batch = writeBatch(db);
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
         let seatingChanged = false;

@@ -29,13 +29,6 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     dayOfWeek,
     isDragging = false,
 }) => {
-  const preventDragOnCheckbox = (e: React.MouseEvent<HTMLDivElement, MouseEvent> | React.TouchEvent<HTMLDivElement>) => {
-    if (e.target instanceof HTMLElement) {
-      if (e.target.closest('[role="checkbox"]')) {
-        e.preventDefault();
-      }
-    }
-  };
   
   let destinationId: string | null | undefined = null;
 
@@ -57,8 +50,6 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
 
   return (
     <Card
-      onMouseDown={preventDragOnCheckbox}
-      onTouchStart={preventDragOnCheckbox}
       className={cn(
         'p-2 mb-2 flex items-center gap-2 cursor-grab active:cursor-grabbing bg-card hover:bg-muted/80 transition-colors',
         className,
