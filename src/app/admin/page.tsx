@@ -1347,13 +1347,13 @@ const StudentManagementTab = ({
         await handleSeatUpdate(newSeating);
         
         const studentToUnassign = students.find(s => s.id === studentId);
-        if (studentToUnassign) {
-            setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+        if (studentToUnassign && !filteredUnassignedStudents.some(s => s.id === studentId)) {
+            setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
         }
         
         toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
 
-    }, [currentRoute, handleSeatUpdate, toast, students]);
+    }, [currentRoute, handleSeatUpdate, toast, students, filteredUnassignedStudents]);
 
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
@@ -1784,17 +1784,26 @@ const StudentManagementTab = ({
         
         let newSeating = [...currentRoute.seating];
 
-        // Case 1: Moving from unassigned list to a seat
-        if (sourceDroppableId === 'unassigned-students' && destinationDroppableId.startsWith('seat-')) {
-            const seatNumber = parseInt(destinationDroppableId.replace('seat-', ''));
-            const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+        // Case 1: Moving from unassigned list to the seat grid
+        if (sourceDroppableId === 'unassigned-students' && destinationDroppableId === 'bus-seat-map-grid') {
+             const { clientX, clientY } = result.destination?.droppableProps?.['aria-roledescription'] ? JSON.parse(result.destination.droppableProps['aria-roledescription']) : { clientX: 0, clientY: 0 };
 
-            if (targetSeatIndex !== -1) {
-                if (newSeating[targetSeatIndex].studentId) {
-                     toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석에 배정해주세요." });
-                     return;
+            const droppedOn = document.elementsFromPoint(clientX, clientY);
+            const seatElement = droppedOn.find(el => el.getAttribute('data-seat-number'));
+            
+            if (seatElement) {
+                const seatNumber = parseInt(seatElement.getAttribute('data-seat-number')!, 10);
+                const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+
+                if (targetSeatIndex !== -1) {
+                    if (newSeating[targetSeatIndex].studentId) {
+                        toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석에 배정해주세요." });
+                        return;
+                    }
+                    newSeating[targetSeatIndex].studentId = studentId;
                 }
-                newSeating[targetSeatIndex].studentId = studentId;
+            } else {
+                 return; // Dropped outside a valid seat
             }
         }
         // Case 2: Moving from a seat to another seat (swapping)

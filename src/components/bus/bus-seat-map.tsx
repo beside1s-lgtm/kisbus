@@ -174,27 +174,20 @@ const renderSeat = (seatNumber: number | null, index: number) => {
 
     const seatDynamicClasses = cn(
       seatBaseClasses,
+      'bg-card border',
       isBoarded && 'bg-green-300 dark:bg-green-800 border-solid',
       isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
       isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60 border-solid'
     );
-
+    
+    // Draggable seat
     if (draggable) {
-      const droppableId = `seat-${seat.seatNumber}`;
-      return (
-        <Droppable droppableId={droppableId} key={droppableId}>
-          {(provided, snapshot) => (
+        return (
             <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
+              key={seatNumber}
               data-seat-number={seat.seatNumber}
               onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-              className={cn(
-                  seatDynamicClasses,
-                  'p-1 bg-muted/50 border-2',
-                  student ? 'border-transparent' : 'border-dashed',
-                  snapshot.isDraggingOver && 'bg-primary/20'
-              )}
+              className={cn(seatDynamicClasses, 'p-1', student ? 'border-transparent' : 'border-dashed bg-muted/50')}
             >
               <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
               {student ? (
@@ -207,7 +200,7 @@ const renderSeat = (seatNumber: number | null, index: number) => {
                       className={cn(
                         'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
                         'cursor-grab active:cursor-grabbing',
-                        snapshot.isDragging ? 'opacity-75 shadow-lg' : 'opacity-100'
+                        snapshot.isDragging ? 'opacity-75 shadow-lg' : 'opacity-100',
                       )}
                     >
                       {renderSeatContent(student, isHighlighted, isBoarded, isAbsent)}
@@ -217,20 +210,17 @@ const renderSeat = (seatNumber: number | null, index: number) => {
               ) : (
                 <UserIcon className="w-4 h-4 text-muted-foreground" />
               )}
-              {provided.placeholder}
             </div>
-          )}
-        </Droppable>
-      );
+        );
     }
-
+    
     // Non-draggable version
     return (
       <div key={seatNumber} className="p-1">
         <div
           data-seat-number={seat.seatNumber}
           onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-          className={cn(seatDynamicClasses, 'bg-card border')}
+          className={seatDynamicClasses}
         >
           <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
           {student ? (
@@ -244,27 +234,38 @@ const renderSeat = (seatNumber: number | null, index: number) => {
 };
 
   return (
-    <div>
-        <TooltipProvider>
-            <div data-cy="scroll-container" className="p-2 border rounded-lg bg-muted/20 overflow-auto">
-                {hasFrontDriver && (
-                    <div className="mb-4 flex justify-start">
-                        <div className={cn("relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground", bus.capacity === 15 ? 'w-[calc(25%-0.5rem)]' : 'w-[calc(20%-0.5rem)]' )}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M20 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M3 11V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v5"/><path d="M3 11h18"/><path d="M12 3v8"/><path d="m5 11 2 2"/><path d="m17 11-2 2"/></svg>
-                            <span className="mt-1 text-[9px] font-medium">운전석</span>
-                        </div>
-                    </div>
-                )}
-                <div
-                    className={cn(
-                        'grid', 
-                        gridClass
-                    )}
-                >
-                    {seatMap.map((seatNumber, index) => renderSeat(seatNumber, index))}
+    <TooltipProvider>
+      <Droppable droppableId="bus-seat-map-grid" isDropDisabled={!draggable}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            data-cy="scroll-container"
+            className={cn(
+              "p-2 border rounded-lg bg-muted/20 overflow-auto",
+              snapshot.isDraggingOver && 'bg-primary/10'
+            )}
+          >
+            {hasFrontDriver && (
+              <div className="mb-4 flex justify-start">
+                <div className={cn("relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground", bus.capacity === 15 ? 'w-[calc(25%-0.5rem)]' : 'w-[calc(20%-0.5rem)]' )}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M20 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M3 11V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v5"/><path d="M3 11h18"/><path d="M12 3v8"/><path d="m5 11 2 2"/><path d="m17 11-2 2"/></svg>
+                  <span className="mt-1 text-[9px] font-medium">운전석</span>
                 </div>
+              </div>
+            )}
+            <div
+              className={cn(
+                'grid',
+                gridClass
+              )}
+            >
+              {seatMap.map((seatNumber, index) => renderSeat(seatNumber, index))}
             </div>
-        </TooltipProvider>
-    </div>
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
+    </TooltipProvider>
   );
 }
