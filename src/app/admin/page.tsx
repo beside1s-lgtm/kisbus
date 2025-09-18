@@ -1563,7 +1563,7 @@ const StudentManagementTab = ({
             console.error("Randomization error:", error);
             toast({ title: "오류", description: "랜덤 배정 중 오류가 발생했습니다.", variant: 'destructive' });
         }
-    }, [selectedBus, students, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
+    }, [selectedBus, students, currentRoute, setRoutes, toast, selectedDay, selectedRouteType, setCopySeatingDialogOpen]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
