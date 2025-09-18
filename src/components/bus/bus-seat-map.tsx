@@ -154,9 +154,99 @@ export function BusSeatMap({
     </Tooltip>
 );
 
+const seatBaseClasses = cn(
+    'relative h-10 rounded-md flex flex-col justify-center items-center pb-1 transition-all duration-200 shadow-sm',
+    onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg'
+);
+
+const renderSeat = (seatNumber: number | null) => {
+    if (seatNumber === null) {
+      return <div key={`aisle-${seatNumber}-${Math.random()}`}></div>;
+    }
+
+    const seat = seating.find(s => s.seatNumber === seatNumber);
+    if (!seat) return null;
+
+    const student = getStudentById(seat.studentId);
+    const isAbsent = student ? absentStudentIds.includes(student.id) : false;
+    const isBoarded = student ? boardedStudentIds.includes(student.id) : false;
+    const isHighlighted = student ? highlightedStudentId === student.id : false;
+
+    const seatDynamicClasses = cn(
+      seatBaseClasses,
+      isBoarded && 'bg-green-300 dark:bg-green-800 border-solid',
+      isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
+      isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60 border-solid'
+    );
+
+    if (draggable) {
+      return (
+        <Droppable droppableId={`seat-${seat.seatNumber}`} key={seat.seatNumber} isDropDisabled={!!student}>
+          {(provided, snapshot) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+              className={cn(
+                'p-1'
+              )}
+            >
+              <div className={cn(
+                seatDynamicClasses,
+                'bg-muted/50 border-2 border-dashed',
+                snapshot.isDraggingOver && 'bg-primary/20',
+                student ? 'border-transparent' : 'border-dashed'
+              )}>
+                <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+                {student ? (
+                  <Draggable draggableId={student.id} index={seat.seatNumber}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
+                        {...provided.draggableProps}
+                        {...provided.dragHandleProps}
+                        className={cn(
+                          'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
+                          'cursor-grab active:cursor-grabbing',
+                          snapshot.isDragging ? 'opacity-0' : 'opacity-100'
+                        )}
+                      >
+                        {renderSeatContent(student, isHighlighted, isBoarded, isAbsent)}
+                      </div>
+                    )}
+                  </Draggable>
+                ) : (
+                  !snapshot.isDraggingOver && <UserIcon className="w-4 h-4 text-muted-foreground" />
+                )}
+                {provided.placeholder}
+              </div>
+            </div>
+          )}
+        </Droppable>
+      );
+    }
+
+    // Non-draggable version
+    return (
+      <div key={seatNumber} className="p-1">
+        <div
+          onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+          className={cn(seatDynamicClasses, 'bg-card border')}
+        >
+          <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+          {student ? (
+            renderSeatContent(student, isHighlighted, isBoarded, isAbsent)
+          ) : (
+            <UserIcon className="w-4 h-4 text-muted-foreground" />
+          )}
+        </div>
+      </div>
+    );
+};
+
   return (
     <TooltipProvider>
-      <div className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
+      <div data-cy="scroll-container" className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
         {hasFrontDriver && (
             <div className="mb-4 flex justify-start">
                  <div className={cn("w-1/5", bus.capacity === 15 && 'w-1/4')}>
@@ -168,92 +258,9 @@ export function BusSeatMap({
             </div>
         )}
         <div className={cn('grid', gridClass)}>
-            {seatMap.map((seatNumber, index) => {
-                 if (seatNumber === null) {
-                    return <div key={`aisle-${index}`}></div>;
-                }
-
-                const seat = seating.find(s => s.seatNumber === seatNumber);
-                if (!seat) return null;
-
-                const student = getStudentById(seat.studentId);
-                const isAbsent = student ? absentStudentIds.includes(student.id) : false;
-                const isBoarded = student ? boardedStudentIds.includes(student.id) : false;
-                const isHighlighted = student ? highlightedStudentId === student.id : false;
-
-                const seatBaseClasses = cn(
-                  'relative h-10 rounded-md flex flex-col justify-center items-center pb-1 transition-all duration-200 shadow-sm',
-                  onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg',
-                  isBoarded && 'bg-green-300 dark:bg-green-800 border-solid',
-                  isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
-                  isAbsent && 'bg-destructive/20 text-destructive-foreground/50 opacity-60 border-solid'
-                );
-
-                if (draggable) {
-                  return (
-                    <div key={seatNumber} className="p-1">
-                      <Droppable droppableId={`seat-${seat.seatNumber}`} isDropDisabled={!draggable}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-                            className={cn(
-                              seatBaseClasses,
-                              'bg-muted/50 border-2 border-dashed',
-                              snapshot.isDraggingOver && 'bg-primary/20'
-                            )}
-                          >
-                            <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
-                            {student ? (
-                              <Draggable draggableId={student.id} index={seat.seatNumber}>
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className={cn(
-                                      'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
-                                      'cursor-grab active:cursor-grabbing',
-                                      snapshot.isDragging ? 'opacity-0' : 'opacity-100'
-                                    )}
-                                  >
-                                    {renderSeatContent(student, isHighlighted, isBoarded, isAbsent)}
-                                  </div>
-                                )}
-                              </Draggable>
-                            ) : (
-                              <UserIcon className="w-4 h-4 text-muted-foreground" />
-                            )}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </Droppable>
-                    </div>
-                  );
-                }
-
-                // Non-draggable version
-                return (
-                  <div key={seatNumber} className="p-1">
-                    <div
-                      onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-                      className={cn(seatBaseClasses, 'bg-card border')}
-                    >
-                      <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
-                      {student ? (
-                        renderSeatContent(student, isHighlighted, isBoarded, isAbsent)
-                      ) : (
-                        <UserIcon className="w-4 h-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
-                );
-            })}
+            {seatMap.map((seatNumber) => renderSeat(seatNumber))}
         </div>
       </div>
     </TooltipProvider>
   );
 }
-
-    
