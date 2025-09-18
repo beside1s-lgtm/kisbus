@@ -108,6 +108,8 @@ export function TeacherPageContent({
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
+  const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
+
   useEffect(() => {
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
         setRoutes(routesData);
@@ -118,14 +120,25 @@ export function TeacherPageContent({
         const currentDate = format(new Date(), 'yyyy-MM-dd');
         if (currentDate !== today) {
             const previousDate = today;
-            if (currentRoute) {
-                try {
-                    const prevDateAttendanceRef = doc(db, 'routes', currentRoute.id, 'attendance', previousDate);
-                    await deleteDoc(prevDateAttendanceRef);
-                } catch (error) {
-                    console.error("Failed to delete previous day's attendance:", error);
+            // This relies on the 'currentRoute' from the outer scope, which might be stale.
+            // A better approach is to fetch the relevant route inside the interval or pass it, but for now this might work if `currentRoute` updates reliably.
+            // Let's get the route from state inside the interval.
+            setRoutes(prevRoutes => {
+                const route = prevRoutes.find(r => 
+                    r.busId === selectedBusId && 
+                    r.dayOfWeek === selectedDay && 
+                    r.type === selectedRouteType
+                );
+                if (route) {
+                    try {
+                        const prevDateAttendanceRef = doc(db, 'routes', route.id, 'attendance', previousDate);
+                        deleteDoc(prevDateAttendanceRef);
+                    } catch (error) {
+                        console.error("Failed to delete previous day's attendance:", error);
+                    }
                 }
-            }
+                return prevRoutes;
+            });
             setToday(currentDate);
         }
     }, 60000); // Check every minute
@@ -134,7 +147,7 @@ export function TeacherPageContent({
         unsubscribeRoutes();
         clearInterval(dateCheckInterval);
     };
-  }, [today, currentRoute]);
+  }, [today, selectedBusId, selectedDay, selectedRouteType]);
 
   
   useEffect(() => {
