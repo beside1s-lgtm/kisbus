@@ -1742,13 +1742,17 @@ const StudentManagementTab = ({
             }
             
             await updateStudent(studentId, updateData);
-            
-            const updatedStudents = await getStudents();
-            setStudents(updatedStudents);
-            
-            const updatedRoutes = await getRoutes();
-            setRoutes(updatedRoutes);
 
+            // Update local state instead of re-fetching everything
+            setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? { ...s, ...updateData } : s));
+            
+            // Unassign student from all routes in local state
+            setRoutes(prevRoutes => prevRoutes.map(route => {
+                const newSeating = route.seating.map(seat => 
+                    seat.studentId === studentId ? { ...seat, studentId: null } : seat
+                );
+                return { ...route, seating: newSeating };
+            }));
 
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 좌석 배정이 해제되었을 수 있습니다." });
         } catch (error) {
@@ -2176,7 +2180,7 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
 };
 
 
-interface AdminPageFilterProps {
+const AdminPageFilter: React.FC<{
     buses: Bus[];
     selectedBusId: string | null;
     setSelectedBusId: (id: string | null) => void;
@@ -2186,9 +2190,7 @@ interface AdminPageFilterProps {
     setSelectedRouteType: (type: RouteType) => void;
     days: DayOfWeek[];
     dayLabels: { [key in DayOfWeek]: string };
-}
-
-const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
+}> = ({
     buses,
     selectedBusId,
     setSelectedBusId,
@@ -2249,7 +2251,7 @@ const AdminPageFilter: React.FC<AdminPageFilterProps> = ({
     );
 };
 
-interface AdminPageContentProps {
+const AdminPageContent: React.FC<{
     buses: Bus[];
     students: Student[];
     routes: Route[];
@@ -2264,9 +2266,7 @@ interface AdminPageContentProps {
     setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
     setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>>;
     setPendingStudents: React.Dispatch<React.SetStateAction<Student[]>>;
-}
-
-const AdminPageContent: React.FC<AdminPageContentProps> = ({
+}> = ({
     buses,
     students,
     routes,

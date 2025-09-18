@@ -31,12 +31,13 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     dayOfWeek,
     isDragging = false,
 }) => {
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    if (e.target instanceof HTMLElement && (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role=checkbox]'))) {
+  const preventDragOnInteractiveElements = (e: React.MouseEvent<HTMLDivElement, MouseEvent> | React.TouchEvent<HTMLDivElement>) => {
+    if (e.target instanceof HTMLElement) {
+      // Prevent drag from starting if the click is on the select trigger or checkbox
+      if (e.target.closest('[role="combobox"]') || e.target.closest('[role="checkbox"]')) {
         e.preventDefault();
-        return;
+      }
     }
-    // We don't set data here anymore because react-beautiful-dnd handles it.
   };
   
   let destinationId: string | null | undefined = null;
@@ -63,7 +64,8 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
 
   return (
     <Card
-      onDragStart={handleDragStart} // Keep this to prevent drag on select/checkbox
+      onMouseDown={preventDragOnInteractiveElements}
+      onTouchStart={preventDragOnInteractiveElements}
       className={cn(
         'p-2 mb-2 flex items-center gap-2 cursor-grab active:cursor-grabbing bg-card hover:bg-muted/80 transition-colors',
         className
