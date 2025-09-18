@@ -1359,6 +1359,7 @@ const StudentManagementTab = ({
             toast({ title: "성공", description: `${selectedBus.name}의 ${dayLabels[selectedDay]} ${selectedRouteType} 노선 좌석 배정이 초기화되었습니다.` });
         } catch (error) {
             toast({ title: "오류", description: "좌석 초기화 실패", variant: 'destructive' });
+            // Revert on error
             getRoutes().then(setRoutes);
         }
 
@@ -1761,40 +1762,29 @@ const StudentManagementTab = ({
         if (!destination || !currentRoute) return;
 
         const newSeating = [...currentRoute.seating];
-
+        const sourceDroppableId = source.droppableId;
+        const destinationDroppableId = destination.droppableId;
+        
         // Case 1: Moving from unassigned list to a seat
-        if (source.droppableId === 'unassigned-students' && destination.droppableId.startsWith('seat-')) {
-            const seatNumber = parseInt(destination.droppableId.replace('seat-', ''));
+        if (sourceDroppableId === 'unassigned-students' && destinationDroppableId.startsWith('seat-')) {
+            const seatNumber = parseInt(destinationDroppableId.replace('seat-', ''));
             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
             if (targetSeatIndex !== -1) {
-                // If the seat is occupied, swap the students
+                // If the seat is occupied, do nothing (or swap, but simple assignment is better for performance)
                 if (newSeating[targetSeatIndex].studentId) {
-                    const studentInDestinationSeatId = newSeating[targetSeatIndex].studentId;
-                    
-                    const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
-                    if (sourceSeatIndex !== -1) {
-                        newSeating[sourceSeatIndex].studentId = studentInDestinationSeatId;
-                    } 
-                    toast({ title: "알림", description: "좌석을 교환했습니다." });
+                     toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석에 배정해주세요." });
+                     return;
                 }
                 
-                // Place the dragged student in the destination seat
                 newSeating[targetSeatIndex].studentId = studentId;
-
-                // If student was on another seat, clear that one
-                const originalSeatIndex = newSeating.findIndex(s => s.studentId === studentId && s.seatNumber !== seatNumber);
-                if (originalSeatIndex !== -1) {
-                    newSeating[originalSeatIndex].studentId = null;
-                }
-
                 handleSeatUpdate(newSeating);
             }
         }
         // Case 2: Moving from a seat to another seat (or swapping)
-        else if (source.droppableId.startsWith('seat-') && destination.droppableId.startsWith('seat-')) {
-            const sourceSeatNumber = parseInt(source.droppableId.replace('seat-', ''));
-            const destinationSeatNumber = parseInt(destination.droppableId.replace('seat-', ''));
+        else if (sourceDroppableId.startsWith('seat-') && destinationDroppableId.startsWith('seat-')) {
+            const sourceSeatNumber = parseInt(sourceDroppableId.replace('seat-', ''));
+            const destinationSeatNumber = parseInt(destinationDroppableId.replace('seat-', ''));
             
             if(sourceSeatNumber === destinationSeatNumber) return;
 
@@ -1803,17 +1793,16 @@ const StudentManagementTab = ({
 
             if (sourceSeatIndex === -1 || destinationSeatIndex === -1) return;
             
+            // Swap the students
             const studentInSourceSeat = newSeating[sourceSeatIndex].studentId;
             const studentInDestinationSeat = newSeating[destinationSeatIndex].studentId;
-
-            // Swap the students
             newSeating[destinationSeatIndex].studentId = studentInSourceSeat;
             newSeating[sourceSeatIndex].studentId = studentInDestinationSeat;
             
             handleSeatUpdate(newSeating);
         }
          // Case 3: Moving from a seat back to the unassigned list
-        else if (source.droppableId.startsWith('seat-') && destination.droppableId === 'unassigned-students') {
+        else if (sourceDroppableId.startsWith('seat-') && destinationDroppableId === 'unassigned-students') {
             unassignStudent(studentId);
         }
     }, [currentRoute, handleSeatUpdate, unassignStudent, toast]);
