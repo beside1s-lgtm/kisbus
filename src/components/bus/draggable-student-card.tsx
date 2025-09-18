@@ -10,7 +10,6 @@ import { Checkbox } from '../ui/checkbox';
 interface DraggableStudentCardProps {
   student: Student;
   destinations: Destination[];
-  onDestinationChange: (studentId: string, newDestinationId: string, type: 'morning' | 'afternoon' | 'afterSchool') => void;
   className?: string;
   isChecked: boolean;
   onCheckedChange: (isChecked: boolean) => void;
@@ -53,13 +52,13 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
       className={cn(
         'p-2 mb-2 flex items-center gap-2 cursor-grab active:cursor-grabbing bg-card hover:bg-muted/80 transition-colors',
         className,
-        isDragging && 'shadow-lg'
+        isDragging && 'shadow-lg max-w-20 truncate'
       )}
     >
       <GripVertical className="h-5 w-5 text-muted-foreground" />
-      <div className="flex-1">
+      <div className="flex-1 truncate">
         <span className="text-sm font-medium">{formatStudentName(student)}</span>
-        <p className="text-xs text-muted-foreground">{studentDestinationName}</p>
+        <p className={cn("text-xs text-muted-foreground", isDragging && "hidden")}>{studentDestinationName}</p>
       </div>
       <Checkbox
         checked={isChecked}
