@@ -1,10 +1,22 @@
 
 import { getBuses, getStudents, getDestinations } from '@/lib/firebase-data';
 import { StudentPageContent } from './components/student-page-content';
+import { Bus } from '@/lib/types';
+
+const sortBuses = (buses: Bus[]): Bus[] => {
+  return buses.sort((a, b) => {
+    const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+    const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+    return a.name.localeCompare(b.name);
+  });
+};
 
 // This is the Server Component that fetches initial data
 export default async function StudentPage() {
-    const [buses, students, destinations] = await Promise.all([
+    const [busesData, students, destinations] = await Promise.all([
         getBuses(),
         getStudents(),
         getDestinations(),
@@ -12,7 +24,7 @@ export default async function StudentPage() {
 
     return (
         <StudentPageContent 
-            initialBuses={buses}
+            initialBuses={sortBuses(busesData)}
             initialStudents={students}
             initialDestinations={destinations}
         />
