@@ -560,4 +560,3 @@ export default async function TeacherPage() {
         />
     );
 }
-
