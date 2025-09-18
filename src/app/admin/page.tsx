@@ -14,7 +14,8 @@ import {
     unassignStudentFromAllRoutes,
     addTeachersInBatch, updateRoute, deleteAllDestinations,
     copySeatingPlan,
-    copyRoutePlan
+    copyRoutePlan,
+    onRoutesUpdate, // 실시간 업데이트 함수 임포트
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -336,9 +337,7 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
         if (!currentRoute) return;
         try {
             await updateRoute(currentRoute.id, { teacherIds: selectedTeacherIds });
-            setRoutes(prevRoutes => prevRoutes.map(r =>
-                r.id === currentRoute.id ? { ...r, teacherIds: selectedTeacherIds } : r
-            ));
+            // Local state update will be handled by the onSnapshot listener
             toast({ title: "성공", description: "담당 선생님이 변경되었습니다." });
             onOpenChange(false);
         } catch (error) {
@@ -498,7 +497,7 @@ const BusConfigurationTab = ({
             await deleteAllDestinations();
             setDestinations([]);
             // Also update routes to have empty stops
-            setRoutes(prev => prev.map(r => ({ ...r, stops: [] })));
+            // Local state will be updated by the onSnapshot listener
             dismiss();
             toast({ title: "성공", description: "모든 목적지가 삭제되었습니다." });
         } catch (error) {
@@ -612,7 +611,7 @@ const BusConfigurationTab = ({
         const newStopIds = Array.from(currentStopIds);
         newStopIds.splice(destination.index, 0, draggableId);
         
-        setRoutes(prev => prev.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r));
+        // Local state update will be handled by the onSnapshot listener
         await updateRouteStops(currentRoute.id, newStopIds);
     }
     // Reordering within the route list
@@ -621,39 +620,24 @@ const BusConfigurationTab = ({
         const [reorderedItem] = newStopIds.splice(source.index, 1);
         newStopIds.splice(destination.index, 0, reorderedItem);
 
-        setRoutes(prev => prev.map(r => r.id === currentRoute.id ? { ...r, stops: newStopIds } : r));
+        // Local state update will be handled by the onSnapshot listener
         await updateRouteStops(currentRoute.id, newStopIds);
     }
-  }, [currentRoute, setRoutes, toast]);
+  }, [currentRoute, toast]);
 
   const removeStopFromRoute = useCallback(async (stopId: string) => {
     if (!currentRoute) return;
 
     const newStopIds = currentRoute.stops.filter(id => id !== stopId);
     
-    setRoutes(prevRoutes =>
-        prevRoutes.map(route =>
-            route.id === currentRoute.id
-                ? { ...route, stops: newStopIds }
-                : route
-        )
-    );
-
     try {
+      // Local state update will be handled by the onSnapshot listener
       await updateRouteStops(currentRoute.id, newStopIds);
     } catch(error) {
         console.error("Failed to update stops in DB:", error);
         toast({ title: "오류", description: "노선 업데이트 실패", variant: 'destructive' });
-        // Revert on error
-        setRoutes(prevRoutes =>
-            prevRoutes.map(route =>
-                route.id === currentRoute.id
-                    ? { ...route, stops: currentRoute.stops }
-                    : route
-            )
-        );
     }
-}, [currentRoute, setRoutes, toast]);
+}, [currentRoute, toast]);
 
   const assignRandomTeachers = useCallback(async () => {
     if (!selectedBus || !currentRoute) {
@@ -694,15 +678,13 @@ const BusConfigurationTab = ({
 
     try {
         await updateRoute(currentRoute.id, { teacherIds: assignedTeacherIds });
-        setRoutes(prevRoutes => prevRoutes.map(r => 
-            r.id === currentRoute.id ? { ...r, teacherIds: assignedTeacherIds } : r
-        ));
+        // Local state update will be handled by the onSnapshot listener
         toast({ title: "성공", description: "담당 선생님이 배정되었습니다." });
     } catch (error) {
         console.error("Error assigning teachers:", error);
         toast({ title: "오류", description: "선생님 배정 중 오류가 발생했습니다.", variant: 'destructive' });
     }
-  }, [selectedBus, currentRoute, teachers, routes, setRoutes, toast]);
+  }, [selectedBus, currentRoute, teachers, routes, toast]);
   
   const handleResetTeachers = useCallback(async () => {
     if (!currentRoute) return;
@@ -738,20 +720,13 @@ const BusConfigurationTab = ({
         });
         await batch.commit();
 
-        setRoutes(prevRoutes => 
-            prevRoutes.map(r => {
-                if (routesToUpdate.some(updated => updated.id === r.id)) {
-                    return { ...r, teacherIds: [] };
-                }
-                return r;
-            })
-        );
+        // Local state update will be handled by the onSnapshot listener
         toast({ title: "성공", description: "관련된 모든 노선의 담당 선생님 배정이 초기화되었습니다." });
     } catch (error) {
         console.error("Error resetting teachers:", error);
         toast({ title: "오류", description: "초기화 중 오류가 발생했습니다.", variant: "destructive" });
     }
-  }, [currentRoute, routes, setRoutes, toast]);
+  }, [currentRoute, routes, toast]);
   
   const handleCopyToAllWeekdays = useCallback(async () => {
     if (!currentRoute) {
@@ -777,20 +752,13 @@ const BusConfigurationTab = ({
         });
         await batch.commit();
 
-        setRoutes(prevRoutes => 
-            prevRoutes.map(r => {
-                if (routesToUpdate.some(updated => updated.id === r.id)) {
-                    return {...r, teacherIds: teacherIdsToCopy};
-                }
-                return r;
-            })
-        );
+        // Local state update will be handled by the onSnapshot listener
         toast({title: "성공", description: `평일 등/하교 노선에 담당 선생님 정보가 복사되었습니다.`});
     } catch (error) {
         console.error("Error copying teachers:", error);
         toast({title: "오류", description: "복사 중 오류가 발생했습니다.", variant: 'destructive'});
     }
-  }, [currentRoute, routes, setRoutes, toast]);
+  }, [currentRoute, routes, toast]);
   
   const handleCopyRoute = useCallback(async () => {
       if (!currentRoute) {
@@ -821,15 +789,7 @@ const BusConfigurationTab = ({
       try {
           await copyRoutePlan(currentRoute.stops, targetRoutes);
           
-          setRoutes(prevRoutes => {
-              const targetRouteIds = new Set(targetRoutes.map(r => r.id));
-              return prevRoutes.map(r => {
-                  if (targetRouteIds.has(r.id)) {
-                      return { ...r, stops: currentRoute.stops };
-                  }
-                  return r;
-              });
-          });
+          // Local state update will be handled by the onSnapshot listener
           
           toast({ title: "성공", description: "현재 노선 구성을 선택된 요일의 노선에 복사했습니다." });
           setCopyRouteDialogOpen(false);
@@ -837,7 +797,7 @@ const BusConfigurationTab = ({
           console.error("Error copying route plan:", error);
           toast({ title: "오류", description: "노선 구성 복사 중 오류가 발생했습니다.", variant: "destructive" });
       }
-  }, [currentRoute, routes, setRoutes, toast, daysToCopyRouteTo, routeTypesToCopyRouteTo, weekdays]);
+  }, [currentRoute, routes, toast, daysToCopyRouteTo, routeTypesToCopyRouteTo, weekdays]);
 
   const handleToggleAllCopyToDays = (checked: boolean) => {
       const newDays = weekdays.reduce((acc, day) => ({ ...acc, [day]: checked }), {});
@@ -1291,16 +1251,7 @@ const StudentManagementTab = ({
             await deleteStudentsInBatch(idsToDelete);
 
             setStudents(prev => prev.filter(s => !idsToDelete.includes(s.id)));
-            // Also need to update routes in case they were assigned somewhere
-            const newRoutes = routes.map(route => ({
-                ...route,
-                seating: route.seating.map(seat => 
-                    seat.studentId && idsToDelete.includes(seat.studentId)
-                        ? { ...seat, studentId: null }
-                        : seat
-                )
-            }));
-            setRoutes(newRoutes);
+            // Local state update for routes will be handled by the onSnapshot listener
             
             setSelectedStudentIds(new Set());
             dismiss();
@@ -1310,32 +1261,18 @@ const StudentManagementTab = ({
             console.error("Error deleting students:", error);
             toast({ title: "오류", description: "학생 삭제 중 오류가 발생했습니다.", variant: "destructive" });
         }
-    }, [routes, selectedStudentIds, setRoutes, setStudents, toast]);
+    }, [selectedStudentIds, setStudents, toast]);
 
     const handleSeatUpdate = useCallback(async (newSeating: {seatNumber: number; studentId: string | null}[]) => {
         if (!currentRoute) return;
         
-        const originalSeating = currentRoute.seating;
-
-        setRoutes(prevRoutes => prevRoutes.map(route => {
-            if (route.id === currentRoute.id) {
-                return { ...route, seating: newSeating };
-            }
-            return route;
-        }));
-
         try {
+            // Local state update will be handled by the onSnapshot listener
             await updateRouteSeating(currentRoute.id, newSeating);
         } catch (error) {
              toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
-             setRoutes(prevRoutes => prevRoutes.map(route => {
-                if (route.id === currentRoute.id) {
-                    return { ...route, seating: originalSeating };
-                }
-                return route;
-            })); 
         }
-    }, [currentRoute, setRoutes, toast]);
+    }, [currentRoute, toast]);
 
     const unassignStudent = useCallback(async (studentId: string) => {
         if (!currentRoute) return;
@@ -1346,14 +1283,9 @@ const StudentManagementTab = ({
         
         await handleSeatUpdate(newSeating);
         
-        const studentToUnassign = students.find(s => s.id === studentId);
-        if (studentToUnassign && !filteredUnassignedStudents.some(s => s.id === studentId)) {
-            setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-        }
-        
         toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
 
-    }, [currentRoute, handleSeatUpdate, toast, students, filteredUnassignedStudents]);
+    }, [currentRoute, handleSeatUpdate, toast]);
 
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
@@ -1396,15 +1328,7 @@ const StudentManagementTab = ({
         try {
             await copySeatingPlan(currentRoute.seating, targetRoutes);
             
-            setRoutes(prevRoutes => {
-                const targetRouteIds = new Set(targetRoutes.map(r => r.id));
-                return prevRoutes.map(r => {
-                    if (targetRouteIds.has(r.id)) {
-                        return { ...r, seating: currentRoute.seating };
-                    }
-                    return r;
-                });
-            });
+            // Local state update will be handled by the onSnapshot listener
             
             toast({ title: "성공", description: `현재 좌석 배치를 선택된 요일의 노선에 복사했습니다.` });
             setCopySeatingDialogOpen(false);
@@ -1412,7 +1336,7 @@ const StudentManagementTab = ({
             console.error("Error copying seating plan:", error);
             toast({ title: "오류", description: "좌석 배치 복사 중 오류가 발생했습니다.", variant: "destructive" });
         }
-    }, [currentRoute, routes, setRoutes, toast, daysToCopyTo, weekdays, routeTypesToCopyTo]);
+    }, [currentRoute, routes, toast, daysToCopyTo, weekdays, routeTypesToCopyTo]);
 
     const handleToggleAllCopyToDays = useCallback((checked: boolean) => {
         const newDaysToCopyTo = weekdays.reduce((acc, day) => ({ ...acc, [day]: checked }), {});
@@ -1780,19 +1704,15 @@ const StudentManagementTab = ({
         if (!destination || !currentRoute) return;
 
         const sourceDroppableId = source.droppableId;
-        const destinationDroppableId = destination.droppableId;
         
         let newSeating = [...currentRoute.seating];
 
         // Case 1: Moving from unassigned list to the seat grid
-        if (sourceDroppableId === 'unassigned-students' && destinationDroppableId === 'bus-seat-map-grid') {
-             const { clientX, clientY } = result.destination?.droppableProps?.['aria-roledescription'] ? JSON.parse(result.destination.droppableProps['aria-roledescription']) : { clientX: 0, clientY: 0 };
-
-            const droppedOn = document.elementsFromPoint(clientX, clientY);
-            const seatElement = droppedOn.find(el => el.getAttribute('data-seat-number'));
+        if (sourceDroppableId === 'unassigned-students' && destination.droppableId === 'bus-seat-map-grid') {
+            const seatNumberAttr = destination.droppableProps['data-seat-number'];
+            const seatNumber = seatNumberAttr ? parseInt(seatNumberAttr, 10) : null;
             
-            if (seatElement) {
-                const seatNumber = parseInt(seatElement.getAttribute('data-seat-number')!, 10);
+            if (seatNumber) {
                 const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
                 if (targetSeatIndex !== -1) {
@@ -1800,6 +1720,12 @@ const StudentManagementTab = ({
                         toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석에 배정해주세요." });
                         return;
                     }
+                    // unassign from source seat if any
+                    const sourceSeatIndex = newSeating.findIndex(s => s.studentId === studentId);
+                    if (sourceSeatIndex > -1) {
+                      newSeating[sourceSeatIndex].studentId = null;
+                    }
+                    
                     newSeating[targetSeatIndex].studentId = studentId;
                 }
             } else {
@@ -1807,9 +1733,9 @@ const StudentManagementTab = ({
             }
         }
         // Case 2: Moving from a seat to another seat (swapping)
-        else if (sourceDroppableId.startsWith('seat-') && destinationDroppableId.startsWith('seat-')) {
-            const sourceSeatNumber = parseInt(sourceDroppableId.replace('seat-', ''));
-            const destinationSeatNumber = parseInt(destinationDroppableId.replace('seat-', ''));
+        else if (sourceDroppableId.startsWith('seat-') && destination.droppableId.startsWith('seat-')) {
+            const sourceSeatNumber = parseInt(source.droppableId.replace('seat-', ''));
+            const destinationSeatNumber = parseInt(destination.droppableId.replace('seat-', ''));
             
             if(sourceSeatNumber === destinationSeatNumber) return;
 
@@ -1824,7 +1750,7 @@ const StudentManagementTab = ({
             }
         }
          // Case 3: Moving from a seat back to the unassigned list
-        else if (sourceDroppableId.startsWith('seat-') && destinationDroppableId === 'unassigned-students') {
+        else if (source.droppableId.startsWith('seat-') && destination.droppableId === 'unassigned-students') {
              const studentToUnassign = students.find(s => s.id === studentId);
              if(studentToUnassign) {
                 newSeating = newSeating.map(seat => seat.studentId === studentId ? { ...seat, studentId: null } : seat);
@@ -2428,31 +2354,43 @@ export default function AdminPage() {
     const { toast } = useToast();
     
     useEffect(() => {
-        const fetchInitialData = async () => {
+        const fetchStaticData = async () => {
             setLoading(true);
             try {
-                const [busesData, studentsData, routesData, destinationsData, suggestionsData, teachersData] = await Promise.all([
-                    getBuses(), getStudents(), getRoutes(), getDestinations(), getSuggestedDestinations(), getTeachers(),
+                const [busesData, studentsData, destinationsData, suggestionsData, teachersData] = await Promise.all([
+                    getBuses(), 
+                    getStudents(), 
+                    getDestinations(), 
+                    getSuggestedDestinations(), 
+                    getTeachers(),
                 ]);
                 const sortedBuses = sortBuses(busesData);
                 setBuses(sortedBuses);
                 setStudents(studentsData);
-                setRoutes(routesData);
                 setDestinations(sortDestinations(destinationsData));
                 setSuggestedDestinations(suggestionsData);
                 setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
                 setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
 
             } catch (error) {
-                console.error("Failed to fetch initial data:", error);
+                console.error("Failed to fetch static data:", error);
                 toast({ title: "오류", description: "초기 데이터 로딩 중 오류가 발생했습니다.", variant: "destructive" });
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchInitialData();
-    }, [toast]);
+        fetchStaticData();
+
+        const unsubscribeRoutes = onRoutesUpdate((routesData) => {
+            setRoutes(routesData);
+            if(loading) setLoading(false);
+        });
+
+        return () => {
+            unsubscribeRoutes();
+        };
+    }, [toast, loading]);
 
 
     return (

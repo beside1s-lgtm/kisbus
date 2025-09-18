@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
-import { getBuses, getStudents, getRoutes, getDestinations, onAttendanceUpdate } from '@/lib/firebase-data';
+import { getBuses, getStudents, onRoutesUpdate, getDestinations, onAttendanceUpdate } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -66,15 +66,13 @@ export default function StudentPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [busesData, studentsData, routesData, destinationsData] = await Promise.all([
+        const [busesData, studentsData, destinationsData] = await Promise.all([
           getBuses(),
           getStudents(),
-          getRoutes(),
           getDestinations(),
         ]);
         setBuses(busesData);
         setAllStudents(studentsData);
-        setRoutes(routesData);
         setDestinations(destinationsData);
         if (busesData.length > 0 && !selectedBusId) {
           setSelectedBusId(busesData[0].id);
@@ -86,6 +84,15 @@ export default function StudentPage() {
       }
     };
     fetchData();
+    
+    const unsubscribeRoutes = onRoutesUpdate((routesData) => {
+        setRoutes(routesData);
+        if(loading) setLoading(false);
+    });
+
+    return () => {
+        unsubscribeRoutes();
+    }
   }, []);
 
   const currentRoute = useMemo(() => {

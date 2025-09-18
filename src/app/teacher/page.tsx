@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DragDropContext, OnDragEndResponder } from '@hello-pangea/dnd';
 import { 
-    getBuses, getStudents, getRoutes, getDestinations, 
+    getBuses, getStudents, onRoutesUpdate, getDestinations, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
     getAttendance, onAttendanceUpdate, getRoutesByStop, getTeachers
 } from '@/lib/firebase-data';
@@ -100,17 +100,15 @@ export default function TeacherPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [busesData, studentsData, routesData, destinationsData, teachersData] = await Promise.all([
+            const [busesData, studentsData, destinationsData, teachersData] = await Promise.all([
                 getBuses(),
                 getStudents(),
-                getRoutes(),
                 getDestinations(),
                 getTeachers(),
             ]);
             const sortedBuses = sortBuses(busesData);
             setBuses(sortedBuses);
             setStudents(studentsData);
-            setRoutes(routesData);
             setDestinations(destinationsData);
             setTeachers(teachersData);
             if (sortedBuses.length > 0 && !selectedBusId) {
@@ -124,7 +122,16 @@ export default function TeacherPage() {
         }
     };
     fetchData();
-  }, [toast]);
+
+    const unsubscribeRoutes = onRoutesUpdate((routesData) => {
+        setRoutes(routesData);
+        if(loading) setLoading(false);
+    });
+
+    return () => {
+        unsubscribeRoutes();
+    };
+  }, [toast, loading]);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   

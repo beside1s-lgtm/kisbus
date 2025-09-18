@@ -198,6 +198,18 @@ export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teache
 
 // Routes
 export const getRoutes = () => fetchCollection<Route>('routes');
+export const onRoutesUpdate = (callback: (routes: Route[]) => void) => {
+    const q = query(collection(db, 'routes'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const routes: Route[] = [];
+        querySnapshot.forEach((doc) => {
+            routes.push({ id: doc.id, ...doc.data() } as Route);
+        });
+        callback(routes);
+    });
+    return unsubscribe;
+};
+
 export const getRoutesForBus = (busId: string) => {
     const q = query(collection(db, "routes"), where("busId", "==", busId));
     return getDocs(q).then(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route)));
