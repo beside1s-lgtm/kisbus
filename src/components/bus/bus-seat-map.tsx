@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useEffect, useRef } from 'react';
@@ -183,7 +182,7 @@ export function BusSeatMap({
                 const isHighlighted = student ? highlightedStudentId === student.id : false;
 
                 const seatBaseClasses = cn(
-                  'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm h-full w-full',
+                  'relative h-10 rounded-md flex flex-col justify-center items-center pb-1 transition-all duration-200 shadow-sm',
                   onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg',
                   isBoarded && 'bg-green-300 dark:bg-green-800 border-solid',
                   isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
@@ -224,7 +223,7 @@ export function BusSeatMap({
                                 )}
                               </Draggable>
                             ) : (
-                              <UserIcon className="w-4 h-4 text-muted-foreground self-center" />
+                              <UserIcon className="w-4 h-4 text-muted-foreground" />
                             )}
                             {provided.placeholder}
                           </div>
@@ -245,7 +244,7 @@ export function BusSeatMap({
                       {student ? (
                         renderSeatContent(student, isHighlighted, isBoarded, isAbsent)
                       ) : (
-                        <UserIcon className="w-4 h-4 text-muted-foreground self-center" />
+                        <UserIcon className="w-4 h-4 text-muted-foreground" />
                       )}
                     </div>
                   </div>
@@ -256,3 +255,5 @@ export function BusSeatMap({
     </TooltipProvider>
   );
 }
+
+    
