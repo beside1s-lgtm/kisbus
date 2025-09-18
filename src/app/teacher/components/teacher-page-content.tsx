@@ -57,7 +57,7 @@ export function TeacherPageContent({
 
   const { toast } = useToast();
 
-  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
   const dayLabels: { [key in DayOfWeek]: string } = {
       Monday: '월요일',
       Tuesday: '화요일',
@@ -122,13 +122,18 @@ export function TeacherPageContent({
 
   // Firestore real-time listener for attendance
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
     if (currentRoute) {
-      const unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
+      unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
         setBoardedStudentIds(attendance?.boarded || []);
         setAbsentStudentIds(attendance?.absent || []);
       });
-      return () => unsubscribe();
     }
+    return () => {
+        if (unsubscribe) {
+            unsubscribe();
+        }
+    };
   }, [currentRoute, today]);
 
   // Load GroupLeaderRecords
@@ -148,12 +153,14 @@ export function TeacherPageContent({
           }
       };
       fetchLeaderRecords();
+    } else {
+        setGroupLeaderRecords([]);
     }
   }, [currentRoute, students]);
   
   // Save GroupLeaderRecords
   useEffect(() => {
-    if (currentRoute && groupLeaderRecords.length > 0) {
+    if (currentRoute && groupLeaderRecords) {
       const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
       saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
     }
@@ -184,10 +191,12 @@ export function TeacherPageContent({
       
     if (!destId) return [];
     
+    // Get all routes for that stop
     const relevantRoutes = await getRoutesByStop(destId);
     
+    // Filter by the current day of the week
     const dayIndex = getDay(new Date());
-    if (dayIndex === 0) return [];
+    if (dayIndex === 0) return []; // Sunday
     const todayDayOfWeek = days[dayIndex - 1];
 
     return relevantRoutes.filter(r => r.dayOfWeek === todayDayOfWeek);
