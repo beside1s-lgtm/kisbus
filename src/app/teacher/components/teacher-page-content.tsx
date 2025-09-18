@@ -26,6 +26,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {format, differenceInDays, getDay} from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface TeacherPageContentProps {
     initialBuses: Bus[];
@@ -105,9 +107,18 @@ export function TeacherPageContent({
         setLoading(false);
     });
 
-    const dateCheckInterval = setInterval(() => {
+    const dateCheckInterval = setInterval(async () => {
         const currentDate = format(new Date(), 'yyyy-MM-dd');
         if (currentDate !== today) {
+            // Date has changed, clear previous day's attendance
+            if (currentRoute) {
+                try {
+                    const prevDateAttendanceRef = doc(db, 'routes', currentRoute.id, 'attendance', today);
+                    await deleteDoc(prevDateAttendanceRef);
+                } catch (error) {
+                    console.error("Failed to delete previous day's attendance:", error);
+                }
+            }
             setToday(currentDate);
         }
     }, 60000); // Check every minute
@@ -116,7 +127,7 @@ export function TeacherPageContent({
         unsubscribeRoutes();
         clearInterval(dateCheckInterval);
     };
-  }, [today]);
+  }, [today, currentRoute]);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
@@ -209,16 +220,11 @@ export function TeacherPageContent({
       
       if (!destId) return [];
       
-      // We only care about routes for the current day and type group
-      const relevantRouteTypes = (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon')
-          ? ['Morning', 'Afternoon']
-          : ['AfterSchool'];
-      
       const allRoutesWithStop = await getRoutesByStop(destId);
 
       return allRoutesWithStop.filter(r => 
-        r.dayOfWeek === studentDay && 
-        relevantRouteTypes.includes(r.type)
+        r.dayOfWeek === studentDay &&
+        r.type === selectedRouteType
       );
   }, [selectedDay, selectedRouteType]);
 
