@@ -1200,7 +1200,9 @@ const StudentManagementTab = ({
         weekdays.reduce((acc, day) => ({ ...acc, [day]: true }), {})
     );
     const [routeTypesToCopyTo, setRouteTypesToCopyTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
+    
     const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
+    const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
 
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -1213,16 +1215,23 @@ const StudentManagementTab = ({
         );
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
     
-    const unassignedStudents = useMemo(() => {
-        if (!currentRoute) return [];
+    // This is the core optimization. Instead of a heavy useMemo, we use useEffect
+    // to calculate the unassigned list ONLY when filters change.
+    useEffect(() => {
+        if (!currentRoute) {
+            setFilteredUnassignedStudents([]);
+            return;
+        };
 
         const assignedStudentIdsOnCurrentRoute = new Set(
             currentRoute.seating.map(s => s.studentId).filter(Boolean)
         );
         
-        return students.filter(student => {
+        const unassigned = students.filter(student => {
+            // Not already in a seat on this specific bus
             if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
 
+            // Must have a valid destination for this route type and day
             let hasDestinationForThisRoute = false;
             if (selectedRouteType === 'Morning') {
                 hasDestinationForThisRoute = !!student.morningDestinationId;
@@ -1234,16 +1243,18 @@ const StudentManagementTab = ({
             return hasDestinationForThisRoute;
         });
 
-    }, [students, currentRoute, selectedRouteType, selectedDay]);
-
-    const filteredUnassignedStudents = useMemo(() => {
+        // Apply search query locally
         if (!unassignedSearchQuery) {
-            return unassignedStudents;
+            setFilteredUnassignedStudents(unassigned);
+        } else {
+            setFilteredUnassignedStudents(
+                unassigned.filter(student =>
+                    student.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase())
+                )
+            );
         }
-        return unassignedStudents.filter(student =>
-            student.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase())
-        );
-    }, [unassignedStudents, unassignedSearchQuery]);
+
+    }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery]);
     
     const handleToggleSelectAll = useCallback(() => {
         if (!filteredUnassignedStudents) return;
@@ -1302,6 +1313,7 @@ const StudentManagementTab = ({
     const handleSeatUpdate = useCallback(async (newSeating: {seatNumber: number; studentId: string | null}[]) => {
         if (!currentRoute) return;
         
+        // Optimistically update UI
         setRoutes(prevRoutes => prevRoutes.map(route => {
             if (route.id === currentRoute.id) {
                 return { ...route, seating: newSeating };
@@ -1313,8 +1325,13 @@ const StudentManagementTab = ({
             await updateRouteSeating(currentRoute.id, newSeating);
         } catch (error) {
              toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
-             // Revert on error
-             getRoutes().then(setRoutes);
+             // Revert on error - re-fetch might be too slow, consider a smarter revert
+             setRoutes(prevRoutes => prevRoutes.map(route => {
+                if (route.id === currentRoute.id) {
+                    return { ...route, seating: currentRoute.seating };
+                }
+                return route;
+             }));
         }
     }, [currentRoute, setRoutes, toast]);
 
@@ -1325,18 +1342,10 @@ const StudentManagementTab = ({
             seat.studentId === studentId ? { ...seat, studentId: null } : seat
         );
         
-        setRoutes(prevRoutes => prevRoutes.map(route => 
-            route.id === currentRoute.id ? { ...route, seating: newSeating } : route
-        ));
-        
-        try {
-             await updateRouteSeating(currentRoute.id, newSeating);
-             toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
-        } catch(e) {
-            toast({ title: "오류", description: "좌석 배정 해제 실패", variant: 'destructive'});
-            getRoutes().then(setRoutes);
-        }
-    }, [currentRoute, setRoutes, toast]);
+        await handleSeatUpdate(newSeating);
+        toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
+
+    }, [currentRoute, handleSeatUpdate, toast]);
 
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
@@ -1346,24 +1355,9 @@ const StudentManagementTab = ({
         if (!currentRoute) return;
 
         const emptySeating = generateInitialSeating(selectedBus.capacity);
-
-        setRoutes(prevRoutes => prevRoutes.map(route => {
-            if (route.id === currentRoute.id) {
-                return { ...route, seating: emptySeating };
-            }
-            return route;
-        }));
-
-        try {
-            await updateRouteSeating(currentRoute.id, emptySeating);
-            toast({ title: "성공", description: `${selectedBus.name}의 ${dayLabels[selectedDay]} ${selectedRouteType} 노선 좌석 배정이 초기화되었습니다.` });
-        } catch (error) {
-            toast({ title: "오류", description: "좌석 초기화 실패", variant: 'destructive' });
-            // Revert on error
-            getRoutes().then(setRoutes);
-        }
-
-    }, [selectedBus, currentRoute, setRoutes, toast, selectedDay, selectedRouteType]);
+        await handleSeatUpdate(emptySeating);
+        toast({ title: "성공", description: `${selectedBus.name}의 ${dayLabels[selectedDay]} ${selectedRouteType} 노선 좌석 배정이 초기화되었습니다.` });
+    }, [selectedBus, currentRoute, handleSeatUpdate, toast, selectedDay, selectedRouteType]);
 
     const handleCopySeating = useCallback(async () => {
         if (!currentRoute || !currentRoute.seating) {
@@ -1546,25 +1540,14 @@ const StudentManagementTab = ({
             }
         }
     
-        try {
-            await updateRouteSeating(currentRoute.id, newSeatingPlan);
-            
-            // Update local state instead of re-fetching
-            setRoutes(prevRoutes => prevRoutes.map(r => 
-                r.id === currentRoute.id ? { ...r, seating: newSeatingPlan } : r
-            ));
-            
-            toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
+        await handleSeatUpdate(newSeatingPlan);
+        toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
 
-            if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
-                setCopySeatingDialogOpen(true);
-            }
-
-        } catch (error) {
-            console.error("Randomization error:", error);
-            toast({ title: "오류", description: "랜덤 배정 중 오류가 발생했습니다.", variant: 'destructive' });
+        if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
+            setCopySeatingDialogOpen(true);
         }
-    }, [selectedBus, students, currentRoute, setRoutes, toast, selectedDay, selectedRouteType, setCopySeatingDialogOpen]);
+
+    }, [selectedBus, students, currentRoute, handleSeatUpdate, toast, selectedDay, selectedRouteType, setCopySeatingDialogOpen]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
@@ -1580,13 +1563,13 @@ const StudentManagementTab = ({
     };
 
     const handleDownloadUnassignedStudents = useCallback(() => {
-        if (unassignedStudents.length === 0) {
+        if (filteredUnassignedStudents.length === 0) {
             toast({ title: "알림", description: "미배정 학생이 없습니다."});
             return;
         }
 
         const headers = ["학생 이름","학년","반","성별","목적지"].join(',');
-        const csvData = unassignedStudents.map(s => {
+        const csvData = filteredUnassignedStudents.map(s => {
             let destName = '';
              if (selectedRouteType === 'Morning') {
                 destName = destinations.find(d => d.id === s.morningDestinationId)?.name || '';
@@ -1606,7 +1589,7 @@ const StudentManagementTab = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }, [unassignedStudents, selectedRouteType, selectedDay, destinations, toast]);
+    }, [filteredUnassignedStudents, selectedRouteType, selectedDay, destinations, toast]);
 
     const handleStudentFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -1726,66 +1709,64 @@ const StudentManagementTab = ({
     };
 
     const handleDestinationChange = useCallback(async (studentId: string, newDestinationId: string, type: 'morning' | 'afternoon' | 'afterSchool') => {
+        let updateData: Partial<Student> = { applicationStatus: 'pending' };
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+
+        if (type === 'morning') {
+             updateData.morningDestinationId = newDestinationId;
+        } else if (type === 'afternoon') {
+             updateData.afternoonDestinationId = newDestinationId;
+        } else {
+             const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [selectedDay]: newDestinationId };
+             updateData.afterSchoolDestinations = newAfterSchoolDests;
+        }
+        
+        // Optimistically update local state
+        setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? { ...s, ...updateData } : s));
+        setRoutes(prevRoutes => prevRoutes.map(route => ({
+            ...route,
+            seating: route.seating.map(seat => seat.studentId === studentId ? { ...seat, studentId: null } : seat)
+        })));
+        
         try {
-            let updateData: Partial<Student> = { applicationStatus: 'pending' };
-
-            const student = students.find(s => s.id === studentId);
-            if (!student) return;
-
-            if (type === 'morning') {
-                 updateData.morningDestinationId = newDestinationId;
-            } else if (type === 'afternoon') {
-                 updateData.afternoonDestinationId = newDestinationId;
-            } else {
-                 const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [selectedDay]: newDestinationId };
-                 updateData.afterSchoolDestinations = newAfterSchoolDests;
-            }
-            
             await updateStudent(studentId, updateData);
-
-            // Update local state instead of re-fetching everything
-            setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? { ...s, ...updateData } : s));
-            
-            // Unassign student from all routes in local state
-            setRoutes(prevRoutes => prevRoutes.map(route => {
-                const newSeating = route.seating.map(seat => 
-                    seat.studentId === studentId ? { ...seat, studentId: null } : seat
-                );
-                return { ...route, seating: newSeating };
-            }));
-
-            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 좌석 배정이 해제되었을 수 있습니다." });
+            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 좌석 배정이 해제되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
+            // Revert state on error
+            setStudents(students);
+            setRoutes(routes);
         }
-    }, [students, selectedDay, setStudents, setRoutes, toast]);
+    }, [students, routes, selectedDay, setStudents, setRoutes, toast]);
 
-    const onDragEnd: OnDragEndResponder = useCallback((result) => {
+    const onDragEnd: OnDragEndResponder = useCallback(async (result) => {
         const { source, destination, draggableId: studentId } = result;
 
         if (!destination || !currentRoute) return;
 
-        const newSeating = [...currentRoute.seating];
         const sourceDroppableId = source.droppableId;
         const destinationDroppableId = destination.droppableId;
         
+        let newSeating = [...currentRoute.seating];
+
         // Case 1: Moving from unassigned list to a seat
         if (sourceDroppableId === 'unassigned-students' && destinationDroppableId.startsWith('seat-')) {
             const seatNumber = parseInt(destinationDroppableId.replace('seat-', ''));
             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
             if (targetSeatIndex !== -1) {
-                // If the seat is occupied, do nothing (or swap, but simple assignment is better for performance)
                 if (newSeating[targetSeatIndex].studentId) {
                      toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석에 배정해주세요." });
                      return;
                 }
-                
                 newSeating[targetSeatIndex].studentId = studentId;
-                handleSeatUpdate(newSeating);
+
+                // Optimistically update UI
+                setFilteredUnassignedStudents(prev => prev.filter(s => s.id !== studentId));
             }
         }
-        // Case 2: Moving from a seat to another seat (or swapping)
+        // Case 2: Moving from a seat to another seat (swapping)
         else if (sourceDroppableId.startsWith('seat-') && destinationDroppableId.startsWith('seat-')) {
             const sourceSeatNumber = parseInt(sourceDroppableId.replace('seat-', ''));
             const destinationSeatNumber = parseInt(destinationDroppableId.replace('seat-', ''));
@@ -1795,21 +1776,30 @@ const StudentManagementTab = ({
             const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === sourceSeatNumber);
             const destinationSeatIndex = newSeating.findIndex(s => s.seatNumber === destinationSeatNumber);
 
-            if (sourceSeatIndex === -1 || destinationSeatIndex === -1) return;
-            
-            // Swap the students
-            const studentInSourceSeat = newSeating[sourceSeatIndex].studentId;
-            const studentInDestinationSeat = newSeating[destinationSeatIndex].studentId;
-            newSeating[destinationSeatIndex].studentId = studentInSourceSeat;
-            newSeating[sourceSeatIndex].studentId = studentInDestinationSeat;
-            
-            handleSeatUpdate(newSeating);
+            if (sourceSeatIndex !== -1 && destinationSeatIndex !== -1) {
+                const studentInSourceSeat = newSeating[sourceSeatIndex].studentId;
+                const studentInDestinationSeat = newSeating[destinationSeatIndex].studentId;
+                newSeating[destinationSeatIndex].studentId = studentInSourceSeat;
+                newSeating[sourceSeatIndex].studentId = studentInDestinationSeat;
+            }
         }
          // Case 3: Moving from a seat back to the unassigned list
         else if (sourceDroppableId.startsWith('seat-') && destinationDroppableId === 'unassigned-students') {
-            unassignStudent(studentId);
+             const studentToUnassign = students.find(s => s.id === studentId);
+             if(studentToUnassign) {
+                newSeating = newSeating.map(seat => seat.studentId === studentId ? { ...seat, studentId: null } : seat);
+                // Optimistically update UI
+                setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a,b) => a.name.localeCompare(b.name)));
+             }
+        } else {
+            return; // Dropped in a non-droppable area
         }
-    }, [currentRoute, handleSeatUpdate, unassignStudent, toast]);
+
+        // Update local state and fire off DB update
+        setRoutes(prev => prev.map(r => r.id === currentRoute.id ? { ...r, seating: newSeating } : r));
+        await updateRouteSeating(currentRoute.id, newSeating);
+
+    }, [currentRoute, students, toast, setRoutes]);
 
     if (!selectedBusId) {
        return (
