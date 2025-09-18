@@ -6,7 +6,8 @@ import {
     onRoutesUpdate, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
     onAttendanceUpdate, getRoutesByStop,
-    updateAttendance, getAttendance
+    updateAttendance, getAttendance,
+    updateRouteSeating
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -54,6 +55,7 @@ export function TeacherPageContent({
   const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
 
   const { toast } = useToast();
 
@@ -116,6 +118,13 @@ export function TeacherPageContent({
       r.type === selectedRouteType
     );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+  
+  useEffect(() => {
+    // Reset selections when route changes
+    setSelectedStudent(null);
+    setSelectedSeat(null);
+  }, [currentRoute]);
+
 
     const assignedTeachers = useMemo(() => {
         if (!currentRoute || !currentRoute.teacherIds) return [];
@@ -266,37 +275,70 @@ export function TeacherPageContent({
     ));
     setSelectedStudent(prev => prev && prev.id === studentId ? {...prev, isGroupLeader: isNowLeader} : prev);
   };
+  
+    const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
+        if (!currentRoute) return;
 
-  const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
-    if (studentId) {
-      const student = students.find(s => s.id === studentId);
-      if(student) {
-        const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
-        setSelectedStudent({...student, isGroupLeader: isActiveLeader});
-      } else {
-        setSelectedStudent(null);
-      }
-      
-      const newBoardedIds = boardedStudentIds.includes(studentId)
-        ? boardedStudentIds.filter(id => id !== studentId)
-        : [...boardedStudentIds, studentId];
+        const newSeating = [...currentRoute.seating];
+        const student = students.find(s => s.id === studentId);
 
-      const newAbsentIds = boardedStudentIds.includes(studentId)
-        ? absentStudentIds
-        : absentStudentIds.filter(id => id !== studentId);
+        // First, handle boarding status toggle. This is separate from seat swapping.
+        if (student) {
+            if(student) {
+                const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+                setSelectedStudent({...student, isGroupLeader: isActiveLeader});
+            } else {
+                setSelectedStudent(null);
+            }
+            const newBoardedIds = boardedStudentIds.includes(studentId!)
+                ? boardedStudentIds.filter(id => id !== studentId)
+                : [...boardedStudentIds, studentId!];
+            const newAbsentIds = boardedStudentIds.includes(studentId!)
+                ? absentStudentIds
+                : absentStudentIds.filter(id => id !== studentId);
 
-      if (currentRoute) {
-        try {
-          await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
-        } catch (error) {
-          console.error("Error updating boarding status:", error);
-          toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
+            try {
+                await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
+            } catch (error) {
+                toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
+            }
+        } else {
+            setSelectedStudent(null);
         }
-      }
-    } else {
-      setSelectedStudent(null);
-    }
-  }, [students, groupLeaderRecords, boardedStudentIds, currentRoute, today, absentStudentIds, toast]);
+
+        // Now, handle seat swapping logic.
+        if (selectedSeat && selectedSeat.studentId) { // A student seat is already selected for swapping
+            const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
+            const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+
+            if (sourceSeatIndex === -1 || targetSeatIndex === -1) return;
+
+            // Swap students
+            const sourceStudentId = newSeating[sourceSeatIndex].studentId;
+            const targetStudentId = newSeating[targetSeatIndex].studentId;
+            newSeating[sourceSeatIndex].studentId = targetStudentId;
+            newSeating[targetSeatIndex].studentId = sourceStudentId;
+            
+            await updateRouteSeating(currentRoute.id, newSeating);
+            toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+            setSelectedSeat(null);
+        } else { // No seat is selected, or an empty seat was selected. Select the new seat if it has a student.
+            if (studentId) {
+                setSelectedSeat({ seatNumber, studentId });
+            } else {
+                setSelectedSeat(null); // Clicking an empty seat resets selection
+            }
+        }
+    }, [students, groupLeaderRecords, boardedStudentIds, currentRoute, today, absentStudentIds, toast, selectedSeat]);
+    
+    const handleSeatContextMenu = (e: React.MouseEvent) => {
+        if (selectedSeat) {
+            e.preventDefault();
+            setSelectedSeat(null);
+            toast({ title: "취소", description: "좌석 선택이 취소되었습니다." });
+        }
+    };
+
 
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
@@ -431,9 +473,6 @@ export function TeacherPageContent({
                     >
                         <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
                     </Button>
-                     <Button variant="outline" className="w-full">
-                        <ArrowLeftRight className="mr-2" /> 좌석 교체
-                    </Button>
                 </div>
             </div>
         ) : (
@@ -450,7 +489,7 @@ export function TeacherPageContent({
         <div className="flex justify-center items-center h-64"><p>실시간 노선 정보를 불러오는 중입니다...</p></div>
       ) : (
       <DragDropContext onDragEnd={onDragEnd}>
-       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" onContextMenu={handleSeatContextMenu}>
         <div className="lg:col-span-2">
             <Card>
             <CardHeader>
@@ -462,7 +501,7 @@ export function TeacherPageContent({
                         </span>
                     )}
                 </CardTitle>
-                <CardDescription>학생 좌석을 클릭하여 탑승 여부를 표시하세요. 탑승한 학생은 초록색으로 표시됩니다.</CardDescription>
+                <CardDescription>학생 좌석을 클릭하여 탑승 여부를 표시하고, 다른 좌석을 클릭하여 자리를 교체할 수 있습니다.</CardDescription>
             </CardHeader>
             <CardContent>
                 {selectedBus && currentRoute ? (
@@ -472,8 +511,10 @@ export function TeacherPageContent({
                         students={students}
                         destinations={destinations}
                         onSeatClick={handleSeatClick}
+                        onSeatContextMenu={handleSeatContextMenu}
                         absentStudentIds={absentStudentIds}
                         boardedStudentIds={boardedStudentIds}
+                        highlightedSeatNumber={selectedSeat?.seatNumber}
                         routeType={selectedRouteType}
                         dayOfWeek={selectedDay}
                     />
@@ -510,7 +551,10 @@ export function TeacherPageContent({
                         {studentsOnCurrentRoute.map(student => (
                             <TableRow 
                                 key={student.id} 
-                                onClick={() => handleSeatClick(0, student.id)}
+                                onClick={() => {
+                                     const seat = currentRoute?.seating.find(s => s.studentId === student.id);
+                                     if(seat) handleSeatClick(seat.seatNumber, student.id);
+                                }}
                                 className="cursor-pointer"
                             >
                                 <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
