@@ -129,7 +129,6 @@ export function BusSeatMap({
       <div
         data-cy="scroll-container"
         className="p-2 border rounded-lg bg-muted/20 overflow-auto"
-        onContextMenu={onSeatContextMenu ? (e) => onSeatContextMenu(e, 0) : undefined}
       >
         {hasFrontDriver && (
           <div className="mb-4 flex justify-start">
@@ -193,6 +192,7 @@ export function BusSeatMap({
                   ref={isHighlighted ? highlightedRef : null}
                   data-seat-number={seat.seatNumber}
                   onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+                  onContextMenu={(e) => onSeatContextMenu && onSeatContextMenu(e, seat.seatNumber)}
                   className={cn(
                     'relative h-10 w-full rounded-md flex flex-col justify-center items-center pb-1 transition-all duration-200 shadow-sm',
                     onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg',

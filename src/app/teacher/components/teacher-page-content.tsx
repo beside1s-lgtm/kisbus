@@ -279,17 +279,10 @@ export function TeacherPageContent({
     const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
         if (!currentRoute) return;
 
-        const newSeating = [...currentRoute.seating];
         const student = students.find(s => s.id === studentId);
 
-        // First, handle boarding status toggle. This is separate from seat swapping.
+        // --- Boarding Status Toggle ---
         if (student) {
-            if(student) {
-                const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
-                setSelectedStudent({...student, isGroupLeader: isActiveLeader});
-            } else {
-                setSelectedStudent(null);
-            }
             const newBoardedIds = boardedStudentIds.includes(studentId!)
                 ? boardedStudentIds.filter(id => id !== studentId)
                 : [...boardedStudentIds, studentId!];
@@ -302,42 +295,66 @@ export function TeacherPageContent({
             } catch (error) {
                 toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
             }
+        }
+        
+        // --- Student Info Display ---
+        if(student) {
+            const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+            setSelectedStudent({...student, isGroupLeader: isActiveLeader});
         } else {
             setSelectedStudent(null);
         }
-
-        // Now, handle seat swapping logic.
-        if (selectedSeat && selectedSeat.studentId) { // A student seat is already selected for swapping
-            const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
-            const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
-
-            if (sourceSeatIndex === -1 || targetSeatIndex === -1) return;
-
-            // Swap students
-            const sourceStudentId = newSeating[sourceSeatIndex].studentId;
-            const targetStudentId = newSeating[targetSeatIndex].studentId;
-            newSeating[sourceSeatIndex].studentId = targetStudentId;
-            newSeating[targetSeatIndex].studentId = sourceStudentId;
-            
-            await updateRouteSeating(currentRoute.id, newSeating);
-            toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
-            setSelectedSeat(null);
-        } else { // No seat is selected, or an empty seat was selected. Select the new seat if it has a student.
-            if (studentId) {
-                setSelectedSeat({ seatNumber, studentId });
-            } else {
-                setSelectedSeat(null); // Clicking an empty seat resets selection
-            }
+        
+        // --- Reset Seat Swap Selection ---
+        // If a student seat is left-clicked, we cancel any pending seat swap.
+        if (selectedSeat && studentId) {
+             setSelectedSeat(null);
+             toast({title: "알림", description: "좌석 교체가 취소되었습니다."});
         }
+
     }, [students, groupLeaderRecords, boardedStudentIds, currentRoute, today, absentStudentIds, toast, selectedSeat]);
     
-    const handleSeatContextMenu = (e: React.MouseEvent) => {
-        if (selectedSeat) {
-            e.preventDefault();
-            setSelectedSeat(null);
-            toast({ title: "취소", description: "좌석 선택이 취소되었습니다." });
+    const handleSeatContextMenu = useCallback(async (e: React.MouseEvent, seatNumber: number) => {
+        e.preventDefault();
+        if (!currentRoute) return;
+
+        const newSeating = [...currentRoute.seating];
+        const clickedSeat = newSeating.find(s => s.seatNumber === seatNumber);
+
+        if (selectedSeat) { // A seat is already selected for swapping
+             const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
+             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+
+             if (sourceSeatIndex === -1 || targetSeatIndex === -1 || sourceSeatIndex === targetSeatIndex) {
+                 // Invalid swap or clicked same seat, cancel
+                 setSelectedSeat(null);
+                 toast({title: "취소", description: "좌석 교체가 취소되었습니다."});
+                 return;
+             }
+
+             // Swap students
+             const sourceStudentId = newSeating[sourceSeatIndex].studentId;
+             const targetStudentId = newSeating[targetSeatIndex].studentId;
+             newSeating[sourceSeatIndex].studentId = targetStudentId;
+             newSeating[targetSeatIndex].studentId = sourceStudentId;
+
+             try {
+                await updateRouteSeating(currentRoute.id, newSeating);
+                toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+             } catch (error) {
+                toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive"});
+             } finally {
+                setSelectedSeat(null);
+             }
+        } else { // No seat is selected yet.
+             if (clickedSeat && clickedSeat.studentId) { // Can only start a swap from an occupied seat
+                 setSelectedSeat(clickedSeat);
+                 toast({title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요."});
+             } else {
+                // If user right-clicks an empty seat first, do nothing.
+             }
         }
-    };
+    }, [currentRoute, selectedSeat, toast]);
 
 
   const searchResults = useMemo(() => {
@@ -489,7 +506,7 @@ export function TeacherPageContent({
         <div className="flex justify-center items-center h-64"><p>실시간 노선 정보를 불러오는 중입니다...</p></div>
       ) : (
       <DragDropContext onDragEnd={onDragEnd}>
-       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" onContextMenu={handleSeatContextMenu}>
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
             <Card>
             <CardHeader>
@@ -501,7 +518,7 @@ export function TeacherPageContent({
                         </span>
                     )}
                 </CardTitle>
-                <CardDescription>학생 좌석을 클릭하여 탑승 여부를 표시하고, 다른 좌석을 클릭하여 자리를 교체할 수 있습니다.</CardDescription>
+                <CardDescription>좌클릭으로 탑승/하차를 표시하고, 우클릭으로 좌석을 교체할 수 있습니다.</CardDescription>
             </CardHeader>
             <CardContent>
                 {selectedBus && currentRoute ? (
