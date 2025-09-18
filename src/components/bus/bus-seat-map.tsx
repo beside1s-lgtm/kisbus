@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Bus, Student, Destination, RouteType, DayOfWeek } from '@/lib/types';
+import { Bus, Student, Destination, RouteType, DayOfWeek, GroupLeaderRecord } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Crown, User as UserIcon, XCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -20,6 +20,7 @@ interface BusSeatMapProps {
   highlightedSeatNumber?: number | null;
   routeType?: RouteType;
   dayOfWeek?: DayOfWeek;
+  groupLeaderRecords?: GroupLeaderRecord[];
 }
 
 const SEAT_MAP_45: (number | null)[] = [
@@ -86,6 +87,7 @@ export function BusSeatMap({
   highlightedSeatNumber = null,
   routeType = 'Morning',
   dayOfWeek = 'Monday',
+  groupLeaderRecords = [],
 }: BusSeatMapProps) {
   const highlightedRef = useRef<HTMLDivElement>(null);
   

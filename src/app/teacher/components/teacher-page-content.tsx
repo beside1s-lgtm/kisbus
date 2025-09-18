@@ -53,7 +53,7 @@ export function TeacherPageContent({
   
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student & { isGroupLeader?: boolean } | null>(null);
   const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,8 +99,6 @@ export function TeacherPageContent({
         setSelectedRouteType('Morning');
     }
   }, [days]);
-
-  const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
   const currentRoute = useMemo(() => {
     return routes.find(r => 
@@ -120,7 +118,6 @@ export function TeacherPageContent({
         const currentDate = format(new Date(), 'yyyy-MM-dd');
         if (currentDate !== today) {
             const previousDate = today;
-            // Date has changed, clear previous day's attendance
             if (currentRoute) {
                 try {
                     const prevDateAttendanceRef = doc(db, 'routes', currentRoute.id, 'attendance', previousDate);
@@ -493,12 +490,12 @@ export function TeacherPageContent({
                         <UserX className="mr-2" /> 결석 처리
                     </Button>
                     <Button
-                        variant={groupLeaderRecords.some(r => r.studentId === selectedStudent.id && r.endDate === null) ? "default" : "outline"}
+                        variant={selectedStudent.isGroupLeader ? "default" : "outline"}
                         className="w-full"
                         onClick={() => toggleGroupLeader(selectedStudent)}
                         disabled={!currentRoute} // Disable if no route context
                     >
-                        <Crown className="mr-2" /> {groupLeaderRecords.some(r => r.studentId === selectedStudent.id && r.endDate === null) ? '조장 해제' : '조장 임명'}
+                        <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
                     </Button>
                 </div>
             </div>
@@ -543,6 +540,7 @@ export function TeacherPageContent({
                         highlightedSeatNumber={selectedSeat?.seatNumber}
                         routeType={selectedRouteType}
                         dayOfWeek={selectedDay}
+                        groupLeaderRecords={groupLeaderRecords}
                     />
                 ) : (
                     <div className="text-center py-10 text-muted-foreground">
