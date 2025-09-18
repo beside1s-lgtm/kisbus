@@ -183,7 +183,7 @@ export function BusSeatMap({
                 const isHighlighted = student ? highlightedStudentId === student.id : false;
 
                 const seatBaseClasses = cn(
-                  'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm p-1',
+                  'relative h-10 rounded-md flex flex-col items-center justify-end pb-1 transition-all duration-200 shadow-sm',
                   onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg',
                   isBoarded && 'bg-green-300 dark:bg-green-800 border-solid',
                   isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
@@ -192,7 +192,7 @@ export function BusSeatMap({
 
                 if (draggable) {
                   return (
-                    <div key={seatNumber}>
+                    <div key={seatNumber} className="p-1">
                       <Droppable droppableId={`seat-${seat.seatNumber}`} isDropDisabled={!draggable}>
                         {(provided, snapshot) => (
                           <div
@@ -201,7 +201,7 @@ export function BusSeatMap({
                             onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
                             className={cn(
                               seatBaseClasses,
-                              'bg-muted/50 border-2 border-dashed',
+                              'bg-muted/50 border-2 border-dashed h-full w-full',
                               snapshot.isDraggingOver && 'bg-primary/20'
                             )}
                           >
@@ -236,10 +236,10 @@ export function BusSeatMap({
 
                 // Non-draggable version
                 return (
-                  <div key={seatNumber}>
+                  <div key={seatNumber} className="p-1">
                     <div
                       onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-                      className={cn(seatBaseClasses, 'bg-card border')}
+                      className={cn(seatBaseClasses, 'bg-card border h-full w-full')}
                     >
                       <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
                       {student ? (
