@@ -1215,8 +1215,6 @@ const StudentManagementTab = ({
         );
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
     
-    // This is the core optimization. Instead of a heavy useMemo, we use useEffect
-    // to calculate the unassigned list ONLY when filters change.
     useEffect(() => {
         if (!currentRoute) {
             setFilteredUnassignedStudents([]);
@@ -1228,10 +1226,8 @@ const StudentManagementTab = ({
         );
         
         const unassigned = students.filter(student => {
-            // Not already in a seat on this specific bus
             if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
 
-            // Must have a valid destination for this route type and day
             let hasDestinationForThisRoute = false;
             if (selectedRouteType === 'Morning') {
                 hasDestinationForThisRoute = !!student.morningDestinationId;
@@ -1243,7 +1239,6 @@ const StudentManagementTab = ({
             return hasDestinationForThisRoute;
         });
 
-        // Apply search query locally
         if (!unassignedSearchQuery) {
             setFilteredUnassignedStudents(unassigned);
         } else {
@@ -1313,7 +1308,6 @@ const StudentManagementTab = ({
     const handleSeatUpdate = useCallback(async (newSeating: {seatNumber: number; studentId: string | null}[]) => {
         if (!currentRoute) return;
         
-        // Optimistically update UI
         setRoutes(prevRoutes => prevRoutes.map(route => {
             if (route.id === currentRoute.id) {
                 return { ...route, seating: newSeating };
@@ -1325,8 +1319,7 @@ const StudentManagementTab = ({
             await updateRouteSeating(currentRoute.id, newSeating);
         } catch (error) {
              toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
-             // Revert on error
-             setRoutes(routes); // Revert to original routes state
+             setRoutes(routes); 
         }
     }, [currentRoute, setRoutes, toast, routes]);
 
@@ -1338,9 +1331,15 @@ const StudentManagementTab = ({
         );
         
         await handleSeatUpdate(newSeating);
+        
+        const studentToUnassign = students.find(s => s.id === studentId);
+        if (studentToUnassign) {
+            setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+        }
+        
         toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
 
-    }, [currentRoute, handleSeatUpdate, toast]);
+    }, [currentRoute, handleSeatUpdate, toast, students]);
 
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
@@ -1383,7 +1382,6 @@ const StudentManagementTab = ({
         try {
             await copySeatingPlan(currentRoute.seating, targetRoutes);
             
-            // Update local state instead of re-fetching
             setRoutes(prevRoutes => {
                 const targetRouteIds = new Set(targetRoutes.map(r => r.id));
                 return prevRoutes.map(r => {
@@ -1689,11 +1687,25 @@ const StudentManagementTab = ({
             };
             const newStudent = await addStudent(newStudentData);
 
-            const studentExists = students.some(s => s.id === newStudent.id);
-            if (studentExists) {
-                setStudents(prev => prev.map(s => s.id === newStudent.id ? newStudent : s));
-            } else {
-                setStudents(prev => [...prev, newStudent]);
+            setStudents(prev => {
+                const studentExists = prev.some(s => s.id === newStudent.id);
+                if (studentExists) {
+                    return prev.map(s => s.id === newStudent.id ? newStudent : s);
+                }
+                return [...prev, newStudent];
+            });
+            
+            let hasDestinationForThisRoute = false;
+            if (selectedRouteType === 'Morning') {
+                hasDestinationForThisRoute = !!newStudent.morningDestinationId;
+            } else if (selectedRouteType === 'Afternoon') {
+                hasDestinationForThisRoute = !!newStudent.afternoonDestinationId;
+            } else if (selectedRouteType === 'AfterSchool') {
+                hasDestinationForThisRoute = newStudent.afterSchoolDestinations ? !!newStudent.afterSchoolDestinations[selectedDay] : false;
+            }
+
+            if (hasDestinationForThisRoute) {
+                setFilteredUnassignedStudents(prev => [...prev, newStudent].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
             }
 
             setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', morningDestinationId: null, afternoonDestinationId: null, afterSchoolDestinations: {} });
@@ -1703,7 +1715,7 @@ const StudentManagementTab = ({
         }
     };
 
-    const handleDestinationChange = useCallback(async (studentId: string, newDestinationId: string, type: 'morning' | 'afternoon' | 'afterSchool') => {
+    const handleDestinationChange = useCallback(async (studentId: string, newDestinationId: string | null, type: 'morning' | 'afternoon' | 'afterSchool') => {
         const student = students.find(s => s.id === studentId);
         if (!student) return;
 
@@ -1718,17 +1730,19 @@ const StudentManagementTab = ({
         }
         
         // Optimistically update local state
-        setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? { ...s, ...updateData } : s));
+        const updatedStudent = { ...student, ...updateData };
+        setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? updatedStudent : s));
+        
+        // Unassign student from all routes in local state immediately
         setRoutes(prevRoutes => {
-            const studentIdToUnassign = studentId;
             return prevRoutes.map(route => {
-                const isStudentInRoute = route.seating.some(seat => seat.studentId === studentIdToUnassign);
+                const isStudentInRoute = route.seating.some(seat => seat.studentId === studentId);
                 if (!isStudentInRoute) return route;
 
                 return {
                     ...route,
                     seating: route.seating.map(seat => 
-                        seat.studentId === studentIdToUnassign ? { ...seat, studentId: null } : seat
+                        seat.studentId === studentId ? { ...seat, studentId: null } : seat
                     )
                 };
             });
@@ -1739,7 +1753,6 @@ const StudentManagementTab = ({
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 모든 노선에서 좌석 배정이 해제되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
-            // Revert state on error by re-fetching, simple but effective
             const freshStudents = await getStudents();
             const freshRoutes = await getRoutes();
             setStudents(freshStudents);
@@ -1763,13 +1776,11 @@ const StudentManagementTab = ({
             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
             if (targetSeatIndex !== -1) {
-                // If seat is occupied, do nothing (or swap, but for now prevent drop)
                 if (newSeating[targetSeatIndex].studentId) {
                      toast({ title: "알림", description: "이미 학생이 배정된 좌석입니다. 빈 좌석에 배정해주세요." });
                      return;
                 }
                 newSeating[targetSeatIndex].studentId = studentId;
-                
                 setFilteredUnassignedStudents(prev => prev.filter(s => s.id !== studentId));
             }
         }
@@ -1784,7 +1795,6 @@ const StudentManagementTab = ({
             const destinationSeatIndex = newSeating.findIndex(s => s.seatNumber === destinationSeatNumber);
 
             if (sourceSeatIndex !== -1 && destinationSeatIndex !== -1) {
-                // Simple swap
                 const studentInSourceSeat = newSeating[sourceSeatIndex].studentId;
                 const studentInDestinationSeat = newSeating[destinationSeatIndex].studentId;
                 newSeating[destinationSeatIndex].studentId = studentInSourceSeat;
@@ -1799,10 +1809,9 @@ const StudentManagementTab = ({
                 setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a,b) => a.name.localeCompare(b.name)));
              }
         } else {
-            return; // Dropped in a non-droppable area
+            return;
         }
 
-        // Update local state and fire off DB update
         await handleSeatUpdate(newSeating);
 
     }, [currentRoute, students, toast, handleSeatUpdate]);
