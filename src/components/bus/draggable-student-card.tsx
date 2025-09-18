@@ -29,16 +29,20 @@ export const StudentCard: React.FC<StudentCardProps> = ({
 }) => {
   
   let destinationId: string | null | undefined = null;
+  let suggestedDestName: string | null | undefined = null;
 
   if (routeType === 'Morning') {
     destinationId = student.morningDestinationId;
+    suggestedDestName = student.suggestedMorningDestination;
   } else if (routeType === 'Afternoon') {
     destinationId = student.afternoonDestinationId;
+    suggestedDestName = student.suggestedAfternoonDestination;
   } else if (routeType === 'AfterSchool') {
     destinationId = student.afterSchoolDestinations?.[dayOfWeek];
+    suggestedDestName = student.suggestedAfterSchoolDestinations?.[dayOfWeek];
   }
 
-  const studentDestinationName = destinations.find(d => d.id === destinationId)?.name || '미지정';
+  const studentDestinationName = destinations.find(d => d.id === destinationId)?.name || suggestedDestName || '미지정';
   
   const formatStudentName = (student: Student) => {
     const grade = student.grade.replace(/\D/g, '');

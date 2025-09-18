@@ -1192,16 +1192,22 @@ const StudentManagementTab = ({
 
             let hasDestinationForThisRoute = false;
             let destId: string | null = null;
+            let destName: string | null = null;
+
             if (selectedRouteType === 'Morning') {
                 destId = student.morningDestinationId;
-                hasDestinationForThisRoute = !!destId;
+                destName = student.suggestedMorningDestination || null;
             } else if (selectedRouteType === 'Afternoon') {
                 destId = student.afternoonDestinationId;
-                hasDestinationForThisRoute = !!destId;
+                destName = student.suggestedAfternoonDestination || null;
             } else if (selectedRouteType === 'AfterSchool') {
                 destId = student.afterSchoolDestinations ? student.afterSchoolDestinations[selectedDay] : null;
-                hasDestinationForThisRoute = !!destId;
+                destName = student.suggestedAfterSchoolDestinations ? student.suggestedAfterSchoolDestinations[selectedDay] : null;
             }
+
+            // A student is considered to have a destination if they have an ID for an existing one,
+            // OR if they have a name for a suggested one.
+            hasDestinationForThisRoute = !!destId || !!destName;
 
             if (!hasDestinationForThisRoute) return false;
 
@@ -1209,8 +1215,8 @@ const StudentManagementTab = ({
 
             const lowerCaseQuery = unassignedSearchQuery.toLowerCase();
             const nameMatch = student.name.toLowerCase().includes(lowerCaseQuery);
-            const destName = destinations.find(d => d.id === destId)?.name.toLowerCase() || '';
-            const destMatch = destName.includes(lowerCaseQuery);
+            const destinationName = destinations.find(d => d.id === destId)?.name.toLowerCase() || destName?.toLowerCase() || '';
+            const destMatch = destinationName.includes(lowerCaseQuery);
 
             return nameMatch || destMatch;
         });
@@ -1568,11 +1574,11 @@ const StudentManagementTab = ({
         const csvData = filteredUnassignedStudents.map(s => {
             let destName = '';
              if (selectedRouteType === 'Morning') {
-                destName = destinations.find(d => d.id === s.morningDestinationId)?.name || '';
+                destName = destinations.find(d => d.id === s.morningDestinationId)?.name || s.suggestedMorningDestination || '';
             } else if (selectedRouteType === 'Afternoon') {
-                destName = destinations.find(d => d.id === s.afternoonDestinationId)?.name || '';
+                destName = destinations.find(d => d.id === s.afternoonDestinationId)?.name || s.suggestedAfternoonDestination || '';
             } else if (selectedRouteType === 'AfterSchool') {
-                destName = destinations.find(d => d.id === (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null))?.name || '';
+                destName = destinations.find(d => d.id === (s.afterSchoolDestinations ? s.afterSchoolDestinations[selectedDay] : null))?.name || (s.suggestedAfterSchoolDestinations ? s.suggestedAfterSchoolDestinations[selectedDay] : '') || '';
             }
             return [s.name, s.grade, s.class, s.gender, destName].join(',');
         }).join('\n');
@@ -2122,6 +2128,8 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
 
 const AdminPageFilter: React.FC<{
     buses: Bus[];
+    routes: Route[];
+    destinations: Destination[];
     selectedBusId: string | null;
     setSelectedBusId: (id: string | null) => void;
     selectedDay: DayOfWeek;
@@ -2132,6 +2140,8 @@ const AdminPageFilter: React.FC<{
     dayLabels: { [key in DayOfWeek]: string };
 }> = ({
     buses,
+    routes,
+    destinations,
     selectedBusId,
     setSelectedBusId,
     selectedDay,
@@ -2141,6 +2151,16 @@ const AdminPageFilter: React.FC<{
     days,
     dayLabels,
 }) => {
+    const getBusLabel = (bus: Bus) => {
+        const morningRoute = routes.find(r => r.busId === bus.id && r.dayOfWeek === 'Monday' && r.type === 'Morning');
+        if (morningRoute && morningRoute.stops.length > 0) {
+            const stopNames = morningRoute.stops.slice(0, 3).map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
+            if (stopNames.length > 0) {
+                return `${bus.name} (${bus.type}) - ${stopNames.join(', ')}...`;
+            }
+        }
+        return `${bus.name} (${bus.type})`;
+    };
     return (
         <Card className="mb-6">
             <CardContent className="p-4">
@@ -2154,7 +2174,7 @@ const AdminPageFilter: React.FC<{
                       <SelectContent>
                         {buses.map((bus) => (
                           <SelectItem key={bus.id} value={bus.id}>
-                            {bus.name} ({bus.type})
+                            {getBusLabel(bus)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -2279,6 +2299,8 @@ const AdminPageContent: React.FC<{
                 <TabsContent value="bus-configuration" className="mt-6">
                      <AdminPageFilter
                         buses={buses}
+                        routes={routes}
+                        destinations={destinations}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
                         selectedDay={selectedDay}
@@ -2305,6 +2327,8 @@ const AdminPageContent: React.FC<{
                 <TabsContent value="student-management" className="mt-6">
                     <AdminPageFilter
                         buses={buses}
+                        routes={routes}
+                        destinations={destinations}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
                         selectedDay={selectedDay}
