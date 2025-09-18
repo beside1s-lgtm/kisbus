@@ -1202,6 +1202,7 @@ const StudentManagementTab = ({
     const [routeTypesToCopyTo, setRouteTypesToCopyTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
     
     const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
+    const [destinationSearchQuery, setDestinationSearchQuery] = useState('');
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
 
 
@@ -1219,7 +1220,7 @@ const StudentManagementTab = ({
         if (!currentRoute) {
             setFilteredUnassignedStudents([]);
             return;
-        };
+        }
 
         const assignedStudentIdsOnCurrentRoute = new Set(
             currentRoute.seating.map(s => s.studentId).filter(Boolean)
@@ -1229,27 +1230,32 @@ const StudentManagementTab = ({
             if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
 
             let hasDestinationForThisRoute = false;
+            let destId: string | null = null;
             if (selectedRouteType === 'Morning') {
-                hasDestinationForThisRoute = !!student.morningDestinationId;
+                destId = student.morningDestinationId;
+                hasDestinationForThisRoute = !!destId;
             } else if (selectedRouteType === 'Afternoon') {
-                hasDestinationForThisRoute = !!student.afternoonDestinationId;
+                destId = student.afternoonDestinationId;
+                hasDestinationForThisRoute = !!destId;
             } else if (selectedRouteType === 'AfterSchool') {
-                hasDestinationForThisRoute = student.afterSchoolDestinations ? !!student.afterSchoolDestinations[selectedDay] : false;
+                destId = student.afterSchoolDestinations ? student.afterSchoolDestinations[selectedDay] : null;
+                hasDestinationForThisRoute = !!destId;
             }
-            return hasDestinationForThisRoute;
+
+            if (!hasDestinationForThisRoute) return false;
+
+            const nameMatch = !unassignedSearchQuery || student.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase());
+            
+            const destName = destinations.find(d => d.id === destId)?.name.toLowerCase() || '';
+            const destMatch = !destinationSearchQuery || destName.includes(destinationSearchQuery.toLowerCase());
+
+            return nameMatch && destMatch;
         });
 
-        if (!unassignedSearchQuery) {
-            setFilteredUnassignedStudents(unassigned);
-        } else {
-            setFilteredUnassignedStudents(
-                unassigned.filter(student =>
-                    student.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase())
-                )
-            );
-        }
+        const sortedUnassigned = unassigned.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+        setFilteredUnassignedStudents(sortedUnassigned);
 
-    }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery]);
+    }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinationSearchQuery, destinations]);
     
     const handleToggleSelectAll = useCallback(() => {
         if (!filteredUnassignedStudents) return;
@@ -1308,6 +1314,8 @@ const StudentManagementTab = ({
     const handleSeatUpdate = useCallback(async (newSeating: {seatNumber: number; studentId: string | null}[]) => {
         if (!currentRoute) return;
         
+        const originalSeating = currentRoute.seating;
+
         setRoutes(prevRoutes => prevRoutes.map(route => {
             if (route.id === currentRoute.id) {
                 return { ...route, seating: newSeating };
@@ -1319,9 +1327,14 @@ const StudentManagementTab = ({
             await updateRouteSeating(currentRoute.id, newSeating);
         } catch (error) {
              toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
-             setRoutes(routes); 
+             setRoutes(prevRoutes => prevRoutes.map(route => {
+                if (route.id === currentRoute.id) {
+                    return { ...route, seating: originalSeating };
+                }
+                return route;
+            })); 
         }
-    }, [currentRoute, setRoutes, toast, routes]);
+    }, [currentRoute, setRoutes, toast]);
 
     const unassignStudent = useCallback(async (studentId: string) => {
         if (!currentRoute) return;
@@ -1692,7 +1705,7 @@ const StudentManagementTab = ({
                 if (studentExists) {
                     return prev.map(s => s.id === newStudent.id ? newStudent : s);
                 }
-                return [...prev, newStudent];
+                return [...prev, newStudent].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
             });
             
             let hasDestinationForThisRoute = false;
@@ -1806,7 +1819,7 @@ const StudentManagementTab = ({
              const studentToUnassign = students.find(s => s.id === studentId);
              if(studentToUnassign) {
                 newSeating = newSeating.map(seat => seat.studentId === studentId ? { ...seat, studentId: null } : seat);
-                setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a,b) => a.name.localeCompare(b.name)));
+                setFilteredUnassignedStudents(prev => [...prev, studentToUnassign].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
              }
         } else {
             return;
@@ -2024,15 +2037,27 @@ const StudentManagementTab = ({
                         </CardHeader>
                         <Separator />
                          <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
-                            <div className="relative mb-4">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    type="search"
-                                    placeholder="학생 이름 검색..."
-                                    className="pl-8 w-full"
-                                    value={unassignedSearchQuery}
-                                    onChange={(e) => setUnassignedSearchQuery(e.target.value)}
-                                />
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                <div className="relative">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        type="search"
+                                        placeholder="학생 이름 검색..."
+                                        className="pl-8 w-full"
+                                        value={unassignedSearchQuery}
+                                        onChange={(e) => setUnassignedSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                                 <div className="relative">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        type="search"
+                                        placeholder="목적지 검색..."
+                                        className="pl-8 w-full"
+                                        value={destinationSearchQuery}
+                                        onChange={(e) => setDestinationSearchQuery(e.target.value)}
+                                    />
+                                </div>
                             </div>
                              <div className="flex justify-end mb-2 gap-2 flex-wrap">
                                  <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 템플릿</Button>
@@ -2063,8 +2088,8 @@ const StudentManagementTab = ({
                                 </AlertDialog>
                              </div>
                              <Droppable droppableId="unassigned-students">
-                                {(provided) => (
-                                    <div ref={provided.innerRef} {...provided.droppableProps}>
+                                {(provided, snapshot) => (
+                                    <div ref={provided.innerRef} {...provided.droppableProps} className={cn("min-h-[200px]", snapshot.isDraggingOver && "bg-muted")}>
                                         {filteredUnassignedStudents.length > 0 ? filteredUnassignedStudents.map((student, index) => (
                                             <Draggable key={student.id} draggableId={student.id} index={index}>
                                                 {(provided, snapshot) => (
@@ -2072,7 +2097,6 @@ const StudentManagementTab = ({
                                                         <DraggableStudentCard 
                                                             student={student} 
                                                             destinations={destinations}
-                                                            onDestinationChange={handleDestinationChange}
                                                             isChecked={selectedStudentIds.has(student.id)}
                                                             onCheckedChange={(isChecked) => handleToggleStudentSelection(student.id, isChecked)}
                                                             routeType={selectedRouteType}

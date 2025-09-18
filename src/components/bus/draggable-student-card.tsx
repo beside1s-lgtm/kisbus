@@ -51,8 +51,8 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
     <Card
       className={cn(
         'p-2 mb-2 flex items-center gap-2 cursor-grab active:cursor-grabbing bg-card hover:bg-muted/80 transition-colors',
-        className,
-        isDragging && 'shadow-lg max-w-20 truncate'
+        isDragging && 'shadow-lg max-w-20 truncate',
+        className
       )}
     >
       <GripVertical className="h-5 w-5 text-muted-foreground" />
@@ -65,7 +65,7 @@ export const DraggableStudentCard: React.FC<DraggableStudentCardProps> = ({
         onCheckedChange={onCheckedChange}
         aria-label={`Select ${student.name}`}
         className={cn(isDragging && "hidden")}
-        disabled={isDragging}
+        onClick={(e) => e.stopPropagation()}
       />
     </Card>
   );

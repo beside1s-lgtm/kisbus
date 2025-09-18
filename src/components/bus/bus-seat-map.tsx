@@ -4,7 +4,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Bus, Student, Destination, RouteType, DayOfWeek } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Crown, User as UserIcon, XCircle, CircleUserRound } from 'lucide-react';
+import { Crown, User as UserIcon, XCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Draggable, Droppable } from '@hello-pangea/dnd';
 
@@ -155,13 +155,13 @@ export function BusSeatMap({
 );
 
 const seatBaseClasses = cn(
-    'relative h-10 rounded-md flex flex-col justify-center items-center pb-1 transition-all duration-200 shadow-sm',
+    'relative h-10 w-full rounded-md flex flex-col justify-center items-center pb-1 transition-all duration-200 shadow-sm',
     onSeatClick && 'cursor-pointer hover:scale-105 hover:shadow-lg'
 );
 
-const renderSeat = (seatNumber: number | null) => {
+const renderSeat = (seatNumber: number | null, index: number) => {
     if (seatNumber === null) {
-      return <div key={`aisle-${seatNumber}-${Math.random()}`}></div>;
+      return <div key={`aisle-${index}`}></div>;
     }
 
     const seat = seating.find(s => s.seatNumber === seatNumber);
@@ -181,48 +181,34 @@ const renderSeat = (seatNumber: number | null) => {
 
     if (draggable) {
       return (
-        <Droppable droppableId={`seat-${seat.seatNumber}`} key={seat.seatNumber} isDropDisabled={!!student}>
-          {(provided, snapshot) => (
-            <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
-              className={cn(
-                'p-1'
+        <div 
+          data-seat-number={seat.seatNumber}
+          key={seat.seatNumber}
+          onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+          className={cn(seatDynamicClasses, 'p-1 bg-muted/50 border-2', student ? 'border-transparent' : 'border-dashed')}
+        >
+          <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
+          {student ? (
+            <Draggable draggableId={student.id} index={seat.seatNumber}>
+              {(provided, snapshot) => (
+                <div
+                  ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
+                  {...provided.draggableProps}
+                  {...provided.dragHandleProps}
+                  className={cn(
+                    'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
+                    'cursor-grab active:cursor-grabbing',
+                    snapshot.isDragging ? 'opacity-0' : 'opacity-100'
+                  )}
+                >
+                  {renderSeatContent(student, isHighlighted, isBoarded, isAbsent)}
+                </div>
               )}
-            >
-              <div className={cn(
-                seatDynamicClasses,
-                'bg-muted/50 border-2 border-dashed',
-                snapshot.isDraggingOver && 'bg-primary/20',
-                student ? 'border-transparent' : 'border-dashed'
-              )}>
-                <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>
-                {student ? (
-                  <Draggable draggableId={student.id} index={seat.seatNumber}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={isHighlighted ? (el) => { provided.innerRef(el); highlightedSeatRef.current = el; } : provided.innerRef}
-                        {...provided.draggableProps}
-                        {...provided.dragHandleProps}
-                        className={cn(
-                          'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
-                          'cursor-grab active:cursor-grabbing',
-                          snapshot.isDragging ? 'opacity-0' : 'opacity-100'
-                        )}
-                      >
-                        {renderSeatContent(student, isHighlighted, isBoarded, isAbsent)}
-                      </div>
-                    )}
-                  </Draggable>
-                ) : (
-                  !snapshot.isDraggingOver && <UserIcon className="w-4 h-4 text-muted-foreground" />
-                )}
-                {provided.placeholder}
-              </div>
-            </div>
+            </Draggable>
+          ) : (
+            <UserIcon className="w-4 h-4 text-muted-foreground" />
           )}
-        </Droppable>
+        </div>
       );
     }
 
@@ -230,6 +216,7 @@ const renderSeat = (seatNumber: number | null) => {
     return (
       <div key={seatNumber} className="p-1">
         <div
+          data-seat-number={seat.seatNumber}
           onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
           className={cn(seatDynamicClasses, 'bg-card border')}
         >
@@ -245,22 +232,35 @@ const renderSeat = (seatNumber: number | null) => {
 };
 
   return (
-    <TooltipProvider>
-      <div data-cy="scroll-container" className="p-2 border rounded-lg bg-muted/20 overflow-auto max-w-md mx-auto">
-        {hasFrontDriver && (
-            <div className="mb-4 flex justify-start">
-                 <div className={cn("w-1/5", bus.capacity === 15 && 'w-1/4')}>
-                    <div className="relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground">
-                        <CircleUserRound className="w-5 h-5" />
-                        <span className="mt-1 text-[9px] font-medium">운전석</span>
+    <div>
+        <TooltipProvider>
+            <div data-cy="scroll-container" className="p-2 border rounded-lg bg-muted/20 overflow-auto">
+                {hasFrontDriver && (
+                    <div className="mb-4 flex justify-start">
+                        <div className={cn("relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground", bus.capacity === 15 ? 'w-[calc(25%-0.5rem)]' : 'w-[calc(20%-0.5rem)]' )}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M20 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M3 11V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v5"/><path d="M3 11h18"/><path d="M12 3v8"/><path d="m5 11 2 2"/><path d'="m17 11-2 2"/></svg>
+                            <span className="mt-1 text-[9px] font-medium">운전석</span>
+                        </div>
                     </div>
-                </div>
+                )}
+                <Droppable droppableId="bus-seat-map-grid" isDropDisabled={!draggable}>
+                    {(provided, snapshot) => (
+                        <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={cn(
+                                'grid', 
+                                gridClass,
+                                snapshot.isDraggingOver && "bg-primary/10"
+                            )}
+                        >
+                            {seatMap.map((seatNumber, index) => renderSeat(seatNumber, index))}
+                            {provided.placeholder}
+                        </div>
+                    )}
+                </Droppable>
             </div>
-        )}
-        <div className={cn('grid', gridClass)}>
-            {seatMap.map((seatNumber) => renderSeat(seatNumber))}
-        </div>
-      </div>
-    </TooltipProvider>
+        </TooltipProvider>
+    </div>
   );
 }
