@@ -813,8 +813,15 @@ const BusConfigurationTab = ({
       try {
           await copyRoutePlan(currentRoute.stops, targetRoutes);
           
-          const updatedRoutes = await getRoutes();
-          setRoutes(updatedRoutes);
+          setRoutes(prevRoutes => {
+              const targetRouteIds = new Set(targetRoutes.map(r => r.id));
+              return prevRoutes.map(r => {
+                  if (targetRouteIds.has(r.id)) {
+                      return { ...r, stops: currentRoute.stops };
+                  }
+                  return r;
+              });
+          });
           
           toast({ title: "성공", description: "현재 노선 구성을 선택된 요일의 노선에 복사했습니다." });
           setCopyRouteDialogOpen(false);
@@ -1200,20 +1207,25 @@ const StudentManagementTab = ({
     
     const unassignedStudents = useMemo(() => {
         if (!currentRoute) return [];
+
         const assignedStudentIdsOnCurrentRoute = new Set(
             currentRoute.seating.map(s => s.studentId).filter(Boolean)
         );
+        
         return students.filter(student => {
-            let hasDestination = false;
+            if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
+
+            let hasDestinationForThisRoute = false;
             if (selectedRouteType === 'Morning') {
-                hasDestination = !!student.morningDestinationId;
+                hasDestinationForThisRoute = !!student.morningDestinationId;
             } else if (selectedRouteType === 'Afternoon') {
-                hasDestination = !!student.afternoonDestinationId;
+                hasDestinationForThisRoute = !!student.afternoonDestinationId;
             } else if (selectedRouteType === 'AfterSchool') {
-                hasDestination = student.afterSchoolDestinations ? !!student.afterSchoolDestinations[selectedDay] : false;
+                hasDestinationForThisRoute = student.afterSchoolDestinations ? !!student.afterSchoolDestinations[selectedDay] : false;
             }
-            return hasDestination && !assignedStudentIdsOnCurrentRoute.has(student.id);
+            return hasDestinationForThisRoute;
         });
+
     }, [students, currentRoute, selectedRouteType, selectedDay]);
 
     const filteredUnassignedStudents = useMemo(() => {
@@ -1349,10 +1361,10 @@ const StudentManagementTab = ({
             toast({ title: "오류", description: "복사할 원본 노선을 찾을 수 없습니다.", variant: "destructive" });
             return;
         }
-
+    
         const selectedDays = weekdays.filter(day => daysToCopyTo[day]);
         const selectedTypes = (['Morning', 'Afternoon'] as const).filter(type => routeTypesToCopyTo[type]);
-
+    
         if (selectedDays.length === 0 || selectedTypes.length === 0) {
             toast({ title: "알림", description: "복사할 요일과 경로 유형(등교/하교)을 하나 이상 선택해주세요." });
             return;
@@ -1364,16 +1376,26 @@ const StudentManagementTab = ({
             selectedTypes.includes(r.type as 'Morning' | 'Afternoon') &&
             r.id !== currentRoute.id // Don't copy to self
         );
-
+    
         if (targetRoutes.length === 0) {
             toast({ title: "알림", description: "복사할 대상 노선이 없습니다." });
             return;
         }
-
+    
         try {
             await copySeatingPlan(currentRoute.seating, targetRoutes);
-            const updatedRoutes = await getRoutes();
-            setRoutes(updatedRoutes);
+            
+            // Update local state instead of re-fetching
+            setRoutes(prevRoutes => {
+                const targetRouteIds = new Set(targetRoutes.map(r => r.id));
+                return prevRoutes.map(r => {
+                    if (targetRouteIds.has(r.id)) {
+                        return { ...r, seating: currentRoute.seating };
+                    }
+                    return r;
+                });
+            });
+            
             toast({ title: "성공", description: `현재 좌석 배치를 선택된 요일의 노선에 복사했습니다.` });
             setCopySeatingDialogOpen(false);
         } catch (error) {
@@ -1518,8 +1540,10 @@ const StudentManagementTab = ({
         try {
             await updateRouteSeating(currentRoute.id, newSeatingPlan);
             
-            const updatedRoutes = await getRoutes();
-            setRoutes(updatedRoutes);
+            // Update local state instead of re-fetching
+            setRoutes(prevRoutes => prevRoutes.map(r => 
+                r.id === currentRoute.id ? { ...r, seating: newSeatingPlan } : r
+            ));
             
             toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
 
