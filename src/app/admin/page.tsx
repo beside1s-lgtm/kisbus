@@ -502,7 +502,7 @@ const BusConfigurationTab = ({
             toast({ title: "성공", description: "모든 목적지가 삭제되었습니다." });
         } catch (error) {
             dismiss();
-            toast({ title: "오류", description: "목적지 삭제 중 오류가 발생했습니다.", variant: 'destructive' });
+            toast({ title: "오류", description: "목적지 삭제 중 오류가 발생했습니다.", variant: "destructive" });
         }
     };
   
@@ -1277,6 +1277,9 @@ const StudentManagementTab = ({
     const unassignStudent = useCallback(async (studentId: string) => {
         if (!currentRoute) return;
         
+        const studentToUnassign = students.find(s => s.id === studentId);
+        if (!studentToUnassign) return;
+
         const newSeating = currentRoute.seating.map(seat =>
             seat.studentId === studentId ? { ...seat, studentId: null } : seat
         );
@@ -1285,7 +1288,7 @@ const StudentManagementTab = ({
         
         toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다."});
 
-    }, [currentRoute, handleSeatUpdate, toast]);
+    }, [currentRoute, students, handleSeatUpdate, toast]);
 
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
@@ -2354,43 +2357,48 @@ export default function AdminPage() {
     const { toast } = useToast();
     
     useEffect(() => {
-        const fetchStaticData = async () => {
+        const fetchAndSubscribe = async () => {
             setLoading(true);
             try {
+                // Fetch static data once
                 const [busesData, studentsData, destinationsData, suggestionsData, teachersData] = await Promise.all([
-                    getBuses(), 
-                    getStudents(), 
-                    getDestinations(), 
-                    getSuggestedDestinations(), 
+                    getBuses(),
+                    getStudents(),
+                    getDestinations(),
+                    getSuggestedDestinations(),
                     getTeachers(),
                 ]);
+
                 const sortedBuses = sortBuses(busesData);
                 setBuses(sortedBuses);
                 setStudents(studentsData);
                 setDestinations(sortDestinations(destinationsData));
                 setSuggestedDestinations(suggestionsData);
-                setTeachers(teachersData.sort((a,b) => a.name.localeCompare(b.name, 'ko')));
+                setTeachers(teachersData.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
                 setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
 
+                // All initial static data is loaded, now subscribe to real-time updates for routes
+                const unsubscribeRoutes = onRoutesUpdate((routesData) => {
+                    setRoutes(routesData);
+                    setLoading(false); // Set loading to false only after first batch of routes is loaded
+                });
+
+                return () => {
+                    unsubscribeRoutes();
+                };
             } catch (error) {
-                console.error("Failed to fetch static data:", error);
+                console.error("Failed to fetch initial data:", error);
                 toast({ title: "오류", description: "초기 데이터 로딩 중 오류가 발생했습니다.", variant: "destructive" });
-            } finally {
                 setLoading(false);
             }
         };
 
-        fetchStaticData();
-
-        const unsubscribeRoutes = onRoutesUpdate((routesData) => {
-            setRoutes(routesData);
-            if(loading) setLoading(false);
-        });
+        const unsubscribePromise = fetchAndSubscribe();
 
         return () => {
-            unsubscribeRoutes();
+             unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
         };
-    }, [toast, loading]);
+    }, [toast]);
 
 
     return (
