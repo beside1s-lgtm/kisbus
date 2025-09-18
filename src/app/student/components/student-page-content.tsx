@@ -70,25 +70,26 @@ export function StudentPageContent({
     } else {
         setSelectedRouteType('Morning');
     }
-    
-    // Routes are the main real-time data needed
+  }, [days]);
+
+  useEffect(() => {
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
-        setRoutes(routesData);
-        setLoading(false);
+      setRoutes(routesData);
+      setLoading(false);
     });
 
     const dateCheckInterval = setInterval(() => {
-        const currentDate = format(new Date(), 'yyyy-MM-dd');
-        if (currentDate !== today) {
-            setToday(currentDate);
-        }
+      const currentDate = format(new Date(), 'yyyy-MM-dd');
+      if (currentDate !== today) {
+        setToday(currentDate);
+      }
     }, 60000); // Check every minute
 
     return () => {
-        unsubscribeRoutes();
-        clearInterval(dateCheckInterval);
-    }
-  }, [today, days]);
+      unsubscribeRoutes();
+      clearInterval(dateCheckInterval);
+    };
+  }, [today]);
 
   const currentRoute = useMemo(() => {
      return routes.find(r => 
@@ -100,16 +101,21 @@ export function StudentPageContent({
 
   // Real-time listener for attendance
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
     if (currentRoute) {
-      const unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
+      unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
         setBoardedStudentIds(attendance?.boarded || []);
       });
 
       // Reset student selection when filters change
       setSelectedStudentId(null);
-      
-      return () => unsubscribe();
     }
+    
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [currentRoute, today]);
   
   const studentsOnCurrentRoute = useMemo(() => {
