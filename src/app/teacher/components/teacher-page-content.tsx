@@ -56,6 +56,7 @@ export function TeacherPageContent({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
+  const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   const { toast } = useToast();
 
@@ -68,7 +69,6 @@ export function TeacherPageContent({
       Friday: '금요일',
       Saturday: '토요일',
   }), []);
-  const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   const formatStudentName = (student: Student | null) => {
     if (!student) return '';
@@ -104,10 +104,18 @@ export function TeacherPageContent({
         setLoading(false);
     });
 
+    const dateCheckInterval = setInterval(() => {
+        const currentDate = format(new Date(), 'yyyy-MM-dd');
+        if (currentDate !== today) {
+            setToday(currentDate);
+        }
+    }, 60000); // Check every minute
+
     return () => {
         unsubscribeRoutes();
+        clearInterval(dateCheckInterval);
     };
-  }, []);
+  }, [today]);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
@@ -200,9 +208,17 @@ export function TeacherPageContent({
       
       if (!destId) return [];
       
-      const relevantRoutes = await getRoutesByStop(destId);
+      // We only care about routes for the current day and type group
+      const relevantRouteTypes = (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon')
+          ? ['Morning', 'Afternoon']
+          : ['AfterSchool'];
       
-      return relevantRoutes.filter(r => r.dayOfWeek === studentDay);
+      const allRoutesWithStop = await getRoutesByStop(destId);
+
+      return allRoutesWithStop.filter(r => 
+        r.dayOfWeek === studentDay && 
+        relevantRouteTypes.includes(r.type)
+      );
   }, [selectedDay, selectedRouteType]);
 
   const toggleAbsence = useCallback(async (student: Student) => {
@@ -305,9 +321,8 @@ export function TeacherPageContent({
             setSelectedStudent(null);
         }
         
-        // --- Reset Seat Swap Selection ---
-        // If a student seat is left-clicked, we cancel any pending seat swap.
-        if (selectedSeat && studentId) {
+        // --- Reset Seat Swap Selection on left click ---
+        if (selectedSeat) {
              setSelectedSeat(null);
              toast({title: "알림", description: "좌석 교체가 취소되었습니다."});
         }
@@ -350,8 +365,6 @@ export function TeacherPageContent({
              if (clickedSeat && clickedSeat.studentId) { // Can only start a swap from an occupied seat
                  setSelectedSeat(clickedSeat);
                  toast({title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요."});
-             } else {
-                // If user right-clicks an empty seat first, do nothing.
              }
         }
     }, [currentRoute, selectedSeat, toast]);
@@ -587,7 +600,7 @@ export function TeacherPageContent({
             </CardContent>
             </Card>
 
-             <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
+             <GroupLeaderManager records={groupLeaderRecords} setRecords={setRecords} />
         </div>
         </div>
       </DragDropContext>

@@ -32,6 +32,7 @@ function StudentPageContent({
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true); // Still used for route loading
+  const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayLabels: { [key in DayOfWeek]: string } = {
@@ -42,7 +43,6 @@ function StudentPageContent({
       Friday: '금요일',
       Saturday: '토요일',
   }
-  const today = format(new Date(), 'yyyy-MM-dd');
 
   const formatStudentName = (student: Student) => {
     if (!student) return '';
@@ -77,10 +77,18 @@ function StudentPageContent({
         setLoading(false);
     });
 
+    const dateCheckInterval = setInterval(() => {
+        const currentDate = format(new Date(), 'yyyy-MM-dd');
+        if (currentDate !== today) {
+            setToday(currentDate);
+        }
+    }, 60000); // Check every minute
+
     return () => {
         unsubscribeRoutes();
+        clearInterval(dateCheckInterval);
     }
-  }, []);
+  }, [today, days]);
 
   const currentRoute = useMemo(() => {
      return routes.find(r => 
