@@ -101,6 +101,16 @@ export function TeacherPageContent({
     }
   }, [days]);
 
+  const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
+  
+  const currentRoute = useMemo(() => {
+    return routes.find(r => 
+      r.busId === selectedBusId && 
+      r.dayOfWeek === selectedDay && 
+      r.type === selectedRouteType
+    );
+  }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+
   useEffect(() => {
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
         setRoutes(routesData);
@@ -110,10 +120,11 @@ export function TeacherPageContent({
     const dateCheckInterval = setInterval(async () => {
         const currentDate = format(new Date(), 'yyyy-MM-dd');
         if (currentDate !== today) {
+            const previousDate = today;
             // Date has changed, clear previous day's attendance
             if (currentRoute) {
                 try {
-                    const prevDateAttendanceRef = doc(db, 'routes', currentRoute.id, 'attendance', today);
+                    const prevDateAttendanceRef = doc(db, 'routes', currentRoute.id, 'attendance', previousDate);
                     await deleteDoc(prevDateAttendanceRef);
                 } catch (error) {
                     console.error("Failed to delete previous day's attendance:", error);
@@ -127,17 +138,8 @@ export function TeacherPageContent({
         unsubscribeRoutes();
         clearInterval(dateCheckInterval);
     };
-  }, [today, currentRoute]);
+  }, [today, routes, selectedBusId, selectedDay, selectedRouteType]);
 
-  const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
-  
-  const currentRoute = useMemo(() => {
-    return routes.find(r => 
-      r.busId === selectedBusId && 
-      r.dayOfWeek === selectedDay && 
-      r.type === selectedRouteType
-    );
-  }, [routes, selectedBusId, selectedDay, selectedRouteType]);
   
   useEffect(() => {
     // Reset selections when route changes
@@ -369,7 +371,7 @@ export function TeacherPageContent({
                 setSelectedSeat(null);
              }
         } else { // No seat is selected yet.
-             if (clickedSeat && clickedSeat.studentId) { // Can only start a swap from an occupied seat
+             if (clickedSeat) { // Can only start a swap from an occupied or empty seat
                  setSelectedSeat(clickedSeat);
                  toast({title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요."});
              }
