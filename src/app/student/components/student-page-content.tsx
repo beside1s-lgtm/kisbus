@@ -52,27 +52,6 @@ export function StudentPageContent({
   }
 
   useEffect(() => {
-    // Set selectedDay to today's day of the week
-    const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
-    if (dayIndex > 0 && dayIndex < 7) { // Monday(1) to Saturday(6)
-        setSelectedDay(days[dayIndex - 1]);
-    } else {
-        setSelectedDay('Monday');
-    }
-
-    // Set route type based on Vietnam time
-    const now = new Date();
-    const vietnamHour = (now.getUTCHours() + 7) % 24;
-    if (vietnamHour >= 16) {
-        setSelectedRouteType('AfterSchool');
-    } else if (vietnamHour >= 9) {
-        setSelectedRouteType('Afternoon');
-    } else {
-        setSelectedRouteType('Morning');
-    }
-  }, [days]);
-
-  useEffect(() => {
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
       setRoutes(routesData);
       setLoading(false);
@@ -135,7 +114,7 @@ export function StudentPageContent({
     <div className="flex flex-wrap items-end gap-2">
         <div className="w-[140px]">
           <Label className="text-xs">버스</Label>
-          <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
+          <Select value={selectedBusId} onValueChange={setSelectedBusId}>
             <SelectTrigger>
               <SelectValue placeholder="버스를 선택하세요" />
             </SelectTrigger>
@@ -150,7 +129,7 @@ export function StudentPageContent({
         </div>
         <div className="w-[140px]">
           <Label className="text-xs">요일</Label>
-          <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
+          <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
             <SelectTrigger>
               <SelectValue placeholder="요일을 선택하세요" />
             </SelectTrigger>
@@ -165,7 +144,7 @@ export function StudentPageContent({
         </div>
         <div className="w-[140px]">
           <Label className="text-xs">경로</Label>
-          <Select value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} disabled={loading}>
+          <Select value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)}>
             <SelectTrigger>
               <SelectValue placeholder="경로를 선택하세요" />
             </SelectTrigger>
@@ -178,7 +157,7 @@ export function StudentPageContent({
         </div>
         <div className="w-[140px]">
             <Label className="text-xs">학생 이름</Label>
-            <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={!currentRoute || loading}>
+            <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={!currentRoute}>
                 <SelectTrigger>
                     <SelectValue placeholder="학생 이름을 선택하세요" />
                 </SelectTrigger>
