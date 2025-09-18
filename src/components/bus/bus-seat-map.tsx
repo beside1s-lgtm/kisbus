@@ -168,7 +168,7 @@ export function BusSeatMap({
                   >
                     {student ? (
                       <>
-                        {student.isGroupLeader && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
+                        {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
                         {isAbsent && <XCircle className="absolute w-3 h-3 text-destructive" />}
                         <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
                       </>

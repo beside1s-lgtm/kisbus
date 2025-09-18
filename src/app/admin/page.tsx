@@ -11,11 +11,10 @@ import {
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     addRoute, updateRouteSeating, updateRouteStops, clearAllSuggestedDestinations,
     updateStudentsInBatch,
-    unassignStudentFromAllRoutes,
     addTeachersInBatch, updateRoute, deleteAllDestinations,
     copySeatingPlan,
     copyRoutePlan,
-    onRoutesUpdate, // 실시간 업데이트 함수 임포트
+    onRoutesUpdate,
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';

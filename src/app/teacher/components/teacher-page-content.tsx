@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { DragDropContext, OnDragEndResponder } from '@hello-pangea/dnd';
 import { 
     onRoutesUpdate, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
@@ -138,7 +137,7 @@ export function TeacherPageContent({
         unsubscribeRoutes();
         clearInterval(dateCheckInterval);
     };
-  }, [today, routes, selectedBusId, selectedDay, selectedRouteType]);
+  }, [today, currentRoute]);
 
   
   useEffect(() => {
@@ -292,13 +291,6 @@ export function TeacherPageContent({
     }
 
     setGroupLeaderRecords(newRecords);
-    
-    // Update local student state for immediate UI feedback
-    const isNowLeader = newRecords.some(r => r.studentId === studentId && r.endDate === null);
-    setStudents(prevStudents => prevStudents.map(s => 
-      s.id === studentId ? { ...s, isGroupLeader: isNowLeader } : s
-    ));
-    setSelectedStudent(prev => prev && prev.id === studentId ? {...prev, isGroupLeader: isNowLeader} : prev);
   };
   
     const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
@@ -402,10 +394,6 @@ export function TeacherPageContent({
     }
   };
 
-  const onDragEnd: OnDragEndResponder = (result) => {
-    // This is a placeholder. Teacher page does not implement dnd yet.
-  }
-
   const headerContent = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
@@ -505,12 +493,12 @@ export function TeacherPageContent({
                         <UserX className="mr-2" /> 결석 처리
                     </Button>
                     <Button
-                        variant={selectedStudent.isGroupLeader ? "default" : "outline"}
+                        variant={groupLeaderRecords.some(r => r.studentId === selectedStudent.id && r.endDate === null) ? "default" : "outline"}
                         className="w-full"
                         onClick={() => toggleGroupLeader(selectedStudent)}
                         disabled={!currentRoute} // Disable if no route context
                     >
-                        <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
+                        <Crown className="mr-2" /> {groupLeaderRecords.some(r => r.studentId === selectedStudent.id && r.endDate === null) ? '조장 해제' : '조장 임명'}
                     </Button>
                 </div>
             </div>
@@ -527,7 +515,6 @@ export function TeacherPageContent({
       {loading ? (
         <div className="flex justify-center items-center h-64"><p>실시간 노선 정보를 불러오는 중입니다...</p></div>
       ) : (
-      <DragDropContext onDragEnd={onDragEnd}>
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
             <Card>
@@ -612,7 +599,6 @@ export function TeacherPageContent({
              <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
-      </DragDropContext>
       )}
     </MainLayout>
   );

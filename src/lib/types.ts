@@ -8,16 +8,12 @@ export type Student = {
   grade: string;
   class: string;
   gender: 'Male' | 'Female';
-  isGroupLeader?: boolean;
-  daysAsGroupLeader: number;
-  groupLeaderStartDate?: string;
-  groupLeaderEndDate?: string;
   suggestedMorningDestination?: string | null;
   suggestedAfternoonDestination?: string | null;
   suggestedAfterSchoolDestinations?: Partial<Record<DayOfWeek, string | null>>;
   applicationStatus?: 'pending' | 'reviewed';
 };
-export type NewStudent = Omit<Student, 'id' | 'isGroupLeader' | 'daysAsGroupLeader'>;
+export type NewStudent = Omit<Student, 'id'>;
 
 
 export type Bus = {
