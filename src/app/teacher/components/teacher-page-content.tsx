@@ -124,9 +124,6 @@ export function TeacherPageContent({
         const currentDate = format(new Date(), 'yyyy-MM-dd');
         if (currentDate !== today) {
             const previousDate = today;
-            // This relies on the 'currentRoute' from the outer scope, which might be stale.
-            // A better approach is to fetch the relevant route inside the interval or pass it, but for now this might work if `currentRoute` updates reliably.
-            // Let's get the route from state inside the interval.
             setRoutes(prevRoutes => {
                 const route = prevRoutes.find(r => 
                     r.busId === selectedBusId && 
