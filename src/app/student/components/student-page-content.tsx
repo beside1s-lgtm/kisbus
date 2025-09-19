@@ -1,8 +1,8 @@
 
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { onRoutesUpdate, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance } from '@/lib/firebase-data';
-import type { Bus, Student, Route, DayOfWeek, RouteType, Destination } from '@/lib/types';
+import { onRoutesUpdate, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance, getLostItems } from '@/lib/firebase-data';
+import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 
 
 // This is the client component that will handle state and interactions
@@ -21,15 +22,18 @@ export function StudentPageContent({
     initialBuses,
     initialStudents,
     initialDestinations,
+    initialLostItems,
 }: {
     initialBuses: Bus[],
     initialStudents: Student[],
     initialDestinations: Destination[],
+    initialLostItems: LostItem[],
 }) {
   const [buses, setBuses] = useState<Bus[]>(initialBuses);
   const [allStudents, setAllStudents] = useState<Student[]>(initialStudents);
   const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
   
   const [selectedBusId, setSelectedBusId] = useState<string>(initialBuses.length > 0 ? initialBuses[0].id : '');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -82,19 +86,23 @@ export function StudentPageContent({
   }, []); // Empty array ensures this runs only once on mount
 
   useEffect(() => {
+    let isMounted = true;
     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
-      setRoutes(routesData);
-      setLoading(false);
+      if (isMounted) {
+        setRoutes(routesData);
+        setLoading(false);
+      }
     });
 
     const dateCheckInterval = setInterval(() => {
       const currentDate = format(new Date(), 'yyyy-MM-dd');
-      if (currentDate !== today) {
+      if (currentDate !== today && isMounted) {
         setToday(currentDate);
       }
     }, 60000); // Check every minute
 
     return () => {
+      isMounted = false;
       unsubscribeRoutes();
       clearInterval(dateCheckInterval);
     };
@@ -111,7 +119,7 @@ export function StudentPageContent({
   // Real-time listener for attendance
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
-    if (currentRoute) {
+    if (currentRoute && today) {
       unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
         setBoardedStudentIds(attendance?.boarded || []);
         setAbsentStudentIds(attendance?.absent || []);
@@ -229,7 +237,7 @@ export function StudentPageContent({
             <SelectContent>
               {buses.map((bus) => (
                 <SelectItem key={bus.id} value={bus.id}>
-                  {bus.name} ({bus.type})
+                  {bus.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -288,7 +296,7 @@ export function StudentPageContent({
             <p>실시간 노선 정보를 불러오는 중입니다...</p>
         </div>
       ) : (
-        <div>
+        <div className="space-y-6">
             <AlertDialog
                 open={!!studentToConfirmAbsence}
                 onOpenChange={(open) => !open && setStudentToConfirmAbsence(null)}
@@ -307,6 +315,7 @@ export function StudentPageContent({
                                 if (studentToConfirmAbsence) {
                                     toggleAbsence(studentToConfirmAbsence.id);
                                 }
+                                setStudentToConfirmAbsence(null);
                             }}
                         >
                             확인
@@ -345,8 +354,17 @@ export function StudentPageContent({
                 )}
             </CardContent>
             </Card>
+            
+            <LostAndFound 
+                lostItems={lostItems}
+                setLostItems={setLostItems}
+                buses={buses}
+                isReadOnly={true}
+            />
         </div>
       )}
     </MainLayout>
   );
 }
+
+    
