@@ -24,6 +24,8 @@ interface LostAndFoundProps {
     isReadOnly?: boolean;
 }
 
+const MAX_IMAGE_SIZE_BYTES = 1048576; // 1MB
+
 export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = false }: LostAndFoundProps) {
     const { toast } = useToast();
     const [isAddDialogOpen, setAddDialogOpen] = useState(false);
@@ -38,6 +40,17 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
+            if (file.size > MAX_IMAGE_SIZE_BYTES) {
+                toast({
+                    title: '오류',
+                    description: '이미지 파일은 1MB를 초과할 수 없습니다.',
+                    variant: 'destructive',
+                });
+                if(fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+                return;
+            }
             const reader = new FileReader();
             reader.onloadend = () => {
                 setNewItem(prev => ({ ...prev, itemPhotoUrl: reader.result as string }));
@@ -47,8 +60,8 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
     };
 
     const handleAddItem = async () => {
-        if (!newItem.itemType) {
-            toast({ title: '오류', description: '분실물 종류를 반드시 입력해야 합니다.', variant: 'destructive' });
+        if (!newItem.itemType && !newItem.itemPhotoUrl) {
+            toast({ title: '오류', description: '분실물 종류 또는 사진 중 하나는 반드시 입력해야 합니다.', variant: 'destructive' });
             return;
         }
 
@@ -113,7 +126,7 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="itemType">분실물 종류 (필수)</Label>
+                                    <Label htmlFor="itemType">분실물 종류</Label>
                                     <Input id="itemType" value={newItem.itemType || ''} onChange={e => setNewItem(p => ({...p, itemType: e.target.value}))} placeholder="예: 파란색 물병" />
                                 </div>
                                 <div className="space-y-2">
@@ -131,8 +144,11 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                                 </div>
                                 <div className="space-y-2">
                                     <Label>사진</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Camera className="mr-2"/> 사진 선택</Button>
+                                        <span className="text-xs text-muted-foreground">(1MB 미만)</span>
+                                    </div>
                                     <Input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Camera className="mr-2"/> 사진 선택</Button>
                                     {newItem.itemPhotoUrl && <Image src={newItem.itemPhotoUrl} alt="Preview" width={100} height={100} className="rounded-md mt-2" />}
                                 </div>
                             </div>
