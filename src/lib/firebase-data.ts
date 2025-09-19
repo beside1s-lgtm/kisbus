@@ -27,7 +27,9 @@ import type {
   GroupLeaderRecord,
   AttendanceRecord,
   Teacher,
-  NewTeacher
+  NewTeacher,
+  LostItem,
+  NewLostItem
 } from './types';
 
 // Generic function to fetch data from a collection
@@ -378,3 +380,9 @@ export const onAttendanceUpdate = (routeId: string, date: string, callback: (rec
     }
   });
 };
+
+// --- Lost & Found ---
+export const getLostItems = () => fetchCollection<LostItem>('lostItems');
+export const addLostItem = (item: NewLostItem) => addDocument<LostItem>('lostItems', item);
+export const updateLostItem = (itemId: string, data: Partial<LostItem>) => updateDoc(doc(db, 'lostItems', itemId), data);
+export const deleteLostItem = (itemId: string) => deleteDoc(doc(db, 'lostItems', itemId));

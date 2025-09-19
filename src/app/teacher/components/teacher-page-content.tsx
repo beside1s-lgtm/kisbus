@@ -9,7 +9,7 @@ import {
     updateAttendance, getAttendance,
     updateRouteSeating
 } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher } from '@/lib/types';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,25 +27,29 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { LostAndFound } from './lost-and-found';
 
 interface TeacherPageContentProps {
     initialBuses: Bus[];
     initialStudents: Student[];
     initialDestinations: Destination[];
     initialTeachers: Teacher[];
+    initialLostItems: LostItem[];
 }
 
 export function TeacherPageContent({
     initialBuses,
     initialStudents,
     initialDestinations,
-    initialTeachers
+    initialTeachers,
+    initialLostItems,
 }: TeacherPageContentProps) {
   const [buses, setBuses] = useState<Bus[]>(initialBuses);
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
   const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
+  const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
   
   const [selectedBusId, setSelectedBusId] = useState<string>(initialBuses.length > 0 ? initialBuses[0].id : '');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -609,6 +613,15 @@ export function TeacherPageContent({
 
              <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
         </div>
+        </div>
+      )}
+      {!loading && (
+        <div className="mt-6">
+            <LostAndFound 
+                lostItems={lostItems}
+                setLostItems={setLostItems}
+                buses={buses}
+            />
         </div>
       )}
     </MainLayout>

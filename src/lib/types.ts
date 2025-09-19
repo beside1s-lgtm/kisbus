@@ -70,3 +70,13 @@ export type GroupLeaderRecord = {
     endDate: string | null;
     days: number;
 }
+
+export type LostItem = {
+    id: string;
+    foundBusId?: string | null;
+    foundDate?: string | null;
+    itemType?: string | null;
+    itemPhotoUrl?: string | null; // Data URI
+    status: 'claimed' | 'unclaimed';
+}
+export type NewLostItem = Omit<LostItem, 'id'>;

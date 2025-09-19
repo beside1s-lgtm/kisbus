@@ -1,4 +1,4 @@
-import { getBuses, getStudents, getDestinations, getTeachers } from '@/lib/firebase-data';
+import { getBuses, getStudents, getDestinations, getTeachers, getLostItems } from '@/lib/firebase-data';
 import type { Bus } from '@/lib/types';
 import { TeacherPageContent } from './components/teacher-page-content';
 
@@ -15,11 +15,12 @@ const sortBuses = (buses: Bus[]): Bus[] => {
 
 // This is the Server Component that fetches initial data
 export default async function TeacherPage() {
-    const [busesData, studentsData, destinationsData, teachersData] = await Promise.all([
+    const [busesData, studentsData, destinationsData, teachersData, lostItemsData] = await Promise.all([
         getBuses(),
         getStudents(),
         getDestinations(),
         getTeachers(),
+        getLostItems(),
     ]);
 
     return (
@@ -28,6 +29,7 @@ export default async function TeacherPage() {
             initialStudents={studentsData}
             initialDestinations={destinationsData}
             initialTeachers={teachersData}
+            initialLostItems={lostItemsData}
         />
     );
 }
