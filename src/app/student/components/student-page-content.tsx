@@ -13,6 +13,8 @@ import { format, getDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
 
 // This is the client component that will handle state and interactions
 export function StudentPageContent({
@@ -38,6 +40,8 @@ export function StudentPageContent({
   const [loading, setLoading] = useState(true); // Still used for route loading
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
   const { toast } = useToast();
+  const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
+
 
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
   const dayLabels: { [key in DayOfWeek]: string } = useMemo(() => ({
@@ -195,10 +199,24 @@ export function StudentPageContent({
     });
   }, [today, toast, findRoutesForStudent, allStudents, boardedStudentIds]);
 
-  const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
+ const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
       if (!studentId) return;
-      toggleAbsence(studentId);
-  }, [toggleAbsence]);
+      const student = allStudents.find(s => s.id === studentId);
+      if (!student) return;
+      
+      if (boardedStudentIds.includes(studentId)) {
+        toast({ title: "알림", description: "이미 탑승 처리된 학생입니다. 변경할 수 없습니다.", variant: 'default' });
+        return;
+      }
+
+      if (absentStudentIds.includes(studentId)) {
+          // If already absent, toggle immediately without confirmation
+          toggleAbsence(studentId);
+      } else {
+          // If not absent, show confirmation dialog
+          setStudentToConfirmAbsence(student);
+      }
+  }, [toggleAbsence, allStudents, absentStudentIds, boardedStudentIds, toast]);
 
   const headerContent = (
     <div className="flex flex-wrap items-end gap-2">
@@ -271,6 +289,31 @@ export function StudentPageContent({
         </div>
       ) : (
         <div>
+            <AlertDialog
+                open={!!studentToConfirmAbsence}
+                onOpenChange={(open) => !open && setStudentToConfirmAbsence(null)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>탑승 안 함 확인</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           정말 '{studentToConfirmAbsence?.name}' 학생을 '탑승 안 함'으로 표시하시겠습니까?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (studentToConfirmAbsence) {
+                                    toggleAbsence(studentToConfirmAbsence.id);
+                                }
+                            }}
+                        >
+                            확인
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <Card>
             <CardHeader>
                 <CardTitle className="font-headline">학생 탑승 현황</CardTitle>
