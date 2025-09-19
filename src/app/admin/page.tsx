@@ -1170,6 +1170,7 @@ const StudentManagementTab = ({
     
     // Seat assignment state
     const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
+    const [unassignableStudents, setUnassignableStudents] = useState<Student[]>([]);
 
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -1181,6 +1182,31 @@ const StudentManagementTab = ({
             r.type === selectedRouteType
         );
     }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+
+     useEffect(() => {
+        const allValidStopIds = new Set<string>();
+        routes.forEach(r => r.stops.forEach(stopId => allValidStopIds.add(stopId)));
+
+        const unassignable = students.filter(student => {
+            const hasMorningError = student.morningDestinationId && !allValidStopIds.has(student.morningDestinationId);
+            const hasAfternoonError = student.afternoonDestinationId && !allValidStopIds.has(student.afternoonDestinationId);
+            
+            let hasAfterSchoolError = false;
+            if (student.afterSchoolDestinations) {
+                for (const day in student.afterSchoolDestinations) {
+                    const destId = student.afterSchoolDestinations[day as DayOfWeek];
+                    if (destId && !allValidStopIds.has(destId)) {
+                        hasAfterSchoolError = true;
+                        break;
+                    }
+                }
+            }
+            return hasMorningError || hasAfternoonError || hasAfterSchoolError;
+        });
+
+        setUnassignableStudents(unassignable);
+
+    }, [students, routes]);
     
     useEffect(() => {
         if (!currentRoute) {
@@ -1194,6 +1220,9 @@ const StudentManagementTab = ({
         
         const unassigned = students.filter(student => {
             if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
+
+            // Exclude students who are unassignable due to destination errors
+            if (unassignableStudents.some(u => u.id === student.id)) return false;
 
             let destId: string | null = null;
             let destName: string | null = null;
@@ -1225,7 +1254,7 @@ const StudentManagementTab = ({
         const sortedUnassigned = unassigned.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
         setFilteredUnassignedStudents(sortedUnassigned);
 
-    }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations]);
+    }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations, unassignableStudents]);
     
     useEffect(() => {
         // Reset seat selection when route changes
@@ -1725,7 +1754,7 @@ const StudentManagementTab = ({
         }
     };
 
-    const handleDestinationChange = useCallback(async (studentId: string, newDestinationId: string | null, type: 'morning' | 'afternoon' | 'afterSchool') => {
+    const handleDestinationChange = useCallback(async (studentId: string, newDestinationId: string | null, type: 'morning' | 'afternoon' | 'afterSchool', day?: DayOfWeek) => {
         const student = students.find(s => s.id === studentId);
         if (!student) return;
 
@@ -1734,8 +1763,8 @@ const StudentManagementTab = ({
              updateData.morningDestinationId = newDestinationId;
         } else if (type === 'afternoon') {
              updateData.afternoonDestinationId = newDestinationId;
-        } else {
-             const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [selectedDay]: newDestinationId };
+        } else if (type === 'afterSchool' && day) {
+             const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [day]: newDestinationId };
              updateData.afterSchoolDestinations = newAfterSchoolDests;
         }
         
@@ -1769,7 +1798,31 @@ const StudentManagementTab = ({
             setStudents(freshStudents);
             setRoutes(freshRoutes);
         }
-    }, [students, selectedDay, setStudents, setRoutes, toast]);
+    }, [students, setStudents, setRoutes, toast]);
+
+    const getUnassignableReason = (student: Student) => {
+        const allValidStopIds = new Set<string>();
+        routes.forEach(r => r.stops.forEach(stopId => allValidStopIds.add(stopId)));
+        
+        const errors: string[] = [];
+        if (student.morningDestinationId && !allValidStopIds.has(student.morningDestinationId)) {
+            errors.push('등교');
+        }
+        if (student.afternoonDestinationId && !allValidStopIds.has(student.afternoonDestinationId)) {
+            errors.push('하교');
+        }
+        if (student.afterSchoolDestinations) {
+            const errorDays = Object.keys(student.afterSchoolDestinations).filter(day => {
+                const destId = student.afterSchoolDestinations[day as DayOfWeek];
+                return destId && !allValidStopIds.has(destId);
+            });
+            if (errorDays.length > 0) {
+                 errors.push(`방과후 (${errorDays.map(d => dayLabels[d as DayOfWeek].charAt(0)).join(',')})`);
+            }
+        }
+        return errors.join(', ');
+    }
+
 
     if (!selectedBusId) {
        return (
@@ -1969,6 +2022,34 @@ const StudentManagementTab = ({
                            )}
                         </CardContent>
                     </Card>
+                     {unassignableStudents.length > 0 && (
+                        <Alert variant="destructive" className="bg-orange-100 dark:bg-orange-900/30 border-orange-400 dark:border-orange-700 text-orange-800 dark:text-orange-200">
+                             <Bell className="h-4 w-4 !text-orange-600 dark:!text-orange-400" />
+                            <AlertTitle className="text-orange-900 dark:text-orange-100">목적지 오류로 배정 불가</AlertTitle>
+                            <AlertDescription className="space-y-2">
+                                <p>아래 학생들은 설정된 목적지가 현재 어떤 버스 노선에도 포함되어 있지 않아 배정할 수 없습니다. 목적지를 수정해주세요.</p>
+                                <div className="max-h-40 overflow-y-auto space-y-2">
+                                    {unassignableStudents.map(student => (
+                                        <div key={student.id} className="p-2 border border-orange-300 dark:border-orange-600 rounded-md bg-white dark:bg-orange-900/50">
+                                            <div className="font-semibold">{student.name} ({student.grade} {student.class})</div>
+                                            <div className="text-xs">오류 목적지: {getUnassignableReason(student)}</div>
+                                            
+                                            <div className="grid grid-cols-2 gap-2 mt-2">
+                                                {student.morningDestinationId && <Select value={student.morningDestinationId} onValueChange={(v) => handleDestinationChange(student.id, v, 'morning')}>
+                                                    <SelectTrigger><SelectValue placeholder="등교 목적지" /></SelectTrigger>
+                                                    <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                                </Select>}
+                                                {student.afternoonDestinationId && <Select value={student.afternoonDestinationId} onValueChange={(v) => handleDestinationChange(student.id, v, 'afternoon')}>
+                                                    <SelectTrigger><SelectValue placeholder="하교 목적지" /></SelectTrigger>
+                                                    <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                                </Select>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </div>
                 <div className="lg:col-span-1">
                      <Card className="sticky top-20">
@@ -2155,7 +2236,7 @@ const AdminPageFilter: React.FC<{
     const getBusLabel = (bus: Bus) => {
         const morningRoute = routes.find(r => r.busId === bus.id && r.dayOfWeek === 'Monday' && r.type === 'Morning');
         if (morningRoute && morningRoute.stops.length > 0) {
-            const stopNames = morningRoute.stops.slice(0, 3).map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
+            const stopNames = morningRoute.stops.slice(0, 2).map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
             if (stopNames.length > 0) {
                 return `${bus.name} - ${stopNames.join(', ')}...`;
             }
