@@ -1,6 +1,6 @@
 
 'use client';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { LostItem, NewLostItem, Bus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -217,4 +217,3 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
     );
 }
 
-    
