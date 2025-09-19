@@ -215,23 +215,8 @@ export const getRoutesForBus = (busId: string) => {
     return getDocs(q).then(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route)));
 }
 export const getRoutesByStop = async (stopId: string): Promise<Route[]> => {
-    const mainRoutesQuery = query(collection(db, "routes"), where("stops", "array-contains", stopId), where("type", "in", ["Morning", "Afternoon"]));
-    const afterSchoolRoutesQuery = query(collection(db, "routes"), where("stops", "array-contains", stopId), where("type", "==", "AfterSchool"));
-
-    const [mainRoutesSnap, afterSchoolRoutesSnap] = await Promise.all([
-        getDocs(mainRoutesQuery),
-        getDocs(afterSchoolRoutesQuery),
-    ]);
-
-    const routes: Route[] = [];
-    mainRoutesSnap.forEach(doc => routes.push({id: doc.id, ...doc.data()} as Route));
-    afterSchoolRoutesSnap.forEach(doc => routes.push({id: doc.id, ...doc.data()} as Route));
-    
-    // This logic needs to be aware of which destination field to check. 
-    // The query itself is tricky. Let's simplify and do filtering client-side for now where needed.
-    // A better solution would be to restructure data, but for now we query all and let client filter.
-    const allRoutesQuery = query(collection(db, "routes"), where("stops", "array-contains", stopId));
-    const querySnapshot = await getDocs(allRoutesQuery);
+    const q = query(collection(db, "routes"), where("stops", "array-contains", stopId));
+    const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route));
 }
 export const addRoute = async (route: Omit<Route, 'id'>) => {
