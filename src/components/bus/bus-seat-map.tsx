@@ -52,7 +52,7 @@ const SEAT_MAP_15: (number | null)[] = [
   1, 2, null, 3,
   4, 5, null, 6,
   7, 8, null, 9,
-  10, 11, null, 12
+  10, 11, 12, 13
 ];
 
 const getLayoutInfo = (capacity: number) => {
