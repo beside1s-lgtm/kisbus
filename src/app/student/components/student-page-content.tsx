@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { onRoutesUpdate, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance, getLostItems } from '@/lib/firebase-data';
+import { onRoutesUpdate, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance, getLostItems, updateLostItem } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

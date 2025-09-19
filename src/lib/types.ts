@@ -1,4 +1,5 @@
 
+
 export type Student = {
   id: string;
   name: string;
@@ -77,6 +78,7 @@ export type LostItem = {
     foundDate?: string | null;
     itemType?: string | null;
     itemPhotoUrl?: string | null; // Data URI
-    status: 'claimed' | 'unclaimed';
+    status: 'claimed' | 'unclaimed' | 'acknowledged';
 }
 export type NewLostItem = Omit<LostItem, 'id'>;
+

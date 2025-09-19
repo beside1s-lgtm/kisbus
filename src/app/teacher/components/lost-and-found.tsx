@@ -9,13 +9,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlusCircle, Trash2, Camera, Undo2 } from 'lucide-react';
+import { PlusCircle, Trash2, Camera, Undo2, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { addLostItem, deleteLostItem, updateLostItem } from '@/lib/firebase-data';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface LostAndFoundProps {
     lostItems: LostItem[];
@@ -82,11 +83,22 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
     };
 
     const handleToggleStatus = async (item: LostItem) => {
-        const newStatus = item.status === 'unclaimed' ? 'claimed' : 'unclaimed';
+        const newStatus = item.status === 'claimed' ? 'unclaimed' : 'claimed';
         try {
             await updateLostItem(item.id, { status: newStatus });
             setLostItems(prev => prev.map(i => i.id === item.id ? { ...i, status: newStatus } : i));
             toast({ title: '성공', description: `상태가 '${newStatus === 'claimed' ? '반환 완료' : '미반환'}'으로 변경되었습니다.` });
+        } catch (error) {
+            toast({ title: '오류', description: '상태 변경에 실패했습니다.', variant: 'destructive' });
+        }
+    }
+    
+    const handleAcknowledge = async (item: LostItem) => {
+        if (item.status !== 'unclaimed') return;
+         try {
+            await updateLostItem(item.id, { status: 'acknowledged' });
+            setLostItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'acknowledged' } : i));
+            toast({ title: '성공', description: '분실물 확인 처리가 완료되었습니다.' });
         } catch (error) {
             toast({ title: '오류', description: '상태 변경에 실패했습니다.', variant: 'destructive' });
         }
@@ -107,6 +119,32 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
     const sortedItems = useMemo(() => {
         return [...lostItems].sort((a, b) => (b.foundDate || '').localeCompare(a.foundDate || ''));
     }, [lostItems]);
+    
+    const getStatusVariant = (status: LostItem['status']): "default" | "secondary" | "destructive" | "outline" => {
+        switch (status) {
+            case 'claimed':
+                return 'secondary';
+            case 'unclaimed':
+                return 'default';
+            case 'acknowledged':
+                return 'destructive'; // Using destructive for yellow/attention
+            default:
+                return 'default';
+        }
+    }
+    const getStatusText = (status: LostItem['status']): string => {
+        switch (status) {
+            case 'claimed':
+                return '반환 완료';
+            case 'unclaimed':
+                return '미반환';
+            case 'acknowledged':
+                return '확인됨';
+            default:
+                return '알 수 없음';
+        }
+    }
+
 
     return (
         <Card>
@@ -168,7 +206,7 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                             <TableHead>발견 버스</TableHead>
                             <TableHead>사진</TableHead>
                             <TableHead>상태</TableHead>
-                            {!isReadOnly && <TableHead className="text-right">작업</TableHead>}
+                            <TableHead className="text-right">작업</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -185,31 +223,39 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                                     )}
                                 </TableCell>
                                 <TableCell>
-                                     <Badge variant={item.status === 'claimed' ? 'secondary' : 'default'}>
-                                        {item.status === 'claimed' ? '반환 완료' : '미반환'}
+                                     <Badge variant={getStatusVariant(item.status)} 
+                                        className={cn(item.status === 'acknowledged' && 'bg-yellow-500 text-white hover:bg-yellow-500/80')}>
+                                        {getStatusText(item.status)}
                                     </Badge>
                                 </TableCell>
-                                {!isReadOnly && (
-                                    <TableCell className="text-right space-x-1">
-                                        <Button variant="outline" size="sm" onClick={() => handleToggleStatus(item)}>
-                                           <Undo2 className="mr-1 h-3 w-3"/> {item.status === 'unclaimed' ? '반환' : '미반환'}
+                                <TableCell className="text-right space-x-1">
+                                    {isReadOnly && item.status === 'unclaimed' && (
+                                         <Button variant="outline" size="sm" onClick={() => handleAcknowledge(item)}>
+                                           <CheckCircle className="mr-1 h-3 w-3"/> 확인
                                         </Button>
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>정말 이 항목을 삭제하시겠습니까?</AlertDialogTitle>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>취소</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteItem(item.id)}>삭제</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </TableCell>
-                                )}
+                                    )}
+                                    {!isReadOnly && (
+                                        <>
+                                            <Button variant="outline" size="sm" onClick={() => handleToggleStatus(item)}>
+                                               <Undo2 className="mr-1 h-3 w-3"/> {item.status === 'claimed' ? '미반환' : '반환'}
+                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>정말 이 항목을 삭제하시겠습니까?</AlertDialogTitle>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>취소</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteItem(item.id)}>삭제</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </>
+                                    )}
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
@@ -232,4 +278,3 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
         </Card>
     );
 }
-
