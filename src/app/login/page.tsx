@@ -45,7 +45,12 @@ export default function LoginPage() {
         description,
         variant: 'destructive',
       });
-      setLoading(false);
+    } finally {
+      // Don't set loading to false here on success, because the page will reload.
+      // Only set it to false on failure.
+      if (!window.location.pathname.endsWith('/admin')) {
+         setLoading(false);
+      }
     }
   };
 

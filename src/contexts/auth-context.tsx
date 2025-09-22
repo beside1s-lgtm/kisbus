@@ -25,12 +25,16 @@ const setCookie = (name: string, value: string, days: number) => {
     date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
     expires = "; expires=" + date.toUTCString();
   }
-  document.cookie = name + "=" + (value || "") + expires + "; path=/";
+  if (typeof window !== 'undefined') {
+    document.cookie = name + "=" + (value || "") + expires + "; path=/";
+  }
 };
 
 // Function to erase a cookie
 const eraseCookie = (name: string) => {
-  document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+  if (typeof window !== 'undefined') {
+    document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+  }
 };
 
 
@@ -39,14 +43,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
-      if (user) {
-        const token = await user.getIdToken();
-        setCookie('firebaseIdToken', token, 1);
-      } else {
-        eraseCookie('firebaseIdToken');
-      }
       setLoading(false);
     });
 
@@ -54,11 +52,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (email: string, pass: string) => {
-    await signInWithEmailAndPassword(auth, email, pass);
+    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+    if (userCredential.user) {
+      const token = await userCredential.user.getIdToken();
+      setCookie('firebaseIdToken', token, 1); // Set cookie directly on login
+    }
   };
 
   const logout = async () => {
     await signOut(auth);
+    eraseCookie('firebaseIdToken');
     // Force a full page reload to ensure middleware catches the logged-out state
     window.location.href = '/';
   };
