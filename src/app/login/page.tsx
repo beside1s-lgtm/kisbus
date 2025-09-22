@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +13,10 @@ import { LogIn } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@kshcm.net');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState('kis123456!');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { login } = useAuth();
-  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +30,9 @@ export default function LoginPage() {
         description: '관리자 페이지로 이동합니다.',
       });
       
-      router.push('/admin');
+      // Use window.location to force a full page reload.
+      // This ensures the middleware runs with the newly set auth cookie.
+      window.location.href = '/admin';
 
     } catch (error: any) {
       console.error(error);

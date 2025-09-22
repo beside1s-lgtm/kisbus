@@ -2,31 +2,28 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const ADMIN_PAGES = ['/admin'];
-const TEACHER_PAGES = ['/teacher'];
-const STUDENT_PAGES = ['/student', '/apply'];
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('firebaseIdToken');
 
-  // Rule: Admin pages require authentication
-  if (ADMIN_PAGES.some(p => pathname.startsWith(p)) && !token) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
+  // Rule 1: Protect the /admin route. If no token, redirect to /login.
+  if (pathname.startsWith('/admin') && !token) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Rule: If authenticated user tries to access login page, redirect to admin
+  // Rule 2: If a logged-in user tries to access /login, redirect to /admin.
   if (pathname.startsWith('/login') && token) {
-     const url = request.nextUrl.clone();
-     url.pathname = '/admin';
-     return NextResponse.redirect(url);
+     const adminUrl = request.nextUrl.clone();
+     adminUrl.pathname = '/admin';
+     return NextResponse.redirect(adminUrl);
   }
 
   return NextResponse.next();
 }
 
+// Apply middleware to both /admin and /login paths to handle all redirection cases.
 export const config = {
   matcher: ['/admin/:path*', '/login'],
 };
