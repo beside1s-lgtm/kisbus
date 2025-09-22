@@ -5,7 +5,7 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 
 interface MainLayoutProps {
@@ -32,6 +32,8 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
   const isHomePage = pathname === '/';
   
   const handleLogout = async () => {
+      // Clear the session hint cookie
+      document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       await logout();
   }
 

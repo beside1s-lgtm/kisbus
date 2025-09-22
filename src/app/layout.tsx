@@ -26,8 +26,8 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <AuthProvider>
           {children}
+          <Toaster />
         </AuthProvider>
-        <Toaster />
       </body>
     </html>
   );

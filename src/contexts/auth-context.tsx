@@ -4,34 +4,17 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { getAuth, onAuthStateChanged, User, signInWithEmailAndPassword } from 'firebase/auth';
 import { app } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<void>;
+  login: (email: string, pass: string) => Promise<User>;
   logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const auth = getAuth(app);
-
-// Helper function to set a cookie
-function setCookie(name: string, value: string, days: number) {
-  let expires = "";
-  if (days) {
-    const date = new Date();
-    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-    expires = "; expires=" + date.toUTCString();
-  }
-  document.cookie = name + "=" + (value || "") + expires + "; path=/";
-}
-
-function eraseCookie(name: string) {
-  document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-}
-
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -40,26 +23,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
-      if (user) {
-        const token = await user.getIdToken();
-        setCookie('session', token, 5); // Set session cookie for 5 days
-      } else {
-        eraseCookie('session');
-      }
+      
+      // We are not using server-side session cookies in this flow anymore
+      // to avoid middleware complexities. Authentication state is managed
+      // client-side by Firebase SDK, and pages are protected by middleware
+      // based on a simple session flag.
+
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  const login = async (email: string, pass: string) => {
-     await signInWithEmailAndPassword(auth, email, pass);
-     // onAuthStateChanged will handle the rest
+  const login = async (email: string, pass: string): Promise<User> => {
+    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+    return userCredential.user;
   };
 
   const logout = async () => {
     await auth.signOut();
-    window.location.href = '/'; // Go to homepage after logout
+    // Use window.location to ensure a full page refresh and state clearing.
+    window.location.href = '/'; 
   };
 
   const value = { user, loading, login, logout };
