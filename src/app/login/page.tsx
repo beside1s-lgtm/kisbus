@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useAuth } from '@/hooks/use-auth';
 import { LogIn } from 'lucide-react';
-import { getAuth } from 'firebase/auth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@kshcm.net');
@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { login } = useAuth();
+  const router = useRouter();
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,11 +32,7 @@ export default function LoginPage() {
         description: '관리자 페이지로 이동합니다.',
       });
 
-      // Give a moment for the onAuthStateChanged listener in AuthProvider
-      // to fire and set the cookie.
-      setTimeout(() => {
-        window.location.href = '/admin';
-      }, 500);
+      router.push('/admin');
 
     } catch (error: any) {
       let description = '이메일 또는 비밀번호가 올바르지 않습니다.';
