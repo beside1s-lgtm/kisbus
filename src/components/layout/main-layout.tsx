@@ -27,6 +27,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         case 'student': return '탑승 확인';
         case 'apply': return '탑승 신청';
         case 'login': return '관리자 로그인';
+        case 'parents': return '학부모/학생';
         default: return '홈';
     }
   }
@@ -42,7 +43,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
       }
   }
 
-  if (authLoading) {
+  if (authLoading && (pathname.startsWith('/admin') || pathname.startsWith('/teacher'))) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>인증 정보를 확인하는 중입니다...</p>
@@ -56,9 +57,9 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         <div className="flex items-center gap-4">
           {!isHomePage && (
             <Button asChild variant="outline" size="icon" className="h-8 w-8">
-              <Link href="/">
+              <Link href={pathname.startsWith('/admin') || pathname.startsWith('/teacher') ? '/' : '/parents'}>
                 <ArrowLeft className="h-4 w-4" />
-                <span className="sr-only">Back to Home</span>
+                <span className="sr-only">Back</span>
               </Link>
             </Button>
           )}
