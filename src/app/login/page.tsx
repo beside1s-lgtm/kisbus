@@ -32,8 +32,8 @@ export default function LoginPage() {
         description: '관리자 페이지로 이동합니다.',
       });
       
-      // The redirect is now handled by the AuthProvider and middleware after state change.
-      // We no longer push or refresh here.
+      // The redirect is now handled by the AuthProvider.
+      // No need to push or refresh here.
 
     } catch (error: any) {
       console.error(error);
@@ -46,9 +46,9 @@ export default function LoginPage() {
         description,
         variant: 'destructive',
       });
-    } finally {
       setLoading(false);
     }
+    // We don't set loading to false on success because a page transition will occur.
   };
 
   return (

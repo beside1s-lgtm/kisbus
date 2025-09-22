@@ -38,23 +38,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
         const token = await user.getIdToken();
-        setCookie('firebaseIdToken', token, 1); // Store token in cookie
+        setCookie('firebaseIdToken', token, 1);
+        if (pathname === '/login') {
+            router.push('/admin');
+        }
       } else {
-        eraseCookie('firebaseIdToken'); // Remove token cookie on logout
+        eraseCookie('firebaseIdToken');
       }
       setLoading(false);
-      // We need to refresh the router to make sure the middleware re-evaluates
-      router.refresh();
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [router, pathname]);
 
   const login = async (email: string, pass: string) => {
     await signInWithEmailAndPassword(auth, email, pass);
