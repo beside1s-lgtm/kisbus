@@ -31,14 +31,6 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
 
   const isHomePage = pathname === '/';
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <p>인증 정보를 불러오는 중입니다...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col min-h-screen bg-background">
        <header className="sticky top-0 z-10 flex h-auto min-h-16 items-center justify-between gap-4 border-b bg-card/80 px-4 py-2 backdrop-blur-sm md:px-6">
@@ -68,7 +60,15 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
           )}
         </div>
       </header>
-      <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
+      <main className="flex-1 p-4 md:p-6 lg:p-8">
+        {loading ? (
+          <div className="flex justify-center items-center h-full">
+            <p>인증 정보를 불러오는 중입니다...</p>
+          </div>
+        ) : (
+          children
+        )}
+      </main>
     </div>
   );
 };
