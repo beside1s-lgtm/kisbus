@@ -49,6 +49,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         eraseCookie('firebaseIdToken'); // Remove token cookie on logout
       }
       setLoading(false);
+      // We need to refresh the router to make sure the middleware re-evaluates
+      router.refresh();
     });
 
     return () => unsubscribe();
@@ -60,9 +62,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await signOut(auth);
-    eraseCookie('firebaseIdToken');
-    router.push('/');
-    router.refresh();
   };
 
   const value = { user, loading, login, logout };

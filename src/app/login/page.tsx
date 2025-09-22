@@ -32,9 +32,8 @@ export default function LoginPage() {
         description: '관리자 페이지로 이동합니다.',
       });
 
-      // Instead of pushing, we refresh the page.
-      // The middleware will catch the new cookie and redirect to /admin.
-      router.refresh();
+      // The middleware will now handle the redirect after the auth state change and cookie is set.
+      // No need to push or refresh here.
 
     } catch (error: any) {
       console.error(error);
