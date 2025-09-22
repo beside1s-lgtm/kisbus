@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,8 +17,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState('kis123456!');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const router = useRouter();
+
+  // 이미 로그인된 사용자가 이 페이지에 머무르는 것을 방지
+  useEffect(() => {
+    if (user) {
+      router.push('/admin');
+    }
+  }, [user, router]);
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,9 +59,9 @@ export default function LoginPage() {
         description,
         variant: 'destructive',
       });
-    } finally {
-        setLoading(false);
-    }
+      setLoading(false);
+    } 
+    // 성공 시에는 AuthProvider가 리디렉션하므로 loading을 false로 설정하지 않음
   };
 
   return (

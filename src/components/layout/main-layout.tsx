@@ -7,6 +7,7 @@ import { ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -15,7 +16,8 @@ interface MainLayoutProps {
 
 export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => {
   const pathname = usePathname();
-  const { user, logout, loading } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
+  const { toast } = useToast();
   
   const getPageTitle = () => {
     const currentPath = pathname.split('/')[1];
@@ -32,15 +34,18 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
   const isHomePage = pathname === '/';
   
   const handleLogout = async () => {
-      // Clear the session hint cookie
-      document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      await logout();
+      try {
+        await logout();
+        toast({ title: '로그아웃 성공', description: '홈 화면으로 이동합니다.' });
+      } catch (error) {
+        toast({ title: '로그아웃 실패', description: '다시 시도해주세요.', variant: 'destructive' });
+      }
   }
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <p>인증 정보를 불러오는 중입니다...</p>
+        <p>인증 정보를 확인하는 중입니다...</p>
       </div>
     );
   }
@@ -67,7 +72,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         </div>
         
         <div className="flex items-center gap-2">
-          {user && pathname.startsWith('/admin') && (
+          {user && (pathname.startsWith('/admin') || pathname.startsWith('/teacher')) && (
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="mr-2" /> 로그아웃
             </Button>
