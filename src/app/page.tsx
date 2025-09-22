@@ -1,8 +1,11 @@
 
+'use client';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ArrowRight, UserCog, User, ShieldCheck } from "lucide-react";
+import { ArrowRight, UserCog, User, ShieldCheck, CheckSquare, Edit } from "lucide-react";
 import Link from "next/link";
 import { MainLayout } from "@/components/layout/main-layout";
+import { useState }from 'react';
+import { Button } from "@/components/ui/button";
 
 interface RoleCardProps {
   href: string;
@@ -33,6 +36,8 @@ function RoleCard({ href, icon: Icon, title, description }: RoleCardProps) {
 }
 
 export default function Home() {
+    const [showStudentOptions, setShowStudentOptions] = useState(false);
+
   return (
     <MainLayout>
         <div className="flex flex-col gap-8 items-center justify-center h-full">
@@ -53,12 +58,38 @@ export default function Home() {
                     title="선생님"
                     description="학생들의 탑승 여부를 확인하고 출결을 관리합니다."
                 />
-                <RoleCard 
-                    href="/student"
-                    icon={User}
-                    title="학부모/학생"
-                    description="배정된 좌석과 분실물을 확인하고 탑승을 신청합니다."
-                />
+                 <Card className="h-full">
+                    <div onClick={() => setShowStudentOptions(!showStudentOptions)} className="cursor-pointer group">
+                        <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                            <div className="bg-primary p-3 rounded-lg flex items-center justify-center">
+                                <User className="text-primary-foreground size-6" />
+                            </div>
+                            <div>
+                                <CardTitle className="font-headline">학부모/학생</CardTitle>
+                                <CardDescription>배정된 좌석을 확인하고 탑승을 신청합니다.</CardDescription>
+                            </div>
+                        </CardHeader>
+                        {!showStudentOptions && (
+                             <CardContent className="flex justify-end pt-4">
+                                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+                            </CardContent>
+                        )}
+                    </div>
+                    {showStudentOptions && (
+                        <CardContent className="flex flex-col sm:flex-row gap-2 pt-4">
+                            <Button asChild className="w-full">
+                                <Link href="/student">
+                                    <CheckSquare className="mr-2"/> 탑승 확인
+                                </Link>
+                            </Button>
+                            <Button asChild variant="outline" className="w-full">
+                                <Link href="/apply">
+                                    <Edit className="mr-2"/> 탑승 신청
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    )}
+                </Card>
             </main>
         </div>
     </MainLayout>
