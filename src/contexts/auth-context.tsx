@@ -1,46 +1,25 @@
-
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { getAuth, onAuthStateChanged, User, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { app } from '@/lib/firebase';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<void>;
-  logout: () => void;
+  login: (email: string, pass: string) => Promise<any>;
+  logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const auth = getAuth(app);
 
-// Function to set a cookie
-const setCookie = (name: string, value: string, days: number) => {
-  let expires = "";
-  if (days) {
-    const date = new Date();
-    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-    expires = "; expires=" + date.toUTCString();
-  }
-  if (typeof window !== 'undefined') {
-    document.cookie = name + "=" + (value || "") + expires + "; path=/";
-  }
-};
-
-// Function to erase a cookie
-const eraseCookie = (name: string) => {
-  if (typeof window !== 'undefined') {
-    document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-  }
-};
-
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -52,17 +31,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (email: string, pass: string) => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-    if (userCredential.user) {
-      const token = await userCredential.user.getIdToken();
-      setCookie('firebaseIdToken', token, 1); // Set cookie directly on login
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, pass }),
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Login failed');
     }
+    
+    // Force a re-check of auth state by reloading
+    router.refresh();
+    return response.json();
   };
 
   const logout = async () => {
-    await signOut(auth);
-    eraseCookie('firebaseIdToken');
-    // Force a full page reload to ensure middleware catches the logged-out state
+    await fetch('/api/logout', { method: 'POST' });
+    setUser(null);
     window.location.href = '/';
   };
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -10,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useAuth } from '@/hooks/use-auth';
 import { LogIn } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@kshcm.net');
@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { login } = useAuth();
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,28 +31,22 @@ export default function LoginPage() {
         description: '관리자 페이지로 이동합니다.',
       });
       
-      // Use window.location to force a full page reload.
-      // This ensures the middleware runs with the newly set auth cookie.
-      window.location.href = '/admin';
+      // Use router.push for client-side navigation after successful API call
+      router.push('/admin');
 
     } catch (error: any) {
-      console.error(error);
-      let description = '로그인 중 오류가 발생했습니다.';
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-password') {
-        description = '이메일 또는 비밀번호가 올바르지 않습니다.';
+      let description = error.message || '로그인 중 오류가 발생했습니다.';
+      if (error.message.includes('INVALID_LOGIN_CREDENTIALS')) {
+         description = '이메일 또는 비밀번호가 올바르지 않습니다.';
       }
       toast({
         title: '로그인 실패',
         description,
         variant: 'destructive',
       });
-    } finally {
-      // Don't set loading to false here on success, because the page will reload.
-      // Only set it to false on failure.
-      if (!window.location.pathname.endsWith('/admin')) {
-         setLoading(false);
-      }
-    }
+      setLoading(false);
+    } 
+    // Don't set loading to false on success, as the page will navigate away.
   };
 
   return (

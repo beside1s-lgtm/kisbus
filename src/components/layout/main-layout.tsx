@@ -1,11 +1,10 @@
-
 'use client';
 import type { FC, ReactNode } from 'react';
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 
 interface MainLayoutProps {
@@ -30,6 +29,18 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
   }
 
   const isHomePage = pathname === '/';
+  
+  const handleLogout = async () => {
+      await logout();
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>인증 정보를 불러오는 중입니다...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -54,20 +65,14 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         
         <div className="flex items-center gap-2">
           {user && (
-            <Button variant="outline" size="sm" onClick={logout}>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="mr-2" /> 로그아웃
             </Button>
           )}
         </div>
       </header>
       <main className="flex-1 p-4 md:p-6 lg:p-8">
-        {loading ? (
-          <div className="flex justify-center items-center h-full">
-            <p>인증 정보를 불러오는 중입니다...</p>
-          </div>
-        ) : (
-          children
-        )}
+        {children}
       </main>
     </div>
   );
