@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
@@ -8,7 +9,7 @@ import { useRouter } from 'next/navigation';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<any>;
+  login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -16,14 +17,35 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const auth = getAuth(app);
 
+// Helper function to set a cookie
+function setCookie(name: string, value: string, days: number) {
+  let expires = "";
+  if (days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    expires = "; expires=" + date.toUTCString();
+  }
+  document.cookie = name + "=" + (value || "") + expires + "; path=/";
+}
+
+function eraseCookie(name: string) {
+  document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+}
+
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+      if (user) {
+        const token = await user.getIdToken();
+        setCookie('session', token, 5); // Set session cookie for 5 days
+      } else {
+        eraseCookie('session');
+      }
       setLoading(false);
     });
 
@@ -31,28 +53,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (email: string, pass: string) => {
-    const response = await fetch('/api/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, pass }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Login failed');
-    }
-    
-    // The response is successful, but we don't need the body.
-    // The redirect will be handled by the middleware after a page refresh.
-    // Let's just return true to indicate success.
-    return true;
+     await signInWithEmailAndPassword(auth, email, pass);
+     // onAuthStateChanged will handle the rest
   };
 
   const logout = async () => {
-    await fetch('/api/logout', { method: 'POST' });
-    setUser(null);
+    await auth.signOut();
     window.location.href = '/'; // Go to homepage after logout
   };
 

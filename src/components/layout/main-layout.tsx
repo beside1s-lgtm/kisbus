@@ -1,3 +1,4 @@
+
 'use client';
 import type { FC, ReactNode } from 'react';
 import React from 'react';
@@ -64,7 +65,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         </div>
         
         <div className="flex items-center gap-2">
-          {user && (
+          {user && pathname.startsWith('/admin') && (
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="mr-2" /> 로그아웃
             </Button>

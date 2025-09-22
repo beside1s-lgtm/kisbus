@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -9,7 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useAuth } from '@/hooks/use-auth';
 import { LogIn } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@kshcm.net');
@@ -17,7 +17,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { login } = useAuth();
-  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,12 +30,12 @@ export default function LoginPage() {
         description: '관리자 페이지로 이동합니다.',
       });
       
-      // Use router.push for client-side navigation after successful API call
-      router.push('/admin');
+      // Force a full page reload to ensure middleware has the latest cookie.
+      window.location.href = '/admin';
 
     } catch (error: any) {
       let description = error.message || '로그인 중 오류가 발생했습니다.';
-      if (error.message.includes('INVALID_LOGIN_CREDENTIALS')) {
+      if (error.code === 'auth/invalid-credential' || error.message.includes('INVALID_LOGIN_CREDENTIALS')) {
          description = '이메일 또는 비밀번호가 올바르지 않습니다.';
       }
       toast({
@@ -45,8 +44,7 @@ export default function LoginPage() {
         variant: 'destructive',
       });
       setLoading(false);
-    } 
-    // Don't set loading to false on success, as the page will navigate away.
+    }
   };
 
   return (
