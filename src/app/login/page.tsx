@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { LogIn } from 'lucide-react';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('admin@kshcm.net');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -24,35 +24,29 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    if (email !== 'admin@kshcm.net') {
-      toast({
-        title: '로그인 실패',
-        description: '관리자 이메일이 올바르지 않습니다.',
-        variant: 'destructive',
-      });
-      setLoading(false);
-      return;
-    }
-
     try {
       await login(email, password);
+      
       toast({
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
       });
-      router.push('/admin');
+
+      // Instead of pushing, we refresh the page.
+      // The middleware will catch the new cookie and redirect to /admin.
+      router.refresh();
+
     } catch (error: any) {
       console.error(error);
       let description = '로그인 중 오류가 발생했습니다.';
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-        description = '비밀번호가 올바르지 않습니다.';
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-password') {
+        description = '이메일 또는 비밀번호가 올바르지 않습니다.';
       }
       toast({
         title: '로그인 실패',
         description,
         variant: 'destructive',
       });
-    } finally {
       setLoading(false);
     }
   };
