@@ -18,16 +18,15 @@ export function middleware(request: NextRequest) {
   }
 
   // Rule: If authenticated user tries to access login page, redirect to admin
-  // This is now handled by the AuthProvider to avoid race conditions.
-  // if (pathname.startsWith('/login') && token) {
-  //    const url = request.nextUrl.clone();
-  //    url.pathname = '/admin';
-  //    return NextResponse.redirect(url);
-  // }
+  if (pathname.startsWith('/login') && token) {
+     const url = request.nextUrl.clone();
+     url.pathname = '/admin';
+     return NextResponse.redirect(url);
+  }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/login'],
 };

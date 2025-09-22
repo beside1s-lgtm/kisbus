@@ -32,8 +32,7 @@ export default function LoginPage() {
         description: '관리자 페이지로 이동합니다.',
       });
       
-      // The redirect is now handled by the AuthProvider.
-      // No need to push or refresh here.
+      router.push('/admin');
 
     } catch (error: any) {
       console.error(error);
@@ -48,7 +47,6 @@ export default function LoginPage() {
       });
       setLoading(false);
     }
-    // We don't set loading to false on success because a page transition will occur.
   };
 
   return (

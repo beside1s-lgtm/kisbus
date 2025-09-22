@@ -46,9 +46,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (user) {
         const token = await user.getIdToken();
         setCookie('firebaseIdToken', token, 1);
-        if (pathname === '/login') {
-            router.push('/admin');
-        }
       } else {
         eraseCookie('firebaseIdToken');
       }
@@ -64,6 +61,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await signOut(auth);
+    // Redirect to home page after logout
+    router.push('/');
   };
 
   const value = { user, loading, login, logout };
