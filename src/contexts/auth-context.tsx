@@ -23,12 +23,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
-      
-      // We are not using server-side session cookies in this flow anymore
-      // to avoid middleware complexities. Authentication state is managed
-      // client-side by Firebase SDK, and pages are protected by middleware
-      // based on a simple session flag.
-
+      if (user) {
+        const token = await user.getIdToken();
+        // Set a session cookie that the middleware can read.
+        // This cookie only contains the token, not sensitive info.
+        // It's httpOnly is false, so it can be set from the client.
+        document.cookie = `session=${token}; path=/; max-age=3600`; // Expires in 1 hour
+      } else {
+        // Clear the cookie on logout.
+        document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      }
       setLoading(false);
     });
 
@@ -42,7 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await auth.signOut();
-    // Use window.location to ensure a full page refresh and state clearing.
+    // The onAuthStateChanged listener will handle cookie clearing.
     window.location.href = '/'; 
   };
 

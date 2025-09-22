@@ -5,12 +5,11 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // This is a simple hint cookie set on client-side after successful login.
+  // This is a simple session cookie set on client-side by the AuthProvider.
   // It doesn't contain sensitive info, just indicates that a session *should* exist.
-  // The actual authentication is handled by Firebase client-side SDK.
-  const sessionHint = request.cookies.get('session')?.value;
+  const sessionCookie = request.cookies.get('session')?.value;
 
-  const isAuthenticated = !!sessionHint;
+  const isAuthenticated = !!sessionCookie;
 
   // If user is not authenticated and tries to access a protected admin page, redirect to login
   if (!isAuthenticated && pathname.startsWith('/admin')) {
@@ -20,7 +19,7 @@ export function middleware(request: NextRequest) {
   }
 
   // If user is authenticated and tries to access the login page, redirect to admin
-  if (isAuthenticated && pathname.startsWith('/login')) {
+  if (isAuthenticated && pathname === '/login') {
     const adminUrl = request.nextUrl.clone();
     adminUrl.pathname = '/admin';
     return NextResponse.redirect(adminUrl);

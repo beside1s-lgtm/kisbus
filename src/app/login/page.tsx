@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useAuth } from '@/hooks/use-auth';
 import { LogIn } from 'lucide-react';
-import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@kshcm.net');
@@ -18,30 +18,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { login } = useAuth();
-  const auth = getAuth();
-
+  
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-       // Set session persistence
-      await setPersistence(auth, browserSessionPersistence);
-      const user = await login(email, password);
+      await login(email, password);
       
-      // For the middleware to work, we need a simple cookie.
-      // Firebase Auth SDK for client-side handles token management automatically,
-      // but the middleware needs a hint that the session exists.
-      document.cookie = "session=true; path=/";
-
       toast({
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
       });
-      
-      // Force a full page reload to '/admin'.
-      // This ensures the middleware runs with the newly set cookie.
-      window.location.href = '/admin';
+
+      // Give a moment for the onAuthStateChanged listener in AuthProvider
+      // to fire and set the cookie.
+      setTimeout(() => {
+        window.location.href = '/admin';
+      }, 500);
 
     } catch (error: any) {
       let description = '이메일 또는 비밀번호가 올바르지 않습니다.';
