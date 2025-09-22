@@ -6,6 +6,10 @@ import { authAdmin } from '@/lib/firebase-admin';
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
+  if (!authAdmin) {
+    return NextResponse.json({ error: 'Firebase Admin SDK가 초기화되지 않았습니다.' }, { status: 500 });
+  }
+
   try {
     const authorization = request.headers.get('Authorization');
     if (authorization?.startsWith('Bearer ')) {
@@ -37,6 +41,18 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+    if (!authAdmin) {
+      // authAdmin이 없어도 쿠키는 삭제할 수 있도록 처리합니다.
+      const response = NextResponse.json({ status: 'success but admin not initialized' }, { status: 200 });
+       response.cookies.set({
+            name: 'session',
+            value: '',
+            maxAge: -1,
+            path: '/',
+        });
+      return response;
+    }
+
     try {
         const sessionCookieName = 'session';
         const sessionCookie = request.cookies.get(sessionCookieName)?.value;
