@@ -26,13 +26,12 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      
+      // 로그인 성공 시 AuthProvider가 상태 변경을 감지하고
+      // /admin으로 리디렉션할 것이므로 여기서 별도 처리를 하지 않습니다.
       toast({
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
       });
-
-      router.push('/admin');
 
     } catch (error: any) {
       let description = '이메일 또는 비밀번호가 올바르지 않습니다.';
@@ -53,7 +52,8 @@ export default function LoginPage() {
         description,
         variant: 'destructive',
       });
-      setLoading(false);
+    } finally {
+        setLoading(false);
     }
   };
 
