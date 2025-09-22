@@ -1,7 +1,7 @@
 
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations, getTeachers,
@@ -37,6 +37,7 @@ import { doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/hooks/use-auth';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -506,7 +507,7 @@ const BusConfigurationTab = ({
             await deleteAllDestinations();
             setDestinations([]);
             // Also update routes to have empty stops
-            // Local state will be updated by the onSnapshot listener
+            // Local state update will be handled by the onSnapshot listener
             dismiss();
             toast({ title: "성공", description: "모든 목적지가 삭제되었습니다." });
         } catch (error) {
@@ -613,7 +614,7 @@ const BusConfigurationTab = ({
         setSelectedRouteStopId(null);
     };
 
-  const handleMoveStop = useCallback((direction: 'up' | 'down') => {
+  const handleMoveStop = useCallback(async (direction: 'up' | 'down') => {
       if (!currentRoute || !selectedRouteStopId) return;
 
       const currentStopIds = currentRoute.stops || [];
@@ -629,7 +630,7 @@ const BusConfigurationTab = ({
       } else {
           return; // Cannot move further
       }
-      updateRouteStops(currentRoute.id, newStopIds);
+      await updateRouteStops(currentRoute.id, newStopIds);
   }, [currentRoute, selectedRouteStopId]);
 
     const handleTransferStop = useCallback(async () => {
@@ -2440,85 +2441,97 @@ const AdminPageContent: React.FC<{
 
 
 export default function AdminPage() {
+    const { user, loading: authLoading } = useAuth();
+    const router = useRouter();
     const [buses, setBuses] = useState<Bus[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [routes, setRoutes] = useState<Route[]>([]);
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [dataLoading, setDataLoading] = useState(true);
     const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
     const { toast } = useToast();
     
     useEffect(() => {
-        const fetchAndSubscribe = async () => {
-            setLoading(true);
-            try {
-                // Fetch static data once
-                const [busesData, studentsData, destinationsData, suggestionsData, teachersData] = await Promise.all([
-                    getBuses(),
-                    getStudents(),
-                    getDestinations(),
-                    getSuggestedDestinations(),
-                    getTeachers(),
-                ]);
+        if (!authLoading && !user) {
+          router.push('/login');
+        }
+    }, [user, authLoading, router]);
 
-                const sortedBuses = sortBuses(busesData);
-                setBuses(sortedBuses);
-                setStudents(studentsData);
-                setDestinations(sortDestinations(destinationsData));
-                setSuggestedDestinations(suggestionsData);
-                setTeachers(teachersData.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-                setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
+    useEffect(() => {
+        if (user) { // Only fetch data if user is authenticated
+            const fetchAndSubscribe = async () => {
+                setDataLoading(true);
+                try {
+                    const [busesData, studentsData, destinationsData, suggestionsData, teachersData] = await Promise.all([
+                        getBuses(),
+                        getStudents(),
+                        getDestinations(),
+                        getSuggestedDestinations(),
+                        getTeachers(),
+                    ]);
 
-                // All initial static data is loaded, now subscribe to real-time updates for routes
-                const unsubscribeRoutes = onRoutesUpdate((routesData) => {
-                    setRoutes(routesData);
-                    setLoading(false); // Set loading to false only after first batch of routes is loaded
-                });
+                    const sortedBuses = sortBuses(busesData);
+                    setBuses(sortedBuses);
+                    setStudents(studentsData);
+                    setDestinations(sortDestinations(destinationsData));
+                    setSuggestedDestinations(suggestionsData);
+                    setTeachers(teachersData.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+                    setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
 
-                return () => {
-                    unsubscribeRoutes();
-                };
-            } catch (error) {
-                console.error("Failed to fetch initial data:", error);
-                toast({ title: "오류", description: "초기 데이터 로딩 중 오류가 발생했습니다.", variant: "destructive" });
-                setLoading(false);
-            }
-        };
+                    const unsubscribeRoutes = onRoutesUpdate((routesData) => {
+                        setRoutes(routesData);
+                        setDataLoading(false); // Set loading to false only after first batch of routes is loaded
+                    });
 
-        const unsubscribePromise = fetchAndSubscribe();
+                    return () => {
+                        unsubscribeRoutes();
+                    };
+                } catch (error) {
+                    console.error("Failed to fetch initial data:", error);
+                    toast({ title: "오류", description: "초기 데이터 로딩 중 오류가 발생했습니다.", variant: "destructive" });
+                    setDataLoading(false);
+                }
+            };
 
-        return () => {
-             unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
-        };
-    }, [toast]);
+            const unsubscribePromise = fetchAndSubscribe();
+
+            return () => {
+                 unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
+            };
+        }
+    }, [user, toast]);
+
+    if (authLoading || dataLoading || !user) {
+        return (
+            <MainLayout>
+                <div className="flex justify-center items-center h-64">
+                    <p>데이터를 불러오는 중입니다...</p>
+                </div>
+            </MainLayout>
+        );
+    }
 
 
     return (
         <MainLayout>
-            {loading ? (
-                <div className="flex justify-center items-center h-64">
-                    <p>데이터를 불러오는 중입니다...</p>
-                </div>
-            ) : (
-                <AdminPageContent
-                    buses={buses}
-                    students={students}
-                    routes={routes}
-                    destinations={destinations}
-                    suggestedDestinations={suggestedDestinations}
-                    teachers={teachers}
-                    pendingStudents={pendingStudents}
-                    setBuses={setBuses}
-                    setStudents={setStudents}
-                    setRoutes={setRoutes}
-                    setDestinations={setDestinations}
-                    setSuggestedDestinations={setSuggestedDestinations}
-                    setTeachers={setTeachers}
-                    setPendingStudents={setPendingStudents}
-                />
-            )}
+            <AdminPageContent
+                buses={buses}
+                students={students}
+                routes={routes}
+                destinations={destinations}
+                suggestedDestinations={suggestedDestinations}
+                teachers={teachers}
+                pendingStudents={pendingStudents}
+                setBuses={setBuses}
+                setStudents={setStudents}
+                setRoutes={setRoutes}
+                setDestinations={setDestinations}
+                setSuggestedDestinations={setSuggestedDestinations}
+                setTeachers={setTeachers}
+                setPendingStudents={setPendingStudents}
+            />
         </MainLayout>
     );
 }

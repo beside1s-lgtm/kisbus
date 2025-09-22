@@ -29,21 +29,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
 
       if (firebaseUser) {
-        // User is signed in, create session cookie
+        // User is signed in, create session cookie by calling our API
         const idToken = await firebaseUser.getIdToken();
-        await fetch('/api/auth/route', {
+        await fetch('/api/auth', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${idToken}`,
           },
         });
-        // Redirect to admin if on login page
+        // If user is on login page, redirect to admin
         if (pathname === '/login') {
             router.push('/admin');
         }
       } else {
-        // User is signed out, delete session cookie
-        await fetch('/api/auth/route', { method: 'DELETE' });
+        // User is signed out, delete session cookie by calling our API
+        await fetch('/api/auth', { method: 'DELETE' });
       }
     });
 
@@ -52,12 +52,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, pass: string): Promise<void> => {
     await signInWithEmailAndPassword(auth, email, pass);
-    // onAuthStateChanged will handle the rest
+    // onAuthStateChanged will handle the redirect and cookie setting
   };
 
   const logout = async () => {
     await signOut(auth);
-    // onAuthStateChanged will handle the rest
+    // onAuthStateChanged will handle the cookie deletion
     router.push('/');
   };
 
