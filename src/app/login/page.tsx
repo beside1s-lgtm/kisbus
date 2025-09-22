@@ -16,9 +16,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState('admin@kshcm.net');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const { toast } = useToast();
   const { login } = useAuth();
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,9 +31,9 @@ export default function LoginPage() {
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
       });
-
-      // The middleware will now handle the redirect after the auth state change and cookie is set.
-      // No need to push or refresh here.
+      
+      // The redirect is now handled by the AuthProvider and middleware after state change.
+      // We no longer push or refresh here.
 
     } catch (error: any) {
       console.error(error);
@@ -46,6 +46,7 @@ export default function LoginPage() {
         description,
         variant: 'destructive',
       });
+    } finally {
       setLoading(false);
     }
   };
@@ -73,6 +74,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
                 />
               </div>
               <div className="grid gap-2">
@@ -83,6 +85,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
