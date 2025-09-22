@@ -15,7 +15,7 @@ interface MainLayoutProps {
 
 export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
   
   const getPageTitle = () => {
     const currentPath = pathname.split('/')[1];
@@ -30,7 +30,14 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
   }
 
   const isHomePage = pathname === '/';
-  const isLoginPage = pathname === '/login';
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>인증 정보를 불러오는 중입니다...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
