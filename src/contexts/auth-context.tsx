@@ -65,14 +65,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = { user, loading, login, logout };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <p>인증 정보를 불러오는 중입니다...</p>
-      </div>
-    );
-  }
-
   return (
     <AuthContext.Provider value={value}>
       {children}
