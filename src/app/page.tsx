@@ -1,30 +1,32 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ArrowRight, Bus, ClipboardPenLine, User, UserCog } from "lucide-react";
+import { ArrowRight, UserCog, User, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { MainLayout } from "@/components/layout/main-layout";
 
-interface FeatureCardProps {
+interface RoleCardProps {
   href: string;
   icon: React.ElementType;
   title: string;
   description: string;
 }
 
-function FeatureCard({ href, icon: Icon, title, description }: FeatureCardProps) {
+function RoleCard({ href, icon: Icon, title, description }: RoleCardProps) {
   return (
     <Link href={href} className="block group">
       <Card className="h-full hover:border-primary transition-colors">
-        <CardHeader className="flex flex-row items-center justify-end pb-2">
-          <Icon className="w-4 h-4 text-muted-foreground" />
+        <CardHeader className="flex flex-row items-center gap-4 pb-2">
+          <div className="bg-primary p-3 rounded-lg flex items-center justify-center">
+            <Icon className="text-primary-foreground size-6" />
+          </div>
+          <div>
+            <CardTitle className="font-headline">{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold font-headline">{title}</div>
-          <p className="text-xs text-muted-foreground">{description}</p>
+        <CardContent className="flex justify-end pt-4">
+          <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
         </CardContent>
-         <div className="flex justify-end p-4 pt-0">
-            <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-        </div>
       </Card>
     </Link>
   );
@@ -33,40 +35,29 @@ function FeatureCard({ href, icon: Icon, title, description }: FeatureCardProps)
 export default function Home() {
   return (
     <MainLayout>
-        <div className="flex flex-col gap-8">
-            <header className="flex items-center gap-4">
-                 <div className="bg-primary p-3 rounded-lg flex items-center justify-center">
-                  <Bus className="text-primary-foreground size-8" />
-                </div>
-                <div>
-                    <h1 className="text-3xl font-bold font-headline">KIS 스쿨버스 시스템</h1>
-                    <p className="text-muted-foreground">스쿨버스 좌석 배정 및 탑승 관리를 위한 통합 대시보드</p>
-                </div>
+        <div className="flex flex-col gap-8 items-center justify-center h-full">
+            <header className="text-center">
+                <h1 className="text-4xl font-bold font-headline">KIS 스쿨버스 시스템</h1>
+                <p className="text-muted-foreground mt-2">역할을 선택하여 시작하세요.</p>
             </header>
-            <main className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <FeatureCard 
-                    href="/admin"
-                    icon={UserCog}
+            <main className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-4xl w-full">
+                <RoleCard 
+                    href="/login"
+                    icon={ShieldCheck}
                     title="관리자"
-                    description="버스, 노선, 학생 정보를 관리하고 좌석을 배정합니다."
+                    description="버스, 노선, 학생 등 시스템 전체를 관리합니다."
                 />
-                <FeatureCard 
+                <RoleCard 
                     href="/teacher"
                     icon={UserCog}
                     title="선생님"
                     description="학생들의 탑승 여부를 확인하고 출결을 관리합니다."
                 />
-                <FeatureCard 
+                <RoleCard 
                     href="/student"
                     icon={User}
-                    title="탑승 확인"
-                    description="배정된 좌석과 실시간 탑승 현황을 조회합니다."
-                />
-                <FeatureCard 
-                    href="/apply"
-                    icon={ClipboardPenLine}
-                    title="탑승 신청"
-                    description="스쿨버스 탑승을 신청하거나 신규 목적지를 제안합니다."
+                    title="학부모/학생"
+                    description="배정된 좌석과 분실물을 확인하고 탑승을 신청합니다."
                 />
             </main>
         </div>

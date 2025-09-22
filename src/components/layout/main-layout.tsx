@@ -3,9 +3,10 @@
 import type { FC, ReactNode } from 'react';
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Bus } from 'lucide-react';
+import { ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/hooks/use-auth';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ interface MainLayoutProps {
 
 export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
   
   const getPageTitle = () => {
     const currentPath = pathname.split('/')[1];
@@ -22,11 +24,13 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         case 'teacher': return '선생님';
         case 'student': return '탑승 확인';
         case 'apply': return '탑승 신청';
+        case 'login': return '관리자 로그인';
         default: return '홈';
     }
   }
 
   const isHomePage = pathname === '/';
+  const isLoginPage = pathname === '/login';
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -47,6 +51,14 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         
         <div className="flex flex-1 items-center justify-center gap-2">
             {headerContent}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {user && (
+            <Button variant="outline" size="sm" onClick={logout}>
+              <LogOut className="mr-2" /> 로그아웃
+            </Button>
+          )}
         </div>
       </header>
       <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
