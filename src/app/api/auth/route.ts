@@ -2,9 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authAdmin } from '@/lib/firebase-admin';
 
-// 미들웨어와 달리 API 라우트는 Node.js 런타임을 사용하도록 명시할 필요가 거의 없습니다.
-// Vercel 배포 시에는 기본적으로 서버리스 함수(Node.js)로 빌드됩니다.
-
 export async function POST(request: NextRequest) {
   try {
     const authorization = request.headers.get('Authorization');
@@ -36,16 +33,31 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+    try {
+        const sessionCookieName = 'session';
+        const sessionCookie = request.cookies.get(sessionCookieName)?.value;
 
-export async function DELETE() {
-  const response = NextResponse.json({ status: 'success' }, { status: 200 });
-  
-  response.cookies.set({
-    name: 'session',
-    value: '',
-    maxAge: -1, // 쿠키 즉시 만료
-    path: '/',
-  });
+        if (sessionCookie) {
+            // Firebase 세션을 해지합니다.
+            const decodedClaims = await authAdmin.verifySessionCookie(sessionCookie, true).catch(() => null);
+            if (decodedClaims) {
+                await authAdmin.revokeRefreshTokens(decodedClaims.sub);
+            }
+        }
 
-  return response;
+        // 클라이언트의 쿠키를 삭제하기 위한 응답을 생성합니다.
+        const response = NextResponse.json({ status: 'success' }, { status: 200 });
+        response.cookies.set({
+            name: sessionCookieName,
+            value: '',
+            maxAge: -1, // 쿠키 즉시 만료
+            path: '/',
+        });
+
+        return response;
+    } catch (error) {
+        console.error('Error logging out:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
 }

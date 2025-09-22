@@ -20,7 +20,7 @@ export default function LoginPage() {
   const { login, user } = useAuth();
   const router = useRouter();
 
-  // 이미 로그인된 사용자가 이 페이지에 머무르는 것을 방지
+  // 이미 로그인된 사용자가 이 페이지에 접근하면 /admin으로 리디렉션
   useEffect(() => {
     if (user) {
       router.push('/admin');
@@ -33,12 +33,13 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      // 로그인 성공 시 AuthProvider가 상태 변경을 감지하고
-      // /admin으로 리디렉션할 것이므로 여기서 별도 처리를 하지 않습니다.
+      // login 함수가 성공적으로 완료되면 쿠키 설정까지 보장됨
       toast({
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
       });
+      // 성공 후 명시적으로 페이지 이동
+      router.push('/admin');
 
     } catch (error: any) {
       let description = '이메일 또는 비밀번호가 올바르지 않습니다.';
@@ -60,9 +61,13 @@ export default function LoginPage() {
         variant: 'destructive',
       });
       setLoading(false);
-    } 
-    // 성공 시에는 AuthProvider가 리디렉션하므로 loading을 false로 설정하지 않음
+    }
   };
+
+  // 로그인된 사용자는 이 컴포넌트의 렌더링을 피함
+  if (user) {
+      return null;
+  }
 
   return (
     <MainLayout>

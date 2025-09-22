@@ -2,14 +2,14 @@
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { getAuth, onAuthStateChanged, User, signInWithEmailAndPassword, UserCredential } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { getAuth, onAuthStateChanged, User, signInWithEmailAndPassword } from 'firebase/auth';
 import { app } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<UserCredential>;
+  login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -21,53 +21,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
-      
-      if (user) {
-        try {
-          const token = await user.getIdToken();
-          // 서버에 토큰을 보내 세션 쿠키를 생성/저장하도록 요청
-          await fetch('/api/auth', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          
-          if (pathname === '/login') {
-            router.push('/admin');
-          }
-        } catch (error) {
-          console.error('세션 생성 중 오류 발생:', error);
-          // 오류 발생 시 로그아웃 처리
-          await auth.signOut();
-        }
-      } else {
-        // 서버에 세션 쿠키를 삭제하도록 요청
-        try {
-          await fetch('/api/auth', { method: 'DELETE' });
-        } catch (error) {
-          console.error('세션 삭제 중 오류 발생:', error);
-        }
-      }
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [pathname, router]);
+  }, []);
 
-  const login = async (email: string, pass: string): Promise<UserCredential> => {
-    return signInWithEmailAndPassword(auth, email, pass);
+  const login = async (email: string, pass: string): Promise<void> => {
+    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+    const idToken = await userCredential.user.getIdToken();
+
+    const response = await fetch('/api/auth/route', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to create session cookie.');
+    }
   };
 
   const logout = async () => {
+    await fetch('/api/auth/route', { method: 'DELETE' });
     await auth.signOut();
-    // onAuthStateChanged가 쿠키 삭제 및 상태 변경을 처리할 것입니다.
-    // 페이지 이동이 필요하면 여기서 처리
     router.push('/');
   };
 
