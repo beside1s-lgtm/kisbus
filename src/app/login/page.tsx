@@ -40,7 +40,7 @@ export default function LoginPage() {
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
       });
-      // The redirection is now handled by the AuthProvider
+      router.push('/admin');
     } catch (error: any) {
       console.error(error);
       let description = '로그인 중 오류가 발생했습니다.';

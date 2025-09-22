@@ -46,10 +46,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (user) {
         const token = await user.getIdToken();
         setCookie('firebaseIdToken', token, 1); // Store token in cookie
-        // If user is logged in and on the login page, redirect to admin
-        if (pathname === '/login') {
-            router.push('/admin');
-        }
       } else {
         eraseCookie('firebaseIdToken'); // Remove token cookie on logout
       }
