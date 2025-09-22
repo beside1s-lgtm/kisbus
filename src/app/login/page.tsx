@@ -15,31 +15,30 @@ import { LogIn } from 'lucide-react';
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@kshcm.net');
   const [password, setPassword] = useState('kis123456!');
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const { login, user } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // 이미 로그인된 사용자가 이 페이지에 접근하면 /admin으로 리디렉션
+  // If user is already logged in, redirect to admin page.
   useEffect(() => {
-    if (user) {
+    if (!authLoading && user) {
       router.push('/admin');
     }
-  }, [user, router]);
-  
+  }, [user, authLoading, router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
     try {
       await login(email, password);
-      // login 함수가 성공하면 AuthProvider의 useEffect가 상태를 감지하고
-      // 이 컴포넌트의 useEffect가 /admin으로 리디렉션할 것입니다.
+      // The AuthProvider's onAuthStateChanged listener will handle the redirect.
       toast({
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
       });
-
     } catch (error: any) {
       let description = '이메일 또는 비밀번호가 올바르지 않습니다.';
       if (error.code) {
@@ -59,20 +58,20 @@ export default function LoginPage() {
         description,
         variant: 'destructive',
       });
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
-
-  // 로그인된 사용자는 이 컴포넌트의 렌더링을 피함
-  if (user) {
-      return (
+  
+  if (authLoading || user) {
+     return (
         <MainLayout>
           <div className="flex justify-center items-center h-full">
-            <p>관리자 페이지로 이동 중입니다...</p>
+            <p>인증 정보를 확인 중입니다...</p>
           </div>
         </MainLayout>
       );
   }
+
 
   return (
     <MainLayout>
@@ -97,7 +96,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="grid gap-2">
@@ -108,11 +107,11 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
+                  disabled={isSubmitting}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? '로그인 중...' : '로그인'}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? '로그인 중...' : '로그인'}
               </Button>
             </form>
           </CardContent>

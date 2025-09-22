@@ -2,8 +2,8 @@
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { getAuth, onAuthStateChanged, User, signInWithEmailAndPassword } from 'firebase/auth';
+import { useRouter, usePathname } from 'next/navigation';
+import { getAuth, onAuthStateChanged, User, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { app } from '@/lib/firebase';
 
 interface AuthContextType {
@@ -21,36 +21,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        // 사용자가 로그인하면 서버에 세션 쿠키 생성을 요청
-        const idToken = await user.getIdToken();
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+
+      if (firebaseUser) {
+        // User is signed in, create session cookie
+        const idToken = await firebaseUser.getIdToken();
         await fetch('/api/auth/route', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${idToken}`,
           },
         });
+        // Redirect to admin if on login page
+        if (pathname === '/login') {
+            router.push('/admin');
+        }
       } else {
-        // 사용자가 로그아웃하면 서버에 세션 쿠키 삭제를 요청
+        // User is signed out, delete session cookie
         await fetch('/api/auth/route', { method: 'DELETE' });
       }
-      setLoading(false);
     });
+
     return () => unsubscribe();
-  }, []);
+  }, [router, pathname]);
 
   const login = async (email: string, pass: string): Promise<void> => {
     await signInWithEmailAndPassword(auth, email, pass);
-    // signIn 성공 후 onAuthStateChanged가 트리거되어 후속 처리를 담당합니다.
+    // onAuthStateChanged will handle the rest
   };
 
   const logout = async () => {
-    await auth.signOut();
-    // signOut 성공 후 onAuthStateChanged가 트리거되어 후속 처리를 담당합니다.
+    await signOut(auth);
+    // onAuthStateChanged will handle the rest
     router.push('/');
   };
 
@@ -58,13 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {loading ? (
-        <div className="flex justify-center items-center h-screen">
-          <p>인증 정보를 확인하는 중입니다...</p>
-        </div>
-      ) : (
-        children
-      )}
+      {children}
     </AuthContext.Provider>
   );
 };
