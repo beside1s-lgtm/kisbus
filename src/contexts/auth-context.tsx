@@ -17,14 +17,37 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const auth = getAuth(app);
 
+// Function to set a cookie
+const setCookie = (name: string, value: string, days: number) => {
+  let expires = "";
+  if (days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    expires = "; expires=" + date.toUTCString();
+  }
+  document.cookie = name + "=" + (value || "") + expires + "; path=/";
+};
+
+// Function to erase a cookie
+const eraseCookie = (name: string) => {
+  document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+};
+
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+      if (user) {
+        const token = await user.getIdToken();
+        setCookie('firebaseIdToken', token, 1); // Store token in cookie
+      } else {
+        eraseCookie('firebaseIdToken'); // Remove token cookie on logout
+      }
       setLoading(false);
     });
 
@@ -42,9 +65,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = { user, loading, login, logout };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>인증 정보를 불러오는 중입니다...</p>
+      </div>
+    );
+  }
+
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
