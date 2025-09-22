@@ -33,13 +33,12 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      // login 함수가 성공적으로 완료되면 쿠키 설정까지 보장됨
+      // login 함수가 성공하면 AuthProvider의 useEffect가 상태를 감지하고
+      // 이 컴포넌트의 useEffect가 /admin으로 리디렉션할 것입니다.
       toast({
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
       });
-      // 성공 후 명시적으로 페이지 이동
-      router.push('/admin');
 
     } catch (error: any) {
       let description = '이메일 또는 비밀번호가 올바르지 않습니다.';
@@ -66,7 +65,13 @@ export default function LoginPage() {
 
   // 로그인된 사용자는 이 컴포넌트의 렌더링을 피함
   if (user) {
-      return null;
+      return (
+        <MainLayout>
+          <div className="flex justify-center items-center h-full">
+            <p>관리자 페이지로 이동 중입니다...</p>
+          </div>
+        </MainLayout>
+      );
   }
 
   return (
