@@ -15,13 +15,14 @@ import {
     copySeatingPlan,
     copyRoutePlan,
     onRoutesUpdate,
+    unassignStudentFromAllRoutes,
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { StudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1191,6 +1192,14 @@ const StudentManagementTab = ({
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [globalSearchResults, setGlobalSearchResults] = useState<Student[]>([]);
     const [selectedGlobalStudent, setSelectedGlobalStudent] = useState<Student | null>(null);
+    
+    const assignedRoutesForSelectedStudent = useMemo(() => {
+        if (!selectedGlobalStudent) return [];
+        return routes.filter(route => 
+            route.seating.some(seat => seat.studentId === selectedGlobalStudent.id)
+        );
+    }, [selectedGlobalStudent, routes]);
+
 
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -1259,10 +1268,9 @@ const StudentManagementTab = ({
             }
 
             let destId: string | null = null;
-            if (selectedRouteType === 'Morning') {
+             if (selectedRouteType === 'Morning') {
                 destId = student.morningDestinationId;
             } else if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
-                // For AfterSchool, if no specific destination, consider afternoon destination
                 destId = student.afterSchoolDestinations?.[selectedDay] || student.afternoonDestinationId;
             }
             
@@ -1345,6 +1353,23 @@ const StudentManagementTab = ({
              toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
         }
     }, [currentRoute, toast]);
+    
+    const handleUnassignStudentFromRoute = useCallback(async (routeId: string, studentId: string) => {
+        const routeToUpdate = routes.find(r => r.id === routeId);
+        if (!routeToUpdate) return;
+    
+        const newSeating = routeToUpdate.seating.map(seat =>
+            seat.studentId === studentId ? { ...seat, studentId: null } : seat
+        );
+    
+        try {
+            await updateRouteSeating(routeId, newSeating);
+            toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다." });
+        } catch (error) {
+            toast({ title: "오류", description: "배정 해제 중 오류가 발생했습니다.", variant: "destructive" });
+        }
+    }, [routes, toast]);
+
 
     const handleStudentCardClick = useCallback(async (studentId: string) => {
         if (!currentRoute) return;
@@ -1797,37 +1822,26 @@ const StudentManagementTab = ({
              updateData.afterSchoolDestinations = newAfterSchoolDests;
         }
         
-        // Optimistically update local state
-        const updatedStudent = { ...student, ...updateData };
-        setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? updatedStudent : s));
-        
-        // Unassign student from all routes in local state immediately
-        setRoutes(prevRoutes => {
-            return prevRoutes.map(route => {
-                const isStudentInRoute = route.seating.some(seat => seat.studentId === studentId);
-                if (!isStudentInRoute) return route;
-
-                return {
-                    ...route,
-                    seating: route.seating.map(seat => 
-                        seat.studentId === studentId ? { ...seat, studentId: null } : seat
-                    )
-                };
-            });
-        });
-        
         try {
             await updateStudent(studentId, updateData);
+            
+            // Optimistically update local state after successful DB update
+            const updatedStudent = { ...student, ...updateData };
+            setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? updatedStudent : s));
+            if (selectedGlobalStudent?.id === studentId) {
+                setSelectedGlobalStudent(updatedStudent);
+            }
+            
+            await unassignStudentFromAllRoutes(studentId); // This will trigger onSnapshot for routes
+            
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 모든 노선에서 좌석 배정이 해제되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
             // Re-fetch data on error to be safe
             const freshStudents = await getStudents();
-            const freshRoutes = await getRoutes();
             setStudents(freshStudents);
-            setRoutes(freshRoutes);
         }
-    }, [students, setStudents, setRoutes, toast]);
+    }, [students, setStudents, selectedGlobalStudent, toast]);
 
     const getUnassignableReason = (student: Student) => {
         const allValidStopIds = new Set<string>();
@@ -1856,7 +1870,6 @@ const StudentManagementTab = ({
     useEffect(() => {
         if (!globalSearchQuery) {
             setGlobalSearchResults([]);
-            setSelectedGlobalStudent(null);
             return;
         }
         const lowerCaseQuery = globalSearchQuery.toLowerCase();
@@ -1868,19 +1881,6 @@ const StudentManagementTab = ({
         setSelectedGlobalStudent(student);
         setGlobalSearchQuery('');
         setGlobalSearchResults([]);
-
-        // Find the first route this student is assigned to
-        for (const route of routes) {
-            const isAssigned = route.seating.some(seat => seat.studentId === student.id);
-            if (isAssigned) {
-                setSelectedBusId(route.busId);
-                setSelectedDay(route.dayOfWeek);
-                setSelectedRouteType(route.type);
-                toast({ title: "학생 찾음", description: `${student.name} 학생이 배정된 ${dayLabels[route.dayOfWeek]} ${route.type === 'Morning' ? '등교' : route.type === 'Afternoon' ? '하교' : '방과후'} 노선으로 이동합니다.` });
-                return;
-            }
-        }
-        toast({ title: "알림", description: `${student.name} 학생은 현재 배정된 좌석이 없습니다.` });
     };
 
 
@@ -2209,7 +2209,10 @@ const StudentManagementTab = ({
                             </div>
                             {selectedGlobalStudent && (
                                 <div className="space-y-4 p-4 border rounded-md">
-                                    <h4 className="font-semibold">{selectedGlobalStudent.name} ({selectedGlobalStudent.grade} {selectedGlobalStudent.class})</h4>
+                                    <div className="flex justify-between items-start">
+                                        <h4 className="font-semibold">{selectedGlobalStudent.name} ({selectedGlobalStudent.grade} {selectedGlobalStudent.class})</h4>
+                                        <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>선택 해제</Button>
+                                    </div>
                                     <div className="space-y-2">
                                         <Label>등교 목적지</Label>
                                         <Select 
@@ -2230,7 +2233,27 @@ const StudentManagementTab = ({
                                             <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                                         </Select>
                                     </div>
-                                     <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>선택 해제</Button>
+                                     <div>
+                                        <Label>배정된 노선</Label>
+                                        <div className="space-y-2 mt-1">
+                                            {assignedRoutesForSelectedStudent.length > 0 ? (
+                                                assignedRoutesForSelectedStudent.map(route => {
+                                                    const busName = buses.find(b => b.id === route.busId)?.name || '알 수 없는 버스';
+                                                    const routeTypeName = route.type === 'Morning' ? '등교' : route.type === 'Afternoon' ? '하교' : '방과후';
+                                                    return (
+                                                        <div key={route.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                                                            <p className="text-sm">{busName} - {dayLabels[route.dayOfWeek]} {routeTypeName}</p>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleUnassignStudentFromRoute(route.id, selectedGlobalStudent.id)}>
+                                                                <UserX className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    )
+                                                })
+                                            ) : (
+                                                <p className="text-sm text-muted-foreground p-2">배정된 노선이 없습니다.</p>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
@@ -2658,6 +2681,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 
