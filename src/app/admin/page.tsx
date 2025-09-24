@@ -1273,7 +1273,7 @@ const StudentManagementTab = ({
             } else if (selectedRouteType === 'Afternoon') {
                 destId = student.afternoonDestinationId;
             } else if (selectedRouteType === 'AfterSchool') {
-                destId = student.afterSchoolDestinations?.[selectedDay] ?? student.afternoonDestinationId;
+                 destId = student.afterSchoolDestinations?.[selectedDay] ?? student.afternoonDestinationId;
             }
             
             if (!destId || !currentRoute.stops.includes(destId)) {
@@ -2619,7 +2619,6 @@ const AdminPageContent: React.FC<{
 export default function AdminPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
-    
     const [buses, setBuses] = useState<Bus[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [routes, setRoutes] = useState<Route[]>([]);
@@ -2712,6 +2711,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 
