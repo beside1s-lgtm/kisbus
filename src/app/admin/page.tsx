@@ -1242,45 +1242,49 @@ const StudentManagementTab = ({
             setFilteredUnassignedStudents([]);
             return;
         }
-    
-        const assignedStudentIdsOnCurrentRoute = new Set(
-            currentRoute.seating.map(s => s.studentId).filter(Boolean)
-        );
-        
+
+        // Get all student IDs assigned to any route for the selected day and type
+        const allAssignedStudentIds = new Set<string>();
+        routes.forEach(route => {
+            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
+                route.seating.forEach(seat => {
+                    if (seat.studentId) {
+                        allAssignedStudentIds.add(seat.studentId);
+                    }
+                });
+            }
+        });
+
         const unassigned = students.filter(student => {
             if (unassignableStudents.some(u => u.id === student.id)) return false;
-    
-            if (assignedStudentIdsOnCurrentRoute.has(student.id)) {
-                return false;
-            }
-            
+            if (allAssignedStudentIds.has(student.id)) return false;
+
             let destId: string | null = null;
             if (selectedRouteType === 'Morning') {
                 destId = student.morningDestinationId;
             } else if (selectedRouteType === 'Afternoon') {
                 destId = student.afternoonDestinationId;
             } else if (selectedRouteType === 'AfterSchool') {
-                 // For AfterSchool, a student is eligible if they have an AfterSchool destination OR an Afternoon destination.
-                 destId = student.afterSchoolDestinations?.[selectedDay] ?? student.afternoonDestinationId;
+                destId = student.afterSchoolDestinations?.[selectedDay] ?? student.afternoonDestinationId;
             }
-            
+
             if (!destId || !currentRoute.stops.includes(destId)) {
                 return false;
             }
-    
+
             if (!unassignedSearchQuery) return true;
-    
+
             const lowerCaseQuery = unassignedSearchQuery.toLowerCase();
             const nameMatch = student.name.toLowerCase().includes(lowerCaseQuery);
             const destinationName = destinations.find(d => d.id === destId)?.name.toLowerCase() || '';
             const destMatch = destinationName.includes(lowerCaseQuery);
-    
+
             return nameMatch || destMatch;
         });
-    
-        const sortedUnassigned = unassigned.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+
+        const sortedUnassigned = unassigned.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
         setFilteredUnassignedStudents(sortedUnassigned);
-    
+
     }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations, unassignableStudents]);
     
     useEffect(() => {
@@ -2700,6 +2704,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 
