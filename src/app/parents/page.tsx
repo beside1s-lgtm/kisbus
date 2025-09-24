@@ -20,7 +20,7 @@ export default function ParentsPage() {
               <CheckSquare className="mr-4 size-8" /> 탑승 확인
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-28 text-lg">
+          <Button asChild className="h-28 text-lg">
             <Link href="/apply">
               <Edit className="mr-4 size-8" /> 탑승 신청
             </Link>
