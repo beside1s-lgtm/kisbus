@@ -822,12 +822,12 @@ const BusConfigurationTab = ({
 
   return (
     <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
             <Card>
                 <CardHeader>
                 <CardTitle>전체 목적지 목록</CardTitle>
                 <CardDescription>
-                    드래그하여 오른쪽 노선에 추가하거나, 버튼으로 관리하세요.
+                    버튼을 이용해 노선을 관리하세요.
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -909,19 +909,23 @@ const BusConfigurationTab = ({
 
             <div className="flex flex-col items-center justify-center gap-4">
                 <Button 
-                    size="lg"
+                    size="icon"
+                    className="h-12 w-12"
                     onClick={handleAddStopToRoute}
                     disabled={!currentRoute || !selectedAllDestId}
+                    aria-label="Add stop to route"
                 >
-                    <ArrowRight className="h-5 w-5" />
+                    <ArrowRight className="h-6 w-6" />
                 </Button>
                  <Button 
                     variant="destructive"
-                    size="lg"
+                    size="icon"
+                    className="h-12 w-12"
                     onClick={handleRemoveStopFromRoute}
                     disabled={!currentRoute || !selectedRouteStopId}
+                    aria-label="Remove stop from route"
                 >
-                    <ArrowLeft className="h-5 w-5" />
+                    <ArrowLeft className="h-6 w-6" />
                 </Button>
             </div>
 
@@ -930,12 +934,12 @@ const BusConfigurationTab = ({
                     <div>
                         <CardTitle>버스 노선 설정</CardTitle>
                         <CardDescription>
-                            목적지를 드래그하거나 버튼을 이용해 노선을 구성하세요.
+                            목적지를 선택하고 버튼을 이용해 노선을 구성하세요.
                         </CardDescription>
                     </div>
                      <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="outline" disabled={!currentRoute}>
+                            <Button variant="outline" disabled={!currentRoute || (selectedRouteType !== 'Morning' && selectedRouteType !== 'Afternoon')}>
                                 <Copy className="mr-2" /> 노선 복사
                             </Button>
                         </DialogTrigger>
@@ -1233,27 +1237,38 @@ const StudentManagementTab = ({
         const assignedStudentIdsOnCurrentRoute = new Set(
             currentRoute.seating.map(s => s.studentId).filter(Boolean)
         );
+
+        let afternoonAssignedStudentIds = new Set<string>();
+        if (selectedRouteType === 'AfterSchool') {
+            const afternoonRoutesForDay = routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'Afternoon');
+            afternoonRoutesForDay.forEach(r => {
+                r.seating.forEach(seat => {
+                    if (seat.studentId) {
+                        afternoonAssignedStudentIds.add(seat.studentId);
+                    }
+                });
+            });
+        }
         
         const unassigned = students.filter(student => {
             if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
             if (unassignableStudents.some(u => u.id === student.id)) return false;
+            
+            if (selectedRouteType === 'AfterSchool' && afternoonAssignedStudentIds.has(student.id)) {
+                return false;
+            }
 
             let destId: string | null = null;
-            let hasValidDestinationForRoute = false;
-
             if (selectedRouteType === 'Morning') {
                 destId = student.morningDestinationId;
-            } else if (selectedRouteType === 'Afternoon') {
-                destId = student.afternoonDestinationId;
-            } else if (selectedRouteType === 'AfterSchool') {
-                destId = student.afterSchoolDestinations?.[selectedDay] || null;
+            } else if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
+                // For AfterSchool, if no specific destination, consider afternoon destination
+                destId = student.afterSchoolDestinations?.[selectedDay] || student.afternoonDestinationId;
             }
             
-            if (destId && currentRoute.stops.includes(destId)) {
-                hasValidDestinationForRoute = true;
+            if (!destId || !currentRoute.stops.includes(destId)) {
+                return false;
             }
-
-            if (!hasValidDestinationForRoute) return false;
 
             if (!unassignedSearchQuery) return true;
 
@@ -1268,7 +1283,7 @@ const StudentManagementTab = ({
         const sortedUnassigned = unassigned.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
         setFilteredUnassignedStudents(sortedUnassigned);
 
-    }, [students, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations, unassignableStudents]);
+    }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations, unassignableStudents]);
     
     useEffect(() => {
         // Reset seat selection when route changes
@@ -1278,7 +1293,7 @@ const StudentManagementTab = ({
     const handleToggleSelectAll = useCallback(() => {
         if (!filteredUnassignedStudents) return;
         const allUnassignedIds = filteredUnassignedStudents.map(s => s.id);
-        if (selectedStudentIds.size === allUnassignedIds.length) {
+        if (selectedStudentIds.size === allUnassignedIds.length && allUnassignedIds.length > 0) {
             setSelectedStudentIds(new Set());
         } else {
             setSelectedStudentIds(new Set(allUnassignedIds));
@@ -1861,7 +1876,7 @@ const StudentManagementTab = ({
                 setSelectedBusId(route.busId);
                 setSelectedDay(route.dayOfWeek);
                 setSelectedRouteType(route.type);
-                toast({ title: "학생 찾음", description: `${student.name} 학생이 배정된 ${route.dayOfWeek} ${route.type} 노선으로 이동합니다.` });
+                toast({ title: "학생 찾음", description: `${student.name} 학생이 배정된 ${dayLabels[route.dayOfWeek]} ${route.type === 'Morning' ? '등교' : route.type === 'Afternoon' ? '하교' : '방과후'} 노선으로 이동합니다.` });
                 return;
             }
         }
@@ -2550,6 +2565,7 @@ const AdminPageContent: React.FC<{
 export default function AdminPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
+    
     const [buses, setBuses] = useState<Bus[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [routes, setRoutes] = useState<Route[]>([]);
@@ -2642,6 +2658,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 
