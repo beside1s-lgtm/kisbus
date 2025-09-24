@@ -1,10 +1,11 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/auth-context';
 
 export const metadata: Metadata = {
-  title: 'KIS 스쿨버스 관리자',
+  title: 'KIS 스쿨버스 매니저',
   description: '스쿨버스 노선, 학생 및 출결을 관리합니다.',
 };
 
