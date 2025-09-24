@@ -39,7 +39,7 @@ export default function Home() {
     <MainLayout>
         <div className="flex flex-col gap-8 items-center justify-center h-full">
             <header className="text-center">
-                <h1 className="text-4xl font-bold font-headline">KIS 스쿨버스 시스템</h1>
+                <h1 className="text-4xl font-bold font-headline">KIS 스쿨버스 매니저</h1>
                 <p className="text-muted-foreground mt-2">역할을 선택하여 시작하세요.</p>
             </header>
             <main className="grid gap-6 md:grid-cols-3 max-w-4xl w-full">
