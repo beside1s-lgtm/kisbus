@@ -822,12 +822,12 @@ const BusConfigurationTab = ({
 
   return (
     <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
             <Card>
                 <CardHeader>
                 <CardTitle>전체 목적지 목록</CardTitle>
                 <CardDescription>
-                    목적지를 선택하고 화살표 버튼을 눌러 노선에 추가하세요.
+                    드래그하여 오른쪽 노선에 추가하거나, 버튼으로 관리하세요.
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -930,7 +930,7 @@ const BusConfigurationTab = ({
                     <div>
                         <CardTitle>버스 노선 설정</CardTitle>
                         <CardDescription>
-                            화살표 버튼을 이용해 목적지를 추가/제거하고 순서를 변경하세요.
+                            목적지를 드래그하거나 버튼을 이용해 노선을 구성하세요.
                         </CardDescription>
                     </div>
                      <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
@@ -1147,6 +1147,9 @@ const StudentManagementTab = ({
     selectedDay,
     selectedRouteType,
     days,
+    setSelectedBusId,
+    setSelectedDay,
+    setSelectedRouteType,
 }:{
     students: Student[],
     setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
@@ -1158,6 +1161,9 @@ const StudentManagementTab = ({
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
     days: DayOfWeek[];
+    setSelectedBusId: (id: string | null) => void;
+    setSelectedDay: (day: DayOfWeek) => void;
+    setSelectedRouteType: (type: RouteType) => void;
 }) => {
     const { toast } = useToast();
     const [newStudentForm, setNewStudentForm] = useState<Partial<NewStudent>>({ gender: 'Male' });
@@ -1176,6 +1182,11 @@ const StudentManagementTab = ({
     // Seat assignment state
     const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
     const [unassignableStudents, setUnassignableStudents] = useState<Student[]>([]);
+
+    // Student search state
+    const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+    const [globalSearchResults, setGlobalSearchResults] = useState<Student[]>([]);
+    const [selectedGlobalStudent, setSelectedGlobalStudent] = useState<Student | null>(null);
 
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -1228,34 +1239,18 @@ const StudentManagementTab = ({
             if (unassignableStudents.some(u => u.id === student.id)) return false;
 
             let destId: string | null = null;
-            let destName: string | null = null;
             let hasValidDestinationForRoute = false;
 
-            // For Morning and Afternoon, it's simple
-            if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
-                destId = selectedRouteType === 'Morning' ? student.morningDestinationId : student.afternoonDestinationId;
-                destName = selectedRouteType === 'Morning' ? student.suggestedMorningDestination : student.suggestedAfternoonDestination;
-                hasValidDestinationForRoute = !!(currentRoute.stops.includes(destId || '') || destName);
-            } 
-            // For AfterSchool, check its own destination first, then fall back to Afternoon's
-            else if (selectedRouteType === 'AfterSchool') {
-                const afterSchoolDestId = student.afterSchoolDestinations?.[selectedDay];
-                const suggestedAfterSchoolDest = student.suggestedAfterSchoolDestinations?.[selectedDay];
-                const afternoonDestId = student.afternoonDestinationId;
-                const suggestedAfternoonDest = student.suggestedAfternoonDestination;
-
-                // Priority 1: After-school specific destination
-                if (currentRoute.stops.includes(afterSchoolDestId || '') || suggestedAfterSchoolDest) {
-                    hasValidDestinationForRoute = true;
-                    destId = afterSchoolDestId;
-                    destName = suggestedAfterSchoolDest;
-                } 
-                // Priority 2: Fallback to afternoon destination if no after-school one is set
-                else if (!afterSchoolDestId && !suggestedAfterSchoolDest && (currentRoute.stops.includes(afternoonDestId || '') || suggestedAfternoonDest)) {
-                    hasValidDestinationForRoute = true;
-                    destId = afternoonDestId;
-                    destName = suggestedAfternoonDest;
-                }
+            if (selectedRouteType === 'Morning') {
+                destId = student.morningDestinationId;
+            } else if (selectedRouteType === 'Afternoon') {
+                destId = student.afternoonDestinationId;
+            } else if (selectedRouteType === 'AfterSchool') {
+                destId = student.afterSchoolDestinations?.[selectedDay] || null;
+            }
+            
+            if (destId && currentRoute.stops.includes(destId)) {
+                hasValidDestinationForRoute = true;
             }
 
             if (!hasValidDestinationForRoute) return false;
@@ -1264,7 +1259,7 @@ const StudentManagementTab = ({
 
             const lowerCaseQuery = unassignedSearchQuery.toLowerCase();
             const nameMatch = student.name.toLowerCase().includes(lowerCaseQuery);
-            const destinationName = destinations.find(d => d.id === destId)?.name.toLowerCase() || destName?.toLowerCase() || '';
+            const destinationName = destinations.find(d => d.id === destId)?.name.toLowerCase() || '';
             const destMatch = destinationName.includes(lowerCaseQuery);
 
             return nameMatch || destMatch;
@@ -1842,6 +1837,37 @@ const StudentManagementTab = ({
         return errors.join(', ');
     }
 
+     // --- Global Student Search ---
+    useEffect(() => {
+        if (!globalSearchQuery) {
+            setGlobalSearchResults([]);
+            setSelectedGlobalStudent(null);
+            return;
+        }
+        const lowerCaseQuery = globalSearchQuery.toLowerCase();
+        const results = students.filter(s => s.name.toLowerCase().includes(lowerCaseQuery));
+        setGlobalSearchResults(results);
+    }, [globalSearchQuery, students]);
+
+    const handleGlobalStudentClick = (student: Student) => {
+        setSelectedGlobalStudent(student);
+        setGlobalSearchQuery('');
+        setGlobalSearchResults([]);
+
+        // Find the first route this student is assigned to
+        for (const route of routes) {
+            const isAssigned = route.seating.some(seat => seat.studentId === student.id);
+            if (isAssigned) {
+                setSelectedBusId(route.busId);
+                setSelectedDay(route.dayOfWeek);
+                setSelectedRouteType(route.type);
+                toast({ title: "학생 찾음", description: `${student.name} 학생이 배정된 ${route.dayOfWeek} ${route.type} 노선으로 이동합니다.` });
+                return;
+            }
+        }
+        toast({ title: "알림", description: `${student.name} 학생은 현재 배정된 좌석이 없습니다.` });
+    };
+
 
     if (!selectedBusId) {
        return (
@@ -2035,6 +2061,7 @@ const StudentManagementTab = ({
                                     destinations={destinations}
                                     onSeatClick={handleSeatClick}
                                     highlightedSeatNumber={selectedSeat?.seatNumber}
+                                    highlightedStudentId={selectedGlobalStudent?.id}
                                     routeType={selectedRouteType}
                                     dayOfWeek={selectedDay}
                                 />
@@ -2070,7 +2097,7 @@ const StudentManagementTab = ({
                         </Alert>
                     )}
                 </div>
-                <div className="lg:col-span-1">
+                <div className="lg:col-span-1 space-y-4">
                      <Card className="sticky top-20">
                         <CardHeader>
                             <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : `(${dayLabels[selectedDay]}) 방과후`})</CardTitle>
@@ -2079,7 +2106,7 @@ const StudentManagementTab = ({
                             </CardDescription>
                         </CardHeader>
                         <Separator />
-                         <CardContent className='pt-4 max-h-[60vh] overflow-y-auto'>
+                         <CardContent className='pt-4 max-h-[40vh] overflow-y-auto'>
                             <div className="relative mb-4">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
@@ -2132,6 +2159,65 @@ const StudentManagementTab = ({
                                     />
                                 ))}
                             </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline">전체 학생 검색</CardTitle>
+                            <CardDescription>
+                                학생을 검색하여 정보를 수정하거나 배정된 좌석을 확인하세요.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="relative mb-4">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    type="search"
+                                    placeholder="학생 이름 검색..."
+                                    className="pl-8 w-full"
+                                    value={globalSearchQuery}
+                                    onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                                />
+                                {globalSearchResults.length > 0 && (
+                                    <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
+                                        <CardContent className="p-2">
+                                            {globalSearchResults.map(student => (
+                                                <div key={student.id} 
+                                                    className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
+                                                    onClick={() => handleGlobalStudentClick(student)}>
+                                                    {student.name} ({student.grade} {student.class})
+                                                </div>
+                                            ))}
+                                        </CardContent>
+                                    </Card>
+                                )}
+                            </div>
+                            {selectedGlobalStudent && (
+                                <div className="space-y-4 p-4 border rounded-md">
+                                    <h4 className="font-semibold">{selectedGlobalStudent.name} ({selectedGlobalStudent.grade} {selectedGlobalStudent.class})</h4>
+                                    <div className="space-y-2">
+                                        <Label>등교 목적지</Label>
+                                        <Select 
+                                            value={selectedGlobalStudent.morningDestinationId || ''} 
+                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
+                                            <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>하교 목적지</Label>
+                                        <Select 
+                                            value={selectedGlobalStudent.afternoonDestinationId || ''} 
+                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
+                                            <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                    </div>
+                                     <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>선택 해제</Button>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
@@ -2450,6 +2536,9 @@ const AdminPageContent: React.FC<{
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
                         days={days}
+                        setSelectedBusId={setSelectedBusId}
+                        setSelectedDay={setSelectedDay}
+                        setSelectedRouteType={setSelectedRouteType}
                     />
                 </TabsContent>
             </Tabs>
@@ -2553,5 +2642,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
+
 
 
