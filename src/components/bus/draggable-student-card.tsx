@@ -2,9 +2,10 @@
 'use client';
 import React from 'react';
 import { Student, Destination, RouteType, DayOfWeek } from '@/lib/types';
-import { Card } from '../ui/card';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '../ui/checkbox';
+import { Button } from '../ui/button';
+import { Armchair } from 'lucide-react';
 
 interface StudentCardProps {
   student: Student;
@@ -12,7 +13,8 @@ interface StudentCardProps {
   className?: string;
   isChecked: boolean;
   onCheckedChange: (isChecked: boolean) => void;
-  onClick: () => void;
+  onCardClick: () => void;
+  onAssignClick: () => void;
   routeType: RouteType;
   dayOfWeek: DayOfWeek;
 }
@@ -23,7 +25,8 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     className,
     isChecked,
     onCheckedChange,
-    onClick,
+    onCardClick,
+    onAssignClick,
     routeType,
     dayOfWeek,
 }) => {
@@ -51,12 +54,12 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   }
 
   return (
-    <Card
+    <div
       className={cn(
-        'p-2 mb-2 flex items-center gap-2 cursor-pointer bg-card hover:bg-muted/80 transition-colors',
+        'p-2 mb-2 flex items-center gap-2 cursor-pointer bg-card hover:bg-muted/80 transition-colors border rounded-md',
         className
       )}
-      onClick={onClick}
+      onClick={onCardClick}
     >
       <Checkbox
         checked={isChecked}
@@ -68,6 +71,18 @@ export const StudentCard: React.FC<StudentCardProps> = ({
         <span className="text-sm font-medium">{formatStudentName(student)}</span>
         <p className="text-xs text-muted-foreground">{studentDestinationName}</p>
       </div>
-    </Card>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={(e) => {
+          e.stopPropagation();
+          onAssignClick();
+        }}
+        aria-label={`Assign ${student.name} to seat`}
+      >
+        <Armchair className="h-4 w-4" />
+      </Button>
+    </div>
   );
 };

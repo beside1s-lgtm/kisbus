@@ -22,7 +22,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { StudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX, Armchair } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1244,12 +1244,12 @@ const StudentManagementTab = ({
         }
 
         // Get all student IDs assigned to any route for the selected day and type
-        const allAssignedStudentIds = new Set<string>();
+        const allAssignedStudentIdsThisType = new Set<string>();
         routes.forEach(route => {
             if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
                 route.seating.forEach(seat => {
                     if (seat.studentId) {
-                        allAssignedStudentIds.add(seat.studentId);
+                        allAssignedStudentIdsThisType.add(seat.studentId);
                     }
                 });
             }
@@ -1257,7 +1257,7 @@ const StudentManagementTab = ({
 
         const unassigned = students.filter(student => {
             if (unassignableStudents.some(u => u.id === student.id)) return false;
-            if (allAssignedStudentIds.has(student.id)) return false;
+            if (allAssignedStudentIdsThisType.has(student.id)) return false;
 
             let destId: string | null = null;
             if (selectedRouteType === 'Morning') {
@@ -1265,9 +1265,11 @@ const StudentManagementTab = ({
             } else if (selectedRouteType === 'Afternoon') {
                 destId = student.afternoonDestinationId;
             } else if (selectedRouteType === 'AfterSchool') {
-                destId = student.afterSchoolDestinations?.[selectedDay] ?? student.afternoonDestinationId;
+                destId = student.afterSchoolDestinations?.[selectedDay] ?? null;
             }
 
+            // This condition is important: The student is only "unassigned" for THIS bus
+            // if their destination is actually on THIS bus's route.
             if (!destId || !currentRoute.stops.includes(destId)) {
                 return false;
             }
@@ -1389,6 +1391,10 @@ const StudentManagementTab = ({
              toast({ title: "알림", description: "먼저 빈 좌석을 선택해주세요."});
         }
     }, [selectedSeat, currentRoute, toast, handleSeatUpdate]);
+
+    const handleUnassignedStudentClick = useCallback((student: Student) => {
+        setSelectedGlobalStudent(student);
+    }, []);
 
     const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
         if (!currentRoute) return;
@@ -2120,7 +2126,7 @@ const StudentManagementTab = ({
                         <CardHeader>
                             <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : `(${dayLabels[selectedDay]}) 방과후`})</CardTitle>
                             <CardDescription>
-                                {selectedSeat && !selectedSeat.studentId ? "학생을 클릭하여 선택된 빈 좌석에 배정하세요." : "먼저 빈 좌석을 선택한 후 학생을 클릭하여 배정하세요."}
+                                학생을 클릭하여 정보를 보거나, 좌석 배정 버튼을 눌러 선택된 빈 좌석에 배정하세요.
                             </CardDescription>
                         </CardHeader>
                         <Separator />
@@ -2171,7 +2177,8 @@ const StudentManagementTab = ({
                                         destinations={destinations}
                                         isChecked={selectedStudentIds.has(student.id)}
                                         onCheckedChange={(isChecked) => handleToggleStudentSelection(student.id, isChecked)}
-                                        onClick={() => handleStudentCardClick(student.id)}
+                                        onCardClick={() => handleUnassignedStudentClick(student)}
+                                        onAssignClick={() => handleStudentCardClick(student.id)}
                                         routeType={selectedRouteType}
                                         dayOfWeek={selectedDay}
                                     />
@@ -2704,8 +2711,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-
-
-
-
