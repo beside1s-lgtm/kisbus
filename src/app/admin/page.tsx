@@ -1273,7 +1273,11 @@ const StudentManagementTab = ({
             } else if (selectedRouteType === 'Afternoon') {
                 destId = student.afternoonDestinationId;
             } else if (selectedRouteType === 'AfterSchool') {
-                 destId = student.afterSchoolDestinations?.[selectedDay] ?? student.afternoonDestinationId;
+                 destId = student.afterSchoolDestinations?.[selectedDay] ?? null;
+            }
+            
+            if (selectedRouteType === 'AfterSchool' && !destId) {
+                destId = student.afternoonDestinationId;
             }
             
             if (!destId || !currentRoute.stops.includes(destId)) {
@@ -1511,6 +1515,7 @@ const StudentManagementTab = ({
                 destId = s.afternoonDestinationId;
             } else if (selectedRouteType === 'AfterSchool') {
                 destId = s.afterSchoolDestinations?.[selectedDay] || null;
+                 if (!destId) destId = s.afternoonDestinationId;
             }
             return destId && currentRoute.stops.includes(destId);
         });
@@ -2122,8 +2127,8 @@ const StudentManagementTab = ({
                         </Alert>
                     )}
                 </div>
-                <div className="lg:col-span-1 space-y-4">
-                     <Card className="sticky top-20">
+                <div className="lg:col-span-1 space-y-4 sticky top-20 h-fit">
+                     <Card>
                         <CardHeader>
                             <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : `(${dayLabels[selectedDay]}) 방과후`})</CardTitle>
                             <CardDescription>
@@ -2711,6 +2716,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 
