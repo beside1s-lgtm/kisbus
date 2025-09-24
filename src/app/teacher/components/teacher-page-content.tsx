@@ -25,7 +25,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {format, differenceInDays, getDay} from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { LostAndFound } from './lost-and-found';
 
@@ -124,22 +124,22 @@ export function TeacherPageContent({
         const currentDate = format(new Date(), 'yyyy-MM-dd');
         if (currentDate !== today) {
             const previousDate = today;
-            setRoutes(prevRoutes => {
-                const route = prevRoutes.find(r => 
-                    r.busId === selectedBusId && 
-                    r.dayOfWeek === selectedDay && 
-                    r.type === selectedRouteType
-                );
-                if (route) {
-                    try {
-                        const prevDateAttendanceRef = doc(db, 'routes', route.id, 'attendance', previousDate);
-                        deleteDoc(prevDateAttendanceRef);
-                    } catch (error) {
-                        console.error("Failed to delete previous day's attendance:", error);
-                    }
+            const allRoutes = routes; // Use the current routes from state
+            
+            if (allRoutes.length > 0) {
+                const batch = writeBatch(db);
+                allRoutes.forEach(route => {
+                    const prevDateAttendanceRef = doc(db, 'routes', route.id, 'attendance', previousDate);
+                    batch.delete(prevDateAttendanceRef);
+                });
+                try {
+                    await batch.commit();
+                    console.log(`Successfully deleted all attendance records for ${previousDate}.`);
+                } catch (error) {
+                    console.error("Failed to delete previous day's attendance records:", error);
                 }
-                return prevRoutes;
-            });
+            }
+            
             setToday(currentDate);
         }
     }, 60000); // Check every minute
@@ -148,7 +148,7 @@ export function TeacherPageContent({
         unsubscribeRoutes();
         clearInterval(dateCheckInterval);
     };
-  }, [today, selectedBusId, selectedDay, selectedRouteType]);
+  }, [today, routes]);
 
   
   useEffect(() => {
@@ -624,3 +624,5 @@ export function TeacherPageContent({
     </MainLayout>
   );
 }
+
+    
