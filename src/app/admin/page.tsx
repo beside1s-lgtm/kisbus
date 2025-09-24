@@ -1266,12 +1266,14 @@ const StudentManagementTab = ({
             if (selectedRouteType === 'AfterSchool' && afternoonAssignedStudentIds.has(student.id)) {
                 return false;
             }
-
+            
             let destId: string | null = null;
-             if (selectedRouteType === 'Morning') {
+            if (selectedRouteType === 'Morning') {
                 destId = student.morningDestinationId;
-            } else if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
-                destId = student.afterSchoolDestinations?.[selectedDay] || student.afternoonDestinationId;
+            } else if (selectedRouteType === 'Afternoon') {
+                destId = student.afternoonDestinationId;
+            } else if (selectedRouteType === 'AfterSchool') {
+                destId = student.afterSchoolDestinations?.[selectedDay] ?? student.afternoonDestinationId;
             }
             
             if (!destId || !currentRoute.stops.includes(destId)) {
@@ -1825,7 +1827,6 @@ const StudentManagementTab = ({
         try {
             await updateStudent(studentId, updateData);
             
-            // Optimistically update local state after successful DB update
             const updatedStudent = { ...student, ...updateData };
             setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? updatedStudent : s));
             if (selectedGlobalStudent?.id === studentId) {
@@ -1837,11 +1838,20 @@ const StudentManagementTab = ({
             toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 모든 노선에서 좌석 배정이 해제되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
-            // Re-fetch data on error to be safe
             const freshStudents = await getStudents();
             setStudents(freshStudents);
         }
     }, [students, setStudents, selectedGlobalStudent, toast]);
+    
+    const handleUnassignAllFromStudent = useCallback(async () => {
+        if (!selectedGlobalStudent) return;
+        try {
+            await unassignStudentFromAllRoutes(selectedGlobalStudent.id);
+            toast({ title: "성공", description: `${selectedGlobalStudent.name} 학생이 모든 노선에서 배정 해제되었습니다.`});
+        } catch (error) {
+             toast({ title: "오류", description: "전체 배정 해제 중 오류 발생", variant: 'destructive'});
+        }
+    }, [selectedGlobalStudent, toast]);
 
     const getUnassignableReason = (student: Student) => {
         const allValidStopIds = new Set<string>();
@@ -2210,8 +2220,29 @@ const StudentManagementTab = ({
                             {selectedGlobalStudent && (
                                 <div className="space-y-4 p-4 border rounded-md">
                                     <div className="flex justify-between items-start">
-                                        <h4 className="font-semibold">{selectedGlobalStudent.name} ({selectedGlobalStudent.grade} {selectedGlobalStudent.class})</h4>
-                                        <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>선택 해제</Button>
+                                        <div>
+                                            <h4 className="font-semibold">{selectedGlobalStudent.name} ({selectedGlobalStudent.grade} {selectedGlobalStudent.class})</h4>
+                                             <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                     <Button variant="link" size="sm" className="p-0 h-auto text-destructive">
+                                                        <UserX className="mr-1"/>모두 배정 해제
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>모든 노선에서 배정 해제하시겠습니까?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            {selectedGlobalStudent.name} 학생이 배정된 모든 노선의 좌석에서 해제됩니다. 이 작업은 되돌릴 수 없습니다.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>취소</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={handleUnassignAllFromStudent}>배정 해제</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                        <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>닫기</Button>
                                     </div>
                                     <div className="space-y-2">
                                         <Label>등교 목적지</Label>
@@ -2235,7 +2266,7 @@ const StudentManagementTab = ({
                                     </div>
                                      <div>
                                         <Label>배정된 노선</Label>
-                                        <div className="space-y-2 mt-1">
+                                        <div className="space-y-2 mt-1 border rounded-md p-2 max-h-40 overflow-y-auto">
                                             {assignedRoutesForSelectedStudent.length > 0 ? (
                                                 assignedRoutesForSelectedStudent.map(route => {
                                                     const busName = buses.find(b => b.id === route.busId)?.name || '알 수 없는 버스';
@@ -2681,6 +2712,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 
