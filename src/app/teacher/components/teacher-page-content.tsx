@@ -97,7 +97,7 @@ export function TeacherPageContent({
     const vietnamHour = (now.getUTCHours() + 7) % 24;
     if (vietnamHour >= 16) {
         setSelectedRouteType('AfterSchool');
-    } else if (vietnamHour >= 9) {
+    } else if (vietnamHour >= 12) {
         setSelectedRouteType('Afternoon');
     } else {
         setSelectedRouteType('Morning');
