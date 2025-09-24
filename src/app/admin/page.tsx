@@ -507,7 +507,6 @@ const BusConfigurationTab = ({
         try {
             await deleteAllDestinations();
             setDestinations([]);
-            // Also update routes to have empty stops
             // Local state update will be handled by the onSnapshot listener
             dismiss();
             toast({ title: "성공", description: "모든 목적지가 삭제되었습니다." });
@@ -823,7 +822,7 @@ const BusConfigurationTab = ({
 
   return (
     <div className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 xl:gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
             <Card>
                 <CardHeader>
                 <CardTitle>전체 목적지 목록</CardTitle>
@@ -908,13 +907,12 @@ const BusConfigurationTab = ({
                 </CardContent>
             </Card>
 
-            <div className="flex lg:flex-col items-center justify-center gap-4">
+            <div className="flex flex-col items-center justify-center gap-4">
                 <Button 
                     size="lg"
                     onClick={handleAddStopToRoute}
                     disabled={!currentRoute || !selectedAllDestId}
                 >
-                    <span className="lg:hidden">추가</span>
                     <ArrowRight className="h-5 w-5" />
                 </Button>
                  <Button 
@@ -924,7 +922,6 @@ const BusConfigurationTab = ({
                     disabled={!currentRoute || !selectedRouteStopId}
                 >
                     <ArrowLeft className="h-5 w-5" />
-                    <span className="lg:hidden">제거</span>
                 </Button>
             </div>
 
@@ -1038,7 +1035,7 @@ const BusConfigurationTab = ({
                 </CardContent>
             </Card>
         </div>
-        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {suggestedDestinations.length > 0 && (
                     <Card>
                         <CardHeader>
@@ -1228,33 +1225,40 @@ const StudentManagementTab = ({
         
         const unassigned = students.filter(student => {
             if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
-
-            // Exclude students who are unassignable due to destination errors
             if (unassignableStudents.some(u => u.id === student.id)) return false;
 
             let destId: string | null = null;
             let destName: string | null = null;
+            let hasValidDestinationForRoute = false;
 
-            if (selectedRouteType === 'Morning') {
-                destId = student.morningDestinationId;
-                destName = student.suggestedMorningDestination || null;
-            } else if (selectedRouteType === 'Afternoon') {
-                destId = student.afternoonDestinationId;
-                destName = student.suggestedAfternoonDestination || null;
-            } else if (selectedRouteType === 'AfterSchool') {
-                destId = student.afterSchoolDestinations ? student.afterSchoolDestinations[selectedDay] : null;
-                // If no afterschool dest, fall back to afternoon dest for initial setup
-                if (!destId) {
-                    destId = student.afternoonDestinationId;
-                }
-                destName = student.suggestedAfterSchoolDestinations ? student.suggestedAfterSchoolDestinations[selectedDay] : null;
-                 if (!destName) {
-                    destName = student.suggestedAfternoonDestination;
+            // For Morning and Afternoon, it's simple
+            if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
+                destId = selectedRouteType === 'Morning' ? student.morningDestinationId : student.afternoonDestinationId;
+                destName = selectedRouteType === 'Morning' ? student.suggestedMorningDestination : student.suggestedAfternoonDestination;
+                hasValidDestinationForRoute = !!(currentRoute.stops.includes(destId || '') || destName);
+            } 
+            // For AfterSchool, check its own destination first, then fall back to Afternoon's
+            else if (selectedRouteType === 'AfterSchool') {
+                const afterSchoolDestId = student.afterSchoolDestinations?.[selectedDay];
+                const suggestedAfterSchoolDest = student.suggestedAfterSchoolDestinations?.[selectedDay];
+                const afternoonDestId = student.afternoonDestinationId;
+                const suggestedAfternoonDest = student.suggestedAfternoonDestination;
+
+                // Priority 1: After-school specific destination
+                if (currentRoute.stops.includes(afterSchoolDestId || '') || suggestedAfterSchoolDest) {
+                    hasValidDestinationForRoute = true;
+                    destId = afterSchoolDestId;
+                    destName = suggestedAfterSchoolDest;
+                } 
+                // Priority 2: Fallback to afternoon destination if no after-school one is set
+                else if (!afterSchoolDestId && !suggestedAfterSchoolDest && (currentRoute.stops.includes(afternoonDestId || '') || suggestedAfternoonDest)) {
+                    hasValidDestinationForRoute = true;
+                    destId = afternoonDestId;
+                    destName = suggestedAfternoonDest;
                 }
             }
-            
-            const hasDestinationForThisRoute = !!(currentRoute.stops.includes(destId || '') || destName);
-            if (!hasDestinationForThisRoute) return false;
+
+            if (!hasValidDestinationForRoute) return false;
 
             if (!unassignedSearchQuery) return true;
 
@@ -2549,4 +2553,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
