@@ -1246,30 +1246,12 @@ const StudentManagementTab = ({
         const assignedStudentIdsOnCurrentRoute = new Set(
             currentRoute.seating.map(s => s.studentId).filter(Boolean)
         );
-    
-        // For Afternoon and AfterSchool, find all students assigned to EITHER type on the selected day
-        let assignedStudentIdsForDay = new Set<string>();
-        if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
-            const relevantRoutes = routes.filter(r => 
-                r.dayOfWeek === selectedDay &&
-                (r.type === 'Afternoon' || r.type === 'AfterSchool')
-            );
-            relevantRoutes.forEach(r => {
-                r.seating.forEach(seat => {
-                    if (seat.studentId) {
-                        assignedStudentIdsForDay.add(seat.studentId);
-                    }
-                });
-            });
-        }
         
         const unassigned = students.filter(student => {
             if (unassignableStudents.some(u => u.id === student.id)) return false;
     
-            if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
-                 if (assignedStudentIdsForDay.has(student.id)) return false;
-            } else { // Morning
-                if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
+            if (assignedStudentIdsOnCurrentRoute.has(student.id)) {
+                return false;
             }
             
             let destId: string | null = null;
@@ -2718,6 +2700,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 
