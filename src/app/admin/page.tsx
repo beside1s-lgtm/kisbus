@@ -908,7 +908,7 @@ const BusConfigurationTab = ({
                 </CardContent>
             </Card>
 
-            <div className="flex flex-col items-center justify-center gap-4">
+            <div className="flex flex-col items-center justify-center gap-4 self-stretch">
                 <Button 
                     size="icon"
                     className="h-12 w-12"
@@ -1242,29 +1242,34 @@ const StudentManagementTab = ({
             setFilteredUnassignedStudents([]);
             return;
         }
-
+    
         const assignedStudentIdsOnCurrentRoute = new Set(
             currentRoute.seating.map(s => s.studentId).filter(Boolean)
         );
-
-        let afternoonAssignedStudentIds = new Set<string>();
-        if (selectedRouteType === 'AfterSchool') {
-            const afternoonRoutesForDay = routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'Afternoon');
-            afternoonRoutesForDay.forEach(r => {
+    
+        // For Afternoon and AfterSchool, find all students assigned to EITHER type on the selected day
+        let assignedStudentIdsForDay = new Set<string>();
+        if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
+            const relevantRoutes = routes.filter(r => 
+                r.dayOfWeek === selectedDay &&
+                (r.type === 'Afternoon' || r.type === 'AfterSchool')
+            );
+            relevantRoutes.forEach(r => {
                 r.seating.forEach(seat => {
                     if (seat.studentId) {
-                        afternoonAssignedStudentIds.add(seat.studentId);
+                        assignedStudentIdsForDay.add(seat.studentId);
                     }
                 });
             });
         }
         
         const unassigned = students.filter(student => {
-            if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
             if (unassignableStudents.some(u => u.id === student.id)) return false;
-            
-            if (selectedRouteType === 'AfterSchool' && afternoonAssignedStudentIds.has(student.id)) {
-                return false;
+    
+            if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
+                 if (assignedStudentIdsForDay.has(student.id)) return false;
+            } else { // Morning
+                if (assignedStudentIdsOnCurrentRoute.has(student.id)) return false;
             }
             
             let destId: string | null = null;
@@ -1273,30 +1278,27 @@ const StudentManagementTab = ({
             } else if (selectedRouteType === 'Afternoon') {
                 destId = student.afternoonDestinationId;
             } else if (selectedRouteType === 'AfterSchool') {
-                 destId = student.afterSchoolDestinations?.[selectedDay] ?? null;
-            }
-            
-            if (selectedRouteType === 'AfterSchool' && !destId) {
-                destId = student.afternoonDestinationId;
+                 // For AfterSchool, a student is eligible if they have an AfterSchool destination OR an Afternoon destination.
+                 destId = student.afterSchoolDestinations?.[selectedDay] ?? student.afternoonDestinationId;
             }
             
             if (!destId || !currentRoute.stops.includes(destId)) {
                 return false;
             }
-
+    
             if (!unassignedSearchQuery) return true;
-
+    
             const lowerCaseQuery = unassignedSearchQuery.toLowerCase();
             const nameMatch = student.name.toLowerCase().includes(lowerCaseQuery);
             const destinationName = destinations.find(d => d.id === destId)?.name.toLowerCase() || '';
             const destMatch = destinationName.includes(lowerCaseQuery);
-
+    
             return nameMatch || destMatch;
         });
-
+    
         const sortedUnassigned = unassigned.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
         setFilteredUnassignedStudents(sortedUnassigned);
-
+    
     }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations, unassignableStudents]);
     
     useEffect(() => {
@@ -2127,7 +2129,7 @@ const StudentManagementTab = ({
                         </Alert>
                     )}
                 </div>
-                <div className="lg:col-span-1 space-y-4 sticky top-20 h-fit">
+                <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-20 h-fit">
                      <Card>
                         <CardHeader>
                             <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : `(${dayLabels[selectedDay]}) 방과후`})</CardTitle>
@@ -2716,5 +2718,6 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
