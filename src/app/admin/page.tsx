@@ -1,4 +1,5 @@
 
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -20,7 +21,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { StudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeftRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -633,27 +634,26 @@ const BusConfigurationTab = ({
       await updateRouteStops(currentRoute.id, newStopIds);
   }, [currentRoute, selectedRouteStopId]);
 
-    const handleTransferStop = useCallback(async () => {
-        if (!currentRoute) return;
+    const handleAddStopToRoute = useCallback(async () => {
+        if (!currentRoute || !selectedAllDestId) return;
         const currentStopIds = currentRoute.stops || [];
+        if (currentStopIds.includes(selectedAllDestId)) {
+            toast({ title: "오류", description: "이미 노선에 추가된 목적지입니다.", variant: 'destructive' });
+            return;
+        }
+        const newStopIds = [...currentStopIds, selectedAllDestId];
+        await updateRouteStops(currentRoute.id, newStopIds);
+        setSelectedAllDestId(null);
+    }, [currentRoute, selectedAllDestId, toast]);
 
-        // Add from all destinations to route
-        if (selectedAllDestId) {
-            if (currentStopIds.includes(selectedAllDestId)) {
-                toast({ title: "오류", description: "이미 노선에 추가된 목적지입니다.", variant: 'destructive' });
-                return;
-            }
-            const newStopIds = [...currentStopIds, selectedAllDestId];
-            await updateRouteStops(currentRoute.id, newStopIds);
-            setSelectedAllDestId(null);
-        }
-        // Remove from route to all destinations
-        else if (selectedRouteStopId) {
-            const newStopIds = currentStopIds.filter(id => id !== selectedRouteStopId);
-            await updateRouteStops(currentRoute.id, newStopIds);
-            setSelectedRouteStopId(null);
-        }
-    }, [currentRoute, selectedAllDestId, selectedRouteStopId, toast]);
+    const handleRemoveStopFromRoute = useCallback(async () => {
+        if (!currentRoute || !selectedRouteStopId) return;
+        const currentStopIds = currentRoute.stops || [];
+        const newStopIds = currentStopIds.filter(id => id !== selectedRouteStopId);
+        await updateRouteStops(currentRoute.id, newStopIds);
+        setSelectedRouteStopId(null);
+    }, [currentRoute, selectedRouteStopId]);
+
 
   const assignRandomTeachers = useCallback(async () => {
     if (!selectedBus || !currentRoute) {
@@ -823,8 +823,8 @@ const BusConfigurationTab = ({
 
   return (
     <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-            <Card className="md:col-span-1">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 xl:gap-6 items-start">
+            <Card>
                 <CardHeader>
                 <CardTitle>전체 목적지 목록</CardTitle>
                 <CardDescription>
@@ -908,19 +908,27 @@ const BusConfigurationTab = ({
                 </CardContent>
             </Card>
 
-             <div className="flex flex-col items-center justify-center gap-2">
+            <div className="flex lg:flex-col items-center justify-center gap-4">
                 <Button 
-                    variant="outline"
-                    size="icon"
-                    onClick={handleTransferStop}
-                    disabled={!currentRoute || (!selectedAllDestId && !selectedRouteStopId)}
+                    size="lg"
+                    onClick={handleAddStopToRoute}
+                    disabled={!currentRoute || !selectedAllDestId}
                 >
-                    <ArrowLeftRight className="h-5 w-5" />
+                    <span className="lg:hidden">추가</span>
+                    <ArrowRight className="h-5 w-5" />
+                </Button>
+                 <Button 
+                    variant="destructive"
+                    size="lg"
+                    onClick={handleRemoveStopFromRoute}
+                    disabled={!currentRoute || !selectedRouteStopId}
+                >
+                    <ArrowLeft className="h-5 w-5" />
+                    <span className="lg:hidden">제거</span>
                 </Button>
             </div>
 
-
-            <Card className="md:col-span-1">
+            <Card>
                  <CardHeader className="flex-row justify-between items-center">
                     <div>
                         <CardTitle>버스 노선 설정</CardTitle>
@@ -1029,8 +1037,8 @@ const BusConfigurationTab = ({
                     )}
                 </CardContent>
             </Card>
-
-            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+        </div>
+        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                  {suggestedDestinations.length > 0 && (
                     <Card>
                         <CardHeader>
@@ -1125,7 +1133,6 @@ const BusConfigurationTab = ({
                         </CardFooter>
                     </Card>
                 )}
-            </div>
         </div>
     </div>
   );
@@ -1236,7 +1243,14 @@ const StudentManagementTab = ({
                 destName = student.suggestedAfternoonDestination || null;
             } else if (selectedRouteType === 'AfterSchool') {
                 destId = student.afterSchoolDestinations ? student.afterSchoolDestinations[selectedDay] : null;
+                // If no afterschool dest, fall back to afternoon dest for initial setup
+                if (!destId) {
+                    destId = student.afternoonDestinationId;
+                }
                 destName = student.suggestedAfterSchoolDestinations ? student.suggestedAfterSchoolDestinations[selectedDay] : null;
+                 if (!destName) {
+                    destName = student.suggestedAfternoonDestination;
+                }
             }
             
             const hasDestinationForThisRoute = !!(currentRoute.stops.includes(destId || '') || destName);
@@ -2535,3 +2549,4 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
