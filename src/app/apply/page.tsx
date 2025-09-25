@@ -97,7 +97,14 @@ export default function ApplyPage() {
         }
 
         const existingStudent = findExistingStudent();
-        let updateData: Partial<Student> = { applicationStatus: 'pending' };
+        let updateData: Partial<Student> = { 
+            applicationStatus: 'pending',
+            ...existingStudent, // Preserve existing data
+            name: name.trim(),
+            grade: grade.trim(),
+            class: studentClass.trim(),
+            gender,
+        };
         
         try {
             if (useCustomMorningDest && customMorningDestName.trim()) {
@@ -126,7 +133,7 @@ export default function ApplyPage() {
 
         try {
             if (existingStudent) {
-                await updateStudent(existingStudent.id, { ...existingStudent, ...updateData });
+                await updateStudent(existingStudent.id, updateData);
                 setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } : s));
             } else {
                 const newStudentData: NewStudent = {
@@ -136,7 +143,7 @@ export default function ApplyPage() {
                     gender,
                     morningDestinationId: updateData.morningDestinationId || null,
                     afternoonDestinationId: updateData.afternoonDestinationId || null,
-                    afterSchoolDestinations: {},
+                    afterSchoolDestinations: existingStudent?.afterSchoolDestinations || {}, // Preserve existing
                     suggestedMorningDestination: updateData.suggestedMorningDestination || null,
                     suggestedAfternoonDestination: updateData.suggestedAfternoonDestination || null,
                     applicationStatus: 'pending',
@@ -194,8 +201,8 @@ export default function ApplyPage() {
                     finalSuggestedDests[day] = null;
                 }
             } else {
-                 finalDestinations[day] = null;
-                 finalSuggestedDests[day] = null;
+                 finalDestinations[day] = finalDestinations[day] !== undefined ? finalDestinations[day] : null;
+                 finalSuggestedDests[day] = finalSuggestedDests[day] !== undefined ? finalSuggestedDests[day] : null;
             }
         }
         if (hasError) return;
@@ -211,6 +218,11 @@ export default function ApplyPage() {
         }
 
         const updateData: Partial<Student> = { 
+            ...existingStudent, // Preserve existing data
+            name: name.trim(),
+            grade: grade.trim(),
+            class: studentClass.trim(),
+            gender,
             afterSchoolDestinations: finalDestinations,
             suggestedAfterSchoolDestinations: finalSuggestedDests,
             applicationStatus: 'pending'
@@ -218,7 +230,7 @@ export default function ApplyPage() {
 
          try {
             if (existingStudent) {
-                await updateStudent(existingStudent.id, { ...existingStudent, ...updateData });
+                await updateStudent(existingStudent.id, updateData);
                 setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } : s));
             } else {
                  const newStudentData: NewStudent = {
@@ -226,8 +238,8 @@ export default function ApplyPage() {
                     grade: grade.trim(),
                     class: studentClass.trim(),
                     gender,
-                    morningDestinationId: null,
-                    afternoonDestinationId: null,
+                    morningDestinationId: existingStudent?.morningDestinationId || null,
+                    afternoonDestinationId: existingStudent?.afternoonDestinationId || null,
                     afterSchoolDestinations: finalDestinations,
                     suggestedAfterSchoolDestinations: finalSuggestedDests,
                     applicationStatus: 'pending'
