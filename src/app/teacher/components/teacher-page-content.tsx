@@ -185,11 +185,7 @@ export function TeacherPageContent({
       const fetchLeaderRecords = async () => {
           try {
               const records = await getGroupLeaderRecords(currentRoute.id);
-              const recordsWithName = records.map(r => ({
-                  ...r,
-                  name: formatStudentName(students.find(s => s.id === r.studentId)!)
-              }))
-              setGroupLeaderRecords(recordsWithName);
+              setGroupLeaderRecords(records);
           } catch(e) {
               console.error("Failed to fetch leader records", e);
               setGroupLeaderRecords([]); // Reset on error
@@ -199,7 +195,7 @@ export function TeacherPageContent({
     } else {
         setGroupLeaderRecords([]);
     }
-  }, [currentRoute, students]);
+  }, [currentRoute]);
   
   // Save GroupLeaderRecords
   useEffect(() => {
@@ -305,25 +301,7 @@ export function TeacherPageContent({
   };
   
     const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
-        if (!currentRoute) return;
-
-        const student = students.find(s => s.id === studentId);
-
-        // --- Boarding Status Toggle ---
-        if (student) {
-            const newBoardedIds = boardedStudentIds.includes(studentId!)
-                ? boardedStudentIds.filter(id => id !== studentId)
-                : [...boardedStudentIds, studentId!];
-            const newAbsentIds = boardedStudentIds.includes(studentId!)
-                ? absentStudentIds
-                : absentStudentIds.filter(id => id !== studentId);
-
-            try {
-                await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
-            } catch (error) {
-                toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
-            }
-        }
+        const student = studentId ? students.find(s => s.id === studentId) : null;
         
         // --- Student Info Display ---
         if(student) {
@@ -338,8 +316,24 @@ export function TeacherPageContent({
              setSelectedSeat(null);
              toast({title: "알림", description: "좌석 교체가 취소되었습니다."});
         }
+    }, [students, groupLeaderRecords, selectedSeat, toast]);
 
-    }, [students, groupLeaderRecords, boardedStudentIds, currentRoute, today, absentStudentIds, toast, selectedSeat]);
+    const handleBoardingToggle = useCallback(async (studentId: string | null) => {
+        if (!studentId || !currentRoute) return;
+
+        const newBoardedIds = boardedStudentIds.includes(studentId)
+            ? boardedStudentIds.filter(id => id !== studentId)
+            : [...boardedStudentIds, studentId];
+        const newAbsentIds = boardedStudentIds.includes(studentId)
+            ? absentStudentIds
+            : absentStudentIds.filter(id => id !== studentId);
+
+        try {
+            await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
+        } catch (error) {
+            toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
+        }
+    }, [currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
     
     const handleSeatContextMenu = useCallback(async (e: React.MouseEvent, seatNumber: number) => {
         e.preventDefault();
@@ -386,7 +380,7 @@ export function TeacherPageContent({
     if (!searchQuery) return [];
     const lowerCaseQuery = searchQuery.toLowerCase();
     return students.filter(s => 
-        s.name.toLowerCase().includes(lowerCaseQuery)
+        formatStudentName(s).toLowerCase().includes(lowerCaseQuery)
     );
   }, [searchQuery, students]);
 
@@ -451,7 +445,7 @@ export function TeacherPageContent({
   );
 
   const sidePanel = (
-    <div>
+    <div className="min-h-[250px]">
         <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -514,7 +508,7 @@ export function TeacherPageContent({
                 </div>
             </div>
         ) : (
-            <div className="text-center text-muted-foreground py-10">
+            <div className="text-center text-muted-foreground pt-10">
                 <p>학생을 선택하거나 검색하여 정보를 확인하세요.</p>
             </div>
         )}
@@ -538,7 +532,7 @@ export function TeacherPageContent({
                         </span>
                     )}
                 </CardTitle>
-                <CardDescription>좌클릭으로 탑승/하차를 표시하고, 우클릭으로 좌석을 교체할 수 있습니다.</CardDescription>
+                <CardDescription>좌석을 클릭하면 탑승/미탑승 처리됩니다. 우클릭으로 좌석을 교체할 수 있습니다.</CardDescription>
             </CardHeader>
             <CardContent>
                 {selectedBus && currentRoute ? (
@@ -547,7 +541,10 @@ export function TeacherPageContent({
                         seating={currentRoute.seating}
                         students={students}
                         destinations={destinations}
-                        onSeatClick={handleSeatClick}
+                        onSeatClick={(seatNumber, studentId) => {
+                            handleSeatClick(seatNumber, studentId);
+                            handleBoardingToggle(studentId);
+                        }}
                         onSeatContextMenu={handleSeatContextMenu}
                         absentStudentIds={absentStudentIds}
                         boardedStudentIds={boardedStudentIds}
@@ -590,8 +587,7 @@ export function TeacherPageContent({
                             <TableRow 
                                 key={student.id} 
                                 onClick={() => {
-                                     const seat = currentRoute?.seating.find(s => s.studentId === student.id);
-                                     if(seat) handleSeatClick(seat.seatNumber, student.id);
+                                    handleSeatClick(0, student.id);
                                 }}
                                 className="cursor-pointer"
                             >
@@ -608,7 +604,7 @@ export function TeacherPageContent({
             </CardContent>
             </Card>
 
-             <GroupLeaderManager records={groupLeaderRecords} setRecords={setGroupLeaderRecords} />
+             <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name }))} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
       )}
@@ -624,5 +620,3 @@ export function TeacherPageContent({
     </MainLayout>
   );
 }
-
-    
