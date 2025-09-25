@@ -200,8 +200,10 @@ export function TeacherPageContent({
   // Save GroupLeaderRecords
   useEffect(() => {
     if (currentRoute && groupLeaderRecords) {
-      const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
-      saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
+        const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
+        if (recordsToSave.length > 0) {
+            saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
+        }
     }
   }, [groupLeaderRecords, currentRoute]);
 
@@ -290,7 +292,7 @@ export function TeacherPageContent({
 
         newRecords.push({
             studentId,
-            name: formatStudentName(student),
+            name: 'DEPRECATED', // Name is now dynamically looked up
             startDate: dateStr,
             endDate: null,
             days: 1,
@@ -300,10 +302,9 @@ export function TeacherPageContent({
     setGroupLeaderRecords(newRecords);
   };
   
-    const handleSeatClick = useCallback(async (seatNumber: number, studentId: string | null) => {
+    const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
         const student = studentId ? students.find(s => s.id === studentId) : null;
         
-        // --- Student Info Display ---
         if(student) {
             const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
             setSelectedStudent({...student, isGroupLeader: isActiveLeader});
@@ -311,7 +312,6 @@ export function TeacherPageContent({
             setSelectedStudent(null);
         }
         
-        // --- Reset Seat Swap Selection on left click ---
         if (selectedSeat) {
              setSelectedSeat(null);
              toast({title: "알림", description: "좌석 교체가 취소되었습니다."});
@@ -586,9 +586,7 @@ export function TeacherPageContent({
                         {studentsOnCurrentRoute.map(student => (
                             <TableRow 
                                 key={student.id} 
-                                onClick={() => {
-                                    handleSeatClick(0, student.id);
-                                }}
+                                onClick={() => handleSeatClick(0, student.id)}
                                 className="cursor-pointer"
                             >
                                 <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
