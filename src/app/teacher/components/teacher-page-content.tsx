@@ -566,7 +566,7 @@ export function TeacherPageContent({
                 <CardHeader>
                     <CardTitle className="font-headline">학생 정보</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="min-h-[300px]">
                     {sidePanel}
                 </CardContent>
             </Card>
