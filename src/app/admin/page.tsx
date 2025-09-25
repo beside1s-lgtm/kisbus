@@ -1267,12 +1267,8 @@ const StudentManagementTab = ({
             } else if (selectedRouteType === 'AfterSchool') {
                 destId = student.afterSchoolDestinations?.[selectedDay] ?? null;
             }
-
-            // This condition is important: The student is only "unassigned" for THIS bus
-            // if their destination is actually on THIS bus's route.
-            if (!destId || !currentRoute.stops.includes(destId)) {
-                return false;
-            }
+            
+            if (!destId) return false;
 
             if (!unassignedSearchQuery) return true;
 
@@ -1702,13 +1698,14 @@ const StudentManagementTab = ({
                     const afternoonDestName = (row['하교 목적지'] || '').trim();
     
                     const afterSchoolDests: Partial<Record<DayOfWeek, string | null>> = {};
-                    let hasAfterSchool = false;
                     days.forEach(day => {
                         const dayLabel = dayLabels[day];
                         const destName = (row[`방과후 목적지(${dayLabel})`] || row[`방과후 목적지 (${dayLabel})`] || '').trim();
+                        // Only add to object if destName is not empty, to allow clearing destinations
                         if (destName) {
                             afterSchoolDests[day] = findDestId(destName);
-                            hasAfterSchool = true;
+                        } else {
+                            afterSchoolDests[day] = null;
                         }
                     });
                     
@@ -1717,9 +1714,9 @@ const StudentManagementTab = ({
                         grade: grade,
                         class: studentClass,
                         gender: (row['성별'] || 'Male').trim() as 'Male' | 'Female',
-                        morningDestinationId: morningDestName ? findDestId(morningDestName) : null,
-                        afternoonDestinationId: afternoonDestName ? findDestId(afternoonDestName) : null,
-                        afterSchoolDestinations: hasAfterSchool ? afterSchoolDests : {},
+                        morningDestinationId: morningDestName ? findDestId(morningDestName) : undefined,
+                        afternoonDestinationId: afternoonDestName ? findDestId(afternoonDestName) : undefined,
+                        afterSchoolDestinations: afterSchoolDests,
                         applicationStatus: 'pending'
                     };
                     studentsToProcess.push(studentData);
@@ -1743,7 +1740,7 @@ const StudentManagementTab = ({
                         }
                     });
 
-                    setStudents(newStudentList);
+                    setStudents(newStudentList.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
                     dismiss();
                     toast({ title: "성공", description: `${processedStudents.length}명의 학생 정보가 추가/업데이트되었습니다.` });
     

@@ -73,12 +73,37 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
     if (!querySnapshot.empty) {
         // Student exists, update them
         const docRef = querySnapshot.docs[0].ref;
-        await updateDoc(docRef, student as Partial<Student>);
-        const docSnap = await getDoc(docRef);
+        const existingStudentDoc = await getDoc(docRef);
+        const existingStudentData = existingStudentDoc.data() as Student;
+
+        // Merge data, but overwrite afterSchoolDestinations completely
+        const updateData: Partial<Student> = {
+            ...student,
+        };
+        
+        // If the incoming student data doesn't specify afterSchoolDestinations,
+        // keep the existing one. Otherwise, overwrite it.
+        // This is crucial for the apply page where only one type of destination is submitted at a time.
+        // For bulk upload, the student object will contain the full afterSchoolDestinations object.
+        if (student.afterSchoolDestinations && Object.keys(student.afterSchoolDestinations).length > 0) {
+            updateData.afterSchoolDestinations = student.afterSchoolDestinations;
+        } else if (student.afterSchoolDestinations === undefined) {
+             updateData.afterSchoolDestinations = existingStudentData.afterSchoolDestinations;
+        }
+        // If morning/afternoon destination is not in the payload, keep the old one
+        if (student.morningDestinationId === undefined) {
+            updateData.morningDestinationId = existingStudentData.morningDestinationId;
+        }
+        if (student.afternoonDestinationId === undefined) {
+            updateData.afternoonDestinationId = existingStudentData.afternoonDestinationId;
+        }
+
+        await updateDoc(docRef, updateData);
         
         // Unassign from routes because their destination might have changed
         await unassignStudentFromAllRoutes(docRef.id);
         
+        const docSnap = await getDoc(docRef);
         return { id: docRef.id, ...docSnap.data() } as Student;
     } else {
         // Student doesn't exist, create new
