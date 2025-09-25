@@ -292,13 +292,14 @@ export function TeacherPageContent({
 
         newRecords.push({
             studentId,
-            name: 'DEPRECATED', // Name is now dynamically looked up
+            name: formatStudentName(student),
             startDate: dateStr,
             endDate: null,
             days: 1,
         });
     }
-
+    
+    setSelectedStudent(prev => prev ? {...prev, isGroupLeader: !prev.isGroupLeader} : null);
     setGroupLeaderRecords(newRecords);
   };
   
@@ -310,12 +311,7 @@ export function TeacherPageContent({
         } else {
             setSelectedStudent(null);
         }
-
-        if (selectedSeat) {
-             setSelectedSeat(null);
-             toast({title: "알림", description: "좌석 교체가 취소되었습니다."});
-        }
-    }, [students, groupLeaderRecords, selectedSeat, toast]);
+    }, [students, groupLeaderRecords]);
 
     const handleBoardingToggle = useCallback(async (studentId: string | null) => {
         if (!studentId || !currentRoute) return;
@@ -383,11 +379,12 @@ export function TeacherPageContent({
     );
   }, [searchQuery, students]);
 
-  const handleSelectStudentFromSearch = (student: Student) => {
+  const handleSelectStudentFromSearch = useCallback((student: Student) => {
     const isNowLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
     setSelectedStudent({...student, isGroupLeader: isNowLeader });
     setSearchQuery('');
-  }
+  }, [groupLeaderRecords]);
+
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -616,5 +613,4 @@ export function TeacherPageContent({
       )}
     </MainLayout>
   );
-
-    
+}
