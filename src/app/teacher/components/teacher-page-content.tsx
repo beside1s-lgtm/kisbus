@@ -152,8 +152,7 @@ export function TeacherPageContent({
 
   
   useEffect(() => {
-    // Reset selections when route changes
-    setSelectedStudent(null);
+    // Reset selections when route changes, but not the student
     setSelectedSeat(null);
   }, [currentRoute]);
 
@@ -292,7 +291,7 @@ export function TeacherPageContent({
 
         newRecords.push({
             studentId,
-            name: formatStudentName(student),
+            name: student.name, // Only store name, not formatted name
             startDate: dateStr,
             endDate: null,
             days: 1,
@@ -441,7 +440,7 @@ export function TeacherPageContent({
   );
 
   const sidePanel = (
-    <div className="min-h-[250px]">
+    <div className="min-h-[300px]">
         <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -500,6 +499,13 @@ export function TeacherPageContent({
                         disabled={!currentRoute} // Disable if no route context
                     >
                         <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        className="w-full"
+                        onClick={() => setSelectedStudent(null)}
+                    >
+                        닫기
                     </Button>
                 </div>
             </div>
@@ -562,7 +568,7 @@ export function TeacherPageContent({
                 <CardHeader>
                     <CardTitle className="font-headline">학생 정보</CardTitle>
                 </CardHeader>
-                <CardContent className="min-h-[300px]">
+                <CardContent>
                     {sidePanel}
                 </CardContent>
             </Card>
@@ -598,7 +604,7 @@ export function TeacherPageContent({
             </CardContent>
             </Card>
 
-             <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name }))} setRecords={setGroupLeaderRecords} />
+             <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
       )}
