@@ -304,14 +304,13 @@ export function TeacherPageContent({
   
     const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
         const student = studentId ? students.find(s => s.id === studentId) : null;
-        
         if(student) {
             const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
             setSelectedStudent({...student, isGroupLeader: isActiveLeader});
         } else {
             setSelectedStudent(null);
         }
-        
+
         if (selectedSeat) {
              setSelectedSeat(null);
              toast({title: "알림", description: "좌석 교체가 취소되었습니다."});
@@ -617,4 +616,5 @@ export function TeacherPageContent({
       )}
     </MainLayout>
   );
-}
+
+    
