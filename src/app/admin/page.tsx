@@ -2241,36 +2241,43 @@ const StudentManagementTab = ({
                                         </div>
                                         <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>닫기</Button>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>등교 목적지</Label>
-                                        <Select 
-                                            value={selectedGlobalStudent.morningDestinationId || ''} 
-                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
-                                        >
-                                            <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
-                                            <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>하교 목적지</Label>
-                                        <Select 
-                                            value={selectedGlobalStudent.afternoonDestinationId || ''} 
-                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
-                                        >
-                                            <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
-                                            <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>방과후 목적지 ({dayLabels[selectedDay]})</Label>
-                                        <Select 
-                                            value={selectedGlobalStudent.afterSchoolDestinations?.[selectedDay] || ''} 
-                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', selectedDay)}
-                                        >
-                                            <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
-                                            <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                    </div>
+
+                                    {selectedRouteType === 'AfterSchool' ? (
+                                        <div className="space-y-2">
+                                            <Label>방과후 목적지 ({dayLabels[selectedDay]})</Label>
+                                            <Select 
+                                                value={selectedGlobalStudent.afterSchoolDestinations?.[selectedDay] || ''} 
+                                                onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', selectedDay)}
+                                            >
+                                                <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
+                                                <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label>등교 목적지</Label>
+                                                <Select 
+                                                    value={selectedGlobalStudent.morningDestinationId || ''} 
+                                                    onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
+                                                >
+                                                    <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
+                                                    <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>하교 목적지</Label>
+                                                <Select 
+                                                    value={selectedGlobalStudent.afternoonDestinationId || ''} 
+                                                    onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
+                                                >
+                                                    <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
+                                                    <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                                </Select>
+                                            </div>
+                                        </>
+                                    )}
+
                                      <div>
                                         <Label>배정된 노선</Label>
                                         <div className="space-y-2 mt-1 border rounded-md p-2 max-h-40 overflow-y-auto">
