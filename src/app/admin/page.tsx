@@ -1941,12 +1941,16 @@ const StudentManagementTab = ({
         if (!student) return;
 
         let updateData: Partial<Student> = { applicationStatus: 'pending' };
+        
+        // Allow clearing the value
+        const finalDestinationId = newDestinationId === '_NONE_' ? null : newDestinationId;
+
         if (type === 'morning') {
-             updateData.morningDestinationId = newDestinationId;
+             updateData.morningDestinationId = finalDestinationId;
         } else if (type === 'afternoon') {
-             updateData.afternoonDestinationId = newDestinationId;
+             updateData.afternoonDestinationId = finalDestinationId;
         } else if (type === 'afterSchool' && day) {
-             const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [day]: newDestinationId };
+             const newAfterSchoolDests = { ...(student.afterSchoolDestinations || {}), [day]: finalDestinationId };
              updateData.afterSchoolDestinations = newAfterSchoolDests;
         }
         
@@ -1959,10 +1963,10 @@ const StudentManagementTab = ({
                 setSelectedGlobalStudent(updatedStudent);
             }
             
-            // Do not unassign from all routes. The user is making a specific change.
-            // Let the automated useEffect handle unassignments if necessary (e.g. afternoon vs after-school conflict).
+            // Unassign from all routes as destination has changed
+            await unassignStudentFromAllRoutes(studentId);
             
-            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 좌석이 변경되었을 수 있으니 확인해주세요." });
+            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 모든 노선에서 좌석 배정이 해제되었습니다." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
             const freshStudents = await getStudents();
@@ -2377,12 +2381,12 @@ const StudentManagementTab = ({
                                         <div className="space-y-2">
                                             <Label>방과후 목적지 ({dayLabels[selectedDay]})</Label>
                                             <Select 
-                                                value={selectedGlobalStudent.afterSchoolDestinations?.[selectedDay] || ''} 
+                                                value={selectedGlobalStudent.afterSchoolDestinations?.[selectedDay] || '_NONE_'} 
                                                 onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', selectedDay)}
                                             >
                                                 <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value=''>선택 안 함</SelectItem>
+                                                    <SelectItem value='_NONE_'>선택 안 함</SelectItem>
                                                     {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
@@ -2392,12 +2396,12 @@ const StudentManagementTab = ({
                                             <div className="space-y-2">
                                                 <Label>등교 목적지</Label>
                                                 <Select 
-                                                    value={selectedGlobalStudent.morningDestinationId || ''} 
+                                                    value={selectedGlobalStudent.morningDestinationId || '_NONE_'} 
                                                     onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
                                                 >
                                                     <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value=''>선택 안 함</SelectItem>
+                                                        <SelectItem value='_NONE_'>선택 안 함</SelectItem>
                                                         {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                                     </SelectContent>
                                                 </Select>
@@ -2405,12 +2409,12 @@ const StudentManagementTab = ({
                                             <div className="space-y-2">
                                                 <Label>하교 목적지</Label>
                                                 <Select 
-                                                    value={selectedGlobalStudent.afternoonDestinationId || ''} 
+                                                    value={selectedGlobalStudent.afternoonDestinationId || '_NONE_'} 
                                                     onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
                                                 >
                                                     <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value=''>선택 안 함</SelectItem>
+                                                        <SelectItem value='_NONE_'>선택 안 함</SelectItem>
                                                         {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                                     </SelectContent>
                                                 </Select>
@@ -2865,10 +2869,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-
-
-
-
-
-
