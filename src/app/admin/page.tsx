@@ -407,7 +407,7 @@ const BusConfigurationTab = ({
   routes: Route[];
   setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
-  setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
+  setDestinations: React.dispatch<React.SetStateAction<Destination[]>>;
   suggestedDestinations: Destination[],
   setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   teachers: Teacher[];
@@ -1498,15 +1498,15 @@ const StudentManagementTab = ({
         if (!selectedBus || !currentRoute) return;
     
         const studentsForThisRoute = students.filter(s => {
-            let destId: string | null = null;
+            let destId: string | null | undefined = null;
             if (selectedRouteType === 'Morning') {
                 destId = s.morningDestinationId;
             } else if (selectedRouteType === 'Afternoon') {
                 destId = s.afternoonDestinationId;
             } else if (selectedRouteType === 'AfterSchool') {
-                destId = s.afterSchoolDestinations?.[selectedDay] || null;
-                 if (!destId) destId = s.afternoonDestinationId;
+                destId = s.afterSchoolDestinations?.[selectedDay];
             }
+            // A student is eligible if they have a destination for the route type, AND that destination is one of the stops for the current route.
             return destId && currentRoute.stops.includes(destId);
         });
 
@@ -2256,6 +2256,16 @@ const StudentManagementTab = ({
                                         <Select 
                                             value={selectedGlobalStudent.afternoonDestinationId || ''} 
                                             onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
+                                            <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>방과후 목적지 ({dayLabels[selectedDay]})</Label>
+                                        <Select 
+                                            value={selectedGlobalStudent.afterSchoolDestinations?.[selectedDay] || ''} 
+                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', selectedDay)}
                                         >
                                             <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
                                             <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
