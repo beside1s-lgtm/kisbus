@@ -1,4 +1,5 @@
 
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -1958,9 +1959,10 @@ const StudentManagementTab = ({
                 setSelectedGlobalStudent(updatedStudent);
             }
             
-            await unassignStudentFromAllRoutes(studentId); // This will trigger onSnapshot for routes
+            // Do not unassign from all routes. The user is making a specific change.
+            // Let the automated useEffect handle unassignments if necessary (e.g. afternoon vs after-school conflict).
             
-            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 모든 노선에서 좌석 배정이 해제되었습니다." });
+            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 좌석이 변경되었을 수 있으니 확인해주세요." });
         } catch (error) {
             toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
             const freshStudents = await getStudents();
@@ -2378,8 +2380,11 @@ const StudentManagementTab = ({
                                                 value={selectedGlobalStudent.afterSchoolDestinations?.[selectedDay] || ''} 
                                                 onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', selectedDay)}
                                             >
-                                                <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
-                                                <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                                <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value=''>선택 안 함</SelectItem>
+                                                    {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                </SelectContent>
                                             </Select>
                                         </div>
                                     ) : (
@@ -2390,8 +2395,11 @@ const StudentManagementTab = ({
                                                     value={selectedGlobalStudent.morningDestinationId || ''} 
                                                     onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
                                                 >
-                                                    <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
-                                                    <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                                    <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value=''>선택 안 함</SelectItem>
+                                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                    </SelectContent>
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
@@ -2400,8 +2408,11 @@ const StudentManagementTab = ({
                                                     value={selectedGlobalStudent.afternoonDestinationId || ''} 
                                                     onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
                                                 >
-                                                    <SelectTrigger><SelectValue placeholder="목적지 선택" /></SelectTrigger>
-                                                    <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                                                    <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value=''>선택 안 함</SelectItem>
+                                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                    </SelectContent>
                                                 </Select>
                                             </div>
                                         </>
@@ -2854,6 +2865,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 

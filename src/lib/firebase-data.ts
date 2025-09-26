@@ -81,11 +81,14 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
             ...student,
         };
         
-        // If the incoming student data doesn't specify afterSchoolDestinations, keep the existing one.
-        // This is crucial for the apply page where only one type of destination is submitted at a time.
-        // For bulk upload, student.afterSchoolDestinations will be defined (even if empty), so it will overwrite.
-        if (student.afterSchoolDestinations === undefined) {
-             updateData.afterSchoolDestinations = existingStudentData.afterSchoolDestinations;
+        // For CSV upload, `afterSchoolDestinations` is always a complete replacement.
+        // It's defined (even if empty) in the upload process.
+        // So, we don't need a special check; it will just overwrite.
+        if (student.afterSchoolDestinations) {
+           updateData.afterSchoolDestinations = student.afterSchoolDestinations;
+        } else {
+           // For single application page, if afterSchoolDestinations is not submitted, keep existing.
+           updateData.afterSchoolDestinations = existingStudentData.afterSchoolDestinations;
         }
 
         // If morning/afternoon destination is not in the payload, keep the old one
@@ -95,6 +98,11 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         if (student.afternoonDestinationId === undefined) {
             updateData.afternoonDestinationId = existingStudentData.afternoonDestinationId;
         }
+        
+        // If a suggested destination is being added, clear the real one for that type
+        if (student.suggestedMorningDestination) updateData.morningDestinationId = null;
+        if (student.suggestedAfternoonDestination) updateData.afternoonDestinationId = null;
+
 
         await updateDoc(docRef, updateData);
         
@@ -113,11 +121,6 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 
 export const updateStudent = async (studentId: string, data: Partial<Student>) => {
     await updateDoc(doc(db, 'students', studentId), data);
-    // Unassign from routes if destination info has changed
-    const hasDestinationChanged = 'morningDestinationId' in data || 'afternoonDestinationId' in data || 'afterSchoolDestinations' in data;
-    if (hasDestinationChanged) {
-        await unassignStudentFromAllRoutes(studentId);
-    }
 }
 export const updateStudentsInBatch = async (students: (Partial<Student> & {id: string})[]) => {
     const batch = writeBatch(db);
