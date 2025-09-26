@@ -1275,6 +1275,73 @@ const StudentManagementTab = ({
 
     }, [students, routes]);
     
+    // This effect handles the core logic of unassigning students from Afternoon routes if they are in an AfterSchool route.
+    const unassignProcessingRef = useRef(false);
+    useEffect(() => {
+        if (!routes.length || !students.length || unassignProcessingRef.current) {
+            return;
+        }
+
+        const processUnassignment = async () => {
+            unassignProcessingRef.current = true;
+            
+            const batch = writeBatch(db);
+            let updatesMade = false;
+
+            for (const day of days) {
+                // Find all student IDs assigned to an AfterSchool route on this day
+                const afterSchoolStudentIds = new Set<string>();
+                routes
+                    .filter(r => r.dayOfWeek === day && r.type === 'AfterSchool')
+                    .forEach(r => {
+                        r.seating.forEach(seat => {
+                            if (seat.studentId) {
+                                afterSchoolStudentIds.add(seat.studentId);
+                            }
+                        });
+                    });
+
+                if (afterSchoolStudentIds.size > 0) {
+                    // Find all Afternoon routes on this day
+                    const afternoonRoutes = routes.filter(r => r.dayOfWeek === day && r.type === 'Afternoon');
+                    
+                    for (const route of afternoonRoutes) {
+                        let seatingChanged = false;
+                        const newSeating = route.seating.map(seat => {
+                            if (seat.studentId && afterSchoolStudentIds.has(seat.studentId)) {
+                                seatingChanged = true;
+                                return { ...seat, studentId: null };
+                            }
+                            return seat;
+                        });
+
+                        if (seatingChanged) {
+                            const routeRef = doc(db, 'routes', route.id);
+                            batch.update(routeRef, { seating: newSeating });
+                            updatesMade = true;
+                        }
+                    }
+                }
+            }
+
+            if (updatesMade) {
+                try {
+                    await batch.commit();
+                     // The onSnapshot listener will update the local 'routes' state automatically.
+                } catch (error) {
+                    console.error("Error unassigning students from afternoon routes:", error);
+                    toast({title: "오류", description: "방과후 학생 하교 좌석 자동해제 실패", variant: "destructive"});
+                }
+            }
+            
+            unassignProcessingRef.current = false;
+        };
+
+        processUnassignment();
+        
+    }, [routes, students, days, toast]);
+
+
     useEffect(() => {
         if (!currentRoute) {
             setFilteredUnassignedStudents([]);
@@ -1292,10 +1359,30 @@ const StudentManagementTab = ({
                 });
             }
         });
+        
+        // If viewing Afternoon route, get students assigned to AfterSchool on the same day
+        const afterSchoolStudentIds = new Set<string>();
+        if (selectedRouteType === 'Afternoon') {
+             routes.forEach(route => {
+                if (route.dayOfWeek === selectedDay && route.type === 'AfterSchool') {
+                    route.seating.forEach(seat => {
+                        if (seat.studentId) {
+                            afterSchoolStudentIds.add(seat.studentId);
+                        }
+                    });
+                }
+            });
+        }
 
         const unassigned = students.filter(student => {
             if (unassignableStudents.some(u => u.id === student.id)) return false;
             if (allAssignedStudentIdsThisType.has(student.id)) return false;
+            
+            // Exclude students in AfterSchool routes from appearing as unassigned in Afternoon routes
+            if (selectedRouteType === 'Afternoon' && afterSchoolStudentIds.has(student.id)) {
+                return false;
+            }
+
 
             let destId: string | null = null;
             if (selectedRouteType === 'Morning') {
@@ -2768,6 +2855,7 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
 
 
