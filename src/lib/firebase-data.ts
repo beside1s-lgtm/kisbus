@@ -76,20 +76,18 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         const existingStudentDoc = await getDoc(docRef);
         const existingStudentData = existingStudentDoc.data() as Student;
 
-        // Merge data, but overwrite afterSchoolDestinations completely
+        // Merge data, but handle destinations carefully
         const updateData: Partial<Student> = {
             ...student,
         };
         
-        // If the incoming student data doesn't specify afterSchoolDestinations,
-        // keep the existing one. Otherwise, overwrite it.
+        // If the incoming student data doesn't specify afterSchoolDestinations, keep the existing one.
         // This is crucial for the apply page where only one type of destination is submitted at a time.
-        // For bulk upload, the student object will contain the full afterSchoolDestinations object.
-        if (student.afterSchoolDestinations && Object.keys(student.afterSchoolDestinations).length > 0) {
-            updateData.afterSchoolDestinations = student.afterSchoolDestinations;
-        } else if (student.afterSchoolDestinations === undefined) {
+        // For bulk upload, student.afterSchoolDestinations will be defined (even if empty), so it will overwrite.
+        if (student.afterSchoolDestinations === undefined) {
              updateData.afterSchoolDestinations = existingStudentData.afterSchoolDestinations;
         }
+
         // If morning/afternoon destination is not in the payload, keep the old one
         if (student.morningDestinationId === undefined) {
             updateData.morningDestinationId = existingStudentData.morningDestinationId;
