@@ -407,7 +407,7 @@ const BusConfigurationTab = ({
   routes: Route[];
   setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
-  setDestinations: React.dispatch<React.SetStateAction<Destination[]>>;
+  setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   suggestedDestinations: Destination[],
   setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   teachers: Teacher[];
@@ -529,6 +529,23 @@ const BusConfigurationTab = ({
     link.click();
     document.body.removeChild(link);
   };
+  
+  const handleDownloadDestinationList = useCallback(() => {
+        if (destinations.length === 0) {
+            toast({ title: "알림", description: "등록된 목적지가 없습니다." });
+            return;
+        }
+        const headers = "목적지 이름";
+        const csvData = destinations.map(d => d.name).join('\n');
+        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + csvData;
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `destination_list.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, [destinations, toast]);
 
   const handleDestinationFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -832,8 +849,9 @@ const BusConfigurationTab = ({
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex justify-end gap-2 mb-4">
+                    <div className="flex justify-end gap-2 mb-4 flex-wrap">
                         <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
+                        <Button variant="outline" onClick={handleDownloadDestinationList}><Download className="mr-2" /> 목적지 목록</Button>
                         <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
                         <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
                     </div>
@@ -1645,23 +1663,6 @@ const StudentManagementTab = ({
         document.body.removeChild(link);
     };
 
-    const handleDownloadDestinationList = useCallback(() => {
-        if (destinations.length === 0) {
-            toast({ title: "알림", description: "등록된 목적지가 없습니다." });
-            return;
-        }
-        const headers = "목적지 이름";
-        const csvData = destinations.map(d => d.name).join('\n');
-        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + csvData;
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `destination_list.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }, [destinations, toast]);
-
     const handleDownloadUnassignedStudents = useCallback(() => {
         if (filteredUnassignedStudents.length === 0) {
             toast({ title: "알림", description: "미배정 학생이 없습니다."});
@@ -2162,7 +2163,6 @@ const StudentManagementTab = ({
                             </div>
                              <div className="flex justify-end mb-2 gap-2 flex-wrap">
                                  <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 학생 템플릿</Button>
-                                 <Button size="sm" variant="outline" onClick={handleDownloadDestinationList}><Download className="mr-2 h-4 w-4" /> 목적지 목록</Button>
                                  <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> 미배정 목록</Button>
                                  <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록</Button>
                                  <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
@@ -2748,3 +2748,4 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
