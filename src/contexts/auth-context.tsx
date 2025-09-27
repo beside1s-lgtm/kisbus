@@ -58,6 +58,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     await signOut(auth);
     // onAuthStateChanged will handle the cookie deletion
+    // Also clear 'remember me' data
+    localStorage.removeItem('rememberMeEmail');
+    localStorage.removeItem('rememberMe');
     router.push('/');
   };
 

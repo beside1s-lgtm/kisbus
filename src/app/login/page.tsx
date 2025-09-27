@@ -11,14 +11,26 @@ import { useToast } from '@/hooks/use-toast';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useAuth } from '@/hooks/use-auth';
 import { LogIn } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@kshcm.net');
-  const [password, setPassword] = useState('kis123456!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { login, user, loading: authLoading } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    // On component mount, check for 'remember me' data in localStorage
+    const savedEmail = localStorage.getItem('rememberMeEmail');
+    const shouldRemember = localStorage.getItem('rememberMe') === 'true';
+    if (shouldRemember && savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   // If user is already logged in, redirect to admin page.
   useEffect(() => {
@@ -34,7 +46,15 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      // The AuthProvider's onAuthStateChanged listener will handle the redirect.
+      // Handle 'Remember Me' logic
+      if (rememberMe) {
+        localStorage.setItem('rememberMeEmail', email);
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberMeEmail');
+        localStorage.removeItem('rememberMe');
+      }
+      
       toast({
         title: '로그인 성공',
         description: '관리자 페이지로 이동합니다.',
@@ -109,6 +129,17 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
                 />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="remember-me"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  disabled={isSubmitting}
+                />
+                <Label htmlFor="remember-me" className="text-sm font-medium">
+                  자동 로그인
+                </Label>
               </div>
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? '로그인 중...' : '로그인'}
