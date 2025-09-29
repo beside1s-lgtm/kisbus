@@ -303,6 +303,7 @@ export function TeacherPageContent({
   };
   
   const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
+    // If a seat is already selected for swap, a left click should cancel the swap.
     if (selectedSeat) {
       setSelectedSeat(null);
       toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
@@ -332,43 +333,48 @@ export function TeacherPageContent({
   }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
 
     
-  const handleSeatContextMenu = useCallback(async (e: React.MouseEvent, seatNumber: number) => {
+  const handleSeatContextMenu = (e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
     if (!currentRoute) return;
 
     const newSeating = [...currentRoute.seating];
     const clickedSeat = newSeating.find(s => s.seatNumber === seatNumber);
-
     if (!clickedSeat) return;
 
-    if (selectedSeat) {
-      const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
-      const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+    if (selectedSeat) { // A seat is already selected, so this is the second right-click (the swap)
+        const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
+        const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
-      if (sourceSeatIndex === -1 || targetSeatIndex === -1 || sourceSeatIndex === targetSeatIndex) {
-        setSelectedSeat(null);
-        toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
-        return;
-      }
+        if (sourceSeatIndex === -1 || targetSeatIndex === -1 || sourceSeatIndex === targetSeatIndex) {
+            setSelectedSeat(null);
+            toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
+            return;
+        }
 
-      const sourceStudentId = newSeating[sourceSeatIndex].studentId;
-      const targetStudentId = newSeating[targetSeatIndex].studentId;
-      newSeating[sourceSeatIndex].studentId = targetStudentId;
-      newSeating[targetSeatIndex].studentId = sourceStudentId;
+        // Swap student IDs
+        const sourceStudentId = newSeating[sourceSeatIndex].studentId;
+        const targetStudentId = newSeating[targetSeatIndex].studentId;
+        newSeating[sourceSeatIndex].studentId = targetStudentId;
+        newSeating[targetSeatIndex].studentId = sourceStudentId;
 
-      try {
-        await updateRouteSeating(currentRoute.id, newSeating);
-        toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
-      } catch (error) {
-        toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive" });
-      } finally {
-        setSelectedSeat(null);
-      }
-    } else {
-      setSelectedSeat(clickedSeat);
-      toast({ title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요." });
+        // Perform the async update
+        updateRouteSeating(currentRoute.id, newSeating)
+            .then(() => {
+                toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+            })
+            .catch(() => {
+                toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive" });
+            })
+            .finally(() => {
+                // Always reset selection after attempting the swap
+                setSelectedSeat(null);
+            });
+
+    } else { // This is the first right-click, select the seat for swap
+        setSelectedSeat(clickedSeat);
+        toast({ title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요." });
     }
-  }, [currentRoute, selectedSeat, toast]);
+  };
 
 
   const searchResults = useMemo(() => {
