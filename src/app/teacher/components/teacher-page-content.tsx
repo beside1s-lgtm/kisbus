@@ -5,8 +5,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     onRoutesUpdate, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
-    onAttendanceUpdate, getRoutesByStop,
-    updateAttendance, getAttendance,
+    onAttendanceUpdate,
+    updateAttendance,
     updateRouteSeating
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
@@ -25,7 +25,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {format, differenceInDays, getDay} from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
-import { doc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { LostAndFound } from './lost-and-found';
 
@@ -221,55 +221,30 @@ export function TeacherPageContent({
           .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
   }, [currentRoute, students]);
   
-  const findRoutesForStudent = useCallback(async (student: Student): Promise<Route[]> => {
-      const studentDay = selectedDay;
-
-      let destId: string | null = null;
-      if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
-      else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
-      else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[studentDay] || null;
-      
-      if (!destId) return [];
-      
-      const allRoutesWithStop = await getRoutesByStop(destId);
-
-      return allRoutesWithStop.filter(r => 
-        r.dayOfWeek === studentDay &&
-        r.type === selectedRouteType
-      );
-  }, [selectedDay, selectedRouteType]);
-
   const toggleAbsence = useCallback(async (student: Student) => {
-    const studentRoutes = await findRoutesForStudent(student);
-    if (studentRoutes.length === 0) {
-      toast({ title: "알림", description: "해당 학생의 오늘 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
-      return;
+    if (!currentRoute) {
+        toast({ title: "오류", description: "현재 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
+        return;
     }
     
-    studentRoutes.forEach(async (route) => {
-      const attendance = await getAttendance(route.id, today);
-      const currentBoarded = attendance?.boarded || [];
-      const currentAbsent = attendance?.absent || [];
-      
-      const isAbsent = currentAbsent.includes(student.id);
+    const isAbsent = absentStudentIds.includes(student.id);
 
-      const newAbsentIds = isAbsent
-        ? currentAbsent.filter(id => id !== student.id)
-        : [...currentAbsent, student.id];
+    const newAbsentIds = isAbsent
+        ? absentStudentIds.filter(id => id !== student.id)
+        : [...absentStudentIds, student.id];
 
-      const newBoardedIds = isAbsent 
-        ? currentBoarded
-        : currentBoarded.filter(id => id !== student.id);
+    const newBoardedIds = isAbsent 
+        ? boardedStudentIds
+        : boardedStudentIds.filter(id => id !== student.id);
 
-      try {
-        await updateAttendance(route.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
+    try {
+        await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
         toast({ title: "성공", description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
-      } catch (error) {
+    } catch (error) {
         console.error("Error updating absence:", error);
-        toast({ title: "오류", description: `${route.id} 노선 결석 처리 실패`, variant: "destructive"});
-      }
-    });
-  }, [today, toast, findRoutesForStudent]);
+        toast({ title: "오류", description: `결석 처리 실패`, variant: "destructive"});
+    }
+  }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast]);
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
@@ -305,14 +280,12 @@ export function TeacherPageContent({
   };
   
     const handleSeatClick = (seatNumber: number, studentId: string | null) => {
-        // If a seat is selected for swap, cancel it on left click
         if (selectedSeat) {
             setSelectedSeat(null);
             toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
             return;
         }
-
-        // Handle student selection and attendance toggle
+        
         if (!studentId) {
             setSelectedStudent(null);
             return;
@@ -321,7 +294,6 @@ export function TeacherPageContent({
         const student = students.find(s => s.id === studentId);
         if (!student) return;
 
-        // Toggle student selection
         if (selectedStudent?.id === studentId) {
             setSelectedStudent(null);
         } else {
@@ -329,7 +301,6 @@ export function TeacherPageContent({
             setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
         }
 
-        // Toggle attendance
         if (currentRoute) {
             const newBoardedIds = boardedStudentIds.includes(studentId)
                 ? boardedStudentIds.filter(id => id !== studentId)
@@ -345,13 +316,14 @@ export function TeacherPageContent({
     };
     
   const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
+    e.preventDefault();
     if (!currentRoute) return;
 
     const newSeating = [...currentRoute.seating];
     const clickedSeat = newSeating.find(s => s.seatNumber === seatNumber);
     if (!clickedSeat) return;
 
-    if (selectedSeat) { // A seat is already selected, so this is the second right-click (the swap)
+    if (selectedSeat) {
         const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
         const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
@@ -361,7 +333,6 @@ export function TeacherPageContent({
             return;
         }
 
-        // Swap student IDs
         const sourceStudentId = newSeating[sourceSeatIndex].studentId;
         const targetStudentId = newSeating[targetSeatIndex].studentId;
         newSeating[sourceSeatIndex].studentId = targetStudentId;
@@ -376,7 +347,7 @@ export function TeacherPageContent({
             setSelectedSeat(null);
         }
 
-    } else { // This is the first right-click, select the seat for swap
+    } else {
         setSelectedSeat(clickedSeat);
         toast({ title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요." });
     }
