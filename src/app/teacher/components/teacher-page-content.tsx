@@ -565,24 +565,7 @@ export function TeacherPageContent({
                         seating={currentRoute.seating}
                         students={students}
                         destinations={destinations}
-                        onSeatClick={(seatNumber, studentId) => {
-                            // If a seat is selected for swap, this click cancels it.
-                            if (selectedSeat) {
-                                setSelectedSeat(null);
-                                toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
-                                return;
-                            }
-                            
-                            // Otherwise, normal click behavior
-                            const student = studentId ? students.find(s => s.id === studentId) : null;
-                            if(student) {
-                                const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
-                                setSelectedStudent({...student, isGroupLeader: isActiveLeader});
-                            } else {
-                                setSelectedStudent(null);
-                            }
-                            handleBoardingToggle(studentId);
-                        }}
+                        onSeatClick={handleSeatClick}
                         onSeatContextMenu={handleSeatContextMenu}
                         absentStudentIds={absentStudentIds}
                         boardedStudentIds={boardedStudentIds}
@@ -662,5 +645,3 @@ export function TeacherPageContent({
     </MainLayout>
   );
 }
-
-    
