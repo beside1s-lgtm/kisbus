@@ -304,24 +304,23 @@ export function TeacherPageContent({
     setGroupLeaderRecords(newRecords);
   };
   
-    const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
-        if (selectedSeat) {
-            setSelectedSeat(null);
-            toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
-            return;
-        }
-
-        const student = studentId ? students.find(s => s.id === studentId) : null;
-        
-        if (selectedStudent && selectedStudent.id === studentId) {
-            setSelectedStudent(null);
-        } else if (student) {
-            const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
-            setSelectedStudent({ ...student, isGroupLeader: isActiveLeader });
+    const handleStudentSelect = (studentId: string | null) => {
+        if (studentId) {
+            const student = students.find(s => s.id === studentId);
+            if (student) {
+                if (selectedStudent?.id === studentId) {
+                    setSelectedStudent(null);
+                } else {
+                    const isNowLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+                    setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
+                }
+            }
         } else {
             setSelectedStudent(null);
         }
-        
+    };
+    
+    const handleAttendanceToggle = (studentId: string | null) => {
         if (!studentId || !currentRoute) return;
 
         const newBoardedIds = boardedStudentIds.includes(studentId)
@@ -334,10 +333,20 @@ export function TeacherPageContent({
         updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
             toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
         });
-    }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast, selectedStudent]);
+    };
+
+    const handleSeatClick = (seatNumber: number, studentId: string | null) => {
+        if (selectedSeat) {
+            setSelectedSeat(null);
+            toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
+        } else {
+            handleStudentSelect(studentId);
+            handleAttendanceToggle(studentId);
+        }
+    };
 
     
-  const handleSeatContextMenu = useCallback((e: React.MouseEvent, seatNumber: number) => {
+  const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
     if (!currentRoute) return;
 
@@ -361,22 +370,20 @@ export function TeacherPageContent({
         newSeating[sourceSeatIndex].studentId = targetStudentId;
         newSeating[targetSeatIndex].studentId = sourceStudentId;
         
-        updateRouteSeating(currentRoute.id, newSeating)
-            .then(() => {
-                toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
-            })
-            .catch(() => {
-                 toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive" });
-            })
-            .finally(() => {
-                setSelectedSeat(null);
-            });
+        try {
+           await updateRouteSeating(currentRoute.id, newSeating);
+           toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+        } catch {
+             toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive" });
+        } finally {
+            setSelectedSeat(null);
+        }
 
     } else { // This is the first right-click, select the seat for swap
         setSelectedSeat(clickedSeat);
         toast({ title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요." });
     }
-  }, [currentRoute, selectedSeat, toast]);
+  };
 
 
   const searchResults = useMemo(() => {
@@ -636,4 +643,5 @@ export function TeacherPageContent({
     
 
     
+
 
