@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     onRoutesUpdate, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
-    onAttendanceUpdate,
+    getAttendance, // Changed from onAttendanceUpdate
     updateAttendance,
     updateRouteSeating
 } from '@/lib/firebase-data';
@@ -152,33 +152,29 @@ export function TeacherPageContent({
 
   
   useEffect(() => {
-    // When route changes, reset the selected student.
+    // When route changes, reset states
     if (currentRoute) {
         setSelectedStudent(null);
+        setSelectedSeat(null);
+        
+        // Fetch initial attendance for the new route
+        getAttendance(currentRoute.id, today).then(attendance => {
+            setBoardedStudentIds(attendance?.boarded || []);
+            setAbsentStudentIds(attendance?.absent || []);
+        });
+
+    } else {
+        // Clear attendance if no valid route
+        setBoardedStudentIds([]);
+        setAbsentStudentIds([]);
     }
-  }, [currentRoute]);
+  }, [currentRoute, today]);
 
 
     const assignedTeachers = useMemo(() => {
         if (!currentRoute || !currentRoute.teacherIds) return [];
         return currentRoute.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
     }, [currentRoute, teachers]);
-
-  // Firestore real-time listener for attendance
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    if (currentRoute) {
-      unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
-        setBoardedStudentIds(attendance?.boarded || []);
-        setAbsentStudentIds(attendance?.absent || []);
-      });
-    }
-    return () => {
-        if (unsubscribe) {
-            unsubscribe();
-        }
-    };
-  }, [currentRoute, today]);
 
   // Load GroupLeaderRecords
   useEffect(() => {
@@ -221,7 +217,7 @@ export function TeacherPageContent({
           .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
   }, [currentRoute, students]);
   
-  const toggleAbsence = useCallback(async (student: Student) => {
+  const toggleAbsence = useCallback((student: Student) => {
     if (!currentRoute) {
         toast({ title: "오류", description: "현재 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
         return;
@@ -232,18 +228,24 @@ export function TeacherPageContent({
     const newAbsentIds = isAbsent
         ? absentStudentIds.filter(id => id !== student.id)
         : [...absentStudentIds, student.id];
-
     const newBoardedIds = isAbsent 
         ? boardedStudentIds
         : boardedStudentIds.filter(id => id !== student.id);
+    
+    setAbsentStudentIds(newAbsentIds);
+    setBoardedStudentIds(newBoardedIds);
 
-    try {
-        await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
+    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds })
+      .then(() => {
         toast({ title: "성공", description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
-    } catch (error) {
+      })
+      .catch((error) => {
         console.error("Error updating absence:", error);
         toast({ title: "오류", description: `결석 처리 실패`, variant: "destructive"});
-    }
+        // Revert state on error
+        setAbsentStudentIds(absentStudentIds);
+        setBoardedStudentIds(boardedStudentIds);
+      });
   }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast]);
   
   const toggleGroupLeader = (student: Student) => {
@@ -308,9 +310,15 @@ export function TeacherPageContent({
             const newAbsentIds = boardedStudentIds.includes(studentId)
                 ? absentStudentIds
                 : absentStudentIds.filter(id => id !== studentId);
+            
+            setBoardedStudentIds(newBoardedIds);
+            setAbsentStudentIds(newAbsentIds);
 
             updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
                 toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
+                 // Revert state on error
+                setBoardedStudentIds(boardedStudentIds);
+                setAbsentStudentIds(absentStudentIds);
             });
         }
     };
@@ -607,3 +615,5 @@ export function TeacherPageContent({
     </MainLayout>
   );
 }
+
+    
