@@ -305,48 +305,45 @@ export function TeacherPageContent({
     setGroupLeaderRecords(newRecords);
   };
   
-    const handleStudentSelect = useCallback((studentId: string | null) => {
-        if (!studentId) {
-            setSelectedStudent(null);
-            return;
-        }
-        const student = students.find(s => s.id === studentId);
-        if (student) {
-            if (selectedStudent?.id === studentId) {
-                setSelectedStudent(null);
-            } else {
-                const isNowLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
-                setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
-            }
-        }
-    }, [students, selectedStudent, groupLeaderRecords]);
-    
-    const handleAttendanceToggle = useCallback((studentId: string | null) => {
-        if (!studentId || !currentRoute) return;
-
-        const newBoardedIds = boardedStudentIds.includes(studentId)
-            ? boardedStudentIds.filter(id => id !== studentId)
-            : [...boardedStudentIds, studentId];
-        const newAbsentIds = boardedStudentIds.includes(studentId)
-            ? absentStudentIds
-            : absentStudentIds.filter(id => id !== studentId);
-
-        updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
-            toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
-        });
-    }, [currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
-
-    const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
+    const handleSeatClick = (seatNumber: number, studentId: string | null) => {
+        // Handle seat swap cancellation
         if (selectedSeat) {
             setSelectedSeat(null);
             toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
             return;
         }
-        
-        handleStudentSelect(studentId);
-        handleAttendanceToggle(studentId);
-    }, [selectedSeat, handleStudentSelect, handleAttendanceToggle, toast]);
 
+        // Handle student selection and attendance toggle
+        if (!studentId) {
+            setSelectedStudent(null);
+            return;
+        }
+
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+
+        // Toggle student selection
+        if (selectedStudent?.id === studentId) {
+            setSelectedStudent(null);
+        } else {
+            const isNowLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+            setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
+        }
+
+        // Toggle attendance
+        if (currentRoute) {
+            const newBoardedIds = boardedStudentIds.includes(studentId)
+                ? boardedStudentIds.filter(id => id !== studentId)
+                : [...boardedStudentIds, studentId];
+            const newAbsentIds = boardedStudentIds.includes(studentId)
+                ? absentStudentIds
+                : absentStudentIds.filter(id => id !== studentId);
+
+            updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
+                toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
+            });
+        }
+    };
     
   const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
