@@ -152,7 +152,7 @@ export function TeacherPageContent({
 
   
   useEffect(() => {
-    // When route changes, only reset the selected student, not the seat for swap
+    // When route changes, reset the selected student.
     if (currentRoute) {
         setSelectedStudent(null);
     }
@@ -313,7 +313,6 @@ export function TeacherPageContent({
 
         const student = studentId ? students.find(s => s.id === studentId) : null;
         
-        // If clicking the same student again, deselect them. Otherwise, select the new student.
         if (selectedStudent && selectedStudent.id === studentId) {
             setSelectedStudent(null);
         } else if (student) {
@@ -322,7 +321,7 @@ export function TeacherPageContent({
         } else {
             setSelectedStudent(null);
         }
-
+        
         if (!studentId || !currentRoute) return;
 
         const newBoardedIds = boardedStudentIds.includes(studentId)
@@ -338,7 +337,7 @@ export function TeacherPageContent({
     }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast, selectedStudent]);
 
     
-  const handleSeatContextMenu = useCallback(async (e: React.MouseEvent, seatNumber: number) => {
+  const handleSeatContextMenu = useCallback((e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
     if (!currentRoute) return;
 
@@ -361,16 +360,17 @@ export function TeacherPageContent({
         const targetStudentId = newSeating[targetSeatIndex].studentId;
         newSeating[sourceSeatIndex].studentId = targetStudentId;
         newSeating[targetSeatIndex].studentId = sourceStudentId;
-
-        try {
-            await updateRouteSeating(currentRoute.id, newSeating);
-            toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
-        } catch (error) {
-            toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive" });
-        } finally {
-            // Always reset selection after attempting the swap
-            setSelectedSeat(null);
-        }
+        
+        updateRouteSeating(currentRoute.id, newSeating)
+            .then(() => {
+                toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+            })
+            .catch(() => {
+                 toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive" });
+            })
+            .finally(() => {
+                setSelectedSeat(null);
+            });
 
     } else { // This is the first right-click, select the seat for swap
         setSelectedSeat(clickedSeat);
@@ -636,3 +636,4 @@ export function TeacherPageContent({
     
 
     
+
