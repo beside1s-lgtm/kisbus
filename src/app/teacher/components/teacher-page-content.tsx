@@ -155,7 +155,6 @@ export function TeacherPageContent({
     // When route changes, reset the selected student.
     if (currentRoute) {
         setSelectedStudent(null);
-        setSelectedSeat(null);
     }
   }, [currentRoute]);
 
@@ -306,7 +305,7 @@ export function TeacherPageContent({
   };
   
     const handleSeatClick = (seatNumber: number, studentId: string | null) => {
-        // Handle seat swap cancellation
+        // If a seat is selected for swap, cancel it on left click
         if (selectedSeat) {
             setSelectedSeat(null);
             toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
@@ -346,7 +345,6 @@ export function TeacherPageContent({
     };
     
   const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
-    e.preventDefault();
     if (!currentRoute) return;
 
     const newSeating = [...currentRoute.seating];

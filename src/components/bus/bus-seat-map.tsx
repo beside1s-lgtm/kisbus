@@ -192,7 +192,13 @@ export function BusSeatMap({
                 <div
                   ref={isHighlighted ? highlightedRef : null}
                   data-seat-number={seat.seatNumber}
-                  onClick={() => onSeatClick && onSeatClick(seat.seatNumber, student?.id || null)}
+                  onClick={(e) => {
+                    if (onSeatClick) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onSeatClick(seat.seatNumber, student?.id || null)
+                    }
+                  }}
                   onContextMenu={(e) => onSeatContextMenu && onSeatContextMenu(e, seat.seatNumber)}
                   className={cn(
                     'relative h-10 w-full rounded-md flex flex-col justify-center items-center pb-1 transition-all duration-200 shadow-sm',
