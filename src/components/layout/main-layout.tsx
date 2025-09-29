@@ -33,6 +33,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
   }
 
   const isHomePage = pathname === '/';
+  const isParentsSection = ['/parents', '/student', '/apply'].includes(pathname);
   
   const handleLogout = async () => {
       try {
@@ -55,7 +56,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
     <div className="flex flex-col min-h-screen bg-background">
        <header className="sticky top-0 z-10 flex h-auto min-h-16 items-center justify-between gap-4 border-b bg-card/80 px-4 py-2 backdrop-blur-sm md:px-6">
         <div className="flex items-center gap-4">
-          {!isHomePage && (
+          {!isHomePage && !isParentsSection && (
             <Button asChild variant="outline" size="icon" className="h-8 w-8">
               <Link href={pathname.startsWith('/admin') || pathname.startsWith('/teacher') ? '/' : '/parents'}>
                 <ArrowLeft className="h-4 w-4" />
