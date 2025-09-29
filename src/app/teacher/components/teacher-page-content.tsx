@@ -303,6 +303,14 @@ export function TeacherPageContent({
   };
   
     const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
+        // If a seat is selected for swapping, this click should cancel the swap.
+        if (selectedSeat) {
+            setSelectedSeat(null);
+            toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
+            return;
+        }
+
+        // Otherwise, perform the original logic (select student, toggle boarding)
         const student = studentId ? students.find(s => s.id === studentId) : null;
         if(student) {
             const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
@@ -310,7 +318,21 @@ export function TeacherPageContent({
         } else {
             setSelectedStudent(null);
         }
-    }, [students, groupLeaderRecords]);
+
+        if (!studentId || !currentRoute) return;
+
+        const newBoardedIds = boardedStudentIds.includes(studentId)
+            ? boardedStudentIds.filter(id => id !== studentId)
+            : [...boardedStudentIds, studentId];
+        const newAbsentIds = boardedStudentIds.includes(studentId)
+            ? absentStudentIds
+            : absentStudentIds.filter(id => id !== studentId);
+
+        updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
+            toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
+        });
+
+    }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
 
     const handleBoardingToggle = useCallback(async (studentId: string | null) => {
         if (!studentId || !currentRoute) return;
@@ -364,7 +386,7 @@ export function TeacherPageContent({
         } else { // No seat is selected yet.
              if (clickedSeat) { // Can only start a swap from an occupied or empty seat
                  setSelectedSeat(clickedSeat);
-                 toast({title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요."});
+                 toast({title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요."});
              }
         }
     }, [currentRoute, selectedSeat, toast]);
@@ -544,7 +566,21 @@ export function TeacherPageContent({
                         students={students}
                         destinations={destinations}
                         onSeatClick={(seatNumber, studentId) => {
-                            handleSeatClick(seatNumber, studentId);
+                            // If a seat is selected for swap, this click cancels it.
+                            if (selectedSeat) {
+                                setSelectedSeat(null);
+                                toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
+                                return;
+                            }
+                            
+                            // Otherwise, normal click behavior
+                            const student = studentId ? students.find(s => s.id === studentId) : null;
+                            if(student) {
+                                const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+                                setSelectedStudent({...student, isGroupLeader: isActiveLeader});
+                            } else {
+                                setSelectedStudent(null);
+                            }
                             handleBoardingToggle(studentId);
                         }}
                         onSeatContextMenu={handleSeatContextMenu}
@@ -588,7 +624,13 @@ export function TeacherPageContent({
                         {studentsOnCurrentRoute.map(student => (
                             <TableRow 
                                 key={student.id} 
-                                onClick={() => handleSeatClick(0, student.id)}
+                                onClick={() => {
+                                    const studentData = students.find(s => s.id === student.id);
+                                    if(studentData) {
+                                      const isActiveLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
+                                      setSelectedStudent({...studentData, isGroupLeader: isActiveLeader });
+                                    }
+                                }}
                                 className="cursor-pointer"
                             >
                                 <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
@@ -620,3 +662,5 @@ export function TeacherPageContent({
     </MainLayout>
   );
 }
+
+    
