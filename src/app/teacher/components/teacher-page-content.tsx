@@ -154,7 +154,7 @@ export function TeacherPageContent({
   useEffect(() => {
     // Reset selections when route changes
     if (currentRoute) {
-        setSelectedSeat(null);
+        setSelectedStudent(null);
     }
   }, [currentRoute]);
 
@@ -336,7 +336,7 @@ export function TeacherPageContent({
   }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
 
     
-  const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
+  const handleSeatContextMenu = useCallback(async (e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
     if (!currentRoute) return;
 
@@ -374,7 +374,7 @@ export function TeacherPageContent({
         setSelectedSeat(clickedSeat);
         toast({ title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요." });
     }
-  };
+  }, [currentRoute, selectedSeat, toast]);
 
 
   const searchResults = useMemo(() => {
@@ -630,5 +630,7 @@ export function TeacherPageContent({
     </MainLayout>
   );
 }
+
+    
 
     
