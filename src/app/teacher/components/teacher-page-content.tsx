@@ -152,7 +152,7 @@ export function TeacherPageContent({
 
   
   useEffect(() => {
-    // Reset selections when route changes
+    // When route changes, only reset the selected student, not the seat for swap
     if (currentRoute) {
         setSelectedStudent(null);
     }
@@ -304,36 +304,38 @@ export function TeacherPageContent({
     setGroupLeaderRecords(newRecords);
   };
   
-  const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
-    // If a seat is selected for swap, a left click should cancel the swap.
-    if (selectedSeat) {
-      setSelectedSeat(null);
-      toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
-      return;
-    }
+    const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
+        if (selectedSeat) {
+            setSelectedSeat(null);
+            toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
+            return;
+        }
 
-    // --- Proceed with regular attendance logic if not in swap mode ---
-    const student = studentId ? students.find(s => s.id === studentId) : null;
-    if(student) {
-        const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
-        setSelectedStudent({...student, isGroupLeader: isActiveLeader});
-    } else {
-        setSelectedStudent(null);
-    }
+        const student = studentId ? students.find(s => s.id === studentId) : null;
+        
+        // If clicking the same student again, deselect them. Otherwise, select the new student.
+        if (selectedStudent && selectedStudent.id === studentId) {
+            setSelectedStudent(null);
+        } else if (student) {
+            const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+            setSelectedStudent({ ...student, isGroupLeader: isActiveLeader });
+        } else {
+            setSelectedStudent(null);
+        }
 
-    if (!studentId || !currentRoute) return;
+        if (!studentId || !currentRoute) return;
 
-    const newBoardedIds = boardedStudentIds.includes(studentId)
-        ? boardedStudentIds.filter(id => id !== studentId)
-        : [...boardedStudentIds, studentId];
-    const newAbsentIds = boardedStudentIds.includes(studentId)
-        ? absentStudentIds
-        : absentStudentIds.filter(id => id !== studentId);
+        const newBoardedIds = boardedStudentIds.includes(studentId)
+            ? boardedStudentIds.filter(id => id !== studentId)
+            : [...boardedStudentIds, studentId];
+        const newAbsentIds = boardedStudentIds.includes(studentId)
+            ? absentStudentIds
+            : absentStudentIds.filter(id => id !== studentId);
 
-    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
-        toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
-    });
-  }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
+        updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
+            toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
+        });
+    }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast, selectedStudent]);
 
     
   const handleSeatContextMenu = useCallback(async (e: React.MouseEvent, seatNumber: number) => {
