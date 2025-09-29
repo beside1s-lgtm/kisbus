@@ -302,94 +302,73 @@ export function TeacherPageContent({
     setGroupLeaderRecords(newRecords);
   };
   
-    const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
-        // If a seat is selected for swapping, this click should cancel the swap.
-        if (selectedSeat) {
-            setSelectedSeat(null);
-            toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
-            return;
-        }
+  const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
+    if (selectedSeat) {
+      setSelectedSeat(null);
+      toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
+      return;
+    }
 
-        // Otherwise, perform the original logic (select student, toggle boarding)
-        const student = studentId ? students.find(s => s.id === studentId) : null;
-        if(student) {
-            const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
-            setSelectedStudent({...student, isGroupLeader: isActiveLeader});
-        } else {
-            setSelectedStudent(null);
-        }
+    const student = studentId ? students.find(s => s.id === studentId) : null;
+    if(student) {
+        const isActiveLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
+        setSelectedStudent({...student, isGroupLeader: isActiveLeader});
+    } else {
+        setSelectedStudent(null);
+    }
 
-        if (!studentId || !currentRoute) return;
+    if (!studentId || !currentRoute) return;
 
-        const newBoardedIds = boardedStudentIds.includes(studentId)
-            ? boardedStudentIds.filter(id => id !== studentId)
-            : [...boardedStudentIds, studentId];
-        const newAbsentIds = boardedStudentIds.includes(studentId)
-            ? absentStudentIds
-            : absentStudentIds.filter(id => id !== studentId);
+    const newBoardedIds = boardedStudentIds.includes(studentId)
+        ? boardedStudentIds.filter(id => id !== studentId)
+        : [...boardedStudentIds, studentId];
+    const newAbsentIds = boardedStudentIds.includes(studentId)
+        ? absentStudentIds
+        : absentStudentIds.filter(id => id !== studentId);
 
-        updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
-            toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
-        });
+    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
+        toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
+    });
+  }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
 
-    }, [students, groupLeaderRecords, selectedSeat, currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
-
-    const handleBoardingToggle = useCallback(async (studentId: string | null) => {
-        if (!studentId || !currentRoute) return;
-
-        const newBoardedIds = boardedStudentIds.includes(studentId)
-            ? boardedStudentIds.filter(id => id !== studentId)
-            : [...boardedStudentIds, studentId];
-        const newAbsentIds = boardedStudentIds.includes(studentId)
-            ? absentStudentIds
-            : absentStudentIds.filter(id => id !== studentId);
-
-        try {
-            await updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
-        } catch (error) {
-            toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive"});
-        }
-    }, [currentRoute, today, boardedStudentIds, absentStudentIds, toast]);
     
-    const handleSeatContextMenu = useCallback(async (e: React.MouseEvent, seatNumber: number) => {
-        e.preventDefault();
-        if (!currentRoute) return;
+  const handleSeatContextMenu = useCallback(async (e: React.MouseEvent, seatNumber: number) => {
+    e.preventDefault();
+    if (!currentRoute) return;
 
-        const newSeating = [...currentRoute.seating];
-        const clickedSeat = newSeating.find(s => s.seatNumber === seatNumber);
+    const newSeating = [...currentRoute.seating];
+    const clickedSeat = newSeating.find(s => s.seatNumber === seatNumber);
 
-        if (selectedSeat) { // A seat is already selected for swapping
-             const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
-             const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
+    if (!clickedSeat) return;
 
-             if (sourceSeatIndex === -1 || targetSeatIndex === -1 || sourceSeatIndex === targetSeatIndex) {
-                 // Invalid swap or clicked same seat, cancel
-                 setSelectedSeat(null);
-                 toast({title: "취소", description: "좌석 교체가 취소되었습니다."});
-                 return;
-             }
+    if (selectedSeat) {
+      const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
+      const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
-             // Swap students
-             const sourceStudentId = newSeating[sourceSeatIndex].studentId;
-             const targetStudentId = newSeating[targetSeatIndex].studentId;
-             newSeating[sourceSeatIndex].studentId = targetStudentId;
-             newSeating[targetSeatIndex].studentId = sourceStudentId;
+      if (sourceSeatIndex === -1 || targetSeatIndex === -1 || sourceSeatIndex === targetSeatIndex) {
+        setSelectedSeat(null);
+        toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
+        return;
+      }
 
-             try {
-                await updateRouteSeating(currentRoute.id, newSeating);
-                toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
-             } catch (error) {
-                toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive"});
-             } finally {
-                setSelectedSeat(null);
-             }
-        } else { // No seat is selected yet.
-             if (clickedSeat) { // Can only start a swap from an occupied or empty seat
-                 setSelectedSeat(clickedSeat);
-                 toast({title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요."});
-             }
-        }
-    }, [currentRoute, selectedSeat, toast]);
+      const sourceStudentId = newSeating[sourceSeatIndex].studentId;
+      const targetStudentId = newSeating[targetSeatIndex].studentId;
+      newSeating[sourceSeatIndex].studentId = targetStudentId;
+      newSeating[targetSeatIndex].studentId = sourceStudentId;
+
+      try {
+        await updateRouteSeating(currentRoute.id, newSeating);
+        toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+      } catch (error) {
+        toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive" });
+      } finally {
+        setSelectedSeat(null);
+      }
+    } else {
+      setSelectedSeat(clickedSeat);
+      toast({ title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요." });
+    }
+  }, [currentRoute, selectedSeat, toast]);
 
 
   const searchResults = useMemo(() => {
