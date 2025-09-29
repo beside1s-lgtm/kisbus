@@ -155,6 +155,7 @@ export function TeacherPageContent({
     // When route changes, reset the selected student.
     if (currentRoute) {
         setSelectedStudent(null);
+        setSelectedSeat(null);
     }
   }, [currentRoute]);
 
@@ -309,14 +310,11 @@ export function TeacherPageContent({
             setSelectedStudent(null);
             return;
         }
-        
         const student = students.find(s => s.id === studentId);
         if (student) {
             if (selectedStudent?.id === studentId) {
-                // If the same student is clicked again, deselect
                 setSelectedStudent(null);
             } else {
-                // Select a new student
                 const isNowLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
                 setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
             }
@@ -340,7 +338,6 @@ export function TeacherPageContent({
 
     const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
         if (selectedSeat) {
-            // If in swap mode, cancel it on left click
             setSelectedSeat(null);
             toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
             return;
@@ -644,10 +641,3 @@ export function TeacherPageContent({
     </MainLayout>
   );
 }
-
-    
-
-    
-
-
-
