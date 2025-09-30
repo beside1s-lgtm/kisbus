@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     onRoutesUpdate, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
-    getAttendance, // Changed from onAttendanceUpdate
+    getAttendance,
     updateAttendance,
     updateRouteSeating
 } from '@/lib/firebase-data';
@@ -63,6 +63,7 @@ export function TeacherPageContent({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
 
   const { toast } = useToast();
 
@@ -84,15 +85,13 @@ export function TeacherPageContent({
   }
 
   useEffect(() => {
-    // Set selectedDay to today's day of the week
-    const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
-    if (dayIndex > 0 && dayIndex < 7) { // Monday(1) to Saturday(6)
+    const dayIndex = getDay(new Date()); 
+    if (dayIndex > 0 && dayIndex < 7) { 
         setSelectedDay(days[dayIndex - 1]);
     } else {
         setSelectedDay('Monday');
     }
     
-    // Set route type based on Vietnam time
     const now = new Date();
     const vietnamHour = (now.getUTCHours() + 7) % 24;
     if (vietnamHour >= 16) {
@@ -123,52 +122,47 @@ export function TeacherPageContent({
     const dateCheckInterval = setInterval(async () => {
         const currentDate = format(new Date(), 'yyyy-MM-dd');
         if (currentDate !== today) {
-            const previousDate = today;
-            const allRoutes = routes; // Use the current routes from state
-            
-            if (allRoutes.length > 0) {
-                const batch = writeBatch(db);
-                allRoutes.forEach(route => {
-                    const prevDateAttendanceRef = doc(db, 'routes', route.id, 'attendance', previousDate);
-                    batch.delete(prevDateAttendanceRef);
-                });
-                try {
-                    await batch.commit();
-                    console.log(`Successfully deleted all attendance records for ${previousDate}.`);
-                } catch (error) {
-                    console.error("Failed to delete previous day's attendance records:", error);
-                }
-            }
-            
             setToday(currentDate);
         }
-    }, 60000); // Check every minute
+    }, 60000); 
 
     return () => {
         unsubscribeRoutes();
         clearInterval(dateCheckInterval);
     };
-  }, [today, routes]);
+  }, [today]);
 
-  
   useEffect(() => {
-    // When route changes, reset states
     if (currentRoute) {
-        setSelectedStudent(null);
-        setSelectedSeat(null);
-        
-        // Fetch initial attendance for the new route
         getAttendance(currentRoute.id, today).then(attendance => {
             setBoardedStudentIds(attendance?.boarded || []);
             setAbsentStudentIds(attendance?.absent || []);
         });
-
     } else {
-        // Clear attendance if no valid route
         setBoardedStudentIds([]);
         setAbsentStudentIds([]);
     }
   }, [currentRoute, today]);
+
+  useEffect(() => {
+      if (lastClickedStudentId) {
+          const student = students.find(s => s.id === lastClickedStudentId);
+          if (student) {
+              const isNowLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
+              if (selectedStudent?.id === student.id) {
+                // If same student is clicked, toggle off
+                setSelectedStudent(null);
+                setLastClickedStudentId(null);
+              } else {
+                setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
+              }
+          } else {
+              setSelectedStudent(null);
+          }
+      } else {
+          setSelectedStudent(null);
+      }
+  }, [lastClickedStudentId, students, groupLeaderRecords]);
 
 
     const assignedTeachers = useMemo(() => {
@@ -176,7 +170,6 @@ export function TeacherPageContent({
         return currentRoute.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
     }, [currentRoute, teachers]);
 
-  // Load GroupLeaderRecords
   useEffect(() => {
     if (currentRoute) {
       const fetchLeaderRecords = async () => {
@@ -185,7 +178,7 @@ export function TeacherPageContent({
               setGroupLeaderRecords(records);
           } catch(e) {
               console.error("Failed to fetch leader records", e);
-              setGroupLeaderRecords([]); // Reset on error
+              setGroupLeaderRecords([]); 
           }
       };
       fetchLeaderRecords();
@@ -194,7 +187,6 @@ export function TeacherPageContent({
     }
   }, [currentRoute]);
   
-  // Save GroupLeaderRecords
   useEffect(() => {
     if (currentRoute && groupLeaderRecords) {
         const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
@@ -242,7 +234,6 @@ export function TeacherPageContent({
       .catch((error) => {
         console.error("Error updating absence:", error);
         toast({ title: "오류", description: `결석 처리 실패`, variant: "destructive"});
-        // Revert state on error
         setAbsentStudentIds(absentStudentIds);
         setBoardedStudentIds(boardedStudentIds);
       });
@@ -261,7 +252,6 @@ export function TeacherPageContent({
         record.endDate = dateStr;
         record.days = differenceInDays(new Date(dateStr), new Date(record.startDate)) + 1;
     } else { // Promote
-        // End any other active leader's term
         const currentLeaderIndex = newRecords.findIndex(r => r.endDate === null);
         if (currentLeaderIndex > -1) {
             newRecords[currentLeaderIndex].endDate = dateStr;
@@ -270,18 +260,23 @@ export function TeacherPageContent({
 
         newRecords.push({
             studentId,
-            name: student.name, // Only store name, not formatted name
+            name: student.name,
             startDate: dateStr,
             endDate: null,
             days: 1,
         });
     }
     
-    setSelectedStudent(prev => prev ? {...prev, isGroupLeader: !prev.isGroupLeader} : null);
     setGroupLeaderRecords(newRecords);
+    // Update the selected student's leader status in the side panel if they are currently selected
+    if (selectedStudent && selectedStudent.id === student.id) {
+        setSelectedStudent(prev => prev ? {...prev, isGroupLeader: !prev.isGroupLeader} : null);
+    }
   };
   
     const handleSeatClick = (seatNumber: number, studentId: string | null) => {
+        setLastClickedStudentId(studentId);
+        
         if (selectedSeat) {
             setSelectedSeat(null);
             toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
@@ -289,19 +284,11 @@ export function TeacherPageContent({
         }
         
         if (!studentId) {
-            setSelectedStudent(null);
             return;
         }
 
         const student = students.find(s => s.id === studentId);
         if (!student) return;
-
-        if (selectedStudent?.id === studentId) {
-            setSelectedStudent(null);
-        } else {
-            const isNowLeader = groupLeaderRecords.some(r => r.studentId === studentId && r.endDate === null);
-            setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
-        }
 
         if (currentRoute) {
             const newBoardedIds = boardedStudentIds.includes(studentId)
@@ -316,7 +303,6 @@ export function TeacherPageContent({
 
             updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
                 toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
-                 // Revert state on error
                 setBoardedStudentIds(boardedStudentIds);
                 setAbsentStudentIds(absentStudentIds);
             });
@@ -371,10 +357,9 @@ export function TeacherPageContent({
   }, [searchQuery, students]);
 
   const handleSelectStudentFromSearch = useCallback((student: Student) => {
-    const isNowLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
-    setSelectedStudent({...student, isGroupLeader: isNowLeader });
+    setLastClickedStudentId(student.id);
     setSearchQuery('');
-  }, [groupLeaderRecords]);
+  }, []);
 
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -488,14 +473,14 @@ export function TeacherPageContent({
                         variant={selectedStudent.isGroupLeader ? "default" : "outline"}
                         className="w-full"
                         onClick={() => toggleGroupLeader(selectedStudent)}
-                        disabled={!currentRoute} // Disable if no route context
+                        disabled={!currentRoute}
                     >
                         <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
                     </Button>
                     <Button
                         variant="ghost"
                         className="w-full"
-                        onClick={() => setSelectedStudent(null)}
+                        onClick={() => setLastClickedStudentId(null)}
                     >
                         닫기
                     </Button>
@@ -577,13 +562,7 @@ export function TeacherPageContent({
                         {studentsOnCurrentRoute.map(student => (
                             <TableRow 
                                 key={student.id} 
-                                onClick={() => {
-                                    const studentData = students.find(s => s.id === student.id);
-                                    if(studentData) {
-                                      const isActiveLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
-                                      setSelectedStudent({...studentData, isGroupLeader: isActiveLeader });
-                                    }
-                                }}
+                                onClick={() => setLastClickedStudentId(student.id)}
                                 className="cursor-pointer"
                             >
                                 <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
@@ -615,5 +594,3 @@ export function TeacherPageContent({
     </MainLayout>
   );
 }
-
-    
