@@ -51,7 +51,7 @@ export function TeacherPageContent({
   const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
   const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
   
-  const [selectedBusId, setSelectedBusId] = useState<string>(initialBuses.length > 0 ? initialBuses[0].id : '');
+  const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
   
@@ -150,7 +150,6 @@ export function TeacherPageContent({
           if (student) {
               const isNowLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
               if (selectedStudent?.id === student.id) {
-                // If same student is clicked, toggle off
                 setSelectedStudent(null);
                 setLastClickedStudentId(null);
               } else {
@@ -209,35 +208,34 @@ export function TeacherPageContent({
           .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
   }, [currentRoute, students]);
   
-  const toggleAbsence = useCallback((student: Student) => {
+ const toggleAbsence = useCallback((student: Student) => {
     if (!currentRoute) {
         toast({ title: "오류", description: "현재 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
         return;
     }
-    
+
     const isAbsent = absentStudentIds.includes(student.id);
 
     const newAbsentIds = isAbsent
         ? absentStudentIds.filter(id => id !== student.id)
         : [...absentStudentIds, student.id];
-    const newBoardedIds = isAbsent 
-        ? boardedStudentIds
-        : boardedStudentIds.filter(id => id !== student.id);
     
     setAbsentStudentIds(newAbsentIds);
-    setBoardedStudentIds(newBoardedIds);
+    setBoardedStudentIds(prev => prev.filter(id => id !== student.id)); // If absent, cannot be boarded
 
-    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds })
+    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: boardedStudentIds.filter(id => id !== student.id) })
       .then(() => {
         toast({ title: "성공", description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
       })
       .catch((error) => {
         console.error("Error updating absence:", error);
         toast({ title: "오류", description: `결석 처리 실패`, variant: "destructive"});
+        // Revert UI on failure
         setAbsentStudentIds(absentStudentIds);
         setBoardedStudentIds(boardedStudentIds);
       });
   }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast]);
+
   
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
@@ -274,40 +272,32 @@ export function TeacherPageContent({
     }
   };
   
-    const handleSeatClick = (seatNumber: number, studentId: string | null) => {
-        setLastClickedStudentId(studentId);
-        
-        if (selectedSeat) {
-            setSelectedSeat(null);
-            toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
-            return;
-        }
-        
-        if (!studentId) {
-            return;
-        }
+    const handleSeatClick = (seatNumber, studentId) => {
+    if (!studentId) {
+      setLastClickedStudentId(null);
+      return;
+    }
 
-        const student = students.find(s => s.id === studentId);
-        if (!student) return;
+    setLastClickedStudentId(studentId);
 
-        if (currentRoute) {
-            const newBoardedIds = boardedStudentIds.includes(studentId)
-                ? boardedStudentIds.filter(id => id !== studentId)
-                : [...boardedStudentIds, studentId];
-            const newAbsentIds = boardedStudentIds.includes(studentId)
-                ? absentStudentIds
-                : absentStudentIds.filter(id => id !== studentId);
-            
-            setBoardedStudentIds(newBoardedIds);
-            setAbsentStudentIds(newAbsentIds);
+    if (currentRoute) {
+      const isBoarded = boardedStudentIds.includes(studentId);
+      const newBoardedIds = isBoarded
+        ? boardedStudentIds.filter(id => id !== studentId)
+        : [...boardedStudentIds, studentId];
+      
+      setBoardedStudentIds(newBoardedIds);
+      setAbsentStudentIds(prev => prev.filter(id => id !== studentId)); // If boarded, cannot be absent
 
-            updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds }).catch(() => {
-                toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
-                setBoardedStudentIds(boardedStudentIds);
-                setAbsentStudentIds(absentStudentIds);
-            });
-        }
-    };
+      updateAttendance(currentRoute.id, today, { boarded: newBoardedIds, absent: absentStudentIds.filter(id => id !== studentId) })
+        .catch(() => {
+            toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
+            // Revert UI on failure
+            setBoardedStudentIds(boardedStudentIds);
+            setAbsentStudentIds(absentStudentIds);
+        });
+    }
+  };
     
   const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
@@ -371,16 +361,35 @@ export function TeacherPageContent({
     }
   };
 
+  const filteredBuses = useMemo(() => {
+    const configuredBusIds = new Set<string>();
+    routes.forEach(route => {
+        if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
+            configuredBusIds.add(route.busId);
+        }
+    });
+    return buses.filter(bus => configuredBusIds.has(bus.id));
+  }, [buses, routes, selectedDay, selectedRouteType]);
+
+  useEffect(() => {
+      if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
+          setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : '');
+      } else if (!selectedBusId && filteredBuses.length > 0) {
+          setSelectedBusId(filteredBuses[0].id);
+      }
+  }, [filteredBuses, selectedBusId]);
+
+
   const headerContent = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
         <label className="text-sm font-medium">버스</label>
         <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
             <SelectTrigger>
-            <SelectValue placeholder="버스를 선택하세요" />
+            <SelectValue placeholder="운행 버스를 선택하세요" />
             </SelectTrigger>
             <SelectContent>
-            {buses.map((bus) => (
+            {filteredBuses.map((bus) => (
                 <SelectItem key={bus.id} value={bus.id}>
                 {bus.name} ({bus.type})
                 </SelectItem>

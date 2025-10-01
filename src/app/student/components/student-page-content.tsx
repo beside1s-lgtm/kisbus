@@ -35,7 +35,7 @@ export function StudentPageContent({
   const [routes, setRoutes] = useState<Route[]>([]);
   const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
   
-  const [selectedBusId, setSelectedBusId] = useState<string>(initialBuses.length > 0 ? initialBuses[0].id : '');
+  const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -226,16 +226,35 @@ export function StudentPageContent({
       }
   }, [toggleAbsence, allStudents, absentStudentIds, boardedStudentIds, toast]);
 
+  const filteredBuses = useMemo(() => {
+    const configuredBusIds = new Set<string>();
+    routes.forEach(route => {
+        if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
+            configuredBusIds.add(route.busId);
+        }
+    });
+    return buses.filter(bus => configuredBusIds.has(bus.id));
+  }, [buses, routes, selectedDay, selectedRouteType]);
+
+  useEffect(() => {
+    if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
+        setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : '');
+    } else if (!selectedBusId && filteredBuses.length > 0) {
+        setSelectedBusId(filteredBuses[0].id);
+    }
+  }, [filteredBuses, selectedBusId]);
+
+
   const headerContent = (
     <div className="flex flex-wrap items-end gap-2">
         <div className="w-[140px]">
           <Label className="text-xs">버스</Label>
           <Select value={selectedBusId} onValueChange={setSelectedBusId}>
             <SelectTrigger>
-              <SelectValue placeholder="버스를 선택하세요" />
+              <SelectValue placeholder="운행 버스를 선택하세요" />
             </SelectTrigger>
             <SelectContent>
-              {buses.map((bus) => (
+              {filteredBuses.map((bus) => (
                 <SelectItem key={bus.id} value={bus.id}>
                   {bus.name}
                 </SelectItem>

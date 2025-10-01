@@ -2565,16 +2565,26 @@ const AdminPageFilter: React.FC<{
     days,
     dayLabels,
 }) => {
-    const getBusLabel = (bus: Bus) => {
-        const morningRoute = routes.find(r => r.busId === bus.id && r.dayOfWeek === 'Monday' && r.type === 'Morning');
-        if (morningRoute && morningRoute.stops.length > 0) {
-            const stopNames = morningRoute.stops.slice(0, 2).map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
-            if (stopNames.length > 0) {
-                return `${bus.name} - ${stopNames.join(', ')}...`;
+    
+    const filteredBuses = useMemo(() => {
+        const configuredBusIds = new Set<string>();
+        routes.forEach(route => {
+            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
+                configuredBusIds.add(route.busId);
             }
+        });
+        return buses.filter(bus => configuredBusIds.has(bus.id));
+    }, [buses, routes, selectedDay, selectedRouteType]);
+
+    useEffect(() => {
+        // If the currently selected bus is not in the new filtered list, deselect it.
+        if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
+            setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : null);
+        } else if (!selectedBusId && filteredBuses.length > 0) {
+            setSelectedBusId(filteredBuses[0].id);
         }
-        return bus.name;
-    };
+    }, [filteredBuses, selectedBusId, setSelectedBusId]);
+
     return (
         <Card className="mb-6">
             <CardContent className="p-4">
@@ -2583,12 +2593,12 @@ const AdminPageFilter: React.FC<{
                     <Label className="text-sm font-medium">버스</Label>
                     <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
                       <SelectTrigger>
-                        <SelectValue placeholder="버스를 선택하세요" />
+                        <SelectValue placeholder="운행 버스를 선택하세요" />
                       </SelectTrigger>
                       <SelectContent>
-                        {buses.map((bus) => (
+                        {filteredBuses.map((bus) => (
                           <SelectItem key={bus.id} value={bus.id}>
-                            {getBusLabel(bus)}
+                            {bus.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -2662,13 +2672,7 @@ const AdminPageContent: React.FC<{
     const [activeTab, setActiveTab] = useState('student-management');
     const { toast } = useToast();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-    useEffect(() => {
-        if (buses.length > 0 && !selectedBusId) {
-            setSelectedBusId(buses[0].id);
-        }
-    }, [buses, selectedBusId]);
-
+    
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
         if (pendingStudentIds.length === 0) return;
