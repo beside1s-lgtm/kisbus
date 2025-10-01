@@ -1231,12 +1231,32 @@ const StudentManagementTab = ({
     const [globalSearchResults, setGlobalSearchResults] = useState<Student[]>([]);
     const [selectedGlobalStudent, setSelectedGlobalStudent] = useState<Student | null>(null);
     
+    const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
+
     const assignedRoutesForSelectedStudent = useMemo(() => {
         if (!selectedGlobalStudent) return [];
-        return routes.filter(route => 
-            route.seating.some(seat => seat.studentId === selectedGlobalStudent.id)
-        );
-    }, [selectedGlobalStudent, routes]);
+        return routes
+            .filter(route => route.seating.some(seat => seat.studentId === selectedGlobalStudent.id))
+            .sort((a, b) => {
+                const busA = buses.find(bus => bus.id === a.busId);
+                const busB = buses.find(bus => bus.id === b.busId);
+                const numA = busA ? parseInt(busA.name.replace(/\D/g, ''), 10) : Infinity;
+                const numB = busB ? parseInt(busB.name.replace(/\D/g, ''), 10) : Infinity;
+
+                if (numA !== numB) {
+                    return (!isNaN(numA) ? numA : Infinity) - (!isNaN(numB) ? numB : Infinity);
+                }
+                
+                const dayIndexA = dayOrder.indexOf(a.dayOfWeek);
+                const dayIndexB = dayOrder.indexOf(b.dayOfWeek);
+
+                if (dayIndexA !== dayIndexB) {
+                    return dayIndexA - dayIndexB;
+                }
+
+                return 0; // Or sort by routeType if needed
+            });
+    }, [selectedGlobalStudent, routes, buses, dayOrder]);
 
 
 
@@ -1344,6 +1364,12 @@ const StudentManagementTab = ({
 
     useEffect(() => {
         if (!currentRoute) {
+            setFilteredUnassignedStudents([]);
+            return;
+        }
+
+        // 금요일 방과후에는 미배정 학생을 표시하지 않음
+        if (selectedDay === 'Friday' && selectedRouteType === 'AfterSchool') {
             setFilteredUnassignedStudents([]);
             return;
         }
@@ -2376,51 +2402,53 @@ const StudentManagementTab = ({
                                         </div>
                                         <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>닫기</Button>
                                     </div>
+                                    <div className="space-y-2">
+                                        <Label>등교 목적지</Label>
+                                        <Select 
+                                            value={selectedGlobalStudent.morningDestinationId || '_NONE_'} 
+                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value='_NONE_'>선택 안 함</SelectItem>
+                                                {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>하교 목적지</Label>
+                                        <Select 
+                                            value={selectedGlobalStudent.afternoonDestinationId || '_NONE_'} 
+                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value='_NONE_'>선택 안 함</SelectItem>
+                                                {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    <div className="space-y-3">
+                                        <Label>방과후 목적지</Label>
+                                        {dayOrder.filter(d => d !== 'Saturday').map(day => (
+                                            <div key={day} className="space-y-1">
+                                                 <Label className="text-xs text-muted-foreground">{dayLabels[day]}</Label>
+                                                 <Select 
+                                                    value={selectedGlobalStudent.afterSchoolDestinations?.[day] || '_NONE_'} 
+                                                    onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', day)}
+                                                    disabled={day === 'Friday' && selectedRouteType === 'AfterSchool' && !selectedGlobalStudent.afterSchoolDestinations?.['Friday']}
+                                                >
+                                                    <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value='_NONE_'>선택 안 함</SelectItem>
+                                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        ))}
+                                    </div>
 
-                                    {selectedRouteType === 'AfterSchool' ? (
-                                        <div className="space-y-2">
-                                            <Label>방과후 목적지 ({dayLabels[selectedDay]})</Label>
-                                            <Select 
-                                                value={selectedGlobalStudent.afterSchoolDestinations?.[selectedDay] || '_NONE_'} 
-                                                onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', selectedDay)}
-                                            >
-                                                <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value='_NONE_'>선택 안 함</SelectItem>
-                                                    {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="space-y-2">
-                                                <Label>등교 목적지</Label>
-                                                <Select 
-                                                    value={selectedGlobalStudent.morningDestinationId || '_NONE_'} 
-                                                    onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
-                                                >
-                                                    <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value='_NONE_'>선택 안 함</SelectItem>
-                                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label>하교 목적지</Label>
-                                                <Select 
-                                                    value={selectedGlobalStudent.afternoonDestinationId || '_NONE_'} 
-                                                    onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
-                                                >
-                                                    <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value='_NONE_'>선택 안 함</SelectItem>
-                                                        {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </>
-                                    )}
 
                                      <div>
                                         <Label>배정된 노선</Label>
@@ -2572,6 +2600,7 @@ const AdminPageFilter: React.FC<{
         }
         const configuredBusIds = new Set<string>();
         routes.forEach(route => {
+            // A route is considered "configured" if it has at least one stop.
             if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
                 configuredBusIds.add(route.busId);
             }
@@ -2584,6 +2613,7 @@ const AdminPageFilter: React.FC<{
         if (selectedBusId && !displayBuses.some(b => b.id === selectedBusId)) {
             setSelectedBusId(displayBuses.length > 0 ? displayBuses[0].id : null);
         } else if (!selectedBusId && displayBuses.length > 0) {
+            // Auto-select the first bus if none is selected
             setSelectedBusId(displayBuses[0].id);
         }
     }, [displayBuses, selectedBusId, setSelectedBusId]);
@@ -2729,7 +2759,7 @@ const AdminPageContent: React.FC<{
                         setSelectedRouteType={setSelectedRouteType}
                         days={days}
                         dayLabels={dayLabels}
-                        filterConfiguredBusesOnly={false}
+                        filterConfiguredBusesOnly={false} // Always show all buses in this tab
                     />
                     <BusConfigurationTab
                         buses={buses}
@@ -2843,6 +2873,12 @@ export default function AdminPage() {
             };
         }
     }, [user, toast]);
+
+    useEffect(() => {
+        // This effect updates the pending students list whenever the main students list changes.
+        setPendingStudents(students.filter(s => s.applicationStatus === 'pending'));
+    }, [students]);
+
 
     if (authLoading || dataLoading || !user) {
         return (
