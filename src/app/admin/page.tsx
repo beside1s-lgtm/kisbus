@@ -2558,6 +2558,7 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
 const AdminPageFilter: React.FC<{
     buses: Bus[];
     routes: Route[];
+    destinations: Destination[];
     selectedBusId: string | null;
     setSelectedBusId: (id: string | null) => void;
     selectedDay: DayOfWeek;
@@ -2567,9 +2568,11 @@ const AdminPageFilter: React.FC<{
     days: DayOfWeek[];
     dayLabels: { [key in DayOfWeek]: string };
     filterConfiguredBusesOnly: boolean;
+    showRouteStops?: boolean;
 }> = ({
     buses,
     routes,
+    destinations,
     selectedBusId,
     setSelectedBusId,
     selectedDay,
@@ -2579,6 +2582,7 @@ const AdminPageFilter: React.FC<{
     days,
     dayLabels,
     filterConfiguredBusesOnly,
+    showRouteStops = false,
 }) => {
     
     const displayBuses = useMemo(() => {
@@ -2587,7 +2591,6 @@ const AdminPageFilter: React.FC<{
         }
         const configuredBusIds = new Set<string>();
         routes.forEach(route => {
-            // A route is considered "configured" if it has at least one stop.
             if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
                 configuredBusIds.add(route.busId);
             }
@@ -2596,14 +2599,25 @@ const AdminPageFilter: React.FC<{
     }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
 
     useEffect(() => {
-        // If the currently selected bus is not in the new filtered list, deselect it.
         if (selectedBusId && !displayBuses.some(b => b.id === selectedBusId)) {
             setSelectedBusId(displayBuses.length > 0 ? displayBuses[0].id : null);
         } else if (!selectedBusId && displayBuses.length > 0) {
-            // Auto-select the first bus if none is selected
             setSelectedBusId(displayBuses[0].id);
         }
     }, [displayBuses, selectedBusId, setSelectedBusId]);
+    
+    const getRouteStopsPreview = (busId: string) => {
+        const route = routes.find(r => r.busId === busId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
+        if (!route || route.stops.length === 0) return null;
+        
+        const stopNames = route.stops
+            .map(stopId => destinations.find(d => d.id === stopId)?.name)
+            .filter(Boolean)
+            .slice(0, 5)
+            .join(', ');
+            
+        return stopNames;
+    };
 
     return (
         <Card className="mb-6">
@@ -2616,11 +2630,19 @@ const AdminPageFilter: React.FC<{
                         <SelectValue placeholder="버스를 선택하세요" />
                       </SelectTrigger>
                       <SelectContent>
-                        {displayBuses.map((bus) => (
-                          <SelectItem key={bus.id} value={bus.id}>
-                            {bus.name}
-                          </SelectItem>
-                        ))}
+                        {displayBuses.map((bus) => {
+                           const stopsPreview = showRouteStops ? getRouteStopsPreview(bus.id) : null;
+                           return (
+                              <SelectItem key={bus.id} value={bus.id}>
+                                <div>
+                                    <p>{bus.name}</p>
+                                    {stopsPreview && (
+                                        <p className="text-xs text-muted-foreground">{stopsPreview}</p>
+                                    )}
+                                </div>
+                              </SelectItem>
+                           );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -2744,6 +2766,7 @@ const AdminPageContent: React.FC<{
                      <AdminPageFilter
                         buses={buses}
                         routes={routes}
+                        destinations={destinations}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
                         selectedDay={selectedDay}
@@ -2752,7 +2775,7 @@ const AdminPageContent: React.FC<{
                         setSelectedRouteType={setSelectedRouteType}
                         days={days}
                         dayLabels={dayLabels}
-                        filterConfiguredBusesOnly={false} // Always show all buses in this tab
+                        filterConfiguredBusesOnly={false}
                     />
                     <BusConfigurationTab
                         buses={buses}
@@ -2772,6 +2795,7 @@ const AdminPageContent: React.FC<{
                     <AdminPageFilter
                         buses={buses}
                         routes={routes}
+                        destinations={destinations}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
                         selectedDay={selectedDay}
@@ -2781,6 +2805,7 @@ const AdminPageContent: React.FC<{
                         days={days}
                         dayLabels={dayLabels}
                         filterConfiguredBusesOnly={true}
+                        showRouteStops={true}
                     />
                     <StudentManagementTab 
                         students={students} 
@@ -2905,4 +2930,5 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
 
