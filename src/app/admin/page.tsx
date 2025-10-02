@@ -2418,7 +2418,7 @@ const StudentManagementTab = ({
                                     
                                     <div className="space-y-3">
                                         <Label>방과후 목적지</Label>
-                                        {dayOrder.filter(d => d !== 'Saturday').map(day => (
+                                        {dayOrder.map(day => (
                                             <div key={day} className="space-y-1">
                                                  <Label className="text-xs text-muted-foreground">{dayLabels[day]}</Label>
                                                  <Select 
