@@ -12,7 +12,8 @@ import {
     getStudents,
     getDestinations,
     getTeachers,
-    getLostItems
+    getLostItems,
+    onAttendanceUpdate
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -114,45 +115,45 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   }, [days]);
 
   useEffect(() => {
-    if (!authLoading) {
-      const fetchData = async () => {
-          setLoading(true);
-          try {
-              const [busesData, studentsData, destinationsData, teachersData, lostItemsData, routesData] = await Promise.all([
-                  getBuses(),
-                  getStudents(),
-                  getDestinations(),
-                  getTeachers(),
-                  getLostItems(),
-                  getRoutes(),
-              ]);
-              
-              setBuses(sortBuses(busesData));
-              setStudents(studentsData);
-              setDestinations(destinationsData);
-              setTeachers(teachersData);
-              setLostItems(lostItemsData);
-              setAllRoutes(routesData);
-              setLoading(false);
-          } catch (error) {
-              console.error("Failed to fetch initial data:", error);
-              toast({ title: t('loading.initial_data_error'), description: (error as Error).message, variant: "destructive" });
-              setLoading(false);
-          }
-      };
-      fetchData();
-    }
-  }, [authLoading, t, toast]);
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [busesData, studentsData, destinationsData, teachersData, lostItemsData, routesData] = await Promise.all([
+                getBuses(),
+                getStudents(),
+                getDestinations(),
+                getTeachers(),
+                getLostItems(),
+                getRoutes(),
+            ]);
+            
+            setBuses(sortBuses(busesData));
+            setStudents(studentsData);
+            setDestinations(destinationsData);
+            setTeachers(teachersData);
+            setLostItems(lostItemsData);
+            setAllRoutes(routesData);
 
-  useEffect(() => {
-    if(user && teachers.length > 0 && allRoutes.length > 0) {
-      const currentUserTeacher = teachers.find(t => t.name === user.displayName);
-      if(currentUserTeacher) {
-        const routesForTeacher = allRoutes.filter(r => r.teacherIds?.includes(currentUserTeacher.id));
-        setMyRoutes(routesForTeacher);
-      }
-    }
-  }, [user, teachers, allRoutes]);
+            if (user) {
+              const currentUserTeacher = teachersData.find(t => t.name === user.displayName);
+              if(currentUserTeacher) {
+                const routesForTeacher = routesData.filter(r => r.teacherIds?.includes(currentUserTeacher.id));
+                setMyRoutes(routesForTeacher);
+              }
+            } else {
+              // If not logged in, maybe show all routes or handle appropriately
+              setMyRoutes(routesData); // For now, show all if not logged in.
+            }
+
+            setLoading(false);
+        } catch (error) {
+            console.error("Failed to fetch initial data:", error);
+            toast({ title: t('loading.initial_data_error'), description: (error as Error).message, variant: "destructive" });
+            setLoading(false);
+        }
+    };
+    fetchData();
+  }, [user, t, toast]);
   
   const currentRoute = useMemo(() => {
     return myRoutes.find(r => 
@@ -180,11 +181,10 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     if (currentRoute) {
-        const unsub = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
+        unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
             setBoardedStudentIds(attendance?.boarded || []);
             setAbsentStudentIds(attendance?.absent || []);
         });
-        unsubscribe = unsub;
     } else {
         setBoardedStudentIds([]);
         setAbsentStudentIds([]);
@@ -442,7 +442,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
         <label className="text-sm font-medium">{t('bus')}</label>
-        <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading || authLoading}>
+        <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
             <SelectTrigger>
             <SelectValue placeholder={t('teacher_page.select_bus')} />
             </SelectTrigger>
@@ -457,7 +457,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
         </div>
         <div>
         <label className="text-sm font-medium">{t('day')}</label>
-        <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading || authLoading}>
+        <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
             <SelectTrigger>
             <SelectValue placeholder={t('select_day')} />
             </SelectTrigger>
@@ -474,9 +474,9 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
         <label className="text-sm font-medium">{t('route')}</label>
         <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="Morning" disabled={loading || authLoading}>{t('route_type.morning')}</TabsTrigger>
-            <TabsTrigger value="Afternoon" disabled={loading || authLoading}>{t('route_type.afternoon')}</TabsTrigger>
-            <TabsTrigger value="AfterSchool" disabled={loading || authLoading}>{t('route_type.after_school')}</TabsTrigger>
+            <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
+            <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
+            <TabsTrigger value="AfterSchool" disabled={loading}>{t('route_type.after_school')}</TabsTrigger>
             </TabsList>
         </Tabs>
         </div>
@@ -561,22 +561,6 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     </div>
   );
 
-  if (authLoading) {
-    return (
-        <MainLayout>
-            <div className="flex justify-center items-center h-64"><p>{t('loading.auth')}</p></div>
-        </MainLayout>
-    );
-  }
-
-  if (!user) {
-    return (
-        <MainLayout>
-            <div className="flex justify-center items-center h-64"><p>{t('teacher_page.login_prompt')}</p></div>
-        </MainLayout>
-    );
-  }
-  
   if (loading) {
     return (
         <MainLayout headerContent={headerContent}>
@@ -679,5 +663,3 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     </MainLayout>
   );
 }
-
-    
