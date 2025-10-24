@@ -1184,13 +1184,13 @@ const StudentManagementTab = ({
     setSelectedBusId,
     setSelectedDay,
     setSelectedRouteType,
-}:{
-    students: Student[],
+}: {
+    students: Student[];
     setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
-    buses: Bus[],
-    routes: Route[],
-    setRoutes: React.Dispatch<React.SetStateAction<Route[]>>,
-    destinations: Destination[],
+    buses: Bus[];
+    routes: Route[];
+    setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
+    destinations: Destination[];
     selectedBusId: string | null;
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
@@ -2817,7 +2817,7 @@ export default function AdminPage() {
     }, [user, authLoading, router]);
 
     useEffect(() => {
-        if (user) {
+        if (user && !authLoading) {
             const fetchAndSubscribe = async () => {
                 setDataLoading(true);
                 try {
@@ -2858,14 +2858,14 @@ export default function AdminPage() {
                  unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
             };
         }
-    }, [user, toast, t]);
+    }, [user, authLoading, toast, t]);
 
     useEffect(() => {
         setPendingStudents(students.filter(s => s.applicationStatus === 'pending'));
     }, [students]);
 
 
-    if (authLoading || dataLoading || !user) {
+    if (authLoading || dataLoading) {
         return (
             <MainLayout>
                 <div className="flex justify-center items-center h-64">
