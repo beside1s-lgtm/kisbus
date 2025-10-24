@@ -39,7 +39,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
       }
   }
 
-  if (authLoading && (pathname.startsWith('/admin') || pathname.startsWith('/teacher'))) {
+  if (authLoading && pathname.startsWith('/admin')) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>{t('loading.auth')}</p>
@@ -77,7 +77,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         
         <div className="flex items-center gap-2">
           <LanguageSwitcher />
-          {user && (pathname.startsWith('/admin') || pathname.startsWith('/teacher')) && (
+          {user && (pathname.startsWith('/admin')) && (
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="mr-2" /> {t('logout.button')}
             </Button>
