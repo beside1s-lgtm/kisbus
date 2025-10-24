@@ -1,4 +1,3 @@
-
 {
     "main.title": "Trình quản lý xe buýt trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -9,8 +8,8 @@
     "role.parent": "Phụ huynh/Học sinh",
     "role.parent.description": "Kiểm tra chỗ ngồi được chỉ định và đăng ký đi xe.",
     "page.title.home": "Trang chủ",
-    "page.title.admin": "Quản trị viên",
-    "page.title.teacher": "Giáo viên",
+    "page.title.admin": "Trang quản trị",
+    "page.title.teacher": "Trang giáo viên",
     "page.title.student": "Xác nhận lên xe",
     "page.title.apply": "Đăng ký đi xe",
     "page.title.login": "Đăng nhập quản trị viên",
@@ -26,7 +25,7 @@
     "loading.route_info": "Đang tải thông tin tuyến đường thời gian thực...",
     "parents.description": "Vui lòng chọn dịch vụ bạn muốn.",
     "parents.boarding_check": "Xác nhận lên xe",
-    "parents.boarding_application": "Đăng ký đi xe",
+    "parents.boarding_application": "Đăng ký/Thay đổi chuyến đi",
     "error": "Lỗi",
     "success": "Thành công",
     "notice": "Thông báo",
@@ -177,7 +176,7 @@
     "admin.bus_config.suggestions.delete_error": "Đã xảy ra lỗi khi xóa đề xuất",
     "admin.bus_config.suggestions.approve_success": "Điểm đến được đề xuất đã được phê duyệt.",
     "admin.bus_config.suggestions.approve_error": "Đã xảy ra lỗi trong quá trình phê duyệt",
-    "admin.busconfig.suggestions.delete_all.processing": "Đang xóa tất cả các đề xuất...",
+    "admin.bus_config.suggestions.delete_all.processing": "Đang xóa tất cả các đề xuất...",
     "admin.bus_config.suggestions.delete_all.success": "Tất cả các điểm đến được đề xuất đã được xóa.",
     "admin.bus_config.suggestions.delete_all.error": "Đã xảy ra lỗi khi xóa.",
     "admin.bus_config.suggestions.delete_all.confirm_title": "Bạn có chắc chắn muốn xóa tất cả các đề xuất không?",
@@ -224,8 +223,8 @@
     "admin.student_management.seat.copy.error": "Đã xảy ra lỗi khi sao chép bố trí chỗ ngồi.",
     "admin.student_management.seat.reset.button": "Đặt lại chỗ ngồi",
     "admin.student_management.seat.reset.confirm_title": "Bạn có chắc chắn muốn đặt lại tất cả các phân công chỗ ngồi không?",
-    "admin.student_management.seat.reset.confirm_description": "Hành động này không thể được hoàn tác. Tất cả các phân công chỗ ngồi cho {{busName}} sẽ được xóa.",
-    "admin.student_management.seat.reset_success": "Phân công chỗ ngồi cho tuyến {{busName}} {{day}} {{routeType}} đã được đặt lại.",
+    "admin.student_management.seat.reset.confirm_description": "Tất cả các phân công chỗ ngồi cho {{busName}} sẽ được xóa.",
+    "admin.student_management.seat.reset.success": "Phân công chỗ ngồi cho tuyến {{busName}} {{day}} {{routeType}} đã được đặt lại.",
     "admin.student_management.seat.random_assign_button": "Phân công ngẫu nhiên",
     "admin.student_management.seat.random_assign_success": "Phân công ngẫu nhiên đã hoàn tất.",
     "admin.student_management.seat.select_bus_first": "Vui lòng chọn một xe buýt trước.",
@@ -357,3 +356,4 @@
     "lost_and_found.action.unclaim": "Chưa trả",
     "lost_and_found.action.claim": "Đã trả"
 }
+  
