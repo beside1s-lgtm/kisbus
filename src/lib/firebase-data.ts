@@ -1,4 +1,5 @@
 
+
 import { db } from './firebase';
 import {
   collection,
@@ -74,21 +75,15 @@ export const addBus = (bus: NewBus) => addDocument<Bus>('buses', bus);
 export const deleteBus = async (busId: string) => {
     // Also delete associated routes
     const q = query(collection(db, "routes"), where("busId", "==", busId));
-    const querySnapshot = await getDocs(q).catch(async (serverError) => {
-         const permissionError = new FirestorePermissionError({
-            path: `/routes`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const querySnapshot = await getDocs(q);
 
     const batch = writeBatch(db);
     querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
     });
     
-    batch.delete(doc(db, 'buses', busId));
+    const busDocRef = doc(db, 'buses', busId);
+    batch.delete(busDocRef);
     
     await batch.commit()
     .catch(async (serverError) => {
@@ -110,26 +105,12 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         where("grade", "==", student.grade),
         where("class", "==", student.class)
     );
-    const querySnapshot = await getDocs(q).catch(async (serverError) => {
-         const permissionError = new FirestorePermissionError({
-            path: `/students`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
         // Student exists, update them
         const docRef = querySnapshot.docs[0].ref;
-        const existingStudentDoc = await getDoc(docRef).catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: docRef.path,
-                operation: 'get',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            throw serverError;
-        });
+        const existingStudentDoc = await getDoc(docRef);
         const existingStudentData = existingStudentDoc.data() as Student;
 
         const updateData: Partial<Student> = {
@@ -166,14 +147,7 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         
         await unassignStudentFromAllRoutes(docRef.id);
         
-        const docSnap = await getDoc(docRef).catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: docRef.path,
-                operation: 'get',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            throw serverError;
-        });
+        const docSnap = await getDoc(docRef);
         return { id: docRef.id, ...docSnap.data() } as Student;
     } else {
         // Student doesn't exist, create new
@@ -186,14 +160,7 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
             errorEmitter.emit('permission-error', permissionError);
             throw serverError;
         });
-        const newStudentDoc = await getDoc(docRef).catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: docRef.path,
-                operation: 'get',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            throw serverError;
-        });
+        const newStudentDoc = await getDoc(docRef);
         return { id: docRef.id, ...newStudentDoc.data() } as Student;
     }
 };
@@ -238,14 +205,7 @@ export const deleteStudentsInBatch = async (studentIds: string[]) => {
         batch.delete(docRef);
     });
     
-    const routesSnapshot = await getDocs(collection(db, 'routes')).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
 
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
@@ -282,14 +242,7 @@ export const addDestination = (destination: NewDestination) => addDocument<Desti
 export const addDestinationsInBatch = async (destinations: NewDestination[]): Promise<Destination[]> => {
     const batch = writeBatch(db);
     const newDestinations: Destination[] = [];
-    const existingDestsSnapshot = await getDocs(collection(db, 'destinations')).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/destinations`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const existingDestsSnapshot = await getDocs(collection(db, 'destinations'));
     const existingNames = new Set(existingDestsSnapshot.docs.map(doc => doc.data().name.toLowerCase()));
 
     for (const dest of destinations) {
@@ -330,24 +283,10 @@ export const deleteDestination = (destinationId: string) => {
 export const deleteAllDestinations = async () => {
     const batch = writeBatch(db);
 
-    const destSnapshot = await getDocs(collection(db, 'destinations')).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/destinations`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const destSnapshot = await getDocs(collection(db, 'destinations'));
     destSnapshot.forEach(doc => batch.delete(doc.ref));
 
-    const routesSnapshot = await getDocs(collection(db, 'routes')).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
     routesSnapshot.forEach(doc => {
         batch.update(doc.ref, { stops: [] });
     });
@@ -369,14 +308,7 @@ export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teache
     const batch = writeBatch(db);
     const newTeachers: Teacher[] = [];
     const q = query(collection(db, 'teachers'));
-    const existingDocs = await getDocs(q).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/teachers`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const existingDocs = await getDocs(q);
     const existingNames = new Set(existingDocs.docs.map(d => d.data().name));
 
     for (const teacher of teachers) {
@@ -404,19 +336,21 @@ export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teache
 export const getRoutes = () => fetchCollection<Route>('routes');
 export const onRoutesUpdate = (callback: (routes: Route[]) => void) => {
     const q = query(collection(db, 'routes'));
-    return onSnapshot(q, (querySnapshot) => {
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const routes: Route[] = [];
         querySnapshot.forEach((doc) => {
             routes.push({ id: doc.id, ...doc.data() } as Route);
         });
         callback(routes);
-    }, (error) => {
+    },
+    (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: `/routes`,
             operation: 'list',
-        });
+        } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
     });
+    return unsubscribe;
 };
 
 export const getRoutesForBus = (busId: string) => {
@@ -523,14 +457,7 @@ export const copyRoutePlan = async (sourceStops: string[], targetRoutes: Route[]
 // Group Leader Records
 export const getGroupLeaderRecords = async (routeId: string): Promise<GroupLeaderRecord[]> => {
     const collectionName = `routes/${routeId}/groupLeaderRecords`;
-    const recordsSnapshot = await getDocs(collection(db, collectionName)).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/${collectionName}`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const recordsSnapshot = await getDocs(collection(db, collectionName));
     return recordsSnapshot.docs.map(doc => doc.data() as GroupLeaderRecord);
 };
 
@@ -538,14 +465,7 @@ export const saveGroupLeaderRecords = async (routeId: string, records: GroupLead
     const batch = writeBatch(db);
     const recordsCollection = collection(db, `routes/${routeId}/groupLeaderRecords`);
 
-    const existingRecordsSnapshot = await getDocs(recordsCollection).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes/${routeId}/groupLeaderRecords`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const existingRecordsSnapshot = await getDocs(recordsCollection);
     const existingRecordIds = new Set(existingRecordsSnapshot.docs.map(d => d.id));
     
     const localRecordIds = new Set<string>();
@@ -583,25 +503,11 @@ export const addSuggestedDestination = async (destination: { name: string }) => 
     if (!trimmedName) return;
 
     const mainDestQ = query(collection(db, "destinations"), where("name", "==", trimmedName));
-    const mainDestSnap = await getDocs(mainDestQ).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/destinations`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const mainDestSnap = await getDocs(mainDestQ);
     if (!mainDestSnap.empty) return;
 
     const suggestedDestQ = query(collection(db, "suggestedDestinations"), where("name", "==", trimmedName));
-    const suggestedDestSnap = await getDocs(suggestedDestQ).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/suggestedDestinations`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const suggestedDestSnap = await getDocs(suggestedDestQ);
     if (suggestedDestSnap.empty) {
         await addDocument<Destination>('suggestedDestinations', { name: trimmedName });
     }
@@ -624,14 +530,7 @@ export const approveSuggestedDestination = async (suggestion: Destination) => {
 }
 export const clearAllSuggestedDestinations = async () => {
     const suggestionsCollection = collection(db, 'suggestedDestinations');
-    const snapshot = await getDocs(suggestionsCollection).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/suggestedDestinations`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const snapshot = await getDocs(suggestionsCollection);
     const batch = writeBatch(db);
     snapshot.docs.forEach(doc => batch.delete(doc.ref));
     await batch.commit()
@@ -648,14 +547,7 @@ export const clearAllSuggestedDestinations = async () => {
 export const unassignStudentFromAllRoutes = async (studentId: string) => {
     if (!studentId) return;
 
-    const routesSnapshot = await getDocs(collection(db, 'routes')).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes`,
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
     if (routesSnapshot.empty) return;
 
     const batch = writeBatch(db);
@@ -721,19 +613,20 @@ export const updateAttendance = async (routeId: string, date: string, data: Part
 
 export const onAttendanceUpdate = (routeId: string, date: string, callback: (record: AttendanceRecord | null) => void) => {
   const docRef = doc(db, 'routes', routeId, 'attendance', date);
-  return onSnapshot(docRef, (docSnap) => {
+  const unsubscribe = onSnapshot(docRef, (docSnap) => {
     if (docSnap.exists()) {
       callback({ id: docSnap.id, ...docSnap.data() } as AttendanceRecord);
     } else {
       callback(null);
     }
-  }, (error) => {
+  }, (serverError) => {
     const permissionError = new FirestorePermissionError({
         path: docRef.path,
         operation: 'get',
     } satisfies SecurityRuleContext);
     errorEmitter.emit('permission-error', permissionError);
   });
+  return unsubscribe;
 };
 
 // --- Lost & Found ---
