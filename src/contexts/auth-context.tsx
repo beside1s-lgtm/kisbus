@@ -46,13 +46,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, pass: string): Promise<void> => {
     await signInWithEmailAndPassword(auth, email, pass);
-    // onAuthStateChanged will handle the cookie setting
     router.push('/admin');
   };
 
   const logout = async () => {
     await signOut(auth);
-    // onAuthStateChanged will handle the cookie deletion
     localStorage.removeItem('rememberMeEmail');
     localStorage.removeItem('rememberMe');
     if (pathname.startsWith('/admin')) {
