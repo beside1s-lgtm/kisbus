@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { onRoutesUpdate, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance, getLostItems, updateLostItem, getBuses, getStudents, getDestinations } from '@/lib/firebase-data';
+import { getRoutes, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance, getLostItems, updateLostItem, getBuses, getStudents, getDestinations } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -86,45 +86,39 @@ export function StudentPageContent() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [busesData, studentsData, destinationsData, lostItemsData] = await Promise.all([
+            const [busesData, studentsData, destinationsData, lostItemsData, routesData] = await Promise.all([
                 getBuses(),
                 getStudents(),
                 getDestinations(),
                 getLostItems(),
+                getRoutes(),
             ]);
             setBuses(sortBuses(busesData));
             setAllStudents(studentsData);
             setDestinations(destinationsData);
             setLostItems(lostItemsData);
+            setRoutes(routesData);
+            setLoading(false);
         } catch (error) {
             console.error("Failed to fetch initial data:", error);
             toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
+            setLoading(false);
         }
     };
 
     fetchData();
 
-  }, [days, t]);
+  }, [days, t, toast]);
 
   useEffect(() => {
-    let isMounted = true;
-    const unsubscribeRoutes = onRoutesUpdate((routesData) => {
-      if (isMounted) {
-        setRoutes(routesData);
-        setLoading(false);
-      }
-    });
-
     const dateCheckInterval = setInterval(() => {
       const currentDate = format(new Date(), 'yyyy-MM-dd');
-      if (currentDate !== today && isMounted) {
+      if (currentDate !== today) {
         setToday(currentDate);
       }
     }, 60000);
 
     return () => {
-      isMounted = false;
-      unsubscribeRoutes();
       clearInterval(dateCheckInterval);
     };
   }, [today]);
@@ -402,3 +396,5 @@ export function StudentPageContent() {
     </MainLayout>
   );
 }
+
+    

@@ -346,7 +346,6 @@ export const onRoutesUpdate = (callback: (routes: Route[]) => void) => {
             operation: 'list',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
-        console.error("onRoutesUpdate failed:", error);
     });
     return unsubscribe;
 };
@@ -645,3 +644,5 @@ export const deleteLostItem = (itemId: string) => {
         throw serverError;
     });
 }
+
+    

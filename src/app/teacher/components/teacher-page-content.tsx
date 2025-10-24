@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
-    onRoutesUpdate, 
+    getRoutes, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
     getAttendance,
     updateAttendance,
@@ -111,21 +111,25 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [busesData, studentsData, destinationsData, teachersData, lostItemsData] = await Promise.all([
+            const [busesData, studentsData, destinationsData, teachersData, lostItemsData, routesData] = await Promise.all([
                 getBuses(),
                 getStudents(),
                 getDestinations(),
                 getTeachers(),
                 getLostItems(),
+                getRoutes(),
             ]);
             setBuses(sortBuses(busesData));
             setStudents(studentsData);
             setDestinations(destinationsData);
             setTeachers(teachersData);
             setLostItems(lostItemsData);
+            setRoutes(routesData);
+            setLoading(false);
         } catch (error) {
             console.error("Failed to fetch initial data:", error);
             toast({ title: "데이터 로딩 오류", description: "초기 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
+            setLoading(false);
         }
     };
 
@@ -144,11 +148,6 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
   useEffect(() => {
-    const unsubscribeRoutes = onRoutesUpdate((routesData) => {
-        setRoutes(routesData);
-        setLoading(false);
-    });
-
     const dateCheckInterval = setInterval(async () => {
         const currentDate = format(new Date(), 'yyyy-MM-dd');
         if (currentDate !== today) {
@@ -157,7 +156,6 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     }, 60000); 
 
     return () => {
-        unsubscribeRoutes();
         clearInterval(dateCheckInterval);
     };
   }, [today]);
@@ -640,3 +638,5 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     </MainLayout>
   );
 }
+
+    
