@@ -7,7 +7,6 @@ import {
     getGroupLeaderRecords, saveGroupLeaderRecords,
     getAttendance,
     updateAttendance,
-    onAttendanceUpdate,
     updateRouteSeating,
     getBuses,
     getStudents,
@@ -34,6 +33,8 @@ import { Input } from '@/components/ui/input';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { LostAndFound } from './lost-and-found';
+import { useAuth } from '@/hooks/use-auth';
+import { useTranslation } from '@/hooks/use-translation';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
@@ -50,9 +51,12 @@ interface TeacherPageContentProps {
 }
 
 export function TeacherPageContent({}: TeacherPageContentProps) {
+  const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const [buses, setBuses] = useState<Bus[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  const [routes, setRoutes] = useState<Route[]>([]);
+  const [allRoutes, setAllRoutes] = useState<Route[]>([]);
+  const [myRoutes, setMyRoutes] = useState<Route[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
@@ -75,13 +79,13 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
 
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
   const dayLabels: { [key in DayOfWeek]: string } = useMemo(() =>({
-      Monday: '월요일',
-      Tuesday: '화요일',
-      Wednesday: '수요일',
-      Thursday: '목요일',
-      Friday: '금요일',
-      Saturday: '토요일',
-  }), []);
+      Monday: t('day.monday'),
+      Tuesday: t('day.tuesday'),
+      Wednesday: t('day.wednesday'),
+      Thursday: t('day.thursday'),
+      Friday: t('day.friday'),
+      Saturday: t('day.saturday'),
+  }), [t]);
 
   const formatStudentName = (student: Student | null) => {
     if (!student) return '';
@@ -107,43 +111,56 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     } else {
         setSelectedRouteType('Morning');
     }
+  }, [days]);
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [busesData, studentsData, destinationsData, teachersData, lostItemsData, routesData] = await Promise.all([
-                getBuses(),
-                getStudents(),
-                getDestinations(),
-                getTeachers(),
-                getLostItems(),
-                getRoutes(),
-            ]);
-            setBuses(sortBuses(busesData));
-            setStudents(studentsData);
-            setDestinations(destinationsData);
-            setTeachers(teachersData);
-            setLostItems(lostItemsData);
-            setRoutes(routesData);
-            setLoading(false);
-        } catch (error) {
-            console.error("Failed to fetch initial data:", error);
-            toast({ title: "데이터 로딩 오류", description: "초기 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
-            setLoading(false);
-        }
-    };
+  useEffect(() => {
+    if (!authLoading) {
+      const fetchData = async () => {
+          setLoading(true);
+          try {
+              const [busesData, studentsData, destinationsData, teachersData, lostItemsData, routesData] = await Promise.all([
+                  getBuses(),
+                  getStudents(),
+                  getDestinations(),
+                  getTeachers(),
+                  getLostItems(),
+                  getRoutes(),
+              ]);
+              
+              setBuses(sortBuses(busesData));
+              setStudents(studentsData);
+              setDestinations(destinationsData);
+              setTeachers(teachersData);
+              setLostItems(lostItemsData);
+              setAllRoutes(routesData);
+              setLoading(false);
+          } catch (error) {
+              console.error("Failed to fetch initial data:", error);
+              toast({ title: t('loading.initial_data_error'), description: (error as Error).message, variant: "destructive" });
+              setLoading(false);
+          }
+      };
+      fetchData();
+    }
+  }, [authLoading, t, toast]);
 
-    fetchData();
-
-  }, [days, toast]);
+  useEffect(() => {
+    if(user && teachers.length > 0 && allRoutes.length > 0) {
+      const currentUserTeacher = teachers.find(t => t.name === user.displayName);
+      if(currentUserTeacher) {
+        const routesForTeacher = allRoutes.filter(r => r.teacherIds?.includes(currentUserTeacher.id));
+        setMyRoutes(routesForTeacher);
+      }
+    }
+  }, [user, teachers, allRoutes]);
   
   const currentRoute = useMemo(() => {
-    return routes.find(r => 
+    return myRoutes.find(r => 
       r.busId === selectedBusId && 
       r.dayOfWeek === selectedDay && 
       r.type === selectedRouteType
     );
-  }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+  }, [myRoutes, selectedBusId, selectedDay, selectedRouteType]);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
@@ -163,10 +180,11 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     if (currentRoute) {
-        unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
+        const unsub = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
             setBoardedStudentIds(attendance?.boarded || []);
             setAbsentStudentIds(attendance?.absent || []);
         });
+        unsubscribe = unsub;
     } else {
         setBoardedStudentIds([]);
         setAbsentStudentIds([]);
@@ -265,13 +283,13 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
 
     updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds })
       .then(() => {
-        toast({ title: "성공", description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
+        toast({ title: t("success"), description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
       })
       .catch((error) => {
         console.error("Error updating absence:", error);
-        toast({ title: "오류", description: `결석 처리 실패`, variant: "destructive"});
+        toast({ title: t("error"), description: `결석 처리 실패`, variant: "destructive"});
       });
-  }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast]);
+  }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast, t]);
 
   
   const toggleGroupLeader = (student: Student) => {
@@ -309,7 +327,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     }
   };
   
-    const handleSeatClick = (seatNumber, studentId) => {
+    const handleSeatClick = (seatNumber: number, studentId: string | null) => {
       if (!studentId) {
         setLastClickedStudentId(null);
         setSelectedStudent(null);
@@ -330,7 +348,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
               setLastClickedStudentId(studentId);
           })
           .catch(() => {
-              toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
+              toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive" });
           });
     };
     
@@ -348,7 +366,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
 
         if (sourceSeatIndex === -1 || targetSeatIndex === -1 || sourceSeatIndex === targetSeatIndex) {
             setSelectedSeat(null);
-            toast({ title: "취소", description: "좌석 교체가 취소되었습니다." });
+            toast({ title: t("cancelled"), description: t('teacher_page.swap_cancelled') });
             return;
         }
 
@@ -359,16 +377,16 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
         
         try {
            await updateRouteSeating(currentRoute.id, newSeating);
-           toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+           toast({ title: t("success"), description: t('teacher_page.swap_success') });
         } catch {
-             toast({ title: "오류", description: "좌석 교체 실패", variant: "destructive" });
+             toast({ title: t("error"), description: t('teacher_page.swap_error'), variant: "destructive" });
         } finally {
             setSelectedSeat(null);
         }
 
     } else {
         setSelectedSeat(clickedSeat);
-        toast({ title: "좌석 선택됨", description: "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요." });
+        toast({ title: t('teacher_page.seat_selected'), description: t('teacher_page.seat_selected_description') });
     }
   };
 
@@ -396,15 +414,20 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
     }
   };
 
+  const myBuses = useMemo(() => {
+    const busIds = new Set(myRoutes.map(r => r.busId));
+    return buses.filter(b => busIds.has(b.id));
+  }, [buses, myRoutes]);
+
   const filteredBuses = useMemo(() => {
     const configuredBusIds = new Set<string>();
-    routes.forEach(route => {
+    myRoutes.forEach(route => {
         if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
             configuredBusIds.add(route.busId);
         }
     });
-    return buses.filter(bus => configuredBusIds.has(bus.id));
-  }, [buses, routes, selectedDay, selectedRouteType]);
+    return myBuses.filter(bus => configuredBusIds.has(bus.id));
+  }, [myBuses, myRoutes, selectedDay, selectedRouteType]);
 
   useEffect(() => {
       if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
@@ -418,25 +441,25 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   const headerContent = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-        <label className="text-sm font-medium">버스</label>
-        <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
+        <label className="text-sm font-medium">{t('bus')}</label>
+        <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading || authLoading}>
             <SelectTrigger>
-            <SelectValue placeholder="운행 버스를 선택하세요" />
+            <SelectValue placeholder={t('teacher_page.select_bus')} />
             </SelectTrigger>
             <SelectContent>
             {filteredBuses.map((bus) => (
                 <SelectItem key={bus.id} value={bus.id}>
-                {bus.name} ({bus.type})
+                {bus.name} ({t(`bus_type.${bus.capacity}`)})
                 </SelectItem>
             ))}
             </SelectContent>
         </Select>
         </div>
         <div>
-        <label className="text-sm font-medium">요일</label>
-        <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
+        <label className="text-sm font-medium">{t('day')}</label>
+        <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading || authLoading}>
             <SelectTrigger>
-            <SelectValue placeholder="요일을 선택하세요" />
+            <SelectValue placeholder={t('select_day')} />
             </SelectTrigger>
             <SelectContent>
             {days.map((day) => (
@@ -448,12 +471,12 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
         </Select>
         </div>
         <div>
-        <label className="text-sm font-medium">경로</label>
+        <label className="text-sm font-medium">{t('route')}</label>
         <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="Morning" disabled={loading}>등교</TabsTrigger>
-            <TabsTrigger value="Afternoon" disabled={loading}>하교</TabsTrigger>
-            <TabsTrigger value="AfterSchool" disabled={loading}>방과후</TabsTrigger>
+            <TabsTrigger value="Morning" disabled={loading || authLoading}>{t('route_type.morning')}</TabsTrigger>
+            <TabsTrigger value="Afternoon" disabled={loading || authLoading}>{t('route_type.afternoon')}</TabsTrigger>
+            <TabsTrigger value="AfterSchool" disabled={loading || authLoading}>{t('route_type.after_school')}</TabsTrigger>
             </TabsList>
         </Tabs>
         </div>
@@ -466,7 +489,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
                 type="search"
-                placeholder="학생 이름으로 검색..."
+                placeholder={t('teacher_page.search_student_placeholder')}
                 className="pl-8 w-full"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -495,13 +518,13 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
                     </Avatar>
                     <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
                     <p className="text-sm text-muted-foreground">
-                        목적지: {destinations.find(d => {
+                        {t('destination')}: {destinations.find(d => {
                             let destId: string | null = null;
                             if (selectedRouteType === 'Morning') destId = selectedStudent.morningDestinationId;
                             else if (selectedRouteType === 'Afternoon') destId = selectedStudent.afternoonDestinationId;
                             else if (selectedRouteType === 'AfterSchool') destId = selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
                             return d.id === destId;
-                        })?.name || '해당 없음'}
+                        })?.name || t('unassigned')}
                     </p>
                 </div>
                 <Separator className="my-4" />
@@ -511,7 +534,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
                         className="w-full"
                         onClick={() => toggleAbsence(selectedStudent)}
                     >
-                        <UserX className="mr-2" /> 결석 처리
+                        <UserX className="mr-2" /> {t('teacher_page.mark_absent')}
                     </Button>
                     <Button
                         variant={selectedStudent.isGroupLeader ? "default" : "outline"}
@@ -519,43 +542,64 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
                         onClick={() => toggleGroupLeader(selectedStudent)}
                         disabled={!currentRoute}
                     >
-                        <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? '조장 해제' : '조장 임명'}
+                        <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? t('teacher_page.demote_leader') : t('teacher_page.promote_leader')}
                     </Button>
                     <Button
                         variant="ghost"
                         className="w-full"
                         onClick={() => { setLastClickedStudentId(null); setSelectedStudent(null); }}
                     >
-                        닫기
+                        {t('close')}
                     </Button>
                 </div>
             </div>
         ) : (
             <div className="text-center text-muted-foreground pt-10">
-                <p>학생을 선택하거나 검색하여 정보를 확인하세요.</p>
+                <p>{t('teacher_page.select_student_prompt')}</p>
             </div>
         )}
     </div>
   );
 
+  if (authLoading) {
+    return (
+        <MainLayout>
+            <div className="flex justify-center items-center h-64"><p>{t('loading.auth')}</p></div>
+        </MainLayout>
+    );
+  }
+
+  if (!user) {
+    return (
+        <MainLayout>
+            <div className="flex justify-center items-center h-64"><p>{t('teacher_page.login_prompt')}</p></div>
+        </MainLayout>
+    );
+  }
+  
+  if (loading) {
+    return (
+        <MainLayout headerContent={headerContent}>
+            <div className="flex justify-center items-center h-64"><p>{t('loading.route_info')}</p></div>
+        </MainLayout>
+    );
+  }
+
   return (
     <MainLayout headerContent={headerContent}>
-      {loading ? (
-        <div className="flex justify-center items-center h-64"><p>실시간 노선 정보를 불러오는 중입니다...</p></div>
-      ) : (
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
             <Card>
             <CardHeader>
                 <CardTitle className="font-headline flex items-center">
-                    버스 좌석 및 탑승 현황
+                    {t('teacher_page.seat_map_title')}
                     {assignedTeachers.length > 0 && (
                         <span className="text-sm font-medium text-muted-foreground ml-2">
-                           - {assignedTeachers.map(t => t.name).join(', ')} 담당 선생님
+                           - {assignedTeachers.map(t => t.name).join(', ')} {t('teacher_page.assigned_teacher_suffix')}
                         </span>
                     )}
                 </CardTitle>
-                <CardDescription>좌석을 클릭하면 탑승/미탑승 처리됩니다. 우클릭으로 좌석을 교체할 수 있습니다.</CardDescription>
+                <CardDescription>{t('teacher_page.seat_map_description')}</CardDescription>
             </CardHeader>
             <CardContent>
                 {selectedBus && currentRoute ? (
@@ -575,7 +619,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
                     />
                 ) : (
                     <div className="text-center py-10 text-muted-foreground">
-                        로딩 중이거나 유효한 노선 정보가 없습니다.
+                        { myRoutes.length === 0 && !loading ? t('teacher_page.no_assigned_routes') : t('teacher_page.no_route_info') }
                     </div>
                 )}
             </CardContent>
@@ -584,7 +628,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
         <div className="lg:col-span-1 space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle className="font-headline">학생 정보</CardTitle>
+                    <CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {sidePanel}
@@ -592,14 +636,14 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
             </Card>
             <Card>
             <CardHeader>
-                <CardTitle className="font-headline">탑승 학생 명단</CardTitle>
+                <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
             </CardHeader>
             <CardContent className='max-h-[60vh] overflow-y-auto'>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>이름</TableHead>
-                            <TableHead>상태</TableHead>
+                            <TableHead>{t('student.name')}</TableHead>
+                            <TableHead>{t('teacher_page.status')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -612,7 +656,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
                                 <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                 <TableCell>
                                     <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}>
-                                        {boardedStudentIds.includes(student.id) ? '탑승' : (absentStudentIds.includes(student.id) ? '결석' : '미탑승')}
+                                        {boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
                                     </Badge>
                                 </TableCell>
                             </TableRow>
@@ -625,16 +669,13 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
              <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
         </div>
         </div>
-      )}
-      {!loading && (
-        <div className="mt-6">
-            <LostAndFound 
-                lostItems={lostItems}
-                setLostItems={setLostItems}
-                buses={buses}
-            />
-        </div>
-      )}
+      <div className="mt-6">
+          <LostAndFound 
+              lostItems={lostItems}
+              setLostItems={setLostItems}
+              buses={buses}
+          />
+      </div>
     </MainLayout>
   );
 }
