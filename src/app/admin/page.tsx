@@ -40,6 +40,7 @@ import { db } from '@/lib/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/use-auth';
+import { useTranslation } from '@/hooks/use-translation';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -76,6 +77,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
     const { toast } = useToast();
+    const { t } = useTranslation();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const routeTypes: RouteType[] = ['Morning', 'Afternoon', 'AfterSchool'];
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,7 +110,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
     
     const handleManualAddBus = async () => {
         if (!newBusName || !newBusType) {
-            toast({ title: "오류", description: "버스 이름과 타입을 모두 입력해주세요.", variant: 'destructive' });
+            toast({ title: t('error'), description: t('admin.bus_registration.add.validation_error'), variant: 'destructive' });
             return;
         }
 
@@ -118,9 +120,9 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
         try {
             const newBus = await handleAddBus(newBusData);
             setBuses(prev => sortBuses([...prev, newBus]));
-            toast({ title: "성공", description: "버스가 추가되었습니다." });
+            toast({ title: t('success'), description: t('admin.bus_registration.add.success') });
         } catch (error) {
-            toast({ title: "오류", description: "버스 추가에 실패했습니다.", variant: 'destructive' });
+            toast({ title: t('error'), description: t('admin.bus_registration.add.error'), variant: 'destructive' });
         }
     };
     
@@ -128,10 +130,10 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
         try {
             await deleteBus(busId);
             setBuses(prev => prev.filter(b => b.id !== busId));
-            toast({ title: "성공", description: "버스가 삭제되었습니다."});
+            toast({ title: t('success'), description: t('admin.bus_registration.delete.success')});
         } catch (error) {
             console.error("Error deleting bus:", error);
-            toast({ title: "오류", description: "버스 삭제에 실패했습니다.", variant: 'destructive' });
+            toast({ title: t('error'), description: t('admin.bus_registration.delete.error'), variant: 'destructive' });
         }
     }
 
@@ -175,22 +177,22 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                 }).filter(bus => bus.name && bus.type && validTypes.includes(bus.type));
 
                 if (newBusesData.length === 0) {
-                    toast({ title: "오류", description: "파일에서 유효한 버스 데이터를 찾을 수 없습니다. 헤더가 '번호', '타입'으로 되어있는지, 타입이 15-seater, 29-seater, 45-seater 중 하나인지 확인하세요.", variant: "destructive" });
+                    toast({ title: t('error'), description: t('admin.bus_registration.batch.validation_error'), variant: "destructive" });
                     return;
                 }
-                const { dismiss } = toast({ title: "처리 중", description: "버스를 일괄 등록하고 있습니다..." });
+                const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_registration.batch.processing') });
                 try {
                     const addedBuses = await Promise.all(newBusesData.map(busData => handleAddBus(busData)));
                     setBuses(prev => sortBuses([...prev, ...addedBuses]));
                     dismiss();
-                    toast({ title: "성공", description: `${addedBuses.length}개의 버스가 일괄 등록되었습니다.` });
+                    toast({ title: t('success'), description: t('admin.bus_registration.batch.success', { count: addedBuses.length }) });
                 } catch (error) {
                     dismiss();
-                    toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
+                    toast({ title: t('error'), description: t('admin.bus_registration.batch.error'), variant: "destructive" });
                 }
             },
             error: (error) => {
-                toast({ title: "파일 파싱 오류", description: error.message, variant: "destructive" });
+                toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
             }
         });
         
@@ -201,62 +203,61 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
     
     const getTeachersForBus = (busId: string) => {
         const relevantRouteType = teacherViewType === 'MorningAndAfternoon' ? 'Morning' : 'AfterSchool';
-        // Display Monday's teachers as representative
         const relevantRoute = routes.find(r => r.busId === busId && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
-        if (!relevantRoute || !relevantRoute.teacherIds) return '미배정';
+        if (!relevantRoute || !relevantRoute.teacherIds) return t('unassigned');
 
         const teacherNames = relevantRoute.teacherIds
             .map(id => teachers.find(t => t.id === id)?.name)
             .filter(Boolean);
 
-        return teacherNames.length > 0 ? teacherNames.join(', ') : '미배정';
+        return teacherNames.length > 0 ? teacherNames.join(', ') : t('unassigned');
     };
 
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>버스 목록</CardTitle>
-                <CardDescription>새로운 버스를 추가하거나 기존 버스를 삭제합니다. 담당 선생님은 월요일 기준으로 표시됩니다.</CardDescription>
+                <CardTitle>{t('admin.bus_registration.title')}</CardTitle>
+                <CardDescription>{t('admin.bus_registration.description')}</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="flex justify-between items-center mb-4">
                     <Tabs value={teacherViewType} onValueChange={(v) => setTeacherViewType(v as any)} className="w-auto">
                       <TabsList className="grid grid-cols-2">
-                        <TabsTrigger value="MorningAndAfternoon">등하교</TabsTrigger>
-                        <TabsTrigger value="AfterSchool">방과후</TabsTrigger>
+                        <TabsTrigger value="MorningAndAfternoon">{t('route_type.commute')}</TabsTrigger>
+                        <TabsTrigger value="AfterSchool">{t('route_type.after_school')}</TabsTrigger>
                       </TabsList>
                     </Tabs>
                     <div className="flex gap-2">
-                        <Button variant="outline" onClick={handleDownloadBusTemplate}><Download className="mr-2" /> 템플릿</Button>
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                        <Button variant="outline" onClick={handleDownloadBusTemplate}><Download className="mr-2" /> {t('template')}</Button>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
                         <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
                         <Dialog>
                             <DialogTrigger asChild>
-                                <Button><PlusCircle className="mr-2" /> 새 버스 추가</Button>
+                                <Button><PlusCircle className="mr-2" /> {t('admin.bus_registration.add_new_bus')}</Button>
                             </DialogTrigger>
                             <DialogContent>
-                                <DialogHeader><DialogTitle>새 버스 추가</DialogTitle></DialogHeader>
+                                <DialogHeader><DialogTitle>{t('admin.bus_registration.add_new_bus')}</DialogTitle></DialogHeader>
                                 <div className="grid gap-4 py-4">
                                     <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="bus-name" className="text-right">버스 번호</Label>
-                                        <Input id="bus-name" placeholder="예: Bus 04" className="col-span-3" value={newBusName} onChange={e => setNewBusName(e.target.value)} />
+                                        <Label htmlFor="bus-name" className="text-right">{t('admin.bus_registration.bus_number')}</Label>
+                                        <Input id="bus-name" placeholder={t('admin.bus_registration.bus_number_placeholder')} className="col-span-3" value={newBusName} onChange={e => setNewBusName(e.target.value)} />
                                     </div>
                                     <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="bus-type" className="text-right">타입</Label>
+                                        <Label htmlFor="bus-type" className="text-right">{t('type')}</Label>
                                         <Select onValueChange={(v) => setNewBusType(v as any)} value={newBusType}>
                                             <SelectTrigger className="col-span-3">
-                                                <SelectValue placeholder="타입 선택" />
+                                                <SelectValue placeholder={t('admin.bus_registration.select_type')} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="15-seater">15인승</SelectItem>
-                                                <SelectItem value="29-seater">29인승</SelectItem>
-                                                <SelectItem value="45-seater">45인승</SelectItem>
+                                                <SelectItem value="15-seater">{t('bus_type.15')}</SelectItem>
+                                                <SelectItem value="29-seater">{t('bus_type.29')}</SelectItem>
+                                                <SelectItem value="45-seater">{t('bus_type.45')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                 </div>
-                                <Button onClick={handleManualAddBus}>추가</Button>
+                                <Button onClick={handleManualAddBus}>{t('add')}</Button>
                             </DialogContent>
                         </Dialog>
                     </div>
@@ -264,10 +265,10 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>버스 번호</TableHead>
-                            <TableHead>타입</TableHead>
-                            <TableHead>담당 선생님</TableHead>
-                            <TableHead className="text-right">작업</TableHead>
+                            <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
+                            <TableHead>{t('type')}</TableHead>
+                            <TableHead>{t('admin.teacher_assignment.title')}</TableHead>
+                            <TableHead className="text-right">{t('actions')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -285,14 +286,14 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
                                             <AlertDialogHeader>
-                                                <AlertDialogTitle>정말 이 버스를 삭제하시겠습니까?</AlertDialogTitle>
+                                                <AlertDialogTitle>{t('admin.bus_registration.delete.confirm_title')}</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    이 작업은 되돌릴 수 없습니다. 이 버스와 관련된 모든 노선 정보가 영구적으로 삭제됩니다.
+                                                    {t('admin.bus_registration.delete.confirm_description')}
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
-                                                <AlertDialogCancel>취소</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteBus(bus.id)}>삭제</AlertDialogAction>
+                                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteBus(bus.id)}>{t('delete')}</AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
@@ -309,6 +310,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
 const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes, onOpenChange }: { currentRoute: Route, allRoutes: Route[], teachers: Teacher[], setRoutes: React.Dispatch<React.SetStateAction<Route[]>>, onOpenChange: (open: boolean) => void }) => {
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
     const { toast } = useToast();
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (currentRoute) {
@@ -318,7 +320,6 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
     
     const assignedToOtherRoutesIds = useMemo(() => {
         if (!currentRoute) return new Set<string>();
-        // Find teacher IDs assigned to other routes of the same type (Morning/Afternoon vs AfterSchool) on the same day
         const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
         const relevantRouteTypes = isCommuteRoute ? ['Morning', 'Afternoon'] : ['AfterSchool'];
 
@@ -338,11 +339,10 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
         if (!currentRoute) return;
         try {
             await updateRoute(currentRoute.id, { teacherIds: selectedTeacherIds });
-            // Local state update will be handled by the onSnapshot listener
-            toast({ title: "성공", description: "담당 선생님이 변경되었습니다." });
+            toast({ title: t('success'), description: t('admin.teacher_assignment.change.success') });
             onOpenChange(false);
         } catch (error) {
-            toast({ title: "오류", description: "선생님 변경 중 오류가 발생했습니다.", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.teacher_assignment.change.error'), variant: "destructive" });
         }
     };
 
@@ -357,7 +357,7 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
     return (
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>담당 선생님 변경</DialogTitle>
+                <DialogTitle>{t('admin.teacher_assignment.change.title')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
                 {sortedTeachers.map(teacher => {
@@ -375,15 +375,15 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
                             />
                             <Label htmlFor={`teacher-${teacher.id}`} className={cn(isDisabled && "text-muted-foreground")}>
                                 {teacher.name}
-                                {isDisabled && <span className="text-xs ml-2">(다른 노선에 배정됨)</span>}
+                                {isDisabled && <span className="text-xs ml-2">{t('admin.teacher_assignment.change.assigned_other')}</span>}
                             </Label>
                         </div>
                     );
                 })}
             </div>
             <DialogFooter>
-                <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
-                <Button onClick={handleSave}>저장</Button>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
+                <Button onClick={handleSave}>{t('save')}</Button>
             </DialogFooter>
         </DialogContent>
     );
@@ -418,14 +418,13 @@ const BusConfigurationTab = ({
   const [newDestinationName, setNewDestinationName] = useState('');
   const [destinationSearchQuery, setDestinationSearchQuery] = useState('');
   const { toast } = useToast();
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
 
-  // States for button-based stop management
   const [selectedRouteStopId, setSelectedRouteStopId] = useState<string | null>(null);
   const [selectedAllDestId, setSelectedAllDestId] = useState<string | null>(null);
   
-  // States for route copy dialog
   const [isCopyRouteDialogOpen, setCopyRouteDialogOpen] = useState(false);
   const allDays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
   const [daysToCopyRouteTo, setDaysToCopyRouteTo] = useState<Partial<Record<DayOfWeek, boolean>>>(
@@ -449,7 +448,6 @@ const BusConfigurationTab = ({
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
   useEffect(() => {
-      // Reset selections when route changes
       setSelectedRouteStopId(null);
       setSelectedAllDestId(null);
   }, [currentRoute]);
@@ -479,7 +477,7 @@ const BusConfigurationTab = ({
         if (!trimmedName) return;
 
         if (destinations.some(d => d.name.toLowerCase() === trimmedName.toLowerCase())) {
-            toast({ title: "알림", description: "이미 존재하는 목적지입니다.", variant: 'default' });
+            toast({ title: t('notice'), description: t('admin.bus_config.dest.add.already_exists'), variant: 'default' });
             return;
         }
 
@@ -487,9 +485,9 @@ const BusConfigurationTab = ({
             const newDest = await addDestination({ name: trimmedName });
             setDestinations(prev => sortDestinations([...prev, newDest]));
             setNewDestinationName('');
-            toast({ title: "성공", description: "목적지가 추가되었습니다." });
+            toast({ title: t('success'), description: t('admin.bus_config.dest.add.success') });
         } catch (error) {
-            toast({ title: "오류", description: "목적지 추가 실패", variant: 'destructive' });
+            toast({ title: t('error'), description: t('admin.bus_config.dest.add.error'), variant: 'destructive' });
         }
     };
     
@@ -497,23 +495,22 @@ const BusConfigurationTab = ({
         try {
             await deleteDestination(id);
             setDestinations(prev => prev.filter(d => d.id !== id));
-            toast({ title: "성공", description: "목적지가 삭제되었습니다." });
+            toast({ title: t('success'), description: t('admin.bus_config.dest.delete.success') });
         } catch (error) {
-            toast({ title: "오류", description: "목적지 삭제 실패", variant: 'destructive' });
+            toast({ title: t('error'), description: t('admin.bus_config.dest.delete.error'), variant: 'destructive' });
         }
     };
     
     const handleClearAllDestinations = async () => {
-        const { dismiss } = toast({ title: "처리 중", description: "모든 목적지를 삭제하고 있습니다..." });
+        const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_config.dest.delete_all.processing') });
         try {
             await deleteAllDestinations();
             setDestinations([]);
-            // Local state update will be handled by the onSnapshot listener
             dismiss();
-            toast({ title: "성공", description: "모든 목적지가 삭제되었습니다." });
+            toast({ title: t('success'), description: t('admin.bus_config.dest.delete_all.success') });
         } catch (error) {
             dismiss();
-            toast({ title: "오류", description: "목적지 삭제 중 오류가 발생했습니다.", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.bus_config.dest.delete_all.error'), variant: "destructive" });
         }
     };
   
@@ -532,7 +529,7 @@ const BusConfigurationTab = ({
   
   const handleDownloadDestinationList = useCallback(() => {
         if (destinations.length === 0) {
-            toast({ title: "알림", description: "등록된 목적지가 없습니다." });
+            toast({ title: t('notice'), description: t('admin.bus_config.dest.download.no_data') });
             return;
         }
         const headers = "목적지 이름";
@@ -545,7 +542,7 @@ const BusConfigurationTab = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }, [destinations, toast]);
+    }, [destinations, toast, t]);
 
   const handleDestinationFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -561,22 +558,22 @@ const BusConfigurationTab = ({
             })).filter(dest => dest.name && !existingNames.has(dest.name.toLowerCase()));
 
             if (newDestinationsData.length === 0) {
-                toast({ title: "알림", description: "새로 추가할 목적지가 없거나 모두 중복된 이름입니다.", variant: "default" });
+                toast({ title: t('notice'), description: t('admin.bus_config.dest.batch.no_new'), variant: "default" });
                 return;
             }
-            const { dismiss } = toast({ title: "처리 중", description: "목적지를 일괄 등록하고 있습니다..." });
+            const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_config.dest.batch.processing') });
             try {
                 const addedDests = await addDestinationsInBatch(newDestinationsData);
                 setDestinations(prev => sortDestinations([...prev, ...addedDests]));
                 dismiss();
-                toast({ title: "성공", description: `${addedDests.length}개의 목적지가 일괄 등록되었습니다.` });
+                toast({ title: t('success'), description: t('admin.bus_config.dest.batch.success', {count: addedDests.length}) });
             } catch (error) {
                 dismiss();
-                toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
+                toast({ title: t('error'), description: t('admin.bus_config.dest.batch.error'), variant: "destructive" });
             }
         },
         error: (error) => {
-            toast({ title: "파일 파싱 오류", description: error.message, variant: "destructive" });
+            toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
         }
     });
 
@@ -588,12 +585,12 @@ const BusConfigurationTab = ({
   const handleApproveSuggestion = async (suggestion: Destination) => {
     const trimmedName = suggestion.name.trim();
     if (destinations.some(d => d.name.toLowerCase() === trimmedName.toLowerCase())) {
-        toast({ title: "알림", description: "이미 등록된 목적지입니다. 제안 목록에서 삭제합니다." });
+        toast({ title: t('notice'), description: t('admin.bus_config.suggestions.already_exists') });
         try {
             await deleteDoc(doc(db, 'suggestedDestinations', suggestion.id));
             setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
         } catch (error) {
-             toast({ title: "오류", description: "제안 삭제 중 오류 발생", variant: 'destructive'});
+             toast({ title: t('error'), description: t('admin.bus_config.suggestions.delete_error'), variant: 'destructive'});
         }
         return;
     }
@@ -603,22 +600,22 @@ const BusConfigurationTab = ({
         setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
         const newDests = await getDestinations(); // Re-fetch all destinations
         setDestinations(sortDestinations(newDests));
-        toast({ title: "성공", description: "제안된 목적지가 승인되었습니다."});
+        toast({ title: t('success'), description: t('admin.bus_config.suggestions.approve_success')});
     } catch (error) {
-        toast({ title: "오류", description: "승인 처리 중 오류 발생", variant: 'destructive'});
+        toast({ title: t('error'), description: t('admin.bus_config.suggestions.approve_error'), variant: 'destructive'});
     }
   };
 
   const handleClearAllSuggestions = async () => {
-    const { dismiss } = toast({ title: "처리 중", description: "모든 제안을 삭제하고 있습니다..." });
+    const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_config.suggestions.delete_all.processing') });
     try {
         await clearAllSuggestedDestinations();
         setSuggestedDestinations([]);
         dismiss();
-        toast({ title: "성공", description: "모든 제안된 목적지가 삭제되었습니다." });
+        toast({ title: t('success'), description: t('admin.bus_config.suggestions.delete_all.success') });
     } catch (error) {
         dismiss();
-        toast({ title: "오류", description: "삭제 중 오류가 발생했습니다.", variant: "destructive" });
+        toast({ title: t('error'), description: t('admin.bus_config.suggestions.delete_all.error'), variant: "destructive" });
     }
   };
 
@@ -646,7 +643,7 @@ const BusConfigurationTab = ({
       } else if (direction === 'down' && index < newStopIds.length - 1) {
           [newStopIds[index], newStopIds[index + 1]] = [newStopIds[index + 1], newStopIds[index]];
       } else {
-          return; // Cannot move further
+          return;
       }
       await updateRouteStops(currentRoute.id, newStopIds);
   }, [currentRoute, selectedRouteStopId]);
@@ -655,13 +652,13 @@ const BusConfigurationTab = ({
         if (!currentRoute || !selectedAllDestId) return;
         const currentStopIds = currentRoute.stops || [];
         if (currentStopIds.includes(selectedAllDestId)) {
-            toast({ title: "오류", description: "이미 노선에 추가된 목적지입니다.", variant: 'destructive' });
+            toast({ title: t('error'), description: t('admin.bus_config.route.add_stop_error'), variant: 'destructive' });
             return;
         }
         const newStopIds = [...currentStopIds, selectedAllDestId];
         await updateRouteStops(currentRoute.id, newStopIds);
         setSelectedAllDestId(null);
-    }, [currentRoute, selectedAllDestId, toast]);
+    }, [currentRoute, selectedAllDestId, toast, t]);
 
     const handleRemoveStopFromRoute = useCallback(async () => {
         if (!currentRoute || !selectedRouteStopId) return;
@@ -674,11 +671,11 @@ const BusConfigurationTab = ({
 
   const assignRandomTeachers = useCallback(async () => {
     if (!selectedBus || !currentRoute) {
-        toast({ title: "오류", description: "노선을 선택해주세요.", variant: 'destructive' });
+        toast({ title: t('error'), description: t('admin.teacher_assignment.assign.no_route_error'), variant: "destructive" });
         return;
     }
     if (teachers.length === 0) {
-        toast({ title: "오류", description: "등록된 선생님이 없습니다. 선생님을 먼저 등록해주세요.", variant: 'destructive' });
+        toast({ title: t('error'), description: t('admin.teacher_assignment.assign.no_teacher_error'), variant: "destructive" });
         return;
     }
 
@@ -691,7 +688,6 @@ const BusConfigurationTab = ({
     const relevantRouteTypes = isCommuteRoute ? ['Morning', 'Afternoon'] : ['AfterSchool'];
 
     const availableTeachers = teachers.filter(teacher => {
-        // Check if teacher is assigned to another route on the same day and same route type group (commute vs afterschool)
         const isAssignedToOtherRoute = routes.some(route => 
             route.id !== currentRoute.id && 
             route.dayOfWeek === currentRoute.dayOfWeek &&
@@ -702,7 +698,7 @@ const BusConfigurationTab = ({
     });
 
     if (availableTeachers.length < numToAssign) {
-        toast({ title: "알림", description: `배정 가능한 선생님이 부족합니다. (${availableTeachers.length}명 가능)`, variant: "default" });
+        toast({ title: t('notice'), description: t('admin.teacher_assignment.assign.not_enough_teachers', { count: availableTeachers.length }), variant: "default" });
         numToAssign = availableTeachers.length;
     }
 
@@ -711,13 +707,12 @@ const BusConfigurationTab = ({
 
     try {
         await updateRoute(currentRoute.id, { teacherIds: assignedTeacherIds });
-        // Local state update will be handled by the onSnapshot listener
-        toast({ title: "성공", description: "담당 선생님이 배정되었습니다." });
+        toast({ title: t('success'), description: t('admin.teacher_assignment.assign.success') });
     } catch (error) {
         console.error("Error assigning teachers:", error);
-        toast({ title: "오류", description: "선생님 배정 중 오류가 발생했습니다.", variant: 'destructive' });
+        toast({ title: t('error'), description: t('admin.teacher_assignment.assign.error'), variant: 'destructive' });
     }
-  }, [selectedBus, currentRoute, teachers, routes, toast]);
+  }, [selectedBus, currentRoute, teachers, routes, toast, t]);
   
   const handleResetTeachers = useCallback(async () => {
     if (!currentRoute) return;
@@ -741,7 +736,7 @@ const BusConfigurationTab = ({
     }
 
     if (routesToUpdate.length === 0) {
-        toast({ title: "알림", description: "초기화할 노선이 없습니다." });
+        toast({ title: t('notice'), description: t('admin.teacher_assignment.reset.no_routes') });
         return;
     }
 
@@ -753,17 +748,16 @@ const BusConfigurationTab = ({
         });
         await batch.commit();
 
-        // Local state update will be handled by the onSnapshot listener
-        toast({ title: "성공", description: "관련된 모든 노선의 담당 선생님 배정이 초기화되었습니다." });
+        toast({ title: t('success'), description: t('admin.teacher_assignment.reset.success') });
     } catch (error) {
         console.error("Error resetting teachers:", error);
-        toast({ title: "오류", description: "초기화 중 오류가 발생했습니다.", variant: "destructive" });
+        toast({ title: t('error'), description: t('admin.teacher_assignment.reset.error'), variant: "destructive" });
     }
-  }, [currentRoute, routes, toast]);
+  }, [currentRoute, routes, toast, t]);
   
   const handleCopyToAllWeekdays = useCallback(async () => {
     if (!currentRoute) {
-        toast({title: "오류", description: "현재 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
+        toast({title: t('error'), description: t('admin.teacher_assignment.copy.no_route_error'), variant: 'destructive'});
         return;
     }
 
@@ -785,17 +779,16 @@ const BusConfigurationTab = ({
         });
         await batch.commit();
 
-        // Local state update will be handled by the onSnapshot listener
-        toast({title: "성공", description: `평일 등/하교 노선에 담당 선생님 정보가 복사되었습니다.`});
+        toast({title: t('success'), description: t('admin.teacher_assignment.copy.success')});
     } catch (error) {
         console.error("Error copying teachers:", error);
-        toast({title: "오류", description: "복사 중 오류가 발생했습니다.", variant: 'destructive'});
+        toast({title: t('error'), description: t('admin.teacher_assignment.copy.error'), variant: 'destructive'});
     }
-  }, [currentRoute, routes, toast]);
+  }, [currentRoute, routes, toast, t]);
   
  const handleCopyRoute = useCallback(async () => {
       if (!currentRoute) {
-          toast({ title: "오류", description: "복사할 원본 노선을 찾을 수 없습니다.", variant: "destructive" });
+          toast({ title: t('error'), description: t('admin.bus_config.route.copy.no_source_error'), variant: "destructive" });
           return;
       }
 
@@ -806,44 +799,42 @@ const BusConfigurationTab = ({
       if (currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon') {
         const selectedRouteTypes = (['Morning', 'Afternoon'] as const).filter(type => routeTypesToCopyRouteTo[type]);
         if (selectedDays.length === 0 || selectedRouteTypes.length === 0) {
-            toast({ title: "알림", description: "복사할 요일과 경로 유형(등교/하교)을 하나 이상 선택해주세요." });
+            toast({ title: t('notice'), description: t('admin.bus_config.route.copy.no_selection_commute') });
             return;
         }
         targetRoutes = routes.filter(r =>
             r.busId === currentRoute.busId &&
             selectedDays.includes(r.dayOfWeek) &&
             selectedRouteTypes.includes(r.type as 'Morning' | 'Afternoon') &&
-            r.id !== currentRoute.id // Don't copy to self
+            r.id !== currentRoute.id
         );
       } else { // AfterSchool
         if (selectedDays.length === 0) {
-            toast({ title: "알림", description: "복사할 요일을 하나 이상 선택해주세요." });
+            toast({ title: t('notice'), description: t('admin.bus_config.route.copy.no_selection_after_school') });
             return;
         }
         targetRoutes = routes.filter(r =>
             r.busId === currentRoute.busId &&
             selectedDays.includes(r.dayOfWeek) &&
             r.type === 'AfterSchool' &&
-            r.id !== currentRoute.id // Don't copy to self
+            r.id !== currentRoute.id
         );
       }
 
-
       if (targetRoutes.length === 0) {
-          toast({ title: "알림", description: "복사할 대상 노선이 없습니다." });
+          toast({ title: t('notice'), description: t('admin.bus_config.route.copy.no_target_routes') });
           return;
       }
       
       try {
           await copyRoutePlan(currentRoute.stops, targetRoutes);
-          
-          toast({ title: "성공", description: "현재 노선 구성을 선택된 요일의 노선에 복사했습니다." });
+          toast({ title: t('success'), description: t('admin.bus_config.route.copy.success') });
           setCopyRouteDialogOpen(false);
       } catch (error) {
           console.error("Error copying route plan:", error);
-          toast({ title: "오류", description: "노선 구성 복사 중 오류가 발생했습니다.", variant: "destructive" });
+          toast({ title: t('error'), description: t('admin.bus_config.route.copy.error'), variant: "destructive" });
       }
-  }, [currentRoute, routes, toast, daysToCopyRouteTo, routeTypesToCopyRouteTo, allDays]);
+  }, [currentRoute, routes, toast, t, daysToCopyRouteTo, routeTypesToCopyRouteTo, allDays]);
 
   const handleToggleAllCopyToDays = (checked: boolean) => {
       const newDays = allDays.reduce((acc, day) => ({ ...acc, [day]: checked }), {});
@@ -856,41 +847,41 @@ const BusConfigurationTab = ({
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
             <Card>
                 <CardHeader>
-                <CardTitle>전체 목적지 목록</CardTitle>
+                <CardTitle>{t('admin.bus_config.dest.title')}</CardTitle>
                 <CardDescription>
-                    버튼을 이용해 노선을 관리하세요.
+                    {t('admin.bus_config.dest.description')}
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="flex justify-end gap-2 mb-4 flex-wrap">
-                        <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> 템플릿</Button>
-                        <Button variant="outline" onClick={handleDownloadDestinationList}><Download className="mr-2" /> 목적지 목록</Button>
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                        <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> {t('template')}</Button>
+                        <Button variant="outline" onClick={handleDownloadDestinationList}><Download className="mr-2" /> {t('admin.bus_config.dest.download.button')}</Button>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
                         <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
                     </div>
                      <div className="flex justify-end gap-2 mb-4">
                         <Dialog>
-                            <DialogTrigger asChild><Button className="w-full"><PlusCircle className="mr-2" /> 목적지 추가</Button></DialogTrigger>
+                            <DialogTrigger asChild><Button className="w-full"><PlusCircle className="mr-2" /> {t('admin.bus_config.dest.add.button')}</Button></DialogTrigger>
                             <DialogContent>
-                                <DialogHeader><DialogTitle>새 목적지 추가</DialogTitle></DialogHeader>
-                                <Input placeholder="예: 강남역" value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
-                                <Button className="mt-2" onClick={handleAddDestination}>추가</Button>
+                                <DialogHeader><DialogTitle>{t('admin.bus_config.dest.add.title')}</DialogTitle></DialogHeader>
+                                <Input placeholder={t('admin.bus_config.dest.add.placeholder')} value={newDestinationName} onChange={e => setNewDestinationName(e.target.value)} />
+                                <Button className="mt-2" onClick={handleAddDestination}>{t('add')}</Button>
                             </DialogContent>
                         </Dialog>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="destructive" className="w-full"><Trash2 className="mr-2 h-4 w-4" /> 전체 삭제</Button>
+                                <Button variant="destructive" className="w-full"><Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}</Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>정말 모든 목적지를 삭제하시겠습니까?</AlertDialogTitle>
+                                    <AlertDialogTitle>{t('admin.bus_config.dest.delete_all.confirm_title')}</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        이 작업은 되돌릴 수 없습니다. 모든 목적지와 모든 노선의 경유지 정보가 영구적으로 삭제됩니다.
+                                        {t('admin.bus_config.dest.delete_all.confirm_description')}
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel>취소</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleClearAllDestinations}>삭제</AlertDialogAction>
+                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClearAllDestinations}>{t('delete')}</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
@@ -899,7 +890,7 @@ const BusConfigurationTab = ({
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input 
                             type="search"
-                            placeholder="목적지 검색..."
+                            placeholder={t('admin.bus_config.dest.search_placeholder')}
                             className="pl-8 w-full"
                             value={destinationSearchQuery}
                             onChange={(e) => setDestinationSearchQuery(e.target.value)}
@@ -924,12 +915,12 @@ const BusConfigurationTab = ({
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
-                                            <AlertDialogTitle>정말 이 목적지를 삭제하시겠습니까?</AlertDialogTitle>
-                                            <AlertDialogDescription>이 작업은 되돌릴 수 없습니다.</AlertDialogDescription>
+                                            <AlertDialogTitle>{t('admin.bus_config.dest.delete.confirm_title')}</AlertDialogTitle>
+                                            <AlertDialogDescription>{t('confirm_irreversible')}</AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
-                                            <AlertDialogCancel>취소</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteDestination(dest.id)}>삭제</AlertDialogAction>
+                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteDestination(dest.id)}>{t('delete')}</AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
@@ -964,37 +955,37 @@ const BusConfigurationTab = ({
             <Card>
                  <CardHeader className="flex-row justify-between items-center">
                     <div>
-                        <CardTitle>버스 노선 설정</CardTitle>
+                        <CardTitle>{t('admin.bus_config.route.title')}</CardTitle>
                         <CardDescription>
-                            목적지를 선택하고 버튼을 이용해 노선을 구성하세요.
+                            {t('admin.bus_config.route.description')}
                         </CardDescription>
                     </div>
                      <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline" disabled={!currentRoute}>
-                                <Copy className="mr-2" /> 노선 복사
+                                <Copy className="mr-2" /> {t('admin.bus_config.route.copy.button')}
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
                              <DialogHeader>
-                                <DialogTitle>노선 구성 복사</DialogTitle>
+                                <DialogTitle>{t('admin.bus_config.route.copy.title')}</DialogTitle>
                                 <CardDescription>
                                     {selectedRouteType === 'AfterSchool'
-                                        ? '현재 방과후 노선의 정류장 구성을 다른 요일의 방과후 노선에 복사합니다.'
-                                        : '현재 등/하교 노선의 정류장 구성을 다른 평일 등/하교 노선에 복사합니다.'
+                                        ? t('admin.bus_config.route.copy.description_after_school')
+                                        : t('admin.bus_config.route.copy.description_commute')
                                     }
                                 </CardDescription>
                             </DialogHeader>
                             <div className="space-y-4 py-4">
                                 <div>
-                                    <Label>복사할 요일 선택</Label>
+                                    <Label>{t('admin.bus_config.route.copy.select_days')}</Label>
                                     <div className="flex items-center space-x-2 mt-2">
                                         <Checkbox
                                             id="copy-route-all-days"
                                             checked={allDays.every(day => daysToCopyRouteTo[day])}
                                             onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
                                         />
-                                        <Label htmlFor="copy-route-all-days">모두 선택</Label>
+                                        <Label htmlFor="copy-route-all-days">{t('select_all')}</Label>
                                     </div>
                                     <div className="grid grid-cols-3 gap-2 mt-2">
                                         {allDays.map(day => (
@@ -1004,14 +995,14 @@ const BusConfigurationTab = ({
                                                     checked={!!daysToCopyRouteTo[day]}
                                                     onCheckedChange={(checked) => setDaysToCopyRouteTo(prev => ({ ...prev, [day]: checked }))}
                                                 />
-                                                <Label htmlFor={`copy-route-day-${day}`}>{dayLabels[day]}</Label>
+                                                <Label htmlFor={`copy-route-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                                 {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
                                 <div>
-                                    <Label>복사할 경로 유형</Label>
+                                    <Label>{t('admin.bus_config.route.copy.select_route_types')}</Label>
                                     <div className="flex items-center space-x-4 mt-2">
                                         <div className="flex items-center space-x-2">
                                             <Checkbox
@@ -1019,7 +1010,7 @@ const BusConfigurationTab = ({
                                                 checked={!!routeTypesToCopyRouteTo.Morning}
                                                 onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Morning: checked as boolean }))}
                                             />
-                                            <Label htmlFor="copy-route-type-morning">등교</Label>
+                                            <Label htmlFor="copy-route-type-morning">{t('route_type.morning')}</Label>
                                         </div>
                                         <div className="flex items-center space-x-2">
                                             <Checkbox
@@ -1027,14 +1018,14 @@ const BusConfigurationTab = ({
                                                 checked={!!routeTypesToCopyRouteTo.Afternoon}
                                                 onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Afternoon: checked as boolean }))}
                                             />
-                                            <Label htmlFor="copy-route-type-afternoon">하교</Label>
+                                            <Label htmlFor="copy-route-type-afternoon">{t('route_type.afternoon')}</Label>
                                         </div>
                                     </div>
                                 </div>
                                 )}
                             </div>
                             <DialogFooter>
-                                <Button onClick={handleCopyRoute} className="w-full">복사</Button>
+                                <Button onClick={handleCopyRoute} className="w-full">{t('copy')}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
@@ -1045,8 +1036,8 @@ const BusConfigurationTab = ({
                             <CardHeader>
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <CardTitle>{selectedBus.name} - {dayLabels[selectedDay]} {selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : '방과후'} 노선</CardTitle>
-                                        <CardDescription>정류장을 클릭하여 선택하고 순서를 변경하세요.</CardDescription>
+                                        <CardTitle>{selectedBus.name} - {t(`day.${selectedDay.toLowerCase()}`)} {t(`route_type.${selectedRouteType.toLowerCase()}`)}</CardTitle>
+                                        <CardDescription>{t('admin.bus_config.route.stops_description')}</CardDescription>
                                     </div>
                                     <div className="flex gap-1">
                                         <Button variant="outline" size="icon" onClick={() => handleMoveStop('up')} disabled={!selectedRouteStopId}><ArrowUp className="h-4 w-4"/></Button>
@@ -1073,7 +1064,7 @@ const BusConfigurationTab = ({
                         </CardContent>
                         </Card>
                     ) : (
-                        <div className="text-center text-muted-foreground py-10">버스를 선택하여 노선을 확인하세요.</div>
+                        <div className="text-center text-muted-foreground py-10">{t('admin.bus_config.route.select_bus_prompt')}</div>
                     )}
                 </CardContent>
             </Card>
@@ -1082,9 +1073,9 @@ const BusConfigurationTab = ({
                  {suggestedDestinations.length > 0 && (
                     <Card>
                         <CardHeader>
-                        <CardTitle>신규 목적지 신청</CardTitle>
+                        <CardTitle>{t('admin.bus_config.suggestions.title')}</CardTitle>
                         <CardDescription>
-                            학생들이 제안한 새로운 목적지입니다. 클릭하여 전체 목적지 목록에 추가하세요.
+                            {t('admin.bus_config.suggestions.description')}
                         </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -1105,19 +1096,19 @@ const BusConfigurationTab = ({
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="destructive" className="w-full">
-                                        <Trash2 className="mr-2 h-4 w-4" /> 모두 삭제
+                                        <Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
-                                    <AlertDialogTitle>정말 모든 제안을 삭제하시겠습니까?</AlertDialogTitle>
+                                    <AlertDialogTitle>{t('admin.bus_config.suggestions.delete_all.confirm_title')}</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        이 작업은 되돌릴 수 없습니다. 승인되지 않은 모든 목적지 제안이 영구적으로 삭제됩니다.
+                                        {t('admin.bus_config.suggestions.delete_all.confirm_description')}
                                     </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
-                                    <AlertDialogCancel>취소</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleClearAllSuggestions}>삭제</AlertDialogAction>
+                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClearAllSuggestions}>{t('delete')}</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -1128,45 +1119,45 @@ const BusConfigurationTab = ({
                 {selectedBus && currentRoute && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>담당 선생님 배정</CardTitle>
-                            <CardDescription>현재 선택된 노선({selectedBus.name} - {dayLabels[selectedDay]} {selectedRouteType})의 담당 선생님을 배정합니다.</CardDescription>
+                            <CardTitle>{t('admin.teacher_assignment.title')}</CardTitle>
+                            <CardDescription>{t('admin.teacher_assignment.description', { busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })}</CardDescription>
                         </CardHeader>
                             <CardContent>
                             {assignedTeachers.length > 0 ? (
                                 <div className="text-sm text-muted-foreground">
-                                    <strong>담당 선생님:</strong> {assignedTeachers.map(t => t.name).join(', ')}
+                                    <strong>{t('admin.teacher_assignment.assigned_teachers')}:</strong> {assignedTeachers.map(t => t.name).join(', ')}
                                 </div>
                             ) : (
-                                <div className="text-sm text-muted-foreground">배정된 선생님이 없습니다.</div>
+                                <div className="text-sm text-muted-foreground">{t('admin.teacher_assignment.no_teachers_assigned')}</div>
                             )}
                             {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
                                     <Button variant="link" onClick={handleCopyToAllWeekdays} className="p-0 h-auto mt-2 text-sm">
-                                    <Copy className="mr-2"/> 현재 배정을 모든 평일 등/하교 노선에 복사
+                                    <Copy className="mr-2"/> {t('admin.teacher_assignment.copy.button')}
                                 </Button>
                             )}
                         </CardContent>
                         <CardFooter className="grid grid-cols-3 gap-2">
-                            <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>재배정</Button>
+                            <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>{t('admin.teacher_assignment.reassign')}</Button>
                             <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
                                 <DialogTrigger asChild>
-                                    <Button variant="outline"><Pencil className="mr-2"/>수동 변경</Button>
+                                    <Button variant="outline"><Pencil className="mr-2"/>{t('admin.teacher_assignment.manual_change')}</Button>
                                 </DialogTrigger>
                                 {currentRoute && <TeacherAssignmentDialog currentRoute={currentRoute} allRoutes={routes} teachers={teachers} setRoutes={setRoutes} onOpenChange={setIsTeacherDialogOpen} />}
                             </Dialog>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" disabled={!assignedTeachers || assignedTeachers.length === 0}><RotateCcw className="mr-2"/>초기화</Button>
+                                    <Button variant="destructive" disabled={!assignedTeachers || assignedTeachers.length === 0}><RotateCcw className="mr-2"/>{t('reset')}</Button>
                                 </AlertDialogTrigger>
                                     <AlertDialogContent>
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle>정말 담당 선생님 배정을 초기화하시겠습니까?</AlertDialogTitle>
+                                        <AlertDialogTitle>{t('admin.teacher_assignment.reset.confirm_title')}</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            이 작업은 되돌릴 수 없습니다. 현재 버스의 연관된 모든 노선(등/하교 또는 방과후)의 담당 선생님 배정이 초기화됩니다.
+                                            {t('admin.teacher_assignment.reset.confirm_description')}
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
-                                        <AlertDialogCancel>취소</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleResetTeachers}>해제</AlertDialogAction>
+                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleResetTeachers}>{t('unassign')}</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -1209,6 +1200,7 @@ const StudentManagementTab = ({
     setSelectedRouteType: (type: RouteType) => void;
 }) => {
     const { toast } = useToast();
+    const { t } = useTranslation();
     const [newStudentForm, setNewStudentForm] = useState<Partial<NewStudent>>({ gender: 'Male' });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
@@ -1222,11 +1214,9 @@ const StudentManagementTab = ({
     const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
     
-    // Seat assignment state
     const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
     const [unassignableStudents, setUnassignableStudents] = useState<Student[]>([]);
 
-    // Student search state
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [globalSearchResults, setGlobalSearchResults] = useState<Student[]>([]);
     const [selectedGlobalStudent, setSelectedGlobalStudent] = useState<Student | null>(null);
@@ -1254,7 +1244,7 @@ const StudentManagementTab = ({
                     return dayIndexA - dayIndexB;
                 }
 
-                return 0; // Or sort by routeType if needed
+                return 0;
             });
     }, [selectedGlobalStudent, routes, buses, dayOrder]);
 
@@ -1295,7 +1285,6 @@ const StudentManagementTab = ({
 
     }, [students, routes]);
     
-    // This effect handles the core logic of unassigning students from Afternoon routes if they are in an AfterSchool route.
     const unassignProcessingRef = useRef(false);
     useEffect(() => {
         if (!routes.length || !students.length || unassignProcessingRef.current) {
@@ -1309,7 +1298,6 @@ const StudentManagementTab = ({
             let updatesMade = false;
 
             for (const day of days) {
-                // Find all student IDs assigned to an AfterSchool route on this day
                 const afterSchoolStudentIds = new Set<string>();
                 routes
                     .filter(r => r.dayOfWeek === day && r.type === 'AfterSchool')
@@ -1322,7 +1310,6 @@ const StudentManagementTab = ({
                     });
 
                 if (afterSchoolStudentIds.size > 0) {
-                    // Find all Afternoon routes on this day
                     const afternoonRoutes = routes.filter(r => r.dayOfWeek === day && r.type === 'Afternoon');
                     
                     for (const route of afternoonRoutes) {
@@ -1347,10 +1334,9 @@ const StudentManagementTab = ({
             if (updatesMade) {
                 try {
                     await batch.commit();
-                     // The onSnapshot listener will update the local 'routes' state automatically.
                 } catch (error) {
                     console.error("Error unassigning students from afternoon routes:", error);
-                    toast({title: "오류", description: "방과후 학생 하교 좌석 자동해제 실패", variant: "destructive"});
+                    toast({title: t('error'), description: t('admin.student_management.auto_unassign_error'), variant: "destructive"});
                 }
             }
             
@@ -1359,7 +1345,7 @@ const StudentManagementTab = ({
 
         processUnassignment();
         
-    }, [routes, students, days, toast]);
+    }, [routes, students, days, toast, t]);
 
 
     useEffect(() => {
@@ -1368,13 +1354,11 @@ const StudentManagementTab = ({
             return;
         }
 
-        // 금요일 방과후에는 미배정 학생을 표시하지 않음
         if (selectedDay === 'Friday' && selectedRouteType === 'AfterSchool') {
             setFilteredUnassignedStudents([]);
             return;
         }
 
-        // Get all student IDs assigned to any route for the selected day and type
         const allAssignedStudentIdsThisType = new Set<string>();
         routes.forEach(route => {
             if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
@@ -1386,7 +1370,6 @@ const StudentManagementTab = ({
             }
         });
         
-        // If viewing Afternoon route, get students assigned to AfterSchool on the same day
         const afterSchoolStudentIds = new Set<string>();
         if (selectedRouteType === 'Afternoon') {
              routes.forEach(route => {
@@ -1404,11 +1387,9 @@ const StudentManagementTab = ({
             if (unassignableStudents.some(u => u.id === student.id)) return false;
             if (allAssignedStudentIdsThisType.has(student.id)) return false;
             
-            // Exclude students in AfterSchool routes from appearing as unassigned in Afternoon routes
             if (selectedRouteType === 'Afternoon' && afterSchoolStudentIds.has(student.id)) {
                 return false;
             }
-
 
             let destId: string | null = null;
             if (selectedRouteType === 'Morning') {
@@ -1437,7 +1418,6 @@ const StudentManagementTab = ({
     }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations, unassignableStudents]);
     
     useEffect(() => {
-        // Reset seat selection when route changes
         setSelectedSeat(null);
     }, [currentRoute]);
     
@@ -1464,38 +1444,36 @@ const StudentManagementTab = ({
 
     const handleDeleteSelectedStudents = useCallback(async () => {
         if (selectedStudentIds.size === 0) {
-            toast({ title: "알림", description: "삭제할 학생을 선택해주세요." });
+            toast({ title: t('notice'), description: t('admin.student_management.unassigned.delete_validation') });
             return;
         }
 
-        const { dismiss } = toast({ title: "처리 중", description: "선택한 학생들을 삭제하고 있습니다..." });
+        const { dismiss } = toast({ title: t('processing'), description: t('admin.student_management.unassigned.delete_processing') });
         try {
             const idsToDelete = Array.from(selectedStudentIds);
             await deleteStudentsInBatch(idsToDelete);
 
             setStudents(prev => prev.filter(s => !idsToDelete.includes(s.id)));
-            // Local state update for routes will be handled by the onSnapshot listener
             
             setSelectedStudentIds(new Set());
             dismiss();
-            toast({ title: "성공", description: `${idsToDelete.length}명의 학생이 삭제되었습니다.` });
+            toast({ title: t('success'), description: t('admin.student_management.unassigned.delete_success', { count: idsToDelete.length }) });
         } catch (error) {
             dismiss();
             console.error("Error deleting students:", error);
-            toast({ title: "오류", description: "학생 삭제 중 오류가 발생했습니다.", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.unassigned.delete_error'), variant: "destructive" });
         }
-    }, [selectedStudentIds, setStudents, toast]);
+    }, [selectedStudentIds, setStudents, toast, t]);
 
     const handleSeatUpdate = useCallback(async (newSeating: {seatNumber: number; studentId: string | null}[]) => {
         if (!currentRoute) return;
         
         try {
-            // Local state update will be handled by the onSnapshot listener
             await updateRouteSeating(currentRoute.id, newSeating);
         } catch (error) {
-             toast({ title: "오류", description: "좌석 배정 실패", variant: 'destructive'});
+             toast({ title: t('error'), description: t('admin.student_management.seat.update_error'), variant: 'destructive'});
         }
-    }, [currentRoute, toast]);
+    }, [currentRoute, toast, t]);
     
     const handleUnassignStudentFromRoute = useCallback(async (routeId: string, studentId: string) => {
         const routeToUpdate = routes.find(r => r.id === routeId);
@@ -1507,21 +1485,20 @@ const StudentManagementTab = ({
     
         try {
             await updateRouteSeating(routeId, newSeating);
-            toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다." });
+            toast({ title: t('success'), description: t('admin.student_management.search.unassign_success') });
         } catch (error) {
-            toast({ title: "오류", description: "배정 해제 중 오류가 발생했습니다.", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.search.unassign_error'), variant: "destructive" });
         }
-    }, [routes, toast]);
+    }, [routes, toast, t]);
 
 
     const handleStudentCardClick = useCallback(async (studentId: string) => {
         if (!currentRoute) return;
 
-        // If an empty seat is selected, assign the student to it
         if (selectedSeat && !selectedSeat.studentId) {
             const isAlreadySeated = currentRoute.seating.some(s => s.studentId === studentId);
             if (isAlreadySeated) {
-                toast({ title: "알림", description: "이미 다른 좌석에 배정된 학생입니다."});
+                toast({ title: t('notice'), description: t('admin.student_management.seat.already_seated_error')});
                 return;
             }
 
@@ -1531,13 +1508,13 @@ const StudentManagementTab = ({
             if (targetSeatIndex !== -1) {
                 newSeating[targetSeatIndex].studentId = studentId;
                 await handleSeatUpdate(newSeating);
-                setSelectedSeat(null); // Reset selection after assignment
-                toast({ title: "성공", description: "학생이 좌석에 배정되었습니다."});
+                setSelectedSeat(null);
+                toast({ title: t('success'), description: t('admin.student_management.seat.assign_success')});
             }
         } else {
-             toast({ title: "알림", description: "먼저 빈 좌석을 선택해주세요."});
+             toast({ title: t('notice'), description: t('admin.student_management.seat.select_empty_seat_prompt')});
         }
-    }, [selectedSeat, currentRoute, toast, handleSeatUpdate]);
+    }, [selectedSeat, currentRoute, toast, handleSeatUpdate, t]);
 
     const handleUnassignedStudentClick = useCallback((student: Student) => {
         setSelectedGlobalStudent(student);
@@ -1548,62 +1525,61 @@ const StudentManagementTab = ({
     
         const newSeating = [...currentRoute.seating];
     
-        if (selectedSeat) { // A seat is already selected (for swap or assignment)
-            if (selectedSeat.studentId) { // An occupied seat was selected first
+        if (selectedSeat) {
+            if (selectedSeat.studentId) {
                 const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
                 const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
 
                 if (sourceSeatIndex === -1 || targetSeatIndex === -1) return;
     
-                if (selectedSeat.seatNumber === seatNumber) { // Clicked the same seat again to unassign
+                if (selectedSeat.seatNumber === seatNumber) {
                     newSeating[sourceSeatIndex].studentId = null;
-                    toast({ title: "성공", description: "학생의 좌석 배정이 해제되었습니다." });
-                } else { // Swapping students or moving to an empty seat
+                    toast({ title: t('success'), description: t('admin.student_management.seat.unassign_success') });
+                } else {
                     const sourceStudentId = newSeating[sourceSeatIndex].studentId;
                     const targetStudentId = newSeating[targetSeatIndex].studentId;
                     newSeating[sourceSeatIndex].studentId = targetStudentId;
                     newSeating[targetSeatIndex].studentId = sourceStudentId;
-                    toast({ title: "성공", description: "학생 좌석이 교체되었습니다." });
+                    toast({ title: t('success'), description: t('admin.student_management.seat.swap_success') });
                 }
                 
                 await handleSeatUpdate(newSeating);
                 setSelectedSeat(null);
     
-            } else { // An empty seat was selected first, now handle assignment
-                // This case is handled by handleStudentCardClick, so we just reset the selection if another empty seat is clicked.
+            } else {
                 if (!studentId) {
                     setSelectedSeat({ seatNumber, studentId });
                 }
             }
-        } else { // No seat is selected, this is the first click
+        } else {
             setSelectedSeat({ seatNumber, studentId });
         }
-    }, [currentRoute, selectedSeat, handleSeatUpdate, toast]);
+    }, [currentRoute, selectedSeat, handleSeatUpdate, toast, t]);
     
     const handleSeatContextMenu = (e: React.MouseEvent) => {
         if (selectedSeat) {
             e.preventDefault();
             setSelectedSeat(null);
-            toast({ title: "취소", description: "좌석 선택이 취소되었습니다." });
+            toast({ title: t('cancelled'), description: t('admin.student_management.seat.selection_cancelled') });
         }
     };
 
 
     const handleResetSeating = useCallback(async () => {
         if (!selectedBus) {
-            toast({ title: "오류", description: "버스를 먼저 선택해주세요.", variant: 'destructive'});
+            toast({ title: t('error'), description: t('admin.student_management.seat.select_bus_first'), variant: 'destructive'});
             return;
         }
         if (!currentRoute) return;
 
         const emptySeating = generateInitialSeating(selectedBus.capacity);
         await handleSeatUpdate(emptySeating);
-        toast({ title: "성공", description: `${selectedBus.name}의 ${dayLabels[selectedDay]} ${selectedRouteType} 노선 좌석 배정이 초기화되었습니다.` });
-    }, [selectedBus, currentRoute, handleSeatUpdate, toast, selectedDay, selectedRouteType]);
+        toast({ title: t('success'), description: t('admin.student_management.seat.reset_success', {busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType.toLowerCase()}`)}) });
+    }, [selectedBus, currentRoute, handleSeatUpdate, toast, t, selectedDay, selectedRouteType]);
 
     const handleCopySeating = useCallback(async () => {
         if (!currentRoute || !currentRoute.seating) {
-            toast({ title: "오류", description: "복사할 원본 노선을 찾을 수 없습니다.", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.seat.copy.no_source_error'), variant: "destructive" });
             return;
         }
     
@@ -1611,7 +1587,7 @@ const StudentManagementTab = ({
         const selectedTypes = (['Morning', 'Afternoon'] as const).filter(type => routeTypesToCopyTo[type]);
     
         if (selectedDays.length === 0 || selectedTypes.length === 0) {
-            toast({ title: "알림", description: "복사할 요일과 경로 유형(등교/하교)을 하나 이상 선택해주세요." });
+            toast({ title: t('notice'), description: t('admin.student_management.seat.copy.no_selection_error') });
             return;
         }
         
@@ -1619,26 +1595,23 @@ const StudentManagementTab = ({
             r.busId === currentRoute.busId &&
             selectedDays.includes(r.dayOfWeek) &&
             selectedTypes.includes(r.type as 'Morning' | 'Afternoon') &&
-            r.id !== currentRoute.id // Don't copy to self
+            r.id !== currentRoute.id
         );
     
         if (targetRoutes.length === 0) {
-            toast({ title: "알림", description: "복사할 대상 노선이 없습니다." });
+            toast({ title: t('notice'), description: t('admin.student_management.seat.copy.no_target_error') });
             return;
         }
     
         try {
             await copySeatingPlan(currentRoute.seating, targetRoutes);
-            
-            // Local state update will be handled by the onSnapshot listener
-            
-            toast({ title: "성공", description: `현재 좌석 배치를 선택된 요일의 노선에 복사했습니다.` });
+            toast({ title: t('success'), description: t('admin.student_management.seat.copy.success') });
             setCopySeatingDialogOpen(false);
         } catch (error) {
             console.error("Error copying seating plan:", error);
-            toast({ title: "오류", description: "좌석 배치 복사 중 오류가 발생했습니다.", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.seat.copy.error'), variant: "destructive" });
         }
-    }, [currentRoute, routes, toast, daysToCopyTo, weekdays, routeTypesToCopyTo]);
+    }, [currentRoute, routes, toast, t, daysToCopyTo, weekdays, routeTypesToCopyTo]);
 
     const handleToggleAllCopyToDays = useCallback((checked: boolean) => {
         const newDaysToCopyTo = weekdays.reduce((acc, day) => ({ ...acc, [day]: checked }), {});
@@ -1674,11 +1647,11 @@ const StudentManagementTab = ({
             if (capacity === 15) {
                 for (let row = 0; row < 4; row++) {
                     const base = row * 4 + 1;
-                    if (base === 13) continue; // Skip last row special case
+                    if (base === 13) continue;
                     pairs.push([base, base + 1]);
                 }
-                 pairs.push([10,11]); // Special pair
-                 pairs.push([12,13]); // Special pair
+                 pairs.push([10,11]);
+                 pairs.push([12,13]);
                  return pairs.filter(p => p[0] !== 3 && p[1] !== 3 && p[0] !== 6 && p[1] !== 6 && p[0] !== 9 && p[1] !== 9);
             }
             const numRows = Math.ceil(capacity / 4);
@@ -1731,12 +1704,12 @@ const StudentManagementTab = ({
         }
         
         await handleSeatUpdate(newSeatingPlan);
-        toast({ title: "성공", description: "랜덤 배정이 완료되었습니다." });
+        toast({ title: t('success'), description: t('admin.student_management.seat.random_assign_success') });
 
         if (selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') {
             setCopySeatingDialogOpen(true);
         }
-    }, [selectedBus, students, currentRoute, handleSeatUpdate, toast, selectedDay, selectedRouteType, setCopySeatingDialogOpen]);
+    }, [selectedBus, students, currentRoute, handleSeatUpdate, toast, t, selectedDay, selectedRouteType, setCopySeatingDialogOpen]);
     
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
@@ -1753,7 +1726,7 @@ const StudentManagementTab = ({
 
     const handleDownloadUnassignedStudents = useCallback(() => {
         if (filteredUnassignedStudents.length === 0) {
-            toast({ title: "알림", description: "미배정 학생이 없습니다."});
+            toast({ title: t('notice'), description: t('admin.student_management.unassigned.no_students_to_download')});
             return;
         }
 
@@ -1778,7 +1751,7 @@ const StudentManagementTab = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }, [filteredUnassignedStudents, selectedRouteType, selectedDay, destinations, toast]);
+    }, [filteredUnassignedStudents, selectedRouteType, selectedDay, destinations, toast, t]);
 
     const handleStudentFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -1790,7 +1763,6 @@ const StudentManagementTab = ({
             complete: async (results) => {
                 const studentsToProcess: NewStudent[] = [];
     
-                // Build a map for case-insensitive and trimmed destination name lookup
                 const destinationMap = new Map<string, string>();
                 destinations.forEach(d => {
                     destinationMap.set(d.name.trim().toLowerCase(), d.id);
@@ -1812,7 +1784,6 @@ const StudentManagementTab = ({
                     days.forEach(day => {
                         const dayLabel = dayLabels[day];
                         const destName = (row[`방과후 목적지(${dayLabel})`] || row[`방과후 목적지 (${dayLabel})`] || '').trim();
-                        // Only add to object if destName is not empty, to allow clearing destinations
                         if (destName) {
                             afterSchoolDests[day] = findDestId(destName);
                         } else {
@@ -1834,10 +1805,10 @@ const StudentManagementTab = ({
                 });
     
                 if (studentsToProcess.length === 0) {
-                    toast({ title: "오류", description: "유효한 학생 데이터를 찾을 수 없거나 목적지가 존재하지 않습니다.", variant: "destructive" });
+                    toast({ title: t('error'), description: t('admin.student_management.batch_upload.validation_error'), variant: "destructive" });
                     return;
                 }
-                const { dismiss } = toast({ title: "처리 중", description: "학생 정보를 일괄 처리하고 있습니다..." });
+                const { dismiss } = toast({ title: t('processing'), description: t('admin.student_management.batch_upload.processing') });
                 try {
                     const processedStudents = await Promise.all(studentsToProcess.map(s => addStudent(s)));
 
@@ -1845,24 +1816,24 @@ const StudentManagementTab = ({
                     processedStudents.forEach(processedStudent => {
                         const index = newStudentList.findIndex(s => s.id === processedStudent.id);
                         if (index !== -1) {
-                            newStudentList[index] = processedStudent; // Update existing
+                            newStudentList[index] = processedStudent;
                         } else {
-                            newStudentList.push(processedStudent); // Add new
+                            newStudentList.push(processedStudent);
                         }
                     });
 
                     setStudents(newStudentList.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
                     dismiss();
-                    toast({ title: "성공", description: `${processedStudents.length}명의 학생 정보가 추가/업데이트되었습니다.` });
+                    toast({ title: t('success'), description: t('admin.student_management.batch_upload.success', {count: processedStudents.length}) });
     
                 } catch (error) {
                     console.error(error);
                     dismiss();
-                    toast({ title: "오류", description: "일괄 처리 중 오류 발생", variant: "destructive" });
+                    toast({ title: t('error'), description: t('admin.student_management.batch_upload.error'), variant: "destructive" });
                 }
             },
             error: (err) => {
-                toast({ title: "파일 오류", description: err.message, variant: "destructive" });
+                toast({ title: t('admin.file_parse_error'), description: err.message, variant: "destructive" });
             }
         });
         if (fileInputRef.current) {
@@ -1873,7 +1844,7 @@ const StudentManagementTab = ({
      const handleAddStudent = async () => {
         const { name, grade, class: studentClass, gender, morningDestinationId, afternoonDestinationId, afterSchoolDestinations } = newStudentForm;
         if (!name || !grade || !studentClass || !gender) {
-            toast({ title: "오류", description: "목적지를 제외한 모든 필드를 입력해주세요.", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.add_student.validation_error'), variant: "destructive" });
             return;
         }
         try {
@@ -1911,9 +1882,9 @@ const StudentManagementTab = ({
             }
 
             setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', morningDestinationId: null, afternoonDestinationId: null, afterSchoolDestinations: {} });
-            toast({ title: "성공", description: "학생 정보가 추가/업데이트되었습니다." });
+            toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
         } catch (error) {
-            toast({ title: "오류", description: "학생 추가/업데이트 실패", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.add_student.error'), variant: "destructive" });
         }
     };
 
@@ -1923,7 +1894,6 @@ const StudentManagementTab = ({
 
         let updateData: Partial<Student> = { applicationStatus: 'pending' };
         
-        // Allow clearing the value
         const finalDestinationId = newDestinationId === '_NONE_' ? null : newDestinationId;
 
         if (type === 'morning') {
@@ -1944,16 +1914,15 @@ const StudentManagementTab = ({
                 setSelectedGlobalStudent(updatedStudent);
             }
             
-            // Unassign from all routes as destination has changed
             await unassignStudentFromAllRoutes(studentId);
             
-            toast({ title: "성공", description: "학생의 목적지가 업데이트되었습니다. 모든 노선에서 좌석 배정이 해제되었습니다." });
+            toast({ title: t('success'), description: t('admin.student_management.search.dest_update_success') });
         } catch (error) {
-            toast({ title: "오류", description: "목적지 업데이트 실패", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.search.dest_update_error'), variant: "destructive" });
             const freshStudents = await getStudents();
             setStudents(freshStudents);
         }
-    }, [students, setStudents, selectedGlobalStudent, toast]);
+    }, [students, setStudents, selectedGlobalStudent, toast, t]);
     
     const handleGenderChange = useCallback(async (studentId: string, newGender: 'Male' | 'Female') => {
         const student = students.find(s => s.id === studentId);
@@ -1968,21 +1937,21 @@ const StudentManagementTab = ({
                 setSelectedGlobalStudent(updatedStudent);
             }
             
-            toast({ title: "성공", description: "학생의 성별이 업데이트되었습니다." });
+            toast({ title: t('success'), description: t('admin.student_management.search.gender_update_success') });
         } catch (error) {
-            toast({ title: "오류", description: "성별 업데이트 실패", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.search.gender_update_error'), variant: "destructive" });
         }
-    }, [students, setStudents, selectedGlobalStudent, toast]);
+    }, [students, setStudents, selectedGlobalStudent, toast, t]);
 
     const handleUnassignAllFromStudent = useCallback(async () => {
         if (!selectedGlobalStudent) return;
         try {
             await unassignStudentFromAllRoutes(selectedGlobalStudent.id);
-            toast({ title: "성공", description: `${selectedGlobalStudent.name} 학생이 모든 노선에서 배정 해제되었습니다.`});
+            toast({ title: t('success'), description: t('admin.student_management.search.unassign_all_success', { studentName: selectedGlobalStudent.name })});
         } catch (error) {
-             toast({ title: "오류", description: "전체 배정 해제 중 오류 발생", variant: 'destructive'});
+             toast({ title: t('error'), description: t('admin.student_management.search.unassign_all_error'), variant: 'destructive'});
         }
-    }, [selectedGlobalStudent, toast]);
+    }, [selectedGlobalStudent, toast, t]);
 
     const getUnassignableReason = (student: Student) => {
         const allValidStopIds = new Set<string>();
@@ -1990,10 +1959,10 @@ const StudentManagementTab = ({
         
         const errors: string[] = [];
         if (student.morningDestinationId && !allValidStopIds.has(student.morningDestinationId)) {
-            errors.push('등교');
+            errors.push(t('route_type.morning'));
         }
         if (student.afternoonDestinationId && !allValidStopIds.has(student.afternoonDestinationId)) {
-            errors.push('하교');
+            errors.push(t('route_type.afternoon'));
         }
         if (student.afterSchoolDestinations) {
             const errorDays = Object.keys(student.afterSchoolDestinations).filter(day => {
@@ -2001,13 +1970,12 @@ const StudentManagementTab = ({
                 return destId && !allValidStopIds.has(destId);
             });
             if (errorDays.length > 0) {
-                 errors.push(`방과후 (${errorDays.map(d => dayLabels[d as DayOfWeek].charAt(0)).join(',')})`);
+                 errors.push(`${t('route_type.after_school')} (${errorDays.map(d => t(`day_short.${d.toLowerCase()}`)).join(',')})`);
             }
         }
         return errors.join(', ');
     }
 
-     // --- Global Student Search ---
     useEffect(() => {
         if (!globalSearchQuery) {
             setGlobalSearchResults([]);
@@ -2028,7 +1996,7 @@ const StudentManagementTab = ({
     if (!selectedBusId) {
        return (
             <div className="space-y-6">
-                <div className="p-4 text-center text-muted-foreground">버스를 선택하여 학생을 관리하세요.</div>
+                <div className="p-4 text-center text-muted-foreground">{t('admin.student_management.select_bus_prompt')}</div>
             </div>
        );
     }
@@ -2036,7 +2004,7 @@ const StudentManagementTab = ({
      if (!currentRoute) {
         return (
             <div className="space-y-6">
-                <div className="p-4 text-center text-muted-foreground">선택된 조건에 해당하는 노선 정보를 찾을 수 없습니다.</div>
+                <div className="p-4 text-center text-muted-foreground">{t('admin.student_management.no_route_info')}</div>
             </div>
         );
     }
@@ -2048,32 +2016,32 @@ const StudentManagementTab = ({
                     <Card>
                         <CardHeader className="flex-row items-center justify-between">
                             <div>
-                               <CardTitle className="font-headline">좌석표</CardTitle>
+                               <CardTitle className="font-headline">{t('admin.student_management.seat.title')}</CardTitle>
                                <CardDescription>
-                                {selectedSeat?.studentId ? "교체할 다른 좌석을 선택하거나, 같은 좌석을 다시 클릭하여 배정 해제하세요." : "좌석을 클릭하여 학생을 배정하거나 교체하세요. 우클릭으로 선택을 취소할 수 있습니다."}
+                                {selectedSeat?.studentId ? t('admin.student_management.seat.description_selected') : t('admin.student_management.seat.description_initial')}
                                </CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
                                 {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
                                     <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
                                         <DialogTrigger asChild>
-                                            <Button variant="outline"><Copy className="mr-2" /> 좌석 복사</Button>
+                                            <Button variant="outline"><Copy className="mr-2" /> {t('admin.student_management.seat.copy.button')}</Button>
                                         </DialogTrigger>
                                         <DialogContent>
                                             <DialogHeader>
-                                                <DialogTitle>좌석 배치 복사</DialogTitle>
-                                                <CardDescription>현재 좌석 배치를 선택한 요일의 등교 또는 하교 노선에 복사합니다.</CardDescription>
+                                                <DialogTitle>{t('admin.student_management.seat.copy.title')}</DialogTitle>
+                                                <CardDescription>{t('admin.student_management.seat.copy.description')}</CardDescription>
                                             </DialogHeader>
                                             <div className="space-y-4 py-4">
                                                 <div>
-                                                    <Label>복사할 요일 선택</Label>
+                                                    <Label>{t('admin.student_management.seat.copy.select_days')}</Label>
                                                     <div className="flex items-center space-x-2 mt-2">
                                                         <Checkbox
                                                             id="copy-all-days"
                                                             checked={weekdays.every(day => daysToCopyTo[day])}
                                                             onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
                                                         />
-                                                        <Label htmlFor="copy-all-days">모두 선택</Label>
+                                                        <Label htmlFor="copy-all-days">{t('select_all')}</Label>
                                                     </div>
                                                     <div className="grid grid-cols-5 gap-2 mt-2">
                                                         {weekdays.map(day => (
@@ -2083,13 +2051,13 @@ const StudentManagementTab = ({
                                                                     checked={!!daysToCopyTo[day]}
                                                                     onCheckedChange={(checked) => setDaysToCopyTo(prev => ({ ...prev, [day]: checked }))}
                                                                 />
-                                                                <Label htmlFor={`copy-day-${day}`}>{dayLabels[day].charAt(0)}</Label>
+                                                                <Label htmlFor={`copy-day-${day}`}>{t(`day_short.${day.toLowerCase()}`)}</Label>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <Label>복사할 경로 유형</Label>
+                                                    <Label>{t('admin.student_management.seat.copy.select_route_types')}</Label>
                                                     <div className="flex items-center space-x-4 mt-2">
                                                         <div className="flex items-center space-x-2">
                                                             <Checkbox
@@ -2097,7 +2065,7 @@ const StudentManagementTab = ({
                                                                 checked={!!routeTypesToCopyTo.Morning}
                                                                 onCheckedChange={(checked) => setRouteTypesToCopyTo(prev => ({ ...prev, Morning: checked as boolean }))}
                                                             />
-                                                            <Label htmlFor="copy-type-morning">등교</Label>
+                                                            <Label htmlFor="copy-type-morning">{t('route_type.morning')}</Label>
                                                         </div>
                                                         <div className="flex items-center space-x-2">
                                                             <Checkbox
@@ -2105,71 +2073,71 @@ const StudentManagementTab = ({
                                                                 checked={!!routeTypesToCopyTo.Afternoon}
                                                                 onCheckedChange={(checked) => setRouteTypesToCopyTo(prev => ({ ...prev, Afternoon: checked as boolean }))}
                                                             />
-                                                            <Label htmlFor="copy-type-afternoon">하교</Label>
+                                                            <Label htmlFor="copy-type-afternoon">{t('route_type.afternoon')}</Label>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                             <DialogFooter>
-                                                <Button onClick={handleCopySeating} className="w-full">복사</Button>
+                                                <Button onClick={handleCopySeating} className="w-full">{t('copy')}</Button>
                                             </DialogFooter>
                                         </DialogContent>
                                     </Dialog>
                                 )}
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <Button variant="outline"><RotateCcw className="mr-2" /> 좌석 초기화</Button>
+                                        <Button variant="outline"><RotateCcw className="mr-2" /> {t('admin.student_management.seat.reset.button')}</Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
-                                            <AlertDialogTitle>정말 모든 좌석 배정을 초기화하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogTitle>{t('admin.student_management.seat.reset.confirm_title')}</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                               이 작업은 되돌릴 수 없습니다. {selectedBus?.name}의 모든 좌석 배정이 해제됩니다.
+                                               {t('admin.student_management.seat.reset.confirm_description', { busName: selectedBus?.name })}
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
-                                            <AlertDialogCancel>취소</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleResetSeating}>초기화</AlertDialogAction>
+                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleResetSeating}>{t('reset')}</AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                                <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> 랜덤 배정</Button>
+                                <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> {t('admin.student_management.seat.random_assign_button')}</Button>
                                 <Dialog>
                                     <DialogTrigger asChild>
-                                        <Button variant="outline"><UserPlus className="mr-2" /> 학생 추가</Button>
+                                        <Button variant="outline"><UserPlus className="mr-2" /> {t('admin.student_management.add_student.button')}</Button>
                                     </DialogTrigger>
                                     <DialogContent>
-                                        <DialogHeader><DialogTitle>새 학생 추가</DialogTitle></DialogHeader>
+                                        <DialogHeader><DialogTitle>{t('admin.student_management.add_student.title')}</DialogTitle></DialogHeader>
                                         <div className="grid gap-4 py-4">
                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="name" className="text-right">이름</Label>
+                                                <Label htmlFor="name" className="text-right">{t('student.name')}</Label>
                                                 <Input id="name" value={newStudentForm.name || ''} onChange={e => setNewStudentForm(p => ({...p, name: e.target.value}))} className="col-span-3" />
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="grade" className="text-right">학년</Label>
-                                                <Input id="grade" value={newStudentForm.grade || ''} onChange={e => setNewStudentForm(p => ({...p, grade: e.target.value}))} placeholder="예: G1" className="col-span-3" />
+                                                <Label htmlFor="grade" className="text-right">{t('student.grade')}</Label>
+                                                <Input id="grade" value={newStudentForm.grade || ''} onChange={e => setNewStudentForm(p => ({...p, grade: e.target.value}))} placeholder={t('student.grade_placeholder')} className="col-span-3" />
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="class" className="text-right">반</Label>
-                                                <Input id="class" value={newStudentForm.class || ''} onChange={e => setNewStudentForm(p => ({...p, class: e.target.value}))} placeholder="예: C1" className="col-span-3" />
+                                                <Label htmlFor="class" className="text-right">{t('student.class')}</Label>
+                                                <Input id="class" value={newStudentForm.class || ''} onChange={e => setNewStudentForm(p => ({...p, class: e.target.value}))} placeholder={t('student.class_placeholder')} className="col-span-3" />
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="gender" className="text-right">성별</Label>
+                                                <Label htmlFor="gender" className="text-right">{t('student.gender')}</Label>
                                                 <Select value={newStudentForm.gender} onValueChange={(v) => setNewStudentForm(p => ({...p, gender: v as any}))}>
                                                     <SelectTrigger className="col-span-3">
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="Male">Male</SelectItem>
-                                                        <SelectItem value="Female">Female</SelectItem>
+                                                        <SelectItem value="Male">{t('student.male')}</SelectItem>
+                                                        <SelectItem value="Female">{t('student.female')}</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="destination" className="text-right">등교 목적지</Label>
+                                                <Label htmlFor="destination" className="text-right">{t('student.morning_destination')}</Label>
                                                 <Select value={newStudentForm.morningDestinationId || ''} onValueChange={(v) => setNewStudentForm(p => ({...p, morningDestinationId: v}))}>
                                                     <SelectTrigger className="col-span-3">
-                                                        <SelectValue placeholder="목적지 선택" />
+                                                        <SelectValue placeholder={t('select_destination')} />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
@@ -2177,10 +2145,10 @@ const StudentManagementTab = ({
                                                 </Select>
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="destination" className="text-right">하교 목적지</Label>
+                                                <Label htmlFor="destination" className="text-right">{t('student.afternoon_destination')}</Label>
                                                 <Select value={newStudentForm.afternoonDestinationId || ''} onValueChange={(v) => setNewStudentForm(p => ({...p, afternoonDestinationId: v}))}>
                                                     <SelectTrigger className="col-span-3">
-                                                        <SelectValue placeholder="목적지 선택" />
+                                                        <SelectValue placeholder={t('select_destination')} />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
@@ -2188,14 +2156,14 @@ const StudentManagementTab = ({
                                                 </Select>
                                             </div>
                                              <div className="grid grid-cols-4 items-center gap-4">
-                                                <Label htmlFor="destination" className="text-right">방과후 목적지</Label>
+                                                <Label htmlFor="destination" className="text-right">{t('student.after_school_destination')}</Label>
                                                 <Select value={ (newStudentForm.afterSchoolDestinations && newStudentForm.afterSchoolDestinations['Monday']) || ''} onValueChange={(v) => setNewStudentForm(p => {
                                                     const newDests: Partial<Record<DayOfWeek, string | null>> = {};
                                                     days.forEach(day => newDests[day] = v);
                                                     return {...p, afterSchoolDestinations: newDests};
                                                 })}>
                                                     <SelectTrigger className="col-span-3">
-                                                        <SelectValue placeholder="모든 요일 방과후 목적지 선택" />
+                                                        <SelectValue placeholder={t('admin.student_management.add_student.all_days_placeholder')} />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
@@ -2203,7 +2171,7 @@ const StudentManagementTab = ({
                                                 </Select>
                                             </div>
                                         </div>
-                                        <Button onClick={handleAddStudent}>추가</Button>
+                                        <Button onClick={handleAddStudent}>{t('add')}</Button>
                                     </DialogContent>
                                 </Dialog>
                             </div>
@@ -2227,22 +2195,22 @@ const StudentManagementTab = ({
                      {unassignableStudents.length > 0 && (
                         <Alert variant="destructive" className="bg-orange-100 dark:bg-orange-900/30 border-orange-400 dark:border-orange-700 text-orange-800 dark:text-orange-200">
                              <Bell className="h-4 w-4 !text-orange-600 dark:!text-orange-400" />
-                            <AlertTitle className="text-orange-900 dark:text-orange-100">목적지 오류로 배정 불가</AlertTitle>
+                            <AlertTitle className="text-orange-900 dark:text-orange-100">{t('admin.student_management.unassignable.title')}</AlertTitle>
                             <AlertDescription className="space-y-2">
-                                <p>아래 학생들은 설정된 목적지가 현재 어떤 버스 노선에도 포함되어 있지 않아 배정할 수 없습니다. 목적지를 수정해주세요.</p>
+                                <p>{t('admin.student_management.unassignable.description')}</p>
                                 <div className="max-h-40 overflow-y-auto space-y-2">
                                     {unassignableStudents.map(student => (
                                         <div key={student.id} className="p-2 border border-orange-300 dark:border-orange-600 rounded-md bg-white dark:bg-orange-900/50">
                                             <div className="font-semibold">{student.name} ({student.grade} {student.class})</div>
-                                            <div className="text-xs">오류 목적지: {getUnassignableReason(student)}</div>
+                                            <div className="text-xs">{t('admin.student_management.unassignable.error_reason')}: {getUnassignableReason(student)}</div>
                                             
                                             <div className="grid grid-cols-2 gap-2 mt-2">
                                                 {student.morningDestinationId && <Select value={student.morningDestinationId} onValueChange={(v) => handleDestinationChange(student.id, v, 'morning')}>
-                                                    <SelectTrigger><SelectValue placeholder="등교 목적지" /></SelectTrigger>
+                                                    <SelectTrigger><SelectValue placeholder={t('student.morning_destination')} /></SelectTrigger>
                                                     <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                                                 </Select>}
                                                 {student.afternoonDestinationId && <Select value={student.afternoonDestinationId} onValueChange={(v) => handleDestinationChange(student.id, v, 'afternoon')}>
-                                                    <SelectTrigger><SelectValue placeholder="하교 목적지" /></SelectTrigger>
+                                                    <SelectTrigger><SelectValue placeholder={t('student.afternoon_destination')} /></SelectTrigger>
                                                     <SelectContent>{destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                                                 </Select>}
                                             </div>
@@ -2256,9 +2224,9 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-20 h-fit">
                      <Card>
                         <CardHeader>
-                            <CardTitle className="font-headline">미배정 학생 ({selectedRouteType === 'Morning' ? '등교' : selectedRouteType === 'Afternoon' ? '하교' : `(${dayLabels[selectedDay]}) 방과후`})</CardTitle>
+                            <CardTitle className="font-headline">{t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`), day: t(`day.${selectedDay.toLowerCase()}`) })}</CardTitle>
                             <CardDescription>
-                                학생을 클릭하여 정보를 보거나, 좌석 배정 버튼을 눌러 선택된 빈 좌석에 배정하세요.
+                                {t('admin.student_management.unassigned.description')}
                             </CardDescription>
                         </CardHeader>
                         <Separator />
@@ -2267,36 +2235,36 @@ const StudentManagementTab = ({
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     type="search"
-                                    placeholder="학생 이름 또는 목적지 검색..."
+                                    placeholder={t('admin.student_management.unassigned.search_placeholder')}
                                     className="pl-8 w-full"
                                     value={unassignedSearchQuery}
                                     onChange={(e) => setUnassignedSearchQuery(e.target.value)}
                                 />
                             </div>
                              <div className="flex justify-end mb-2 gap-2 flex-wrap">
-                                 <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> 학생 템플릿</Button>
-                                 <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> 미배정 목록</Button>
-                                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> 일괄 등록</Button>
+                                 <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.student_management.student_template')}</Button>
+                                 <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> {t('admin.student_management.unassigned.download_list')}</Button>
+                                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
                                  <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
                                  <Button size="sm" variant="outline" onClick={handleToggleSelectAll}>
-                                    {selectedStudentIds.size === filteredUnassignedStudents.length && filteredUnassignedStudents.length > 0 ? '선택 해제' : '모두 선택'}
+                                    {selectedStudentIds.size === filteredUnassignedStudents.length && filteredUnassignedStudents.length > 0 ? t('deselect_all') : t('select_all')}
                                  </Button>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button size="sm" variant="destructive" disabled={selectedStudentIds.size === 0}>
-                                            <Trash2 className="mr-2 h-4 w-4" /> 선택 삭제
+                                            <Trash2 className="mr-2 h-4 w-4" /> {t('delete_selected')}
                                         </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
-                                            <AlertDialogTitle>정말 선택한 학생들을 삭제하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogTitle>{t('admin.student_management.unassigned.delete_confirm_title')}</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                이 작업은 되돌릴 수 없습니다. {selectedStudentIds.size}명의 학생 정보가 영구적으로 삭제됩니다.
+                                                {t('admin.student_management.unassigned.delete_confirm_description', { count: selectedStudentIds.size })}
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
-                                            <AlertDialogCancel>취소</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleDeleteSelectedStudents}>삭제</AlertDialogAction>
+                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleDeleteSelectedStudents}>{t('delete')}</AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
@@ -2320,9 +2288,9 @@ const StudentManagementTab = ({
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle className="font-headline">전체 학생 검색</CardTitle>
+                            <CardTitle className="font-headline">{t('admin.student_management.search.title')}</CardTitle>
                             <CardDescription>
-                                학생을 검색하여 정보를 수정하거나 배정된 좌석을 확인하세요.
+                                {t('admin.student_management.search.description')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -2330,7 +2298,7 @@ const StudentManagementTab = ({
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     type="search"
-                                    placeholder="학생 이름 검색..."
+                                    placeholder={t('admin.student_management.search.placeholder')}
                                     className="pl-8 w-full"
                                     value={globalSearchQuery}
                                     onChange={(e) => setGlobalSearchQuery(e.target.value)}
@@ -2357,78 +2325,78 @@ const StudentManagementTab = ({
                                              <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                      <Button variant="link" size="sm" className="p-0 h-auto text-destructive">
-                                                        <UserX className="mr-1"/>모두 배정 해제
+                                                        <UserX className="mr-1"/>{t('admin.student_management.search.unassign_all_button')}
                                                     </Button>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
-                                                        <AlertDialogTitle>모든 노선에서 배정 해제하시겠습니까?</AlertDialogTitle>
+                                                        <AlertDialogTitle>{t('admin.student_management.search.unassign_all_confirm_title')}</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            {selectedGlobalStudent.name} 학생이 배정된 모든 노선의 좌석에서 해제됩니다. 이 작업은 되돌릴 수 없습니다.
+                                                            {t('admin.student_management.search.unassign_all_confirm_description', { studentName: selectedGlobalStudent.name })}
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
-                                                        <AlertDialogCancel>취소</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={handleUnassignAllFromStudent}>배정 해제</AlertDialogAction>
+                                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={handleUnassignAllFromStudent}>{t('unassign')}</AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
                                         </div>
-                                        <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>닫기</Button>
+                                        <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>{t('close')}</Button>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>성별</Label>
+                                        <Label>{t('student.gender')}</Label>
                                         <Select 
                                             value={selectedGlobalStudent.gender} 
                                             onValueChange={(v) => handleGenderChange(selectedGlobalStudent.id, v as 'Male' | 'Female')}
                                         >
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value='Male'>Male</SelectItem>
-                                                <SelectItem value='Female'>Female</SelectItem>
+                                                <SelectItem value='Male'>{t('student.male')}</SelectItem>
+                                                <SelectItem value='Female'>{t('student.female')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>등교 목적지</Label>
+                                        <Label>{t('student.morning_destination')}</Label>
                                         <Select 
                                             value={selectedGlobalStudent.morningDestinationId || '_NONE_'} 
                                             onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
                                         >
-                                            <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                            <SelectTrigger><SelectValue placeholder={t('no_destination')} /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value='_NONE_'>선택 안 함</SelectItem>
+                                                <SelectItem value='_NONE_'>{t('no_selection')}</SelectItem>
                                                 {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>하교 목적지</Label>
+                                        <Label>{t('student.afternoon_destination')}</Label>
                                         <Select 
                                             value={selectedGlobalStudent.afternoonDestinationId || '_NONE_'} 
                                             onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
                                         >
-                                            <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                            <SelectTrigger><SelectValue placeholder={t('no_destination')} /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value='_NONE_'>선택 안 함</SelectItem>
+                                                <SelectItem value='_NONE_'>{t('no_selection')}</SelectItem>
                                                 {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     
                                     <div className="space-y-3">
-                                        <Label>방과후 목적지</Label>
+                                        <Label>{t('student.after_school_destination')}</Label>
                                         {dayOrder.map(day => (
                                             <div key={day} className="space-y-1">
-                                                 <Label className="text-xs text-muted-foreground">{dayLabels[day]}</Label>
+                                                 <Label className="text-xs text-muted-foreground">{t(`day.${day.toLowerCase()}`)}</Label>
                                                  <Select 
                                                     value={selectedGlobalStudent.afterSchoolDestinations?.[day] || '_NONE_'} 
                                                     onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', day)}
                                                     disabled={day === 'Friday' && selectedRouteType === 'AfterSchool' && !selectedGlobalStudent.afterSchoolDestinations?.['Friday']}
                                                 >
-                                                    <SelectTrigger><SelectValue placeholder="목적지 선택 안 함" /></SelectTrigger>
+                                                    <SelectTrigger><SelectValue placeholder={t('no_destination')} /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value='_NONE_'>선택 안 함</SelectItem>
+                                                        <SelectItem value='_NONE_'>{t('no_selection')}</SelectItem>
                                                         {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                                     </SelectContent>
                                                 </Select>
@@ -2438,15 +2406,15 @@ const StudentManagementTab = ({
 
 
                                      <div>
-                                        <Label>배정된 노선</Label>
+                                        <Label>{t('admin.student_management.search.assigned_routes')}</Label>
                                         <div className="space-y-2 mt-1 border rounded-md p-2 max-h-40 overflow-y-auto">
                                             {assignedRoutesForSelectedStudent.length > 0 ? (
                                                 assignedRoutesForSelectedStudent.map(route => {
-                                                    const busName = buses.find(b => b.id === route.busId)?.name || '알 수 없는 버스';
-                                                    const routeTypeName = route.type === 'Morning' ? '등교' : route.type === 'Afternoon' ? '하교' : '방과후';
+                                                    const busName = buses.find(b => b.id === route.busId)?.name || t('unknown_bus');
+                                                    const routeTypeName = t(`route_type.${route.type.toLowerCase()}`);
                                                     return (
                                                         <div key={route.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                                                            <p className="text-sm">{busName} - {dayLabels[route.dayOfWeek]} {routeTypeName}</p>
+                                                            <p className="text-sm">{busName} - {t(`day.${route.dayOfWeek.toLowerCase()}`)} {routeTypeName}</p>
                                                             <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleUnassignStudentFromRoute(route.id, selectedGlobalStudent.id)}>
                                                                 <UserX className="h-4 w-4" />
                                                             </Button>
@@ -2454,7 +2422,7 @@ const StudentManagementTab = ({
                                                     )
                                                 })
                                             ) : (
-                                                <p className="text-sm text-muted-foreground p-2">배정된 노선이 없습니다.</p>
+                                                <p className="text-sm text-muted-foreground p-2">{t('admin.student_management.search.no_assigned_routes')}</p>
                                             )}
                                         </div>
                                     </div>
@@ -2470,6 +2438,7 @@ const StudentManagementTab = ({
 
 const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>> }) => {
     const { toast } = useToast();
+    const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleDownloadTeacherTemplate = () => {
@@ -2498,23 +2467,23 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
                 })).filter(teacher => teacher.name);
 
                 if (newTeachersData.length === 0) {
-                    toast({ title: "오류", description: "파일에서 유효한 선생님 데이터를 찾을 수 없습니다. 헤더가 '선생님 이름'으로 되어있는지 확인하세요.", variant: "destructive" });
+                    toast({ title: t('error'), description: t('admin.teacher_management.batch.validation_error'), variant: "destructive" });
                     return;
                 }
 
-                const { dismiss } = toast({ title: "처리 중", description: "선생님 명단을 일괄 등록하고 있습니다..." });
+                const { dismiss } = toast({ title: t('processing'), description: t('admin.teacher_management.batch.processing') });
                 try {
                     const addedTeachers = await addTeachersInBatch(newTeachersData);
                     setTeachers(prev => [...prev, ...addedTeachers].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
                     dismiss();
-                    toast({ title: "성공", description: `${addedTeachers.length}명의 선생님이 일괄 등록되었습니다.` });
+                    toast({ title: t('success'), description: t('admin.teacher_management.batch.success', {count: addedTeachers.length}) });
                 } catch (error) {
                     dismiss();
-                    toast({ title: "오류", description: "일괄 등록 중 오류가 발생했습니다.", variant: "destructive" });
+                    toast({ title: t('error'), description: t('admin.teacher_management.batch.error'), variant: "destructive" });
                 }
             },
             error: (error) => {
-                toast({ title: "파일 파싱 오류", description: error.message, variant: "destructive" });
+                toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
             }
         });
 
@@ -2526,19 +2495,19 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>선생님 목록</CardTitle>
-                <CardDescription>CSV 파일로 선생님 명단을 일괄 등록합니다.</CardDescription>
+                <CardTitle>{t('admin.teacher_management.title')}</CardTitle>
+                <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="flex justify-end gap-2 mb-4">
-                    <Button variant="outline" onClick={handleDownloadTeacherTemplate}><Download className="mr-2" /> 템플릿</Button>
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> 일괄 등록</Button>
+                    <Button variant="outline" onClick={handleDownloadTeacherTemplate}><Download className="mr-2" /> {t('template')}</Button>
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
                     <input type="file" ref={fileInputRef} onChange={handleTeacherFileUpload} accept=".csv" className="hidden" />
                 </div>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>선생님 이름</TableHead>
+                            <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2566,7 +2535,6 @@ const AdminPageFilter: React.FC<{
     selectedRouteType: RouteType;
     setSelectedRouteType: (type: RouteType) => void;
     days: DayOfWeek[];
-    dayLabels: { [key in DayOfWeek]: string };
     filterConfiguredBusesOnly: boolean;
     showRouteStops?: boolean;
 }> = ({
@@ -2580,10 +2548,10 @@ const AdminPageFilter: React.FC<{
     selectedRouteType,
     setSelectedRouteType,
     days,
-    dayLabels,
     filterConfiguredBusesOnly,
     showRouteStops = false,
 }) => {
+    const { t } = useTranslation();
     
     const displayBuses = useMemo(() => {
         if (!filterConfiguredBusesOnly) {
@@ -2624,10 +2592,10 @@ const AdminPageFilter: React.FC<{
             <CardContent className="p-4">
                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
-                    <Label className="text-sm font-medium">버스</Label>
+                    <Label>{t('bus')}</Label>
                     <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
                       <SelectTrigger>
-                        <SelectValue placeholder="버스를 선택하세요" />
+                        <SelectValue placeholder={t('select_bus')} />
                       </SelectTrigger>
                       <SelectContent>
                         {displayBuses.map((bus) => {
@@ -2647,27 +2615,27 @@ const AdminPageFilter: React.FC<{
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">요일</Label>
+                    <Label>{t('day')}</Label>
                     <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
                       <SelectTrigger>
-                        <SelectValue placeholder="요일을 선택하세요" />
+                        <SelectValue placeholder={t('select_day')} />
                       </SelectTrigger>
                       <SelectContent>
                         {days.map((day) => (
                           <SelectItem key={day} value={day}>
-                            {dayLabels[day]}
+                            {t(`day.${day.toLowerCase()}`)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">경로</Label>
+                    <Label>{t('route')}</Label>
                     <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
                       <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="Morning">등교</TabsTrigger>
-                        <TabsTrigger value="Afternoon">하교</TabsTrigger>
-                        <TabsTrigger value="AfterSchool">방과후</TabsTrigger>
+                        <TabsTrigger value="Morning">{t('route_type.morning')}</TabsTrigger>
+                        <TabsTrigger value="Afternoon">{t('route_type.afternoon')}</TabsTrigger>
+                        <TabsTrigger value="AfterSchool">{t('route_type.after_school')}</TabsTrigger>
                       </TabsList>
                     </Tabs>
                   </div>
@@ -2713,6 +2681,7 @@ const AdminPageContent: React.FC<{
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
     const { toast } = useToast();
+    const { t } = useTranslation();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     useEffect(() => {
@@ -2729,9 +2698,9 @@ const AdminPageContent: React.FC<{
             await updateStudentsInBatch(pendingStudentIds.map(id => ({ id, applicationStatus: 'reviewed' })));
             setStudents(prev => prev.map(s => pendingStudentIds.includes(s.id) ? { ...s, applicationStatus: 'reviewed' } : s));
             setPendingStudents([]);
-            toast({ title: "성공", description: "모든 신청을 확인 완료로 변경했습니다." });
+            toast({ title: t('success'), description: t('admin.new_applications.acknowledge_success') });
         } catch (error) {
-            toast({ title: "오류", description: "처리 중 오류가 발생했습니다.", variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.new_applications.acknowledge_error'), variant: "destructive" });
         }
     };
     
@@ -2740,21 +2709,21 @@ const AdminPageContent: React.FC<{
             {pendingStudents.length > 0 && (
                 <Alert className="mb-6">
                     <Bell className="h-4 w-4" />
-                    <AlertTitle>신규/변경 신청 도착</AlertTitle>
+                    <AlertTitle>{t('admin.new_applications.title')}</AlertTitle>
                     <AlertDescription className="flex justify-between items-center">
-                        {pendingStudents.length}건의 신규 또는 변경된 탑승 신청이 있습니다.
+                        {t('admin.new_applications.description', {count: pendingStudents.length})}
                          <Button onClick={handleAcknowledgeAll}>
-                            <Check className="mr-2" /> 모두 확인 완료로 변경
+                            <Check className="mr-2" /> {t('admin.new_applications.acknowledge_button')}
                         </Button>
                     </AlertDescription>
                 </Alert>
             )}
             <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
                 <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="bus-registration">버스 등록</TabsTrigger>
-                    <TabsTrigger value="teacher-management">선생님 관리</TabsTrigger>
-                    <TabsTrigger value="bus-configuration">버스 설정</TabsTrigger>
-                    <TabsTrigger value="student-management">탑승 학생 관리</TabsTrigger>
+                    <TabsTrigger value="bus-registration">{t('admin.tabs.bus_registration')}</TabsTrigger>
+                    <TabsTrigger value="teacher-management">{t('admin.tabs.teacher_management')}</TabsTrigger>
+                    <TabsTrigger value="bus-configuration">{t('admin.tabs.bus_configuration')}</TabsTrigger>
+                    <TabsTrigger value="student-management">{t('admin.tabs.student_management')}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="bus-registration" className="mt-6">
                     <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} setBuses={setBuses} />
@@ -2774,7 +2743,6 @@ const AdminPageContent: React.FC<{
                         selectedRouteType={selectedRouteType}
                         setSelectedRouteType={setSelectedRouteType}
                         days={days}
-                        dayLabels={dayLabels}
                         filterConfiguredBusesOnly={false}
                     />
                     <BusConfigurationTab
@@ -2803,7 +2771,6 @@ const AdminPageContent: React.FC<{
                         selectedRouteType={selectedRouteType}
                         setSelectedRouteType={setSelectedRouteType}
                         days={days}
-                        dayLabels={dayLabels}
                         filterConfiguredBusesOnly={true}
                         showRouteStops={true}
                     />
@@ -2841,6 +2808,7 @@ export default function AdminPage() {
     const [dataLoading, setDataLoading] = useState(true);
     const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
     const { toast } = useToast();
+    const { t } = useTranslation();
     
     useEffect(() => {
         if (!authLoading && !user) {
@@ -2849,7 +2817,7 @@ export default function AdminPage() {
     }, [user, authLoading, router]);
 
     useEffect(() => {
-        if (user) { // Only fetch data if user is authenticated
+        if (user) {
             const fetchAndSubscribe = async () => {
                 setDataLoading(true);
                 try {
@@ -2871,7 +2839,7 @@ export default function AdminPage() {
 
                     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
                         setRoutes(routesData);
-                        setDataLoading(false); // Set loading to false only after first batch of routes is loaded
+                        setDataLoading(false);
                     });
 
                     return () => {
@@ -2879,7 +2847,7 @@ export default function AdminPage() {
                     };
                 } catch (error) {
                     console.error("Failed to fetch initial data:", error);
-                    toast({ title: "오류", description: "초기 데이터 로딩 중 오류가 발생했습니다.", variant: "destructive" });
+                    toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
                     setDataLoading(false);
                 }
             };
@@ -2890,10 +2858,9 @@ export default function AdminPage() {
                  unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
             };
         }
-    }, [user, toast]);
+    }, [user, toast, t]);
 
     useEffect(() => {
-        // This effect updates the pending students list whenever the main students list changes.
         setPendingStudents(students.filter(s => s.applicationStatus === 'pending'));
     }, [students]);
 
@@ -2902,7 +2869,7 @@ export default function AdminPage() {
         return (
             <MainLayout>
                 <div className="flex justify-center items-center h-64">
-                    <p>데이터를 불러오는 중입니다...</p>
+                    <p>{t('loading.data')}</p>
                 </div>
             </MainLayout>
         );
@@ -2930,5 +2897,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
-    

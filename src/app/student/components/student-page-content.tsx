@@ -15,6 +15,7 @@ import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
+import { useTranslation } from '@/hooks/use-translation';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
@@ -27,8 +28,8 @@ const sortBuses = (buses: Bus[]): Bus[] => {
   });
 };
 
-// This is the client component that will handle state and interactions
 export function StudentPageContent() {
+  const { t } = useTranslation();
   const [buses, setBuses] = useState<Bus[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -46,16 +47,16 @@ export function StudentPageContent() {
   const { toast } = useToast();
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
 
-
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
   const dayLabels: { [key in DayOfWeek]: string } = useMemo(() => ({
-      Monday: '월요일',
-      Tuesday: '화요일',
-      Wednesday: '수요일',
-      Thursday: '목요일',
-      Friday: '금요일',
-      Saturday: '토요일',
-  }), []);
+    Monday: t('day.monday'),
+    Tuesday: t('day.tuesday'),
+    Wednesday: t('day.wednesday'),
+    Thursday: t('day.thursday'),
+    Friday: t('day.friday'),
+    Saturday: t('day.saturday'),
+  }), [t]);
+
 
   const formatStudentName = (student: Student | null) => {
     if (!student) return '';
@@ -65,15 +66,13 @@ export function StudentPageContent() {
   }
 
    useEffect(() => {
-    // Set selectedDay to today's day of the week, and routeType based on time. Runs only once on mount.
-    const dayIndex = getDay(new Date()); // 0 (Sun) - 6 (Sat)
-    if (dayIndex > 0 && dayIndex < 7) { // Monday(1) to Saturday(6)
+    const dayIndex = getDay(new Date());
+    if (dayIndex > 0 && dayIndex < 7) {
         setSelectedDay(days[dayIndex - 1]);
     } else {
         setSelectedDay('Monday');
     }
     
-    // Set route type based on Vietnam time
     const now = new Date();
     const vietnamHour = (now.getUTCHours() + 7) % 24;
     if (vietnamHour >= 16) {
@@ -99,14 +98,13 @@ export function StudentPageContent() {
             setLostItems(lostItemsData);
         } catch (error) {
             console.error("Failed to fetch initial data:", error);
-            toast({ title: "데이터 로딩 오류", description: "초기 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
+            toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
         }
-        // Route loading is handled by its own listener, which will set loading to false.
     };
 
     fetchData();
 
-  }, []); // Empty array ensures this runs only once on mount
+  }, [days, t]);
 
   useEffect(() => {
     let isMounted = true;
@@ -122,7 +120,7 @@ export function StudentPageContent() {
       if (currentDate !== today && isMounted) {
         setToday(currentDate);
       }
-    }, 60000); // Check every minute
+    }, 60000);
 
     return () => {
       isMounted = false;
@@ -139,7 +137,6 @@ export function StudentPageContent() {
      );
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
-  // Real-time listener for attendance
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     if (currentRoute && today) {
@@ -148,7 +145,6 @@ export function StudentPageContent() {
         setAbsentStudentIds(attendance?.absent || []);
       });
 
-      // Reset student selection when filters change
       setSelectedStudentId(null);
     }
     
@@ -195,13 +191,13 @@ export function StudentPageContent() {
     if (!student) return;
 
     if (boardedStudentIds.includes(studentId)) {
-        toast({ title: "알림", description: "이미 탑승 처리된 학생입니다. 변경할 수 없습니다.", variant: 'default' });
+        toast({ title: t('notice'), description: t('student_page.already_boarded_error'), variant: 'default' });
         return;
     }
     
     const studentRoutes = await findRoutesForStudent(student);
     if (studentRoutes.length === 0) {
-      toast({ title: "알림", description: "해당 학생의 오늘 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
+      toast({ title: t('notice'), description: t('student_page.no_route_info_error'), variant: 'destructive'});
       return;
     }
     
@@ -222,13 +218,13 @@ export function StudentPageContent() {
 
       try {
         await updateAttendance(route.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
-        toast({ title: "성공", description: `${formatStudentName(student)} 학생의 '탑승 안 함' 정보가 업데이트되었습니다.`});
+        toast({ title: t('success'), description: t('student_page.absence_update_success', { studentName: formatStudentName(student) })});
       } catch (error) {
         console.error("Error updating absence:", error);
-        toast({ title: "오류", description: `${route.id} 노선 정보 업데이트 실패`, variant: "destructive"});
+        toast({ title: t('error'), description: t('student_page.absence_update_error', { routeId: route.id }), variant: "destructive"});
       }
     });
-  }, [today, toast, findRoutesForStudent, allStudents, boardedStudentIds]);
+  }, [today, toast, findRoutesForStudent, allStudents, boardedStudentIds, t]);
 
  const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
       if (!studentId) return;
@@ -236,18 +232,16 @@ export function StudentPageContent() {
       if (!student) return;
       
       if (boardedStudentIds.includes(studentId)) {
-        toast({ title: "알림", description: "이미 탑승 처리된 학생입니다. 변경할 수 없습니다.", variant: 'default' });
+        toast({ title: t('notice'), description: t('student_page.already_boarded_error'), variant: 'default' });
         return;
       }
 
       if (absentStudentIds.includes(studentId)) {
-          // If already absent, toggle immediately without confirmation
           toggleAbsence(studentId);
       } else {
-          // If not absent, show confirmation dialog
           setStudentToConfirmAbsence(student);
       }
-  }, [toggleAbsence, allStudents, absentStudentIds, boardedStudentIds, toast]);
+  }, [toggleAbsence, allStudents, absentStudentIds, boardedStudentIds, toast, t]);
 
   const filteredBuses = useMemo(() => {
     const configuredBusIds = new Set<string>();
@@ -271,10 +265,10 @@ export function StudentPageContent() {
   const headerContent = (
     <div className="flex flex-wrap items-end gap-2">
         <div className="w-[140px]">
-          <Label className="text-xs">버스</Label>
+          <Label className="text-xs">{t('bus')}</Label>
           <Select value={selectedBusId} onValueChange={setSelectedBusId}>
             <SelectTrigger>
-              <SelectValue placeholder="운행 버스를 선택하세요" />
+              <SelectValue placeholder={t('select_bus')} />
             </SelectTrigger>
             <SelectContent>
               {filteredBuses.map((bus) => (
@@ -286,10 +280,10 @@ export function StudentPageContent() {
           </Select>
         </div>
         <div className="w-[140px]">
-          <Label className="text-xs">요일</Label>
+          <Label className="text-xs">{t('day')}</Label>
           <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
             <SelectTrigger>
-              <SelectValue placeholder="요일을 선택하세요" />
+              <SelectValue placeholder={t('select_day')} />
             </SelectTrigger>
             <SelectContent>
               {days.map((day) => (
@@ -301,29 +295,29 @@ export function StudentPageContent() {
           </Select>
         </div>
         <div className="w-[140px]">
-          <Label className="text-xs">경로</Label>
+          <Label className="text-xs">{t('route')}</Label>
           <Select value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)}>
             <SelectTrigger>
-              <SelectValue placeholder="경로를 선택하세요" />
+              <SelectValue placeholder={t('select_route')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Morning">등교</SelectItem>
-              <SelectItem value="Afternoon">하교</SelectItem>
-              <SelectItem value="AfterSchool">방과후</SelectItem>
+              <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
+              <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
+              <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="w-[200px]">
-            <Label className="text-xs">학생 이름</Label>
+            <Label className="text-xs">{t('student.name')}</Label>
             <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={!currentRoute}>
                 <SelectTrigger>
-                    <SelectValue placeholder="학생 이름을 선택하세요" />
+                    <SelectValue placeholder={t('select_student')} />
                 </SelectTrigger>
                 <SelectContent>
                     {studentsOnCurrentRoute.length > 0 ? (
                         studentsOnCurrentRoute.map(s => <SelectItem key={s.id} value={s.id}>{formatStudentName(s)}</SelectItem>)
                     ) : (
-                        <SelectItem value="no-student" disabled>학생 없음</SelectItem>
+                        <SelectItem value="no-student" disabled>{t('no_students')}</SelectItem>
                     )}
                 </SelectContent>
             </Select>
@@ -335,7 +329,7 @@ export function StudentPageContent() {
     <MainLayout headerContent={headerContent}>
       {loading ? (
         <div className="flex justify-center items-center h-64">
-            <p>실시간 노선 정보를 불러오는 중입니다...</p>
+            <p>{t('loading.route_info')}</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -345,13 +339,13 @@ export function StudentPageContent() {
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>탑승 안 함 확인</AlertDialogTitle>
+                        <AlertDialogTitle>{t('student_page.absence_confirm_title')}</AlertDialogTitle>
                         <AlertDialogDescription>
-                           정말 '{studentToConfirmAbsence?.name}' 학생을 '탑승 안 함'으로 표시하시겠습니까?
+                           {t('student_page.absence_confirm_description', { studentName: studentToConfirmAbsence?.name })}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => {
                                 if (studentToConfirmAbsence) {
@@ -360,16 +354,16 @@ export function StudentPageContent() {
                                 setStudentToConfirmAbsence(null);
                             }}
                         >
-                            확인
+                            {t('confirm')}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
             <Card>
             <CardHeader>
-                <CardTitle className="font-headline">학생 탑승 현황</CardTitle>
+                <CardTitle className="font-headline">{t('student_page.title')}</CardTitle>
                 <CardDescription>
-                자녀의 좌석을 클릭하여 '탑승 안 함'을 표시할 수 있습니다. 탑승 완료된 좌석은 초록색, 탑승 안 함은 파란색, 자녀의 좌석은 테두리로 표시됩니다.
+                {t('student_page.description')}
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -388,9 +382,9 @@ export function StudentPageContent() {
                     />
                 ) : (
                     <Alert>
-                        <AlertTitle>노선 정보 없음</AlertTitle>
+                        <AlertTitle>{t('no_route_info')}</AlertTitle>
                         <AlertDescription>
-                            선택하신 조건에 해당하는 버스 노선 정보가 없습니다. 다른 버스나 요일을 선택해보세요.
+                            {t('no_route_info_description')}
                         </AlertDescription>
                     </Alert>
                 )}
