@@ -37,13 +37,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             Authorization: `Bearer ${idToken}`,
           },
         });
-        // If user is on login page, redirect to admin
-        if (pathname === '/login') {
-            router.push('/admin');
-        }
       } else {
         // User is signed out, delete session cookie by calling our API
         await fetch('/api/auth', { method: 'DELETE' });
+        // If user is on admin page and logs out, redirect to login
+        if (pathname.startsWith('/admin')) {
+            router.push('/login');
+        }
       }
     });
 
@@ -52,7 +52,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, pass: string): Promise<void> => {
     await signInWithEmailAndPassword(auth, email, pass);
-    // onAuthStateChanged will handle the redirect and cookie setting
+    // onAuthStateChanged will handle the cookie setting
+    router.push('/admin');
   };
 
   const logout = async () => {
@@ -61,7 +62,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Also clear 'remember me' data
     localStorage.removeItem('rememberMeEmail');
     localStorage.removeItem('rememberMe');
-    router.push('/');
+    if (pathname.startsWith('/admin')) {
+      router.push('/login');
+    } else {
+      router.push('/');
+    }
   };
 
   const value = { user, loading, login, logout };
