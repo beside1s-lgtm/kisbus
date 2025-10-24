@@ -7,6 +7,7 @@ import {
     getGroupLeaderRecords, saveGroupLeaderRecords,
     getAttendance,
     updateAttendance,
+    onAttendanceUpdate,
     updateRouteSeating,
     getBuses,
     getStudents,
@@ -130,7 +131,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
 
     fetchData();
 
-  }, [days]);
+  }, [days, toast]);
   
   const currentRoute = useMemo(() => {
     return routes.find(r => 
@@ -180,23 +181,30 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   }, [currentRoute, today]);
 
   useEffect(() => {
-      if (lastClickedStudentId) {
-          const student = students.find(s => s.id === lastClickedStudentId);
-          if (student) {
-              const isNowLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
-              if (selectedStudent?.id === student.id) {
-                setSelectedStudent(null);
-                setLastClickedStudentId(null);
-              } else {
-                setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
-              }
-          } else {
-              setSelectedStudent(null);
-          }
-      } else {
-          setSelectedStudent(null);
-      }
+    if (lastClickedStudentId) {
+        const student = students.find(s => s.id === lastClickedStudentId);
+        if (student) {
+            const isNowLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
+            setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
+        } else {
+            setSelectedStudent(null);
+        }
+    } else {
+        setSelectedStudent(null);
+    }
   }, [lastClickedStudentId, students, groupLeaderRecords]);
+
+  useEffect(() => {
+    if (selectedStudent) {
+        const student = students.find(s => s.id === selectedStudent.id);
+        if (student) {
+            const isNowLeader = groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null);
+            if (isNowLeader !== selectedStudent.isGroupLeader) {
+                setSelectedStudent({ ...student, isGroupLeader: isNowLeader });
+            }
+        }
+    }
+}, [groupLeaderRecords, selectedStudent, students]);
 
 
     const assignedTeachers = useMemo(() => {
@@ -304,27 +312,29 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   };
   
     const handleSeatClick = (seatNumber, studentId) => {
-    if (!studentId) {
-      setLastClickedStudentId(null);
-      return;
-    }
-    
-    if (!currentRoute) return;
-
-    setLastClickedStudentId(studentId);
-
-    const isBoarded = boardedStudentIds.includes(studentId);
-    const newBoardedIds = isBoarded
-        ? boardedStudentIds.filter(id => id !== studentId)
-        : [...boardedStudentIds, studentId];
-    
-    const newAbsentIds = absentStudentIds.filter(id => id !== studentId); // If boarded, cannot be absent
-
-    updateAttendance(currentRoute.id, today, { boarded: newBoardedIds, absent: newAbsentIds })
-        .catch(() => {
-            toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
-        });
-  };
+      if (!studentId) {
+        setLastClickedStudentId(null);
+        setSelectedStudent(null);
+        return;
+      }
+      
+      if (!currentRoute) return;
+  
+      const isBoarded = boardedStudentIds.includes(studentId);
+      const newBoardedIds = isBoarded
+          ? boardedStudentIds.filter(id => id !== studentId)
+          : [...boardedStudentIds, studentId];
+      
+      const newAbsentIds = absentStudentIds.filter(id => id !== studentId);
+  
+      updateAttendance(currentRoute.id, today, { boarded: newBoardedIds, absent: newAbsentIds })
+          .then(() => {
+              setLastClickedStudentId(studentId);
+          })
+          .catch(() => {
+              toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
+          });
+    };
     
   const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
@@ -516,7 +526,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
                     <Button
                         variant="ghost"
                         className="w-full"
-                        onClick={() => setLastClickedStudentId(null)}
+                        onClick={() => { setLastClickedStudentId(null); setSelectedStudent(null); }}
                     >
                         닫기
                     </Button>
