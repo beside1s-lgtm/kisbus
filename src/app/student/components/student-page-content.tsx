@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { onRoutesUpdate, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance, getLostItems, updateLostItem } from '@/lib/firebase-data';
+import { onRoutesUpdate, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance, getLostItems, updateLostItem, getBuses, getStudents, getDestinations } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -16,24 +16,24 @@ import { db } from '@/lib/firebase';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 
+const sortBuses = (buses: Bus[]): Bus[] => {
+  return buses.sort((a, b) => {
+    const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+    const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+    return a.name.localeCompare(b.name);
+  });
+};
 
 // This is the client component that will handle state and interactions
-export function StudentPageContent({
-    initialBuses,
-    initialStudents,
-    initialDestinations,
-    initialLostItems,
-}: {
-    initialBuses: Bus[],
-    initialStudents: Student[],
-    initialDestinations: Destination[],
-    initialLostItems: LostItem[],
-}) {
-  const [buses, setBuses] = useState<Bus[]>(initialBuses);
-  const [allStudents, setAllStudents] = useState<Student[]>(initialStudents);
-  const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
+export function StudentPageContent() {
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
+  const [lostItems, setLostItems] = useState<LostItem[]>([]);
   
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -41,7 +41,7 @@ export function StudentPageContent({
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true); // Still used for route loading
+  const [loading, setLoading] = useState(true);
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
   const { toast } = useToast();
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
@@ -83,6 +83,29 @@ export function StudentPageContent({
     } else {
         setSelectedRouteType('Morning');
     }
+    
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [busesData, studentsData, destinationsData, lostItemsData] = await Promise.all([
+                getBuses(),
+                getStudents(),
+                getDestinations(),
+                getLostItems(),
+            ]);
+            setBuses(sortBuses(busesData));
+            setAllStudents(studentsData);
+            setDestinations(destinationsData);
+            setLostItems(lostItemsData);
+        } catch (error) {
+            console.error("Failed to fetch initial data:", error);
+            toast({ title: "데이터 로딩 오류", description: "초기 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
+        }
+        // Route loading is handled by its own listener, which will set loading to false.
+    };
+
+    fetchData();
+
   }, []); // Empty array ensures this runs only once on mount
 
   useEffect(() => {
@@ -385,5 +408,3 @@ export function StudentPageContent({
     </MainLayout>
   );
 }
-
-    

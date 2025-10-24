@@ -7,7 +7,12 @@ import {
     getGroupLeaderRecords, saveGroupLeaderRecords,
     getAttendance,
     updateAttendance,
-    updateRouteSeating
+    updateRouteSeating,
+    getBuses,
+    getStudents,
+    getDestinations,
+    getTeachers,
+    getLostItems
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -29,27 +34,27 @@ import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { LostAndFound } from './lost-and-found';
 
+const sortBuses = (buses: Bus[]): Bus[] => {
+  return buses.sort((a, b) => {
+    const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+    const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+    return a.name.localeCompare(b.name);
+  });
+};
+
 interface TeacherPageContentProps {
-    initialBuses: Bus[];
-    initialStudents: Student[];
-    initialDestinations: Destination[];
-    initialTeachers: Teacher[];
-    initialLostItems: LostItem[];
 }
 
-export function TeacherPageContent({
-    initialBuses,
-    initialStudents,
-    initialDestinations,
-    initialTeachers,
-    initialLostItems,
-}: TeacherPageContentProps) {
-  const [buses, setBuses] = useState<Bus[]>(initialBuses);
-  const [students, setStudents] = useState<Student[]>(initialStudents);
+export function TeacherPageContent({}: TeacherPageContentProps) {
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
-  const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
-  const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [lostItems, setLostItems] = useState<LostItem[]>([]);
   
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -101,6 +106,30 @@ export function TeacherPageContent({
     } else {
         setSelectedRouteType('Morning');
     }
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [busesData, studentsData, destinationsData, teachersData, lostItemsData] = await Promise.all([
+                getBuses(),
+                getStudents(),
+                getDestinations(),
+                getTeachers(),
+                getLostItems(),
+            ]);
+            setBuses(sortBuses(busesData));
+            setStudents(studentsData);
+            setDestinations(destinationsData);
+            setTeachers(teachersData);
+            setLostItems(lostItemsData);
+        } catch (error) {
+            console.error("Failed to fetch initial data:", error);
+            toast({ title: "데이터 로딩 오류", description: "초기 데이터를 불러오는 데 실패했습니다.", variant: "destructive" });
+        }
+    };
+
+    fetchData();
+
   }, [days]);
   
   const currentRoute = useMemo(() => {
@@ -133,8 +162,9 @@ export function TeacherPageContent({
   }, [today]);
 
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
     if (currentRoute) {
-        getAttendance(currentRoute.id, today).then(attendance => {
+        unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
             setBoardedStudentIds(attendance?.boarded || []);
             setAbsentStudentIds(attendance?.absent || []);
         });
@@ -142,6 +172,11 @@ export function TeacherPageContent({
         setBoardedStudentIds([]);
         setAbsentStudentIds([]);
     }
+     return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [currentRoute, today]);
 
   useEffect(() => {
@@ -220,19 +255,15 @@ export function TeacherPageContent({
         ? absentStudentIds.filter(id => id !== student.id)
         : [...absentStudentIds, student.id];
     
-    setAbsentStudentIds(newAbsentIds);
-    setBoardedStudentIds(prev => prev.filter(id => id !== student.id)); // If absent, cannot be boarded
+    const newBoardedIds = boardedStudentIds.filter(id => id !== student.id); // If absent, cannot be boarded
 
-    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: boardedStudentIds.filter(id => id !== student.id) })
+    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds })
       .then(() => {
         toast({ title: "성공", description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
       })
       .catch((error) => {
         console.error("Error updating absence:", error);
         toast({ title: "오류", description: `결석 처리 실패`, variant: "destructive"});
-        // Revert UI on failure
-        setAbsentStudentIds(absentStudentIds);
-        setBoardedStudentIds(boardedStudentIds);
       });
   }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast]);
 
@@ -277,26 +308,22 @@ export function TeacherPageContent({
       setLastClickedStudentId(null);
       return;
     }
+    
+    if (!currentRoute) return;
 
     setLastClickedStudentId(studentId);
 
-    if (currentRoute) {
-      const isBoarded = boardedStudentIds.includes(studentId);
-      const newBoardedIds = isBoarded
+    const isBoarded = boardedStudentIds.includes(studentId);
+    const newBoardedIds = isBoarded
         ? boardedStudentIds.filter(id => id !== studentId)
         : [...boardedStudentIds, studentId];
-      
-      setBoardedStudentIds(newBoardedIds);
-      setAbsentStudentIds(prev => prev.filter(id => id !== studentId)); // If boarded, cannot be absent
+    
+    const newAbsentIds = absentStudentIds.filter(id => id !== studentId); // If boarded, cannot be absent
 
-      updateAttendance(currentRoute.id, today, { boarded: newBoardedIds, absent: absentStudentIds.filter(id => id !== studentId) })
+    updateAttendance(currentRoute.id, today, { boarded: newBoardedIds, absent: newAbsentIds })
         .catch(() => {
             toast({ title: "오류", description: "탑승 처리 실패", variant: "destructive" });
-            // Revert UI on failure
-            setBoardedStudentIds(boardedStudentIds);
-            setAbsentStudentIds(absentStudentIds);
         });
-    }
   };
     
   const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
