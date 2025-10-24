@@ -3,16 +3,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
-    getRoutes, 
     getGroupLeaderRecords, saveGroupLeaderRecords,
-    getAttendance,
     updateAttendance,
     updateRouteSeating,
-    getBuses,
-    getStudents,
-    getDestinations,
-    getTeachers,
-    getLostItems,
     onAttendanceUpdate
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
@@ -31,8 +24,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {format, differenceInDays, getDay} from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
-import { doc, writeBatch } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { LostAndFound } from './lost-and-found';
 import { useAuth } from '@/hooks/use-auth';
 import { useTranslation } from '@/hooks/use-translation';
@@ -49,18 +40,31 @@ const sortBuses = (buses: Bus[]): Bus[] => {
 };
 
 interface TeacherPageContentProps {
+    initialBuses: Bus[];
+    initialStudents: Student[];
+    initialRoutes: Route[];
+    initialDestinations: Destination[];
+    initialTeachers: Teacher[];
+    initialLostItems: LostItem[];
 }
 
-export function TeacherPageContent({}: TeacherPageContentProps) {
-  const { user, loading: authLoading } = useAuth();
+export function TeacherPageContent({
+    initialBuses,
+    initialStudents,
+    initialRoutes,
+    initialDestinations,
+    initialTeachers,
+    initialLostItems
+}: TeacherPageContentProps) {
+  const { user } = useAuth();
   const { t } = useTranslation();
-  const [buses, setBuses] = useState<Bus[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [allRoutes, setAllRoutes] = useState<Route[]>([]);
+  const [buses, setBuses] = useState<Bus[]>(sortBuses(initialBuses));
+  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const [allRoutes, setAllRoutes] = useState<Route[]>(initialRoutes);
   const [myRoutes, setMyRoutes] = useState<Route[]>([]);
-  const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [lostItems, setLostItems] = useState<LostItem[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
+  const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
+  const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
   
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -70,7 +74,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student & { isGroupLeader?: boolean } | null>(null);
   const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -115,45 +119,10 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
   }, [days]);
 
   useEffect(() => {
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [busesData, studentsData, destinationsData, teachersData, lostItemsData, routesData] = await Promise.all([
-                getBuses(),
-                getStudents(),
-                getDestinations(),
-                getTeachers(),
-                getLostItems(),
-                getRoutes(),
-            ]);
-            
-            setBuses(sortBuses(busesData));
-            setStudents(studentsData);
-            setDestinations(destinationsData);
-            setTeachers(teachersData);
-            setLostItems(lostItemsData);
-            setAllRoutes(routesData);
-
-            if (user) {
-              const currentUserTeacher = teachersData.find(t => t.name === user.displayName);
-              if(currentUserTeacher) {
-                const routesForTeacher = routesData.filter(r => r.teacherIds?.includes(currentUserTeacher.id));
-                setMyRoutes(routesForTeacher);
-              }
-            } else {
-              // If not logged in, maybe show all routes or handle appropriately
-              setMyRoutes(routesData); // For now, show all if not logged in.
-            }
-
-            setLoading(false);
-        } catch (error) {
-            console.error("Failed to fetch initial data:", error);
-            toast({ title: t('loading.initial_data_error'), description: (error as Error).message, variant: "destructive" });
-            setLoading(false);
-        }
-    };
-    fetchData();
-  }, [user, t, toast]);
+    if(allRoutes.length > 0) {
+      setMyRoutes(allRoutes); // For now, show all if not logged in.
+    }
+  }, [allRoutes, user, teachers]);
   
   const currentRoute = useMemo(() => {
     return myRoutes.find(r => 
@@ -377,6 +346,7 @@ export function TeacherPageContent({}: TeacherPageContentProps) {
         
         try {
            await updateRouteSeating(currentRoute.id, newSeating);
+           setAllRoutes(prev => prev.map(r => r.id === currentRoute.id ? {...r, seating: newSeating} : r));
            toast({ title: t("success"), description: t('teacher_page.swap_success') });
         } catch {
              toast({ title: t("error"), description: t('teacher_page.swap_error'), variant: "destructive" });

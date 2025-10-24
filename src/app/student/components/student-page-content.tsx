@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getRoutes, onAttendanceUpdate, getRoutesByStop, getAttendance, updateAttendance, getLostItems, updateLostItem, getBuses, getStudents, getDestinations } from '@/lib/firebase-data';
+import { getRoutesByStop, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,8 +11,6 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { Label } from '@/components/ui/label';
 import { format, getDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
@@ -28,13 +26,27 @@ const sortBuses = (buses: Bus[]): Bus[] => {
   });
 };
 
-export function StudentPageContent() {
+interface StudentPageContentProps {
+    initialBuses: Bus[];
+    initialStudents: Student[];
+    initialRoutes: Route[];
+    initialDestinations: Destination[];
+    initialLostItems: LostItem[];
+}
+
+export function StudentPageContent({
+    initialBuses,
+    initialStudents,
+    initialRoutes,
+    initialDestinations,
+    initialLostItems
+}: StudentPageContentProps) {
   const { t } = useTranslation();
-  const [buses, setBuses] = useState<Bus[]>([]);
-  const [allStudents, setAllStudents] = useState<Student[]>([]);
-  const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [routes, setRoutes] = useState<Route[]>([]);
-  const [lostItems, setLostItems] = useState<LostItem[]>([]);
+  const [buses, setBuses] = useState<Bus[]>(sortBuses(initialBuses));
+  const [allStudents, setAllStudents] = useState<Student[]>(initialStudents);
+  const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
+  const [routes, setRoutes] = useState<Route[]>(initialRoutes);
+  const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
   
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -42,7 +54,7 @@ export function StudentPageContent() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
   const { toast } = useToast();
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
@@ -82,32 +94,6 @@ export function StudentPageContent() {
     } else {
         setSelectedRouteType('Morning');
     }
-    
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [busesData, studentsData, destinationsData, lostItemsData, routesData] = await Promise.all([
-                getBuses(),
-                getStudents(),
-                getDestinations(),
-                getLostItems(),
-                getRoutes(),
-            ]);
-            setBuses(sortBuses(busesData));
-            setAllStudents(studentsData);
-            setDestinations(destinationsData);
-            setLostItems(lostItemsData);
-            setRoutes(routesData);
-            setLoading(false);
-        } catch (error) {
-            console.error("Failed to fetch initial data:", error);
-            toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
-            setLoading(false);
-        }
-    };
-
-    fetchData();
-
   }, [days, t, toast]);
 
   useEffect(() => {
@@ -396,5 +382,3 @@ export function StudentPageContent() {
     </MainLayout>
   );
 }
-
-    
