@@ -29,7 +29,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
 
       if (firebaseUser) {
-        // User is signed in, create session cookie by calling our API
         const idToken = await firebaseUser.getIdToken();
         await fetch('/api/auth', {
           method: 'POST',
@@ -38,17 +37,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           },
         });
       } else {
-        // User is signed out, delete session cookie by calling our API
         await fetch('/api/auth', { method: 'DELETE' });
-        // If user is on admin page and logs out, redirect to login
-        if (pathname.startsWith('/admin')) {
-            router.push('/login');
-        }
       }
     });
 
     return () => unsubscribe();
-  }, [router, pathname]);
+  }, []);
 
   const login = async (email: string, pass: string): Promise<void> => {
     await signInWithEmailAndPassword(auth, email, pass);
@@ -59,13 +53,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     await signOut(auth);
     // onAuthStateChanged will handle the cookie deletion
-    // Also clear 'remember me' data
     localStorage.removeItem('rememberMeEmail');
     localStorage.removeItem('rememberMe');
     if (pathname.startsWith('/admin')) {
       router.push('/login');
-    } else {
-      router.push('/');
     }
   };
 
