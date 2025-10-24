@@ -6,7 +6,13 @@ import {
     getGroupLeaderRecords, saveGroupLeaderRecords,
     updateAttendance,
     updateRouteSeating,
-    onAttendanceUpdate
+    onAttendanceUpdate,
+    getBuses,
+    getStudents,
+    getRoutes,
+    getDestinations,
+    getTeachers,
+    getLostItems
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -25,7 +31,6 @@ import {format, differenceInDays, getDay} from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { LostAndFound } from './lost-and-found';
-import { useAuth } from '@/hooks/use-auth';
 import { useTranslation } from '@/hooks/use-translation';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
@@ -39,32 +44,14 @@ const sortBuses = (buses: Bus[]): Bus[] => {
   });
 };
 
-interface TeacherPageContentProps {
-    initialBuses: Bus[];
-    initialStudents: Student[];
-    initialRoutes: Route[];
-    initialDestinations: Destination[];
-    initialTeachers: Teacher[];
-    initialLostItems: LostItem[];
-}
-
-export function TeacherPageContent({
-    initialBuses,
-    initialStudents,
-    initialRoutes,
-    initialDestinations,
-    initialTeachers,
-    initialLostItems
-}: TeacherPageContentProps) {
-  const { user } = useAuth();
+export function TeacherPageContent() {
   const { t } = useTranslation();
-  const [buses, setBuses] = useState<Bus[]>(sortBuses(initialBuses));
-  const [students, setStudents] = useState<Student[]>(initialStudents);
-  const [allRoutes, setAllRoutes] = useState<Route[]>(initialRoutes);
-  const [myRoutes, setMyRoutes] = useState<Route[]>([]);
-  const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
-  const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
-  const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [allRoutes, setAllRoutes] = useState<Route[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [lostItems, setLostItems] = useState<LostItem[]>([]);
   
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -74,7 +61,7 @@ export function TeacherPageContent({
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student & { isGroupLeader?: boolean } | null>(null);
   const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -91,6 +78,37 @@ export function TeacherPageContent({
       Friday: t('day.friday'),
       Saturday: t('day.saturday'),
   }), [t]);
+
+  useEffect(() => {
+    async function fetchData() {
+        setLoading(true);
+        try {
+            const [busesData, studentsData, routesData, destinationsData, teachersData, lostItemsData] = await Promise.all([
+                getBuses(),
+                getStudents(),
+                getRoutes(),
+                getDestinations(),
+                getTeachers(),
+                getLostItems(),
+            ]);
+
+            setBuses(sortBuses(busesData));
+            setStudents(studentsData);
+            setAllRoutes(routesData);
+            setDestinations(destinationsData);
+            setTeachers(teachersData);
+            setLostItems(lostItemsData);
+        } catch (error) {
+            console.error("Failed to fetch initial data:", error);
+            toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    fetchData();
+  }, [t, toast]);
+  
 
   const formatStudentName = (student: Student | null) => {
     if (!student) return '';
@@ -118,19 +136,14 @@ export function TeacherPageContent({
     }
   }, [days]);
 
-  useEffect(() => {
-    if(allRoutes.length > 0) {
-      setMyRoutes(allRoutes); // For now, show all if not logged in.
-    }
-  }, [allRoutes, user, teachers]);
   
   const currentRoute = useMemo(() => {
-    return myRoutes.find(r => 
+    return allRoutes.find(r => 
       r.busId === selectedBusId && 
       r.dayOfWeek === selectedDay && 
       r.type === selectedRouteType
     );
-  }, [myRoutes, selectedBusId, selectedDay, selectedRouteType]);
+  }, [allRoutes, selectedBusId, selectedDay, selectedRouteType]);
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
@@ -238,7 +251,7 @@ export function TeacherPageContent({
   
  const toggleAbsence = useCallback((student: Student) => {
     if (!currentRoute) {
-        toast({ title: "오류", description: "현재 노선 정보를 찾을 수 없습니다.", variant: 'destructive'});
+        toast({ title: t("error"), description: t("teacher_page.no_route_info"), variant: 'destructive'});
         return;
     }
 
@@ -252,11 +265,11 @@ export function TeacherPageContent({
 
     updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds })
       .then(() => {
-        toast({ title: t("success"), description: `${formatStudentName(student)} 학생의 결석 정보가 업데이트되었습니다.`});
+        toast({ title: t("success"), description: `${formatStudentName(student)} ${t('teacher_page.absence_updated')}`});
       })
       .catch((error) => {
         console.error("Error updating absence:", error);
-        toast({ title: t("error"), description: `결석 처리 실패`, variant: "destructive"});
+        toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive"});
       });
   }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast, t]);
 
@@ -384,20 +397,15 @@ export function TeacherPageContent({
     }
   };
 
-  const myBuses = useMemo(() => {
-    const busIds = new Set(myRoutes.map(r => r.busId));
-    return buses.filter(b => busIds.has(b.id));
-  }, [buses, myRoutes]);
-
   const filteredBuses = useMemo(() => {
     const configuredBusIds = new Set<string>();
-    myRoutes.forEach(route => {
+    allRoutes.forEach(route => {
         if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
             configuredBusIds.add(route.busId);
         }
     });
-    return myBuses.filter(bus => configuredBusIds.has(bus.id));
-  }, [myBuses, myRoutes, selectedDay, selectedRouteType]);
+    return buses.filter(bus => configuredBusIds.has(bus.id));
+  }, [buses, allRoutes, selectedDay, selectedRouteType]);
 
   useEffect(() => {
       if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
@@ -419,7 +427,7 @@ export function TeacherPageContent({
             <SelectContent>
             {filteredBuses.map((bus) => (
                 <SelectItem key={bus.id} value={bus.id}>
-                {bus.name} ({t(`bus_type.${bus.capacity}`)})
+                {bus.name} ({t(`bus_type.${bus.type}`)})
                 </SelectItem>
             ))}
             </SelectContent>
@@ -534,7 +542,7 @@ export function TeacherPageContent({
   if (loading) {
     return (
         <MainLayout headerContent={headerContent}>
-            <div className="flex justify-center items-center h-64"><p>{t('loading.route_info')}</p></div>
+            <div className="flex justify-center items-center h-64"><p>{t('loading.data')}</p></div>
         </MainLayout>
     );
   }
@@ -573,7 +581,7 @@ export function TeacherPageContent({
                     />
                 ) : (
                     <div className="text-center py-10 text-muted-foreground">
-                        { myRoutes.length === 0 && !loading ? t('teacher_page.no_assigned_routes') : t('teacher_page.no_route_info') }
+                        {filteredBuses.length === 0 && !loading ? t('teacher_page.no_assigned_routes') : t('teacher_page.no_route_info') }
                     </div>
                 )}
             </CardContent>

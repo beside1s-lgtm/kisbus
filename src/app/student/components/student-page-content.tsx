@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getRoutesByStop, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
+import { getBuses, getStudents, getRoutes, getDestinations, getLostItems, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,27 +26,13 @@ const sortBuses = (buses: Bus[]): Bus[] => {
   });
 };
 
-interface StudentPageContentProps {
-    initialBuses: Bus[];
-    initialStudents: Student[];
-    initialRoutes: Route[];
-    initialDestinations: Destination[];
-    initialLostItems: LostItem[];
-}
-
-export function StudentPageContent({
-    initialBuses,
-    initialStudents,
-    initialRoutes,
-    initialDestinations,
-    initialLostItems
-}: StudentPageContentProps) {
+export function StudentPageContent() {
   const { t } = useTranslation();
-  const [buses, setBuses] = useState<Bus[]>(sortBuses(initialBuses));
-  const [allStudents, setAllStudents] = useState<Student[]>(initialStudents);
-  const [destinations, setDestinations] = useState<Destination[]>(initialDestinations);
-  const [routes, setRoutes] = useState<Route[]>(initialRoutes);
-  const [lostItems, setLostItems] = useState<LostItem[]>(initialLostItems);
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [lostItems, setLostItems] = useState<LostItem[]>([]);
   
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
@@ -54,7 +40,7 @@ export function StudentPageContent({
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
   const { toast } = useToast();
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
@@ -68,6 +54,34 @@ export function StudentPageContent({
     Friday: t('day.friday'),
     Saturday: t('day.saturday'),
   }), [t]);
+
+  useEffect(() => {
+    async function fetchData() {
+        setLoading(true);
+        try {
+            const [busesData, studentsData, routesData, destinationsData, lostItemsData] = await Promise.all([
+                getBuses(),
+                getStudents(),
+                getRoutes(),
+                getDestinations(),
+                getLostItems(),
+            ]);
+
+            setBuses(sortBuses(busesData));
+            setAllStudents(studentsData);
+            setRoutes(routesData);
+            setDestinations(destinationsData);
+            setLostItems(lostItemsData);
+        } catch (error) {
+            console.error("Failed to fetch initial data:", error);
+            toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    fetchData();
+  }, [t, toast]);
 
 
   const formatStudentName = (student: Student | null) => {
@@ -94,7 +108,7 @@ export function StudentPageContent({
     } else {
         setSelectedRouteType('Morning');
     }
-  }, [days, t, toast]);
+  }, [days]);
 
   useEffect(() => {
     const dateCheckInterval = setInterval(() => {
@@ -149,22 +163,22 @@ export function StudentPageContent({
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
   const findRoutesForStudent = useCallback(async (student: Student): Promise<Route[]> => {
-      const studentDay = selectedDay;
+    const studentDay = selectedDay;
 
-      let destId: string | null = null;
-      if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
-      else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
-      else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[studentDay] || null;
-      
-      if (!destId) return [];
-      
-      const allRoutesWithStop = await getRoutesByStop(destId);
+    let destId: string | null = null;
+    if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
+    else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
+    else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[studentDay] || null;
 
-      return allRoutesWithStop.filter(r => 
-        r.dayOfWeek === studentDay &&
-        r.type === selectedRouteType
-      );
-  }, [selectedDay, selectedRouteType]);
+    if (!destId) return [];
+
+    // Since we already have all routes, we can filter them on the client
+    return routes.filter(r =>
+      r.stops.includes(destId!) &&
+      r.dayOfWeek === studentDay &&
+      r.type === selectedRouteType
+    );
+  }, [selectedDay, selectedRouteType, routes]);
 
   const toggleAbsence = useCallback(async (studentId: string) => {
     const student = allStudents.find(s => s.id === studentId);
@@ -309,7 +323,7 @@ export function StudentPageContent({
     <MainLayout headerContent={headerContent}>
       {loading ? (
         <div className="flex justify-center items-center h-64">
-            <p>{t('loading.route_info')}</p>
+            <p>{t('loading.data')}</p>
         </div>
       ) : (
         <div className="space-y-6">
