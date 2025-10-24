@@ -8,6 +8,9 @@ import { Button } from '../ui/button';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslation } from '@/hooks/use-translation';
+import { LanguageSwitcher } from './language-switcher';
+
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -18,18 +21,11 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
   const pathname = usePathname();
   const { user, logout, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
   
   const getPageTitle = () => {
     const currentPath = pathname.split('/')[1];
-    switch(currentPath) {
-        case 'admin': return '관리자';
-        case 'teacher': return '선생님';
-        case 'student': return '탑승 확인';
-        case 'apply': return '탑승 신청';
-        case 'login': return '관리자 로그인';
-        case 'parents': return '학부모/학생';
-        default: return '홈';
-    }
+    return t(`page.title.${currentPath || 'home'}`);
   }
 
   const isHomePage = pathname === '/';
@@ -38,16 +34,16 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
   const handleLogout = async () => {
       try {
         await logout();
-        toast({ title: '로그아웃 성공', description: '홈 화면으로 이동합니다.' });
+        toast({ title: t('logout.success'), description: t('logout.success.description') });
       } catch (error) {
-        toast({ title: '로그아웃 실패', description: '다시 시도해주세요.', variant: 'destructive' });
+        toast({ title: t('logout.error'), description: t('logout.error.description'), variant: 'destructive' });
       }
   }
 
   if (authLoading && (pathname.startsWith('/admin') || pathname.startsWith('/teacher'))) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <p>인증 정보를 확인하는 중입니다...</p>
+        <p>{t('loading.auth')}</p>
       </div>
     );
   }
@@ -74,9 +70,10 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
         </div>
         
         <div className="flex items-center gap-2">
+          <LanguageSwitcher />
           {user && (pathname.startsWith('/admin') || pathname.startsWith('/teacher')) && (
             <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="mr-2" /> 로그아웃
+              <LogOut className="mr-2" /> {t('logout.button')}
             </Button>
           )}
         </div>

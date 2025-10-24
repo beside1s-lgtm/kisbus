@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { ArrowRight, UserCog, User, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { MainLayout } from "@/components/layout/main-layout";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface RoleCardProps {
   href: string;
@@ -34,32 +35,33 @@ function RoleCard({ href, icon: Icon, title, description }: RoleCardProps) {
 }
 
 export default function Home() {
+  const { t } = useTranslation();
 
   return (
     <MainLayout>
         <div className="flex flex-col gap-8 items-center justify-center h-full">
             <header className="text-center">
-                <h1 className="text-4xl font-bold font-headline">KIS 스쿨버스 매니저</h1>
-                <p className="text-muted-foreground mt-2">역할을 선택하여 시작하세요.</p>
+                <h1 className="text-4xl font-bold font-headline">{t('main.title')}</h1>
+                <p className="text-muted-foreground mt-2">{t('main.select_role')}</p>
             </header>
             <main className="grid gap-6 md:grid-cols-3 max-w-4xl w-full">
                 <RoleCard 
                     href="/login"
                     icon={ShieldCheck}
-                    title="관리자"
-                    description="버스, 노선, 학생 등 시스템 전체를 관리합니다."
+                    title={t('role.admin')}
+                    description={t('role.admin.description')}
                 />
                 <RoleCard 
                     href="/teacher"
                     icon={UserCog}
-                    title="선생님"
-                    description="학생들의 탑승 여부를 확인하고 출결을 관리합니다."
+                    title={t('role.teacher')}
+                    description={t('role.teacher.description')}
                 />
                  <RoleCard 
                     href="/parents"
                     icon={User}
-                    title="학부모/학생"
-                    description="배정된 좌석을 확인하고 탑승을 신청합니다."
+                    title={t('role.parent')}
+                    description={t('role.parent.description')}
                 />
             </main>
         </div>

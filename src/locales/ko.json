@@ -1,0 +1,24 @@
+
+{
+    "main.title": "KIS 스쿨버스 매니저",
+    "main.select_role": "역할을 선택하여 시작하세요.",
+    "role.admin": "관리자",
+    "role.admin.description": "버스, 노선, 학생 등 시스템 전체를 관리합니다.",
+    "role.teacher": "선생님",
+    "role.teacher.description": "학생들의 탑승 여부를 확인하고 출결을 관리합니다.",
+    "role.parent": "학부모/학생",
+    "role.parent.description": "배정된 좌석을 확인하고 탑승을 신청합니다.",
+    "page.title.home": "홈",
+    "page.title.admin": "관리자",
+    "page.title.teacher": "선생님",
+    "page.title.student": "탑승 확인",
+    "page.title.apply": "탑승 신청",
+    "page.title.login": "관리자 로그인",
+    "page.title.parents": "학부모/학생",
+    "logout.button": "로그아웃",
+    "logout.success": "로그아웃 성공",
+    "logout.success.description": "홈 화면으로 이동합니다.",
+    "logout.error": "로그아웃 실패",
+    "logout.error.description": "다시 시도해주세요.",
+    "loading.auth": "인증 정보를 확인하는 중입니다..."
+}

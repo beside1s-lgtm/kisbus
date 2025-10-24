@@ -1,0 +1,24 @@
+
+{
+    "main.title": "Trình quản lý xe buýt trường học KIS",
+    "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
+    "role.admin": "Quản trị viên",
+    "role.admin.description": "Quản lý xe buýt, tuyến đường, học sinh và toàn bộ hệ thống.",
+    "role.teacher": "Giáo viên",
+    "role.teacher.description": "Kiểm tra sự có mặt của học sinh và quản lý điểm danh.",
+    "role.parent": "Phụ huynh/Học sinh",
+    "role.parent.description": "Kiểm tra chỗ ngồi được chỉ định và đăng ký đi xe.",
+    "page.title.home": "Trang chủ",
+    "page.title.admin": "Quản trị viên",
+    "page.title.teacher": "Giáo viên",
+    "page.title.student": "Xác nhận lên xe",
+    "page.title.apply": "Đăng ký đi xe",
+    "page.title.login": "Đăng nhập quản trị viên",
+    "page.title.parents": "Phụ huynh/Học sinh",
+    "logout.button": "Đăng xuất",
+    "logout.success": "Đăng xuất thành công",
+    "logout.success.description": "Đang chuyển đến màn hình chính.",
+    "logout.error": "Đăng xuất thất bại",
+    "logout.error.description": "Vui lòng thử lại.",
+    "loading.auth": "Đang xác minh thông tin xác thực..."
+}
