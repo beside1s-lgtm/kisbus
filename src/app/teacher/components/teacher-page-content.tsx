@@ -32,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { LostAndFound } from './lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
+import { Label } from '@/components/ui/label';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
@@ -417,9 +418,9 @@ export function TeacherPageContent() {
 
 
   const headerContent = (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-        <label className="text-sm font-medium">{t('bus')}</label>
+    <div className="flex flex-wrap items-end gap-2">
+        <div className="flex-1 min-w-[120px]">
+        <Label className="text-xs">{t('bus')}</Label>
         <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
             <SelectTrigger>
             <SelectValue placeholder={t('teacher_page.select_bus')} />
@@ -433,8 +434,8 @@ export function TeacherPageContent() {
             </SelectContent>
         </Select>
         </div>
-        <div>
-        <label className="text-sm font-medium">{t('day')}</label>
+        <div className="flex-1 min-w-[120px]">
+        <Label className="text-xs">{t('day')}</Label>
         <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
             <SelectTrigger>
             <SelectValue placeholder={t('select_day')} />
@@ -448,13 +449,13 @@ export function TeacherPageContent() {
             </SelectContent>
         </Select>
         </div>
-        <div>
-        <label className="text-sm font-medium">{t('route')}</label>
+        <div className="flex-1 min-w-[180px]">
+        <Label className="text-xs">{t('route')}</Label>
         <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
             <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
-            <TabsTrigger value="AfterSchool" disabled={loading}>{t('route_type.after_school')}</TabsTrigger>
+            <TabsTrigger value="AfterSchool" disabled={loading}>{t('route_type.AfterSchool')}</TabsTrigger>
             </TabsList>
         </Tabs>
         </div>
@@ -561,7 +562,7 @@ export function TeacherPageContent() {
                         </span>
                     )}
                 </CardTitle>
-                <CardDescription>{t('teacher_page.seat_map_description')}</CardDescription>
+                <CardDescription className="hidden md:block">{t('teacher_page.seat_map_description')}</CardDescription>
             </CardHeader>
             <CardContent>
                 {selectedBus && currentRoute ? (

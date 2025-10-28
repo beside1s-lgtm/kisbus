@@ -2184,6 +2184,7 @@ const StudentManagementTab = ({
                                     students={students}
                                     destinations={destinations}
                                     onSeatClick={handleSeatClick}
+                                    onSeatContextMenu={handleSeatContextMenu}
                                     highlightedSeatNumber={selectedSeat?.seatNumber}
                                     highlightedStudentId={selectedGlobalStudent?.id}
                                     routeType={selectedRouteType}
@@ -2577,14 +2578,6 @@ const AdminPageFilter: React.FC<{
         });
         return buses.filter(bus => configuredBusIds.has(bus.id));
     }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
-
-    useEffect(() => {
-        if (selectedBusId && !displayBuses.some(b => b.id === selectedBusId)) {
-            setSelectedBusId(displayBuses.length > 0 ? displayBuses[0].id : null);
-        } else if (!selectedBusId && displayBuses.length > 0) {
-            setSelectedBusId(displayBuses[0].id);
-        }
-    }, [displayBuses, selectedBusId, setSelectedBusId]);
     
     const getRouteStopsPreview = (busId: string) => {
         const route = routes.find(r => r.busId === busId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
@@ -2602,9 +2595,9 @@ const AdminPageFilter: React.FC<{
     return (
         <Card className="mb-6">
             <CardContent className="p-4">
-                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div>
-                    <Label>{t('bus')}</Label>
+                 <div className="flex flex-wrap items-end gap-4">
+                  <div className="flex-1 min-w-[120px]">
+                    <Label className="text-xs">{t('bus')}</Label>
                     <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
                       <SelectTrigger>
                         <SelectValue placeholder={t('select_bus')} />
@@ -2626,8 +2619,8 @@ const AdminPageFilter: React.FC<{
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label>{t('day')}</Label>
+                  <div className="flex-1 min-w-[120px]">
+                    <Label className="text-xs">{t('day')}</Label>
                     <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
                       <SelectTrigger>
                         <SelectValue placeholder={t('select_day')} />
@@ -2641,8 +2634,8 @@ const AdminPageFilter: React.FC<{
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label>{t('route')}</Label>
+                  <div className="flex-1 min-w-[180px]">
+                    <Label className="text-xs">{t('route')}</Label>
                     <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
                       <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="Morning">{t('route_type.morning')}</TabsTrigger>
@@ -2749,7 +2742,6 @@ const AdminPageContent: React.FC<{
                         selectedRouteType={selectedRouteType}
                         setSelectedRouteType={setSelectedRouteType}
                         days={days}
-                        filterConfiguredBusesOnly={false}
                     />
                     <BusConfigurationTab
                         buses={buses}
