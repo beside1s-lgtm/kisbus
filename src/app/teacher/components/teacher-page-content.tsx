@@ -418,7 +418,7 @@ export function TeacherPageContent() {
 
 
   const headerContent = (
-    <div className="flex flex-col sm:flex-row sm:items-end gap-2 w-full">
+    <div className="flex flex-wrap items-end gap-2">
         <div className="flex-1 min-w-[120px]">
             <Label className="text-xs">{t('bus')}</Label>
             <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
