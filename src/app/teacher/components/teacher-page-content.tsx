@@ -449,7 +449,7 @@ export function TeacherPageContent() {
                 </SelectContent>
             </Select>
         </div>
-        <div className="flex-1 min-w-[180px]">
+        <div className="flex-1 min-w-[120px]">
             <Label className="text-xs">{t('route')}</Label>
             <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
