@@ -75,6 +75,7 @@
     "route_type.morning": "등교",
     "route_type.afternoon": "하교",
     "route_type.after_school": "방과후",
+    "route_type.afterschool": "방과후",
     "route_type.commute": "등하교",
     "bus_type.15": "15인승",
     "bus_type.29": "29인승",
