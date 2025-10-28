@@ -418,49 +418,49 @@ export function TeacherPageContent() {
 
 
   const headerContent = (
-    <div className="flex flex-wrap items-end gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-end gap-2 w-full">
         <div className="flex-1 min-w-[120px]">
-        <Label className="text-xs">{t('bus')}</Label>
-        <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
-            <SelectTrigger>
-            <SelectValue placeholder={t('teacher_page.select_bus')} />
-            </SelectTrigger>
-            <SelectContent>
-            {filteredBuses.map((bus) => (
-                <SelectItem key={bus.id} value={bus.id}>
-                {bus.name} ({t(`bus_type.${bus.type}`)})
-                </SelectItem>
-            ))}
-            </SelectContent>
-        </Select>
+            <Label className="text-xs">{t('bus')}</Label>
+            <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
+                <SelectTrigger>
+                    <SelectValue placeholder={t('teacher_page.select_bus')} />
+                </SelectTrigger>
+                <SelectContent>
+                    {filteredBuses.map((bus) => (
+                        <SelectItem key={bus.id} value={bus.id}>
+                            {bus.name} ({t(`bus_type.${bus.capacity}`)})
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         </div>
         <div className="flex-1 min-w-[120px]">
-        <Label className="text-xs">{t('day')}</Label>
-        <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
-            <SelectTrigger>
-            <SelectValue placeholder={t('select_day')} />
-            </SelectTrigger>
-            <SelectContent>
-            {days.map((day) => (
-                <SelectItem key={day} value={day}>
-                  {dayLabels[day]}
-                </SelectItem>
-            ))}
-            </SelectContent>
-        </Select>
+            <Label className="text-xs">{t('day')}</Label>
+            <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
+                <SelectTrigger>
+                    <SelectValue placeholder={t('select_day')} />
+                </SelectTrigger>
+                <SelectContent>
+                    {days.map((day) => (
+                        <SelectItem key={day} value={day}>
+                            {dayLabels[day]}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         </div>
         <div className="flex-1 min-w-[180px]">
-        <Label className="text-xs">{t('route')}</Label>
-        <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
-            <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
-            <TabsTrigger value="AfterSchool" disabled={loading}>{t('route_type.AfterSchool')}</TabsTrigger>
-            </TabsList>
-        </Tabs>
+            <Label className="text-xs">{t('route')}</Label>
+            <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
+                    <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
+                    <TabsTrigger value="AfterSchool" disabled={loading}>{t('route_type.AfterSchool')}</TabsTrigger>
+                </TabsList>
+            </Tabs>
         </div>
     </div>
-  );
+);
 
   const sidePanel = (
     <div className="min-h-[300px]">

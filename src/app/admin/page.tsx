@@ -275,7 +275,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                         {buses.map(bus => (
                             <TableRow key={bus.id}>
                                 <TableCell>{bus.name}</TableCell>
-                                <TableCell>{bus.type}</TableCell>
+                                <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
                                 <TableCell>{getTeachersForBus(bus.id)}</TableCell>
                                 <TableCell className="text-right">
                                     <AlertDialog>
@@ -1036,7 +1036,7 @@ const BusConfigurationTab = ({
                             <CardHeader>
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <CardTitle>{selectedBus.name} - {t(`day.${selectedDay.toLowerCase()}`)} {t(`route_type.${selectedRouteType.toLowerCase()}`)}</CardTitle>
+                                        <CardTitle>{selectedBus.name} - {t(`day.${selectedDay.toLowerCase()}`)} {t(`route_type.${selectedRouteType}`)}</CardTitle>
                                         <CardDescription>{t('admin.bus_config.route.stops_description')}</CardDescription>
                                     </div>
                                     <div className="flex gap-1">
@@ -1120,7 +1120,7 @@ const BusConfigurationTab = ({
                     <Card>
                         <CardHeader>
                             <CardTitle>{t('admin.teacher_assignment.title')}</CardTitle>
-                            <CardDescription>{t('admin.teacher_assignment.description', { busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })}</CardDescription>
+                            <CardDescription>{t('admin.teacher_assignment.description', { busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType}`) })}</CardDescription>
                         </CardHeader>
                             <CardContent>
                             {assignedTeachers.length > 0 ? (
@@ -1574,7 +1574,7 @@ const StudentManagementTab = ({
 
         const emptySeating = generateInitialSeating(selectedBus.capacity);
         await handleSeatUpdate(emptySeating);
-        toast({ title: t('success'), description: t('admin.student_management.seat.reset_success', {busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType.toLowerCase()}`)}) });
+        toast({ title: t('success'), description: t('admin.student_management.seat.reset.success', {busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType.toLowerCase()}`)}) });
     }, [selectedBus, currentRoute, handleSeatUpdate, toast, t, selectedDay, selectedRouteType]);
 
     const handleCopySeating = useCallback(async () => {
@@ -2225,7 +2225,7 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-20 h-fit">
                      <Card>
                         <CardHeader>
-                            <CardTitle className="font-headline">{t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`), day: t(`day.${selectedDay.toLowerCase()}`) })}</CardTitle>
+                            <CardTitle className="font-headline">{t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType}`) })}</CardTitle>
                             <CardDescription>
                                 {t('admin.student_management.unassigned.description')}
                             </CardDescription>
@@ -2412,7 +2412,7 @@ const StudentManagementTab = ({
                                             {assignedRoutesForSelectedStudent.length > 0 ? (
                                                 assignedRoutesForSelectedStudent.map(route => {
                                                     const busName = buses.find(b => b.id === route.busId)?.name || t('unknown_bus');
-                                                    const routeTypeName = t(`route_type.${route.type.toLowerCase()}`);
+                                                    const routeTypeName = t(`route_type.${route.type}`);
                                                     return (
                                                         <div key={route.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
                                                             <p className="text-sm">{busName} - {t(`day.${route.dayOfWeek.toLowerCase()}`)} {routeTypeName}</p>
@@ -2595,7 +2595,7 @@ const AdminPageFilter: React.FC<{
     return (
         <Card className="mb-6">
             <CardContent className="p-4">
-                 <div className="flex flex-wrap items-end gap-4">
+                 <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                   <div className="flex-1 min-w-[120px]">
                     <Label className="text-xs">{t('bus')}</Label>
                     <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
