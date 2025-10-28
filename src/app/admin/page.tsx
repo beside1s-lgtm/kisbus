@@ -2576,13 +2576,18 @@ const AdminPageFilter: React.FC<{
         return buses.filter(bus => configuredBusIds.has(bus.id));
     }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
 
-    useEffect(() => {
-        if (selectedBusId && !displayBuses.some(b => b.id === selectedBusId)) {
-            setSelectedBusId(displayBuses.length > 0 ? displayBuses[0].id : null);
-        } else if (!selectedBusId && displayBuses.length > 0) {
-            setSelectedBusId(displayBuses[0].id);
+    const currentBusId = useMemo(() => {
+        if (selectedBusId && displayBuses.some(b => b.id === selectedBusId)) {
+            return selectedBusId;
         }
-    }, [displayBuses, selectedBusId, setSelectedBusId]);
+        return displayBuses.length > 0 ? displayBuses[0].id : null;
+    }, [selectedBusId, displayBuses]);
+
+    useEffect(() => {
+        if (currentBusId !== selectedBusId) {
+            setSelectedBusId(currentBusId);
+        }
+    }, [currentBusId, selectedBusId, setSelectedBusId]);
     
     const getRouteStopsPreview = (busId: string) => {
         const route = routes.find(r => r.busId === busId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
@@ -2603,7 +2608,7 @@ const AdminPageFilter: React.FC<{
                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <Label>{t('bus')}</Label>
-                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
+                    <Select value={currentBusId || ''} onValueChange={setSelectedBusId}>
                       <SelectTrigger>
                         <SelectValue placeholder={t('select_bus')} />
                       </SelectTrigger>
@@ -2693,12 +2698,6 @@ const AdminPageContent: React.FC<{
     const { toast } = useToast();
     const { t } = useTranslation();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    
-    useEffect(() => {
-        if (buses.length > 0 && !selectedBusId) {
-            setSelectedBusId(buses[0].id);
-        }
-    }, [buses, selectedBusId]);
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
@@ -2753,6 +2752,7 @@ const AdminPageContent: React.FC<{
                         selectedRouteType={selectedRouteType}
                         setSelectedRouteType={setSelectedRouteType}
                         days={days}
+                        filterConfiguredBusesOnly={false}
                     />
                     <BusConfigurationTab
                         buses={buses}
