@@ -225,7 +225,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                     <Tabs value={teacherViewType} onValueChange={(v) => setTeacherViewType(v as any)} className="w-auto">
                       <TabsList className="grid grid-cols-2">
                         <TabsTrigger value="MorningAndAfternoon">{t('route_type.commute')}</TabsTrigger>
-                        <TabsTrigger value="AfterSchool">{t('route_type.after_school')}</TabsTrigger>
+                        <TabsTrigger value="AfterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
                       </TabsList>
                     </Tabs>
                     <div className="flex gap-2">
@@ -1970,7 +1970,7 @@ const StudentManagementTab = ({
                 return destId && !allValidStopIds.has(destId);
             });
             if (errorDays.length > 0) {
-                 errors.push(`${t('route_type.after_school')} (${errorDays.map(d => t(`day_short.${d.toLowerCase()}`)).join(',')})`);
+                 errors.push(`${t('route_type.afterschool')} (${errorDays.map(d => t(`day_short.${d.toLowerCase()}`)).join(',')})`);
             }
         }
         return errors.join(', ');
@@ -2017,7 +2017,7 @@ const StudentManagementTab = ({
                         <CardHeader className="flex-row items-center justify-between">
                             <div>
                                <CardTitle className="font-headline">{t('admin.student_management.seat.title')}</CardTitle>
-                               <CardDescription>
+                               <CardDescription className="hidden md:block">
                                 {selectedSeat?.studentId ? t('admin.student_management.seat.description_selected') : t('admin.student_management.seat.description_initial')}
                                </CardDescription>
                             </div>
@@ -2559,35 +2559,32 @@ const AdminPageFilter: React.FC<{
         }
         const configuredBusIds = new Set<string>();
         routes.forEach(route => {
-            const hasStops = route.stops.length > 0;
-            const hasStudents = route.seating.some(s => s.studentId !== null);
-            
-            let isConfigured = false;
-            if (route.type === 'AfterSchool') {
-                isConfigured = hasStudents; // For afterschool, only check for students
-            } else {
-                isConfigured = hasStops || hasStudents;
-            }
+            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
+                 const hasStops = route.stops.length > 0;
+                 const hasStudents = route.seating.some(s => s.studentId !== null);
+                 
+                 let isConfigured = false;
+                 if (route.type === 'AfterSchool') {
+                    isConfigured = hasStudents;
+                 } else {
+                    isConfigured = hasStops || hasStudents;
+                 }
 
-            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && isConfigured) {
-                configuredBusIds.add(route.busId);
+                 if (isConfigured) {
+                    configuredBusIds.add(route.busId);
+                 }
             }
         });
         return buses.filter(bus => configuredBusIds.has(bus.id));
     }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
 
-    const currentBusId = useMemo(() => {
-        if (selectedBusId && displayBuses.some(b => b.id === selectedBusId)) {
-            return selectedBusId;
-        }
-        return displayBuses.length > 0 ? displayBuses[0].id : null;
-    }, [selectedBusId, displayBuses]);
-
     useEffect(() => {
-        if (currentBusId !== selectedBusId) {
-            setSelectedBusId(currentBusId);
+        if (selectedBusId && !displayBuses.some(b => b.id === selectedBusId)) {
+            setSelectedBusId(displayBuses.length > 0 ? displayBuses[0].id : null);
+        } else if (!selectedBusId && displayBuses.length > 0) {
+            setSelectedBusId(displayBuses[0].id);
         }
-    }, [currentBusId, selectedBusId, setSelectedBusId]);
+    }, [displayBuses, selectedBusId, setSelectedBusId]);
     
     const getRouteStopsPreview = (busId: string) => {
         const route = routes.find(r => r.busId === busId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
@@ -2608,7 +2605,7 @@ const AdminPageFilter: React.FC<{
                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <Label>{t('bus')}</Label>
-                    <Select value={currentBusId || ''} onValueChange={setSelectedBusId}>
+                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
                       <SelectTrigger>
                         <SelectValue placeholder={t('select_bus')} />
                       </SelectTrigger>
@@ -2650,7 +2647,7 @@ const AdminPageFilter: React.FC<{
                       <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="Morning">{t('route_type.morning')}</TabsTrigger>
                         <TabsTrigger value="Afternoon">{t('route_type.afternoon')}</TabsTrigger>
-                        <TabsTrigger value="AfterSchool">{t('route_type.after_school')}</TabsTrigger>
+                        <TabsTrigger value="AfterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
                       </TabsList>
                     </Tabs>
                   </div>
