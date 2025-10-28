@@ -2535,7 +2535,7 @@ const AdminPageFilter: React.FC<{
     selectedRouteType: RouteType;
     setSelectedRouteType: (type: RouteType) => void;
     days: DayOfWeek[];
-    filterConfiguredBusesOnly: boolean;
+    filterConfiguredBusesOnly?: boolean;
     showRouteStops?: boolean;
 }> = ({
     buses,
@@ -2548,7 +2548,7 @@ const AdminPageFilter: React.FC<{
     selectedRouteType,
     setSelectedRouteType,
     days,
-    filterConfiguredBusesOnly,
+    filterConfiguredBusesOnly = false,
     showRouteStops = false,
 }) => {
     const { t } = useTranslation();
@@ -2559,7 +2559,17 @@ const AdminPageFilter: React.FC<{
         }
         const configuredBusIds = new Set<string>();
         routes.forEach(route => {
-            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
+            const hasStops = route.stops.length > 0;
+            const hasStudents = route.seating.some(s => s.studentId !== null);
+            
+            let isConfigured = false;
+            if (route.type === 'AfterSchool') {
+                isConfigured = hasStudents; // For afterschool, only check for students
+            } else {
+                isConfigured = hasStops || hasStudents;
+            }
+
+            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && isConfigured) {
                 configuredBusIds.add(route.busId);
             }
         });
@@ -2743,7 +2753,6 @@ const AdminPageContent: React.FC<{
                         selectedRouteType={selectedRouteType}
                         setSelectedRouteType={setSelectedRouteType}
                         days={days}
-                        filterConfiguredBusesOnly={false}
                     />
                     <BusConfigurationTab
                         buses={buses}
