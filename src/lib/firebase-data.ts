@@ -72,6 +72,19 @@ async function addDocument<T extends {id: string}>(collectionName: string, data:
 // Buses
 export const getBuses = () => fetchCollection<Bus>('buses');
 export const addBus = (bus: NewBus) => addDocument<Bus>('buses', bus);
+export const updateBus = async (busId: string, data: Partial<Bus>) => {
+    const docRef = doc(db, 'buses', busId);
+    await updateDoc(docRef, data)
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: data,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+}
 export const deleteBus = async (busId: string) => {
     // Also delete associated routes
     const q = query(collection(db, "routes"), where("busId", "==", busId));

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
 import { 
     getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations, getTeachers,
-    addBus, deleteBus,
+    addBus, deleteBus, updateBus,
     addStudent, updateStudent, deleteStudentsInBatch,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     addRoute, updateRouteSeating, updateRouteStops, clearAllSuggestedDestinations,
@@ -2819,8 +2819,19 @@ export default function AdminPage() {
             const fetchAndSubscribe = async () => {
                 setDataLoading(true);
                 try {
-                    const [busesData, studentsData, destinationsData, suggestionsData, teachersData] = await Promise.all([
-                        getBuses(),
+                    let busesData = await getBuses();
+                    
+                    // Data migration
+                    const busesToUpdate = busesData.filter(b => b.capacity === 15);
+                    if (busesToUpdate.length > 0) {
+                        await Promise.all(busesToUpdate.map(bus => 
+                            updateBus(bus.id, { capacity: 16, type: '16-seater' })
+                        ));
+                        // Re-fetch buses data after migration
+                        busesData = await getBuses();
+                    }
+
+                    const [studentsData, destinationsData, suggestionsData, teachersData] = await Promise.all([
                         getStudents(),
                         getDestinations(),
                         getSuggestedDestinations(),
