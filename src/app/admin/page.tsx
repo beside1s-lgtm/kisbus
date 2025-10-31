@@ -75,7 +75,7 @@ const sortDestinations = (destinations: Destination[]): Destination[] => {
 
 const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[], routes: Route[], teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
     const [newBusName, setNewBusName] = useState('');
-    const [newBusType, setNewBusType] = useState<'15-seater' | '29-seater' | '45-seater'>('45-seater');
+    const [newBusType, setNewBusType] = useState<'16-seater' | '29-seater' | '45-seater'>('45-seater');
     const { toast } = useToast();
     const { t } = useTranslation();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -114,7 +114,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
             return;
         }
 
-        const capacityMap = { '15-seater': 15, '29-seater': 29, '45-seater': 45 };
+        const capacityMap = { '16-seater': 16, '29-seater': 29, '45-seater': 45 };
         const newBusData: NewBus = { name: newBusName, type: newBusType, capacity: capacityMap[newBusType] };
 
         try {
@@ -142,8 +142,8 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
         const examples = [
             "Bus 10,45-seater",
             "Bus 11,29-seater",
-            "Bus 12,15-seater",
-            "# 타입은 15-seater, 29-seater, 45-seater 중 하나를 입력해야 합니다."
+            "Bus 12,16-seater",
+            "# 타입은 16-seater, 29-seater, 45-seater 중 하나를 입력해야 합니다."
         ];
         const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + examples.join("\n");
         const encodedUri = encodeURI(csvContent);
@@ -164,14 +164,14 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
             skipEmptyLines: true,
             comments: "#",
             complete: async (results) => {
-                const capacityMap = { '15-seater': 15, '29-seater': 29, '45-seater': 45 };
+                const capacityMap = { '16-seater': 16, '29-seater': 29, '45-seater': 45 };
                 const validTypes = Object.keys(capacityMap);
 
                 const newBusesData: NewBus[] = results.data.map((row: any) => {
                     const type = (row['타입'] || row['type'] || '').trim();
                     return {
                         name: (row['번호'] || row['name'] || '').trim(),
-                        type: type as '15-seater' | '29-seater' | '45-seater',
+                        type: type as '16-seater' | '29-seater' | '45-seater',
                         capacity: capacityMap[type as keyof typeof capacityMap]
                     }
                 }).filter(bus => bus.name && bus.type && validTypes.includes(bus.type));
@@ -250,7 +250,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                                                 <SelectValue placeholder={t('admin.bus_registration.select_type')} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="15-seater">{t('bus_type.15')}</SelectItem>
+                                                <SelectItem value="16-seater">{t('bus_type.16')}</SelectItem>
                                                 <SelectItem value="29-seater">{t('bus_type.29')}</SelectItem>
                                                 <SelectItem value="45-seater">{t('bus_type.45')}</SelectItem>
                                             </SelectContent>
@@ -1644,7 +1644,7 @@ const StudentManagementTab = ({
         
         const getSeatPairs = (capacity: number): [number, number][] => {
             const pairs: [number, number][] = [];
-            if (capacity === 15) {
+            if (capacity === 16) {
                 for (let row = 0; row < 4; row++) {
                     const base = row * 4 + 1;
                     if (base === 13) continue;

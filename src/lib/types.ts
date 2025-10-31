@@ -20,8 +20,8 @@ export type NewStudent = Omit<Student, 'id'>;
 export type Bus = {
   id: string;
   name: string;
-  capacity: 15 | 29 | 45;
-  type: '15-seater' | '29-seater' | '45-seater';
+  capacity: 16 | 29 | 45;
+  type: '16-seater' | '29-seater' | '45-seater';
 };
 export type NewBus = Omit<Bus, 'id'>;
 
@@ -81,4 +81,3 @@ export type LostItem = {
     status: 'claimed' | 'unclaimed' | 'acknowledged';
 }
 export type NewLostItem = Omit<LostItem, 'id'>;
-

@@ -47,12 +47,12 @@ const SEAT_MAP_29: (number | null)[] = [
   25, 26, 27, 28, 29,
 ];
 
-const SEAT_MAP_15: (number | null)[] = [
-  null, 1, 2, 3,
+const SEAT_MAP_16: (number | null)[] = [
+  null, 1, 2, 3, 
   4, 5, null, 6,
   7, 8, null, 9,
   10, 11, null, 12,
-  13, 14, 15, null,
+  13, 14, 15, 16
 ];
 
 
@@ -63,10 +63,10 @@ const getLayoutInfo = (capacity: number) => {
     if (capacity === 29) {
         return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: SEAT_MAP_29, hasFrontDriver: true };
     }
-    if (capacity === 15) {
+    if (capacity === 16) {
          return { 
             gridClass: 'grid-cols-4 gap-1 md:gap-2',
-            seatMap: SEAT_MAP_15,
+            seatMap: SEAT_MAP_16,
             hasFrontDriver: true
         };
     }
@@ -142,13 +142,12 @@ export function BusSeatMap({
       >
         <div className={cn('grid', gridClass)}>
           {seatMap.map((seatNumber, index) => {
-             if (bus.capacity === 15 && index === 0) {
+             if (bus.capacity === 16 && index === 0) {
                  return <div key="driver" className="p-1"><DriverSeat /></div>;
              }
              if (seatNumber === null) {
               return <div key={`aisle-${index}`} />;
             }
-            // For 15-seater, we use a 16-seat map but only render up to capacity
             if (seatNumber > bus.capacity) {
                 return null;
             }
