@@ -48,11 +48,11 @@ const SEAT_MAP_29: (number | null)[] = [
 ];
 
 const SEAT_MAP_15: (number | null)[] = [
-  null, 1, 2, 3, // Driver, Seat, Seat, Seat
-  4, 5, null, 6,  // Seat, Seat, Aisle, Seat
-  7, 8, null, 9,  // Seat, Seat, Aisle, Seat
-  10, 11, null, 12, // Seat, Seat, Aisle, Seat
-  13, 14, 15, 16  // Seat, Seat, Seat, Seat - Note: This makes 16 seats, will use capacity to limit
+  null, 1, 2, 3,
+  4, 5, null, 6,
+  7, 8, null, 9,
+  10, 11, null, 12,
+  13, 14, 15, null,
 ];
 
 
@@ -143,7 +143,7 @@ export function BusSeatMap({
         <div className={cn('grid', gridClass)}>
           {seatMap.map((seatNumber, index) => {
              if (bus.capacity === 15 && index === 0) {
-                 return <div className="p-1"><DriverSeat key="driver-seat" /></div>;
+                 return <div key="driver" className="p-1"><DriverSeat /></div>;
              }
              if (seatNumber === null) {
               return <div key={`aisle-${index}`} />;
