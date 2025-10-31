@@ -48,11 +48,11 @@ const SEAT_MAP_29: (number | null)[] = [
 ];
 
 const SEAT_MAP_15: (number | null)[] = [
-    null, 1, 2, 3, // Driver's seat placeholder, then 3 seats
-    4, null, 5, 6,
-    7, null, 8, 9,
-    10, 11, 12, 13,
-    14, null, null, 15,
+  null, 1, 2, 3, // Driver, Seat, Seat, Seat
+  4, 5, null, 6,  // Seat, Seat, Aisle, Seat
+  7, 8, null, 9,  // Seat, Seat, Aisle, Seat
+  10, 11, null, 12, // Seat, Seat, Aisle, Seat
+  13, 14, 15, 16  // Seat, Seat, Seat, Seat - Note: This makes 16 seats, will use capacity to limit
 ];
 
 
@@ -140,18 +140,17 @@ export function BusSeatMap({
         data-cy="scroll-container"
         className="p-2 border rounded-lg bg-muted/20 overflow-auto"
       >
-        {bus.capacity !== 15 && hasFrontDriver && (
-          <div className="mb-4 flex justify-start">
-            <DriverSeat />
-          </div>
-        )}
         <div className={cn('grid', gridClass)}>
           {seatMap.map((seatNumber, index) => {
              if (bus.capacity === 15 && index === 0) {
-                 return <DriverSeat key="driver-seat" />;
+                 return <div className="p-1"><DriverSeat key="driver-seat" /></div>;
              }
-            if (seatNumber === null) {
+             if (seatNumber === null) {
               return <div key={`aisle-${index}`} />;
+            }
+            // For 15-seater, we use a 16-seat map but only render up to capacity
+            if (seatNumber > bus.capacity) {
+                return null;
             }
 
             const seat = seating.find(s => s.seatNumber === seatNumber);
