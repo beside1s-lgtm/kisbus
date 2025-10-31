@@ -48,11 +48,12 @@ const SEAT_MAP_29: (number | null)[] = [
 ];
 
 const SEAT_MAP_16: (number | null)[] = [
-  null, 1, 2, 3, 
-  4, 5, null, 6,
-  7, 8, null, 9,
-  10, 11, null, 12,
-  13, 14, 15, 16
+  1, 2, 3,
+  null, null, 4, 5,
+  null, null, 6, 7,
+  null, null, 8, 9,
+  10, 11, 12, 13,
+  14, 15, 16, null
 ];
 
 
