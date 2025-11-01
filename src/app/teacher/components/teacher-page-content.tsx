@@ -409,10 +409,28 @@ export function TeacherPageContent() {
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
     const lowerCaseQuery = searchQuery.toLowerCase();
-    return students.filter(s => 
-        formatStudentName(s).toLowerCase().includes(lowerCaseQuery)
-    );
-  }, [searchQuery, students]);
+    
+    return students
+        .filter(s => formatStudentName(s).toLowerCase().includes(lowerCaseQuery))
+        .map(student => {
+            const studentRoute = allRoutes.find(route => 
+                route.seating.some(seat => seat.studentId === student.id)
+            );
+            const busName = studentRoute ? buses.find(b => b.id === studentRoute.busId)?.name : undefined;
+
+            let destId: string | null = null;
+            if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
+            else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
+            else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[selectedDay] || null;
+            const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
+
+            return {
+                ...student,
+                busName,
+                destinationName
+            };
+        });
+  }, [searchQuery, students, allRoutes, buses, selectedRouteType, selectedDay, destinations, t]);
 
   const handleSelectStudentFromSearch = useCallback((student: Student) => {
     setLastClickedStudentId(student.id);
@@ -525,6 +543,10 @@ export function TeacherPageContent() {
                                  className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
                                  onClick={() => handleSelectStudentFromSearch(student)}>
                                 {formatStudentName(student)}
+                                <p className="text-xs text-muted-foreground">
+                                    {student.destinationName}
+                                    {student.busName && `, ${student.busName}`}
+                                </p>
                             </div>
                         ))}
                     </CardContent>
@@ -544,6 +566,9 @@ export function TeacherPageContent() {
                             else if (selectedRouteType === 'AfterSchool') destId = selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
                             return d.id === destId;
                         })?.name || t('unassigned')}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                        {t('student.contact')}: {selectedStudent.contact || t('no_selection')}
                     </p>
                 </div>
                 <Separator className="my-4" />
