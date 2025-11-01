@@ -48,30 +48,29 @@ const SEAT_MAP_29: (number | null)[] = [
 ];
 
 const SEAT_MAP_16: (number | null)[] = [
-    0, 1, 2, 3,      // 0 is driver
+    0, 1, 2, 3,
     4, 5, null, 6,
     7, 8, null, 9,
     10, 11, null, 12,
-    13, 14, 15, 16
+    13, 14, 15, 16,
 ];
 
 
 const getLayoutInfo = (capacity: number) => {
     if (capacity === 45) {
-        return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: SEAT_MAP_45, hasFrontDriver: true };
+        return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: SEAT_MAP_45 };
     }
     if (capacity === 29) {
-        return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: SEAT_MAP_29, hasFrontDriver: true };
+        return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: SEAT_MAP_29 };
     }
     if (capacity === 16) {
          return { 
             gridClass: 'grid-cols-4 gap-1 md:gap-2',
             seatMap: SEAT_MAP_16,
-            hasFrontDriver: true
         };
     }
     // Fallback
-    return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: [], hasFrontDriver: true };
+    return { gridClass: 'grid-cols-5 gap-1 md:gap-2', seatMap: [] };
 };
 
 
@@ -107,7 +106,7 @@ export function BusSeatMap({
     return students.find(s => s.id === id);
   };
   
-  const { gridClass, seatMap, hasFrontDriver } = getLayoutInfo(bus.capacity);
+  const { gridClass, seatMap } = getLayoutInfo(bus.capacity);
 
   const formatStudentName = (student: Student) => {
     const grade = student.grade.replace(/\D/g, '');
@@ -149,7 +148,7 @@ export function BusSeatMap({
               return <div key={`aisle-${index}`} />;
             }
             if (seatNumber > bus.capacity) {
-                return null;
+                return <div key={`empty-${index}`} />;
             }
 
             const seat = seating.find(s => s.seatNumber === seatNumber);
