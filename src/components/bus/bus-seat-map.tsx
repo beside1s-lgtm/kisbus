@@ -109,8 +109,8 @@ export function BusSeatMap({
   const { gridClass, seatMap } = getLayoutInfo(bus.capacity);
 
   const formatStudentName = (student: Student) => {
-    const grade = student.grade.replace(/\D/g, '');
-    const studentClass = student.class.replace(/\D/g, '');
+    const grade = student.grade.toUpperCase().replace('G', '');
+    const studentClass = student.class;
     return `${grade}${studentClass} ${student.name}`;
   }
 

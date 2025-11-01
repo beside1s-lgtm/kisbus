@@ -124,17 +124,21 @@ export function TeacherPageContent() {
 
   const formatStudentName = (student: Student | null) => {
     if (!student) return '';
-    const grade = student.grade.replace(/\D/g, '');
-    const studentClass = student.class.replace(/\D/g, '');
+    const grade = student.grade.toUpperCase().replace('G', '');
+    const studentClass = student.class;
     return `${grade}${studentClass} ${student.name}`;
   }
 
   useEffect(() => {
     const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
+    
+    // For testing specific days
+    // const dayIndex = 6; // Saturday
+
     const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
     setSelectedDay(currentDay);
     
-    if (currentDay === 'Saturday' || dayIndex === 6) { // dayIndex 6 is Saturday
+    if (dayIndex === 6) { // Saturday
         setSelectedRouteType('AfterSchool');
     } else {
         const now = new Date();
