@@ -1917,8 +1917,6 @@ const StudentManagementTab = ({
                 setSelectedGlobalStudent(updatedStudent);
             }
             
-            await unassignStudentFromAllRoutes(studentId);
-            
             toast({ title: t('success'), description: t('admin.student_management.search.dest_update_success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.student_management.search.dest_update_error'), variant: "destructive" });
@@ -2866,7 +2864,7 @@ export default function AdminPage() {
 
                     const unsubscribeRoutes = onRoutesUpdate((routesData) => {
                         setRoutes(routesData);
-                        setDataLoading(false);
+setDataLoading(false);
                     });
 
                     return () => {

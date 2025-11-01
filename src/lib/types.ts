@@ -3,7 +3,7 @@
 export type Student = {
   id: string;
   name: string;
-  contact?: string | null;
+  contact: string | null;
   morningDestinationId: string | null;
   afternoonDestinationId: string | null;
   afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>>;

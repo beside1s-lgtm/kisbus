@@ -149,6 +149,10 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         if (student.suggestedMorningDestination) updateData.morningDestinationId = null;
         if (student.suggestedAfternoonDestination) updateData.afternoonDestinationId = null;
 
+        if (student.morningDestinationId || student.afternoonDestinationId || student.afterSchoolDestinations) {
+            await unassignStudentFromAllRoutes(docRef.id);
+        }
+
 
         await updateDoc(docRef, updateData)
             .catch(async (serverError) => {
@@ -160,8 +164,6 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
                 errorEmitter.emit('permission-error', permissionError);
                 throw serverError;
             });
-        
-        await unassignStudentFromAllRoutes(docRef.id);
         
         const docSnap = await getDoc(docRef);
         return { id: docRef.id, ...docSnap.data() } as Student;
@@ -183,6 +185,9 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 
 export const updateStudent = async (studentId: string, data: Partial<Student>) => {
     const docRef = doc(db, 'students', studentId);
+    if(data.morningDestinationId || data.afternoonDestinationId || data.afterSchoolDestinations) {
+        await unassignStudentFromAllRoutes(studentId);
+    }
     await updateDoc(docRef, data)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -675,3 +680,4 @@ export const deleteLostItem = (itemId: string) => {
 }
 
     
+
