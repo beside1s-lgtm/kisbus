@@ -124,7 +124,7 @@ export function TeacherPageContent() {
 
   const formatStudentName = (student: Student | null) => {
     if (!student) return '';
-    const grade = student.grade.toUpperCase().replace('G', '');
+    const grade = student.grade.toUpperCase();
     const studentClass = student.class;
     return `${grade}${studentClass} ${student.name}`;
   }
@@ -260,14 +260,26 @@ export function TeacherPageContent() {
           if(seat.studentId) studentIdsOnRoute.add(seat.studentId);
       });
       
+      const getGradePriority = (grade: string) => {
+        if (grade.toUpperCase().startsWith('K')) return 1;
+        if (grade.toUpperCase().startsWith('G')) return 2;
+        return 3;
+      };
+
       return Array.from(studentIdsOnRoute)
           .map(id => students.find(s => s.id === id))
           .filter((s): s is Student => !!s)
           .sort((a,b) => {
+              const gradePriorityA = getGradePriority(a.grade);
+              const gradePriorityB = getGradePriority(b.grade);
+              if (gradePriorityA !== gradePriorityB) return gradePriorityA - gradePriorityB;
+
               const gradeCompare = a.grade.localeCompare(b.grade, undefined, { numeric: true });
               if (gradeCompare !== 0) return gradeCompare;
+
               const classCompare = a.class.localeCompare(b.class, undefined, { numeric: true });
               if (classCompare !== 0) return classCompare;
+
               return a.name.localeCompare(b.name, 'ko');
           });
   }, [currentRoute, students]);
@@ -515,7 +527,7 @@ export function TeacherPageContent() {
             <div>
                 <div className="flex flex-col items-center text-center">
                     <Avatar className="w-24 h-24 mb-4 border-4 border-primary/50">
-                        <AvatarFallback className="text-4xl">{selectedStudent.name.charAt(0)}</AvatarFallback>
+                        <AvatarFallback className="text-4xl">{selectedStudent.name}</AvatarFallback>
                     </Avatar>
                     <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
                     <p className="text-sm text-muted-foreground">

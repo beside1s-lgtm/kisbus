@@ -48,7 +48,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const studentDestinationName = destinations.find(d => d.id === destinationId)?.name || suggestedDestName || '미지정';
   
   const formatStudentName = (student: Student) => {
-    const grade = student.grade.toUpperCase().replace('G', '');
+    const grade = student.grade.toUpperCase();
     const studentClass = student.class;
     return `${grade}${studentClass} ${student.name}`;
   }

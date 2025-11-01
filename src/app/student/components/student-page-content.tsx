@@ -86,7 +86,7 @@ export function StudentPageContent() {
 
   const formatStudentName = (student: Student | null) => {
     if (!student) return '';
-    const grade = student.grade.toUpperCase().replace('G', '');
+    const grade = student.grade.toUpperCase();
     const studentClass = student.class;
     return `${grade}${studentClass} ${student.name}`;
   }
