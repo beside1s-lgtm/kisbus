@@ -52,7 +52,7 @@ const SEAT_MAP_16: (number | null)[] = [
     4, 5, null, 6,
     7, 8, null, 9,
     10, 11, null, 12,
-    13, 14, 15, 16,
+    13, 14, 15, 16
 ];
 
 
