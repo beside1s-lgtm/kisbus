@@ -48,12 +48,11 @@ const SEAT_MAP_29: (number | null)[] = [
 ];
 
 const SEAT_MAP_16: (number | null)[] = [
-  1, 2, 3,
-  null, null, 4, 5,
-  null, null, 6, 7,
-  null, null, 8, 9,
-  10, 11, 12, 13,
-  14, 15, 16, null
+    0, 1, 2, 3,      // 0 is driver
+    4, 5, null, 6,
+    7, 8, null, 9,
+    10, 11, null, 12,
+    13, 14, 15, 16
 ];
 
 
@@ -143,10 +142,10 @@ export function BusSeatMap({
       >
         <div className={cn('grid', gridClass)}>
           {seatMap.map((seatNumber, index) => {
-             if (bus.capacity === 16 && index === 0) {
+            if (seatNumber === 0) {
                  return <div key="driver" className="p-1"><DriverSeat /></div>;
-             }
-             if (seatNumber === null) {
+            }
+            if (seatNumber === null) {
               return <div key={`aisle-${index}`} />;
             }
             if (seatNumber > bus.capacity) {
