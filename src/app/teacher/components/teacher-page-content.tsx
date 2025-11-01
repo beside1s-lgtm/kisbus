@@ -259,7 +259,13 @@ export function TeacherPageContent() {
       return Array.from(studentIdsOnRoute)
           .map(id => students.find(s => s.id === id))
           .filter((s): s is Student => !!s)
-          .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+          .sort((a,b) => {
+              const gradeCompare = a.grade.localeCompare(b.grade, undefined, { numeric: true });
+              if (gradeCompare !== 0) return gradeCompare;
+              const classCompare = a.class.localeCompare(b.class, undefined, { numeric: true });
+              if (classCompare !== 0) return classCompare;
+              return a.name.localeCompare(b.name, 'ko');
+          });
   }, [currentRoute, students]);
   
  const toggleAbsence = useCallback((student: Student) => {
