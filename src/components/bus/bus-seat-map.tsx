@@ -48,7 +48,7 @@ const SEAT_MAP_29: (number | null)[] = [
 ];
 
 const SEAT_MAP_16: (number | null)[] = [
-    null, 1, 2, 3,
+    1, 2, null, 3,
     4, 5, null, 6,
     7, 8, null, 9,
     10, 11, null, 12,
@@ -126,13 +126,6 @@ export function BusSeatMap({
       return destinations.find(d => d.id === destId)?.name || 'N/A';
   }
 
-  const DriverSeat = () => (
-    <div className={cn("relative h-10 rounded-md flex flex-col items-center justify-center bg-secondary text-secondary-foreground", 'w-full' )}>
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M10 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M20 22a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M3 11V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v5"/><path d="M3 11h18"/><path d="M12 3v8"/><path d="m5 11 2 2"/><path d="m17 11-2 2"/></svg>
-        <span className="mt-1 text-[9px] font-medium">운전석</span>
-    </div>
-  );
-
   return (
     <TooltipProvider>
       <div
@@ -140,7 +133,6 @@ export function BusSeatMap({
         className="p-2 border rounded-lg bg-muted/20 overflow-auto"
       >
         <div className={cn('grid', gridClass)}>
-           {bus.capacity !== 16 && <div className="p-1"><DriverSeat /></div>}
           {seatMap.map((seatNumber, index) => {
             if (seatNumber === null) {
               return <div key={`aisle-${index}`} />;
