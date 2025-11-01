@@ -132,9 +132,6 @@ export function TeacherPageContent() {
   useEffect(() => {
     const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
     
-    // For testing specific days
-    // const dayIndex = 6; // Saturday
-
     const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
     setSelectedDay(currentDay);
     
@@ -525,10 +522,7 @@ export function TeacherPageContent() {
 
         {selectedStudent ? (
             <div>
-                <div className="flex flex-col items-center text-center">
-                    <Avatar className="w-24 h-24 mb-4 border-4 border-primary/50">
-                        <AvatarFallback className="text-4xl">{selectedStudent.name}</AvatarFallback>
-                    </Avatar>
+                <div className="text-center my-4">
                     <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
                     <p className="text-sm text-muted-foreground">
                         {t('destination')}: {destinations.find(d => {
