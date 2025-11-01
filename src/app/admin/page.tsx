@@ -2017,7 +2017,7 @@ const StudentManagementTab = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
-                        <CardHeader className="flex-row items-center justify-between">
+                        <CardHeader className="flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-2">
                             <div>
                                <CardTitle className="font-headline">{t('admin.student_management.seat.title')}</CardTitle>
                                <CardDescription className="hidden md:block">
@@ -2028,7 +2028,10 @@ const StudentManagementTab = ({
                                 {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
                                     <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
                                         <DialogTrigger asChild>
-                                            <Button variant="outline"><Copy className="mr-2" /> {t('admin.student_management.seat.copy.button')}</Button>
+                                            <Button variant="outline" size="sm">
+                                                <Copy />
+                                                <span className="sr-only sm:not-sr-only sm:ml-2">{t('copy')}</span>
+                                            </Button>
                                         </DialogTrigger>
                                         <DialogContent>
                                             <DialogHeader>
@@ -2089,7 +2092,10 @@ const StudentManagementTab = ({
                                 )}
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <Button variant="outline"><RotateCcw className="mr-2" /> {t('admin.student_management.seat.reset.button')}</Button>
+                                        <Button variant="outline" size="sm">
+                                            <RotateCcw />
+                                            <span className="sr-only sm:not-sr-only sm:ml-2">{t('reset')}</span>
+                                        </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
@@ -2104,10 +2110,16 @@ const StudentManagementTab = ({
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                                <Button variant="outline" onClick={randomizeSeating}><Shuffle className="mr-2" /> {t('admin.student_management.seat.random_assign_button')}</Button>
+                                <Button variant="outline" size="sm" onClick={randomizeSeating}>
+                                    <Shuffle />
+                                    <span className="sr-only sm:not-sr-only sm:ml-2">{t('admin.student_management.seat.random_assign_button')}</span>
+                                </Button>
                                 <Dialog>
                                     <DialogTrigger asChild>
-                                        <Button variant="outline"><UserPlus className="mr-2" /> {t('admin.student_management.add_student.button')}</Button>
+                                        <Button variant="outline" size="sm">
+                                            <UserPlus />
+                                            <span className="sr-only sm:not-sr-only sm:ml-2">{t('add')}</span>
+                                        </Button>
                                     </DialogTrigger>
                                     <DialogContent>
                                         <DialogHeader><DialogTitle>{t('admin.student_management.add_student.title')}</DialogTitle></DialogHeader>
