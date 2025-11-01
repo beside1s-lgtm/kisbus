@@ -12,7 +12,8 @@ import {
     getRoutes,
     getDestinations,
     getTeachers,
-    getLostItems
+    getLostItems,
+    updateBus
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -84,8 +85,18 @@ export function TeacherPageContent() {
     async function fetchData() {
         setLoading(true);
         try {
-            const [busesData, studentsData, routesData, destinationsData, teachersData, lostItemsData] = await Promise.all([
-                getBuses(),
+            let busesData = await getBuses();
+            
+            // Data migration from 15 to 16
+            const busesToUpdate = busesData.filter(b => b.capacity === 15);
+            if (busesToUpdate.length > 0) {
+                await Promise.all(busesToUpdate.map(bus => 
+                    updateBus(bus.id, { capacity: 16, type: '16-seater' })
+                ));
+                busesData = await getBuses();
+            }
+
+            const [studentsData, routesData, destinationsData, teachersData, lostItemsData] = await Promise.all([
                 getStudents(),
                 getRoutes(),
                 getDestinations(),
@@ -418,7 +429,7 @@ export function TeacherPageContent() {
 
 
   const headerContent = (
-    <div className="flex flex-wrap items-end gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-end gap-2">
         <div className="flex-1 min-w-[120px]">
             <Label className="text-xs">{t('bus')}</Label>
             <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
@@ -449,7 +460,7 @@ export function TeacherPageContent() {
                 </SelectContent>
             </Select>
         </div>
-        <div className="flex-1 min-w-[120px]">
+        <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
             <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
