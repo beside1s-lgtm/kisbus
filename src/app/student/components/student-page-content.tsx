@@ -92,21 +92,22 @@ export function StudentPageContent() {
   }
 
    useEffect(() => {
-    const dayIndex = getDay(new Date());
-    if (dayIndex > 0 && dayIndex < 7) {
-        setSelectedDay(days[dayIndex - 1]);
-    } else {
-        setSelectedDay('Monday');
-    }
+    const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
+    const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
+    setSelectedDay(currentDay);
     
-    const now = new Date();
-    const vietnamHour = (now.getUTCHours() + 7) % 24;
-    if (vietnamHour >= 16) {
+    if (currentDay === 'Saturday') {
         setSelectedRouteType('AfterSchool');
-    } else if (vietnamHour >= 11) {
-        setSelectedRouteType('Afternoon');
     } else {
-        setSelectedRouteType('Morning');
+        const now = new Date();
+        const vietnamHour = (now.getUTCHours() + 7) % 24;
+        if (vietnamHour >= 16) {
+            setSelectedRouteType('AfterSchool');
+        } else if (vietnamHour >= 11) {
+            setSelectedRouteType('Afternoon');
+        } else {
+            setSelectedRouteType('Morning');
+        }
     }
   }, [days]);
 
