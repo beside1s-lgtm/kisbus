@@ -22,7 +22,6 @@ import { Button } from '@/components/ui/button';
 import { Crown, UserX, ArrowLeftRight, Search } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { GroupLeaderManager } from './group-leader-manager';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { MainLayout } from '@/components/layout/main-layout';
@@ -258,8 +257,9 @@ export function TeacherPageContent() {
       });
       
       const getGradePriority = (grade: string) => {
-        if (grade.toUpperCase().startsWith('K')) return 1;
-        if (grade.toUpperCase().startsWith('G')) return 2;
+        const upperGrade = grade.toUpperCase();
+        if (upperGrade.startsWith('K')) return 1;
+        if (upperGrade.startsWith('G')) return 2;
         return 3;
       };
 
@@ -417,7 +417,19 @@ export function TeacherPageContent() {
   const handleSelectStudentFromSearch = useCallback((student: Student) => {
     setLastClickedStudentId(student.id);
     setSearchQuery('');
-  }, []);
+
+    const routeForStudent = allRoutes.find(route => 
+        route.dayOfWeek === selectedDay &&
+        route.type === selectedRouteType &&
+        route.seating.some(seat => seat.studentId === student.id)
+    );
+
+    if (routeForStudent) {
+        setSelectedBusId(routeForStudent.busId);
+    } else {
+        setSelectedBusId(''); // Unassigned
+    }
+  }, [allRoutes, selectedDay, selectedRouteType]);
 
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
