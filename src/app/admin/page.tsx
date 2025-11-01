@@ -1036,7 +1036,7 @@ const BusConfigurationTab = ({
                             <CardHeader>
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <CardTitle>{selectedBus.name} - {t(`day.${selectedDay.toLowerCase()}`)} {t(`route_type.${selectedRouteType}`)}</CardTitle>
+                                        <CardTitle>{selectedBus.name} - {t(`day.${selectedDay.toLowerCase()}`)} {t(`route_type.${selectedRouteType.toLowerCase()}`)}</CardTitle>
                                         <CardDescription>{t('admin.bus_config.route.stops_description')}</CardDescription>
                                     </div>
                                     <div className="flex gap-1">
@@ -1120,7 +1120,7 @@ const BusConfigurationTab = ({
                     <Card>
                         <CardHeader>
                             <CardTitle>{t('admin.teacher_assignment.title')}</CardTitle>
-                            <CardDescription>{t('admin.teacher_assignment.description', { busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType}`) })}</CardDescription>
+                            <CardDescription>{t('admin.teacher_assignment.description', { busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })}</CardDescription>
                         </CardHeader>
                             <CardContent>
                             {assignedTeachers.length > 0 ? (
@@ -2232,7 +2232,7 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-20 h-fit">
                      <Card>
                         <CardHeader>
-                            <CardTitle className="font-headline">{t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType}`) })}</CardTitle>
+                            <CardTitle className="font-headline">{t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })}</CardTitle>
                             <CardDescription>
                                 {t('admin.student_management.unassigned.description')}
                             </CardDescription>
@@ -2428,7 +2428,7 @@ const StudentManagementTab = ({
                                             {assignedRoutesForSelectedStudent.length > 0 ? (
                                                 assignedRoutesForSelectedStudent.map(route => {
                                                     const busName = buses.find(b => b.id === route.busId)?.name || t('unknown_bus');
-                                                    const routeTypeName = t(`route_type.${route.type}`);
+                                                    const routeTypeName = t(`route_type.${route.type.toLowerCase()}`);
                                                     return (
                                                         <div key={route.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
                                                             <p className="text-sm">{busName} - {t(`day.${route.dayOfWeek.toLowerCase()}`)} {routeTypeName}</p>

@@ -1,4 +1,5 @@
 
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getBuses, getStudents, getRoutes, getDestinations, getLostItems, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
@@ -93,9 +94,6 @@ export function StudentPageContent() {
 
    useEffect(() => {
     const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
-
-    // For testing specific days
-    // const dayIndex = 6; // Saturday
 
     const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
     setSelectedDay(currentDay);
