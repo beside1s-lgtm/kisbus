@@ -137,9 +137,6 @@ export function BusSeatMap({
             if (seatNumber === null) {
               return <div key={`aisle-${index}`} />;
             }
-            if (seatNumber > bus.capacity) {
-                return <div key={`empty-${index}`} />;
-            }
 
             const seat = seating.find(s => s.seatNumber === seatNumber);
             if (!seat) return null;
