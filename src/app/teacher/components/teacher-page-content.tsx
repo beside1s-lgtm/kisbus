@@ -134,7 +134,7 @@ export function TeacherPageContent() {
     const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
     setSelectedDay(currentDay);
     
-    if (currentDay === 'Saturday') {
+    if (currentDay === 'Saturday' || dayIndex === 6) { // dayIndex 6 is Saturday
         setSelectedRouteType('AfterSchool');
     } else {
         const now = new Date();
@@ -630,7 +630,14 @@ export function TeacherPageContent() {
                             >
                                 <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                 <TableCell>
-                                    <Badge variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}>
+                                    <Badge 
+                                        variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSeatClick(0, student.id);
+                                        }}
+                                        className="cursor-pointer"
+                                    >
                                         {boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
                                     </Badge>
                                 </TableCell>
