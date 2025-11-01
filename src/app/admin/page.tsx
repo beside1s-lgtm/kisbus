@@ -1646,18 +1646,16 @@ const StudentManagementTab = ({
             const pairs: [number, number][] = [];
             const numRows = Math.ceil(capacity / 4);
         
-            if (capacity === 16) {
-                // Corrected logic for 16-seater based on 4-column layout
-                pairs.push([1, 2]);
-                pairs.push([4, 5]);
-                pairs.push([7, 8]);
-                pairs.push([10, 11]);
-                pairs.push([13, 14]);
-                pairs.push([15, 16]); // Add the pair for the last row
-                // Individual seats: 3, 6, 9, 12 can be used for single students
-            } else {
-                for (let row = 0; row < numRows; row++) {
-                    const base = row * 4 + 1;
+            for (let row = 0; row < numRows; row++) {
+                const base = row * 4 + 1;
+                if (capacity === 16) {
+                    if (base < 13) { // Rows 1-3 for 16-seater
+                       if(base === 1 || base === 4 || base === 7 || base === 10) pairs.push([base, base+1]);
+                    } else if (base === 13) { // Last row of 16-seater
+                        pairs.push([13, 14]);
+                        pairs.push([15, 16]);
+                    }
+                } else { // For 29 and 45 seaters
                     if (base + 1 <= capacity && !((capacity === 45 && base > 40) || (capacity === 29 && base > 24))) pairs.push([base, base + 1]);
                     if (base + 2 <= capacity && base + 3 <= capacity && !((capacity === 45 && base + 2 > 40) || (capacity === 29 && base + 2 > 24))) pairs.push([base + 2, base + 3]);
                 }
