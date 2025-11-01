@@ -1644,21 +1644,23 @@ const StudentManagementTab = ({
         
         const getSeatPairs = (capacity: number): [number, number][] => {
             const pairs: [number, number][] = [];
-            if (capacity === 16) {
-                for (let row = 0; row < 4; row++) {
-                    const base = row * 4 + 1;
-                    if (base === 13) continue;
-                    pairs.push([base, base + 1]);
-                }
-                 pairs.push([10,11]);
-                 pairs.push([12,13]);
-                 return pairs.filter(p => p[0] !== 3 && p[1] !== 3 && p[0] !== 6 && p[1] !== 6 && p[0] !== 9 && p[1] !== 9);
-            }
             const numRows = Math.ceil(capacity / 4);
-            for (let row = 0; row < numRows; row++) {
-                const base = row * 4 + 1;
-                if (base + 1 <= capacity && !((capacity === 45 && base > 40) || (capacity === 29 && base > 24))) pairs.push([base, base + 1]);
-                if (base + 2 <= capacity && base + 3 <= capacity && !((capacity === 45 && base + 2 > 40) || (capacity === 29 && base + 2 > 24))) pairs.push([base + 2, base + 3]);
+        
+            if (capacity === 16) {
+                // Corrected logic for 16-seater based on 4-column layout
+                pairs.push([1, 2]);
+                pairs.push([4, 5]);
+                pairs.push([7, 8]);
+                pairs.push([10, 11]);
+                pairs.push([13, 14]);
+                pairs.push([15, 16]); // Add the pair for the last row
+                // Individual seats: 3, 6, 9, 12 can be used for single students
+            } else {
+                for (let row = 0; row < numRows; row++) {
+                    const base = row * 4 + 1;
+                    if (base + 1 <= capacity && !((capacity === 45 && base > 40) || (capacity === 29 && base > 24))) pairs.push([base, base + 1]);
+                    if (base + 2 <= capacity && base + 3 <= capacity && !((capacity === 45 && base + 2 > 40) || (capacity === 29 && base + 2 > 24))) pairs.push([base + 2, base + 3]);
+                }
             }
             return pairs;
         };
