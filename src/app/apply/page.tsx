@@ -36,6 +36,7 @@ export default function ApplyPage() {
     const [grade, setGrade] = useState('');
     const [studentClass, setStudentClass] = useState('');
     const [gender, setGender] = useState<'Male' | 'Female'>('Male');
+    const [contact, setContact] = useState('');
     
     const [morningDestinationId, setMorningDestinationId] = useState<string | null>(null);
     const [useCustomMorningDest, setUseCustomMorningDest] = useState(false);
@@ -104,6 +105,7 @@ export default function ApplyPage() {
             grade: grade.trim(),
             class: studentClass.trim(),
             gender,
+            contact: contact.trim(),
         };
         
         try {
@@ -141,6 +143,7 @@ export default function ApplyPage() {
                     grade: grade.trim(),
                     class: studentClass.trim(),
                     gender,
+                    contact: contact.trim(),
                     morningDestinationId: updateData.morningDestinationId || null,
                     afternoonDestinationId: updateData.afternoonDestinationId || null,
                     afterSchoolDestinations: existingStudent?.afterSchoolDestinations || {},
@@ -222,6 +225,7 @@ export default function ApplyPage() {
             grade: grade.trim(),
             class: studentClass.trim(),
             gender,
+            contact: contact.trim(),
             afterSchoolDestinations: finalDestinations,
             suggestedAfterSchoolDestinations: finalSuggestedDests,
             applicationStatus: 'pending'
@@ -237,6 +241,7 @@ export default function ApplyPage() {
                     grade: grade.trim(),
                     class: studentClass.trim(),
                     gender,
+                    contact: contact.trim(),
                     morningDestinationId: existingStudent?.morningDestinationId || null,
                     afternoonDestinationId: existingStudent?.afternoonDestinationId || null,
                     afterSchoolDestinations: finalDestinations,
@@ -287,6 +292,10 @@ export default function ApplyPage() {
                             <div className="space-y-2">
                                 <Label htmlFor="name">{t('student.name')}</Label>
                                 <Input id="name" placeholder={t('student.name_placeholder')} required value={name} onChange={e => setName(e.target.value)} />
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="contact">{t('student.contact')}</Label>
+                                <Input id="contact" placeholder={t('student.contact_placeholder')} value={contact} onChange={e => setContact(e.target.value)} />
                             </div>
                         </div>
                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

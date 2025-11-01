@@ -1649,8 +1649,8 @@ const StudentManagementTab = ({
             for (let row = 0; row < numRows; row++) {
                 const base = row * 4 + 1;
                 if (capacity === 16) {
-                    if (base < 13) { // Rows 1-3 for 16-seater
-                       if(base === 1 || base === 4 || base === 7 || base === 10) pairs.push([base, base+1]);
+                    if(base === 1 || base === 5 || base === 9) { // Rows 1-3 for 16-seater
+                       pairs.push([base, base+1]);
                     } else if (base === 13) { // Last row of 16-seater
                         pairs.push([13, 14]);
                         pairs.push([15, 16]);
@@ -1712,8 +1712,8 @@ const StudentManagementTab = ({
     }, [selectedBus, students, currentRoute, handleSeatUpdate, toast, t, selectedDay, selectedRouteType, setCopySeatingDialogOpen]);
     
     const handleDownloadStudentTemplate = () => {
-        const headers = "학생 이름,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
-        const example = "김민준,G1,C1,Male,강남역,서초역,양재역,양재역,양재역,양재역,양재역,";
+        const headers = "학생 이름,연락처,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
+        const example = "김민준,010-1234-5678,G1,C1,Male,강남역,서초역,양재역,양재역,양재역,양재역,양재역,";
         const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -1774,6 +1774,7 @@ const StudentManagementTab = ({
                     const name = (row['학생 이름'] || '').trim();
                     const grade = (row['학년'] || '').trim();
                     const studentClass = (row['반'] || '').trim();
+                    const contact = (row['연락처'] || '').trim();
                     
                     if (!name || !grade || !studentClass) return;
     
@@ -1795,6 +1796,7 @@ const StudentManagementTab = ({
                         name: name,
                         grade: grade,
                         class: studentClass,
+                        contact: contact,
                         gender: (row['성별'] || 'Male').trim() as 'Male' | 'Female',
                         morningDestinationId: morningDestName ? findDestId(morningDestName) : null,
                         afternoonDestinationId: afternoonDestName ? findDestId(afternoonDestName) : null,
@@ -1842,7 +1844,7 @@ const StudentManagementTab = ({
     };
     
      const handleAddStudent = async () => {
-        const { name, grade, class: studentClass, gender, morningDestinationId, afternoonDestinationId, afterSchoolDestinations } = newStudentForm;
+        const { name, grade, class: studentClass, gender, contact, morningDestinationId, afternoonDestinationId, afterSchoolDestinations } = newStudentForm;
         if (!name || !grade || !studentClass || !gender) {
             toast({ title: t('error'), description: t('admin.student_management.add_student.validation_error'), variant: "destructive" });
             return;
@@ -1853,6 +1855,7 @@ const StudentManagementTab = ({
                 grade, 
                 class: studentClass, 
                 gender, 
+                contact: contact || null,
                 morningDestinationId: morningDestinationId || null, 
                 afternoonDestinationId: afternoonDestinationId || null,
                 afterSchoolDestinations: afterSchoolDestinations || {},
@@ -1881,7 +1884,7 @@ const StudentManagementTab = ({
                 setFilteredUnassignedStudents(prev => [...prev, newStudent].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
             }
 
-            setNewStudentForm({ name: '', grade: '', class: '', gender: 'Male', morningDestinationId: null, afternoonDestinationId: null, afterSchoolDestinations: {} });
+            setNewStudentForm({ name: '', grade: '', class: '', contact: '', gender: 'Male', morningDestinationId: null, afternoonDestinationId: null, afterSchoolDestinations: {} });
             toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.student_management.add_student.error'), variant: "destructive" });
@@ -1924,22 +1927,24 @@ const StudentManagementTab = ({
         }
     }, [students, setStudents, selectedGlobalStudent, toast, t]);
     
-    const handleGenderChange = useCallback(async (studentId: string, newGender: 'Male' | 'Female') => {
+    const handleStudentInfoChange = useCallback(async (studentId: string, field: 'gender' | 'contact', value: string) => {
         const student = students.find(s => s.id === studentId);
-        if (!student || student.gender === newGender) return;
+        if (!student) return;
+
+        const updateData: Partial<Student> = { [field]: value };
     
         try {
-            await updateStudent(studentId, { gender: newGender });
+            await updateStudent(studentId, updateData);
             
-            const updatedStudent = { ...student, gender: newGender };
+            const updatedStudent = { ...student, [field]: value };
             setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? updatedStudent : s));
             if (selectedGlobalStudent?.id === studentId) {
                 setSelectedGlobalStudent(updatedStudent);
             }
             
-            toast({ title: t('success'), description: t('admin.student_management.search.gender_update_success') });
+            toast({ title: t('success'), description: t('admin.student_management.search.info_update_success') });
         } catch (error) {
-            toast({ title: t('error'), description: t('admin.student_management.search.gender_update_error'), variant: "destructive" });
+            toast({ title: t('error'), description: t('admin.student_management.search.info_update_error'), variant: "destructive" });
         }
     }, [students, setStudents, selectedGlobalStudent, toast, t]);
 
@@ -2112,6 +2117,10 @@ const StudentManagementTab = ({
                                             <div className="grid grid-cols-4 items-center gap-4">
                                                 <Label htmlFor="name" className="text-right">{t('student.name')}</Label>
                                                 <Input id="name" value={newStudentForm.name || ''} onChange={e => setNewStudentForm(p => ({...p, name: e.target.value}))} className="col-span-3" />
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="contact" className="text-right">{t('student.contact')}</Label>
+                                                <Input id="contact" value={newStudentForm.contact || ''} onChange={e => setNewStudentForm(p => ({...p, contact: e.target.value}))} className="col-span-3" />
                                             </div>
                                             <div className="grid grid-cols-4 items-center gap-4">
                                                 <Label htmlFor="grade" className="text-right">{t('student.grade')}</Label>
@@ -2346,10 +2355,19 @@ const StudentManagementTab = ({
                                         <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>{t('close')}</Button>
                                     </div>
                                     <div className="space-y-2">
+                                        <Label>{t('student.contact')}</Label>
+                                        <Input
+                                            value={selectedGlobalStudent.contact || ''}
+                                            onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, contact: e.target.value} : null)}
+                                            onBlur={(e) => handleStudentInfoChange(selectedGlobalStudent.id, 'contact', e.target.value)}
+                                            placeholder="연락처 입력"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
                                         <Label>{t('student.gender')}</Label>
                                         <Select 
                                             value={selectedGlobalStudent.gender} 
-                                            onValueChange={(v) => handleGenderChange(selectedGlobalStudent.id, v as 'Male' | 'Female')}
+                                            onValueChange={(v) => handleStudentInfoChange(selectedGlobalStudent.id, 'gender', v)}
                                         >
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>

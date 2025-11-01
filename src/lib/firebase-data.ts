@@ -142,6 +142,9 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         if (student.afternoonDestinationId === undefined) {
             updateData.afternoonDestinationId = existingStudentData.afternoonDestinationId;
         }
+        if (student.contact === undefined) {
+            updateData.contact = existingStudentData.contact;
+        }
         
         if (student.suggestedMorningDestination) updateData.morningDestinationId = null;
         if (student.suggestedAfternoonDestination) updateData.afternoonDestinationId = null;
