@@ -1036,7 +1036,9 @@ const BusConfigurationTab = ({
                             <CardHeader>
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <CardTitle>{selectedBus.name} - {t(`day.${selectedDay.toLowerCase()}`)} {t(`route_type.${selectedRouteType.toLowerCase()}`)}</CardTitle>
+                                        <CardTitle>{selectedBus.name} - {t(`day.${selectedDay.toLowerCase()}`)} {
+                                            selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`)
+                                        }</CardTitle>
                                         <CardDescription>{t('admin.bus_config.route.stops_description')}</CardDescription>
                                     </div>
                                     <div className="flex gap-1">
@@ -1120,7 +1122,7 @@ const BusConfigurationTab = ({
                     <Card>
                         <CardHeader>
                             <CardTitle>{t('admin.teacher_assignment.title')}</CardTitle>
-                            <CardDescription>{t('admin.teacher_assignment.description', { busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })}</CardDescription>
+                            <CardDescription>{t('admin.teacher_assignment.description', { busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`) })}</CardDescription>
                         </CardHeader>
                             <CardContent>
                             {assignedTeachers.length > 0 ? (
@@ -2036,7 +2038,7 @@ const StudentManagementTab = ({
                                         <DialogTrigger asChild>
                                             <Button variant="outline" size="sm">
                                                 <Copy />
-                                                <span className="sr-only sm:not-sr-only sm:ml-2">{t('copy')}</span>
+                                                <span className="sr-only sm:not-sr-only sm:ml-2 break-keep">{t('copy')}</span>
                                             </Button>
                                         </DialogTrigger>
                                         <DialogContent>
@@ -2100,7 +2102,7 @@ const StudentManagementTab = ({
                                     <AlertDialogTrigger asChild>
                                         <Button variant="outline" size="sm">
                                             <RotateCcw />
-                                            <span className="sr-only sm:not-sr-only sm:ml-2">{t('reset')}</span>
+                                            <span className="sr-only sm:not-sr-only sm:ml-2 break-keep">{t('reset')}</span>
                                         </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -2118,13 +2120,13 @@ const StudentManagementTab = ({
                                 </AlertDialog>
                                 <Button variant="outline" size="sm" onClick={randomizeSeating}>
                                     <Shuffle />
-                                    <span className="sr-only sm:not-sr-only sm:ml-2">{t('admin.student_management.seat.random_assign_button')}</span>
+                                    <span className="sr-only sm:not-sr-only sm:ml-2 break-keep">{t('admin.student_management.seat.random_assign_button')}</span>
                                 </Button>
                                 <Dialog>
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="sm">
                                             <UserPlus />
-                                            <span className="sr-only sm:not-sr-only sm:ml-2">{t('add')}</span>
+                                            <span className="sr-only sm:not-sr-only sm:ml-2 break-keep">{t('add')}</span>
                                         </Button>
                                     </DialogTrigger>
                                     <DialogContent>
