@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input';
 import { LostAndFound } from './lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
 import { Label } from '@/components/ui/label';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
@@ -68,6 +69,8 @@ export function TeacherPageContent() {
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
+  const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
+
 
   const { toast } = useToast();
 
@@ -577,7 +580,7 @@ export function TeacherPageContent() {
                     <Button
                         variant={absentStudentIds.includes(selectedStudent.id) ? "destructive" : "outline"}
                         className="w-full"
-                        onClick={() => toggleAbsence(selectedStudent)}
+                        onClick={() => setStudentToConfirmAbsence(selectedStudent)}
                     >
                         <UserX className="mr-2" /> {t('teacher_page.mark_absent')}
                     </Button>
@@ -616,8 +619,84 @@ export function TeacherPageContent() {
 
   return (
     <MainLayout headerContent={headerContent}>
+        <AlertDialog
+            open={!!studentToConfirmAbsence}
+            onOpenChange={(open) => !open && setStudentToConfirmAbsence(null)}
+        >
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>결석 처리 확인</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {studentToConfirmAbsence ? `'${formatStudentName(studentToConfirmAbsence)}' 학생을 결석 처리하시겠습니까?` : ''}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={() => {
+                            if (studentToConfirmAbsence) {
+                                toggleAbsence(studentToConfirmAbsence);
+                            }
+                            setStudentToConfirmAbsence(null);
+                        }}
+                    >
+                        확인
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 flex flex-col gap-6">
+                <div className="lg:hidden">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
+                        </CardHeader>
+                        <CardContent className='max-h-[60vh] overflow-y-auto'>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>{t('student.name')}</TableHead>
+                                        <TableHead>{t('teacher_page.status')}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {studentsOnCurrentRoute.map(student => (
+                                        <TableRow 
+                                            key={student.id} 
+                                            onClick={() => setLastClickedStudentId(student.id)}
+                                            className="cursor-pointer"
+                                        >
+                                            <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
+                                            <TableCell>
+                                                <Badge 
+                                                    variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleSeatClick(0, student.id);
+                                                    }}
+                                                    className="cursor-pointer"
+                                                >
+                                                    {boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+                 <div className="lg:hidden">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {sidePanel}
+                        </CardContent>
+                    </Card>
+                </div>
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center">
@@ -664,7 +743,7 @@ export function TeacherPageContent() {
                     />
                 </div>
             </div>
-            <div className="lg:col-span-1 flex flex-col gap-6">
+            <div className="hidden lg:flex lg:flex-col lg:gap-6">
                  <Card>
                     <CardHeader>
                         <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
@@ -711,10 +790,10 @@ export function TeacherPageContent() {
                         {sidePanel}
                     </CardContent>
                 </Card>
-                <div className="hidden lg:block">
+                <div>
                      <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
                 </div>
-                 <div className="hidden lg:block">
+                 <div>
                     <LostAndFound 
                       lostItems={lostItems}
                       setLostItems={setLostItems}
