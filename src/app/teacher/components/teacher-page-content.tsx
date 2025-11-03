@@ -247,9 +247,7 @@ export function TeacherPageContent() {
   useEffect(() => {
     if (currentRoute && groupLeaderRecords) {
         const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
-        if (recordsToSave.length > 0) {
-            saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
-        }
+        saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
     }
   }, [groupLeaderRecords, currentRoute]);
 
