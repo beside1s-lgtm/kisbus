@@ -163,7 +163,7 @@ export function BusSeatMap({
                     {student ? (
                       <>
                         {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && <Crown className="absolute w-3 h-3 -top-1.5 -right-1.5 text-yellow-500" />}
-                        <span className="text-xs font-medium text-center break-words leading-tight">{formatStudentName(student)}</span>
+                        <span className="text-xs font-medium text-center break-keep leading-tight">{formatStudentName(student)}</span>
                       </>
                     ) : (
                       <UserIcon className="w-4 h-4 text-muted-foreground" />
