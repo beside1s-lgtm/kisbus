@@ -616,10 +616,56 @@ export function TeacherPageContent() {
 
   return (
     <MainLayout headerContent={headerContent}>
-       <div className="flex flex-col lg:flex-row gap-6">
-        <div className="flex flex-col gap-6 lg:w-1/3">
-            <div className="lg:order-1">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 flex flex-col gap-6">
                 <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline flex items-center">
+                            {t('teacher_page.seat_map_title')}
+                            {assignedTeachers.length > 0 && (
+                                <span className="text-sm font-medium text-muted-foreground ml-2">
+                                - {assignedTeachers.map(t => t.name).join(', ')} {t('teacher_page.assigned_teacher_suffix')}
+                                </span>
+                            )}
+                        </CardTitle>
+                        <CardDescription className="hidden md:block">{t('teacher_page.seat_map_description')}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {selectedBus && currentRoute ? (
+                            <BusSeatMap 
+                                bus={selectedBus}
+                                seating={currentRoute.seating}
+                                students={students}
+                                destinations={destinations}
+                                onSeatClick={handleSeatClick}
+                                onSeatContextMenu={handleSeatContextMenu}
+                                absentStudentIds={absentStudentIds}
+                                boardedStudentIds={boardedStudentIds}
+                                highlightedSeatNumber={selectedSeat?.seatNumber}
+                                routeType={selectedRouteType}
+                                dayOfWeek={selectedDay}
+                                groupLeaderRecords={groupLeaderRecords}
+                            />
+                        ) : (
+                            <div className="text-center py-10 text-muted-foreground">
+                                {filteredBuses.length === 0 && !loading ? t('teacher_page.no_assigned_routes') : t('teacher_page.no_route_info') }
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+                <div className="lg:hidden">
+                    <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
+                </div>
+                 <div className="lg:hidden">
+                    <LostAndFound 
+                      lostItems={lostItems}
+                      setLostItems={setLostItems}
+                      buses={buses}
+                    />
+                </div>
+            </div>
+            <div className="lg:col-span-1 flex flex-col gap-6">
+                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
                     </CardHeader>
@@ -657,8 +703,6 @@ export function TeacherPageContent() {
                         </Table>
                     </CardContent>
                 </Card>
-            </div>
-            <div className="lg:order-2">
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle>
@@ -667,59 +711,18 @@ export function TeacherPageContent() {
                         {sidePanel}
                     </CardContent>
                 </Card>
-            </div>
-             <div className="lg:order-4">
-                <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
-            </div>
-            <div className="lg:order-3">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline flex items-center">
-                            {t('teacher_page.seat_map_title')}
-                            {assignedTeachers.length > 0 && (
-                                <span className="text-sm font-medium text-muted-foreground ml-2">
-                                - {assignedTeachers.map(t => t.name).join(', ')} {t('teacher_page.assigned_teacher_suffix')}
-                                </span>
-                            )}
-                        </CardTitle>
-                        <CardDescription className="hidden md:block">{t('teacher_page.seat_map_description')}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {selectedBus && currentRoute ? (
-                            <BusSeatMap 
-                                bus={selectedBus}
-                                seating={currentRoute.seating}
-                                students={students}
-                                destinations={destinations}
-                                onSeatClick={handleSeatClick}
-                                onSeatContextMenu={handleSeatContextMenu}
-                                absentStudentIds={absentStudentIds}
-                                boardedStudentIds={boardedStudentIds}
-                                highlightedSeatNumber={selectedSeat?.seatNumber}
-                                routeType={selectedRouteType}
-                                dayOfWeek={selectedDay}
-                                groupLeaderRecords={groupLeaderRecords}
-                            />
-                        ) : (
-                            <div className="text-center py-10 text-muted-foreground">
-                                {filteredBuses.length === 0 && !loading ? t('teacher_page.no_assigned_routes') : t('teacher_page.no_route_info') }
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                <div className="hidden lg:block">
+                     <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
+                </div>
+                 <div className="hidden lg:block">
+                    <LostAndFound 
+                      lostItems={lostItems}
+                      setLostItems={setLostItems}
+                      buses={buses}
+                    />
+                </div>
             </div>
         </div>
-        <div className="lg:w-2/3">
-           
-        </div>
-        </div>
-      <div className="mt-6">
-          <LostAndFound 
-              lostItems={lostItems}
-              setLostItems={setLostItems}
-              buses={buses}
-          />
-      </div>
     </MainLayout>
   );
 }
