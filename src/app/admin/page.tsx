@@ -2012,6 +2012,12 @@ const StudentManagementTab = ({
         );
     }
 
+    const unassignedTitle = t('admin.student_management.unassigned.title', {
+        routeType: selectedRouteType === 'AfterSchool'
+            ? t('route_type.after_school')
+            : t(`route_type.${selectedRouteType.toLowerCase()}`)
+    });
+
     return (
         <div className="space-y-6" onContextMenu={handleSeatContextMenu}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -2244,7 +2250,7 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-20 h-fit">
                      <Card>
                         <CardHeader>
-                            <CardTitle className="font-headline">{t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })}</CardTitle>
+                            <CardTitle className="font-headline">{unassignedTitle}</CardTitle>
                             <CardDescription>
                                 {t('admin.student_management.unassigned.description')}
                             </CardDescription>
