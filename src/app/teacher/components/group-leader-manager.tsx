@@ -1,6 +1,6 @@
 
 'use client';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { GroupLeaderRecord } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { differenceInDays, format } from 'date-fns';
 
 interface GroupLeaderManagerProps {
     records: GroupLeaderRecord[];
@@ -30,6 +31,23 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
     setRecords([]);
   }
 
+  const processedRecords = useMemo(() => {
+    const today = new Date();
+    return records.map(record => {
+      if (record.endDate === null) {
+        const startDate = new Date(record.startDate);
+        const days = differenceInDays(today, startDate) + 1;
+        return { ...record, days };
+      }
+      return record;
+    }).sort((a, b) => {
+        if (a.endDate === null) return -1;
+        if (b.endDate === null) return 1;
+        return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+    });
+  }, [records]);
+
+
   return (
     <Card>
       <CardHeader>
@@ -41,7 +59,7 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
         </CardDescription>
       </CardHeader>
       <CardContent className="max-h-[40vh] overflow-y-auto">
-        {records.length > 0 ? (
+        {processedRecords.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
@@ -52,7 +70,7 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.map((record) => (
+              {processedRecords.map((record) => (
                 <TableRow key={record.studentId + record.startDate}>
                   <TableCell>{record.name}</TableCell>
                   <TableCell>{record.startDate}</TableCell>

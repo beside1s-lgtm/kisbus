@@ -245,7 +245,7 @@ export function TeacherPageContent() {
   }, [currentRoute]);
   
   useEffect(() => {
-    if (currentRoute && groupLeaderRecords) {
+    if (currentRoute) {
         const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
         saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
     }
@@ -644,57 +644,7 @@ export function TeacherPageContent() {
             </AlertDialogContent>
         </AlertDialog>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 flex flex-col gap-6">
-                <div className="lg:hidden">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
-                        </CardHeader>
-                        <CardContent className='max-h-[60vh] overflow-y-auto'>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>{t('student.name')}</TableHead>
-                                        <TableHead>{t('teacher_page.status')}</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {studentsOnCurrentRoute.map(student => (
-                                        <TableRow 
-                                            key={student.id} 
-                                            onClick={() => setLastClickedStudentId(student.id)}
-                                            className="cursor-pointer"
-                                        >
-                                            <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
-                                            <TableCell>
-                                                <Badge 
-                                                    variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleSeatClick(0, student.id);
-                                                    }}
-                                                    className="cursor-pointer"
-                                                >
-                                                    {boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </div>
-                 <div className="lg:hidden">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {sidePanel}
-                        </CardContent>
-                    </Card>
-                </div>
+            <div className="lg:col-span-2 flex flex-col gap-6 order-last lg:order-first">
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center">
@@ -730,7 +680,7 @@ export function TeacherPageContent() {
                         )}
                     </CardContent>
                 </Card>
-                <div className="lg:hidden">
+                 <div className="lg:hidden">
                     <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
                 </div>
                  <div className="lg:hidden">
@@ -797,6 +747,58 @@ export function TeacherPageContent() {
                       setLostItems={setLostItems}
                       buses={buses}
                     />
+                </div>
+            </div>
+             <div className="contents lg:hidden">
+                <div className="order-first lg:order-none">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
+                        </CardHeader>
+                        <CardContent className='max-h-[60vh] overflow-y-auto'>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>{t('student.name')}</TableHead>
+                                        <TableHead>{t('teacher_page.status')}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {studentsOnCurrentRoute.map(student => (
+                                        <TableRow 
+                                            key={student.id} 
+                                            onClick={() => setLastClickedStudentId(student.id)}
+                                            className="cursor-pointer"
+                                        >
+                                            <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
+                                            <TableCell>
+                                                <Badge 
+                                                    variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleSeatClick(0, student.id);
+                                                    }}
+                                                    className="cursor-pointer"
+                                                >
+                                                    {boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+                <div className="lg:order-none">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {sidePanel}
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </div>
