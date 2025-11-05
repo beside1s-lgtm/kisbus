@@ -1576,7 +1576,7 @@ const StudentManagementTab = ({
 
         const emptySeating = generateInitialSeating(selectedBus.capacity);
         await handleSeatUpdate(emptySeating);
-        toast({ title: t('success'), description: t('admin.student_management.seat.reset.success', {busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: t(`route_type.${selectedRouteType.toLowerCase()}`)}) });
+        toast({ title: t('success'), description: t('admin.student_management.seat.reset.success', {busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`)}) });
     }, [selectedBus, currentRoute, handleSeatUpdate, toast, t, selectedDay, selectedRouteType]);
 
     const handleCopySeating = useCallback(async () => {
@@ -1725,6 +1725,39 @@ const StudentManagementTab = ({
         link.click();
         document.body.removeChild(link);
     };
+
+    const handleDownloadAllStudents = useCallback(() => {
+        if (students.length === 0) {
+            toast({ title: t('notice'), description: "다운로드할 학생이 없습니다."});
+            return;
+        }
+
+        const headers = "학생 이름,연락처,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
+        
+        const destinationMap = new Map<string, string>();
+        destinations.forEach(d => destinationMap.set(d.id, d.name));
+
+        const csvData = students.map(s => {
+            const morningDest = s.morningDestinationId ? destinationMap.get(s.morningDestinationId) || '' : '';
+            const afternoonDest = s.afternoonDestinationId ? destinationMap.get(s.afternoonDestinationId) || '' : '';
+            
+            const afterSchoolDestRow = days.map(day => {
+                const destId = s.afterSchoolDestinations?.[day];
+                return destId ? destinationMap.get(destId) || '' : '';
+            }).join(',');
+
+            return [s.name, s.contact || '', s.grade, s.class, s.gender, morningDest, afternoonDest, afterSchoolDestRow].join(',');
+        }).join('\n');
+
+        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + csvData;
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `all_students.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, [students, destinations, days, toast, t]);
 
     const handleDownloadUnassignedStudents = useCallback(() => {
         if (filteredUnassignedStudents.length === 0) {
@@ -2027,7 +2060,7 @@ const StudentManagementTab = ({
                     <Card>
                         <CardHeader className="flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-2">
                             <div>
-                               <CardTitle className="font-headline">{t('admin.student_management.seat.title')}</CardTitle>
+                               <CardTitle className="font-headline"><span className="break-keep">{t('admin.student_management.seat.title')}</span></CardTitle>
                                <CardDescription className="hidden md:block">
                                 {selectedSeat?.studentId ? t('admin.student_management.seat.description_selected') : t('admin.student_management.seat.description_initial')}
                                </CardDescription>
@@ -2038,7 +2071,7 @@ const StudentManagementTab = ({
                                         <DialogTrigger asChild>
                                             <Button variant="outline" size="sm">
                                                 <Copy />
-                                                <span className="sr-only sm:not-sr-only sm:ml-2 break-keep">{t('copy')}</span>
+                                                <span className="sr-only sm:not-sr-only sm:ml-2"><span className='break-keep'>{t('copy')}</span></span>
                                             </Button>
                                         </DialogTrigger>
                                         <DialogContent>
@@ -2102,7 +2135,7 @@ const StudentManagementTab = ({
                                     <AlertDialogTrigger asChild>
                                         <Button variant="outline" size="sm">
                                             <RotateCcw />
-                                            <span className="sr-only sm:not-sr-only sm:ml-2 break-keep">{t('reset')}</span>
+                                            <span className="sr-only sm:not-sr-only sm:ml-2"><span className="break-keep">{t('reset')}</span></span>
                                         </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -2120,13 +2153,13 @@ const StudentManagementTab = ({
                                 </AlertDialog>
                                 <Button variant="outline" size="sm" onClick={randomizeSeating}>
                                     <Shuffle />
-                                    <span className="sr-only sm:not-sr-only sm:ml-2 break-keep">{t('admin.student_management.seat.random_assign_button')}</span>
+                                    <span className="sr-only sm:not-sr-only sm:ml-2"><span className="break-keep">{t('admin.student_management.seat.random_assign_button')}</span></span>
                                 </Button>
                                 <Dialog>
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="sm">
                                             <UserPlus />
-                                            <span className="sr-only sm:not-sr-only sm:ml-2 break-keep">{t('add')}</span>
+                                            <span className="sr-only sm:not-sr-only sm:ml-2"><span className="break-keep">{t('add')}</span></span>
                                         </Button>
                                     </DialogTrigger>
                                     <DialogContent>
@@ -2270,10 +2303,7 @@ const StudentManagementTab = ({
                                 />
                             </div>
                              <div className="flex justify-end mb-2 gap-2 flex-wrap">
-                                 <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.student_management.student_template')}</Button>
-                                 <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> {t('admin.student_management.unassigned.download_list')}</Button>
-                                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
-                                 <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
+                                <Button size="sm" variant="outline" onClick={handleDownloadUnassignedStudents}><Download className="mr-2 h-4 w-4" /> {t('admin.student_management.unassigned.download_list')}</Button>
                                  <Button size="sm" variant="outline" onClick={handleToggleSelectAll}>
                                     {selectedStudentIds.size === filteredUnassignedStudents.length && filteredUnassignedStudents.length > 0 ? t('deselect_all') : t('select_all')}
                                  </Button>
@@ -2344,6 +2374,12 @@ const StudentManagementTab = ({
                                         </CardContent>
                                     </Card>
                                 )}
+                            </div>
+                            <div className="flex justify-end mb-2 gap-2 flex-wrap">
+                                <Button size="sm" variant="outline" onClick={handleDownloadAllStudents}><Download className="mr-2 h-4 w-4" /> 전체 학생 명단</Button>
+                                <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.student_management.student_template')}</Button>
+                                <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
+                                <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
                             </div>
                             {selectedGlobalStudent && (
                                 <div className="space-y-4 p-4 border rounded-md">
@@ -2448,7 +2484,7 @@ const StudentManagementTab = ({
                                             {assignedRoutesForSelectedStudent.length > 0 ? (
                                                 assignedRoutesForSelectedStudent.map(route => {
                                                     const busName = buses.find(b => b.id === route.busId)?.name || t('unknown_bus');
-                                                    const routeTypeName = t(`route_type.${route.type.toLowerCase()}`);
+                                                    const routeTypeName = route.type === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${route.type.toLowerCase()}`);
                                                     return (
                                                         <div key={route.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
                                                             <p className="text-sm">{busName} - {t(`day.${route.dayOfWeek.toLowerCase()}`)} {routeTypeName}</p>
