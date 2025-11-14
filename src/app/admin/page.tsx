@@ -1731,25 +1731,36 @@ const StudentManagementTab = ({
             toast({ title: t('notice'), description: "다운로드할 학생이 없습니다."});
             return;
         }
-
-        const headers = "학생 이름,연락처,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
+    
+        const headers = ["학생 이름","연락처","학년","반","성별","등교 목적지","하교 목적지","방과후 목적지(월요일)","방과후 목적지(화요일)","방과후 목적지(수요일)","방과후 목적지(목요일)","방과후 목적지(금요일)","방과후 목적지(토요일)"];
         
         const destinationMap = new Map<string, string>();
         destinations.forEach(d => destinationMap.set(d.id, d.name));
-
-        const csvData = students.map(s => {
-            const morningDest = s.morningDestinationId ? destinationMap.get(s.morningDestinationId) || '' : '';
-            const afternoonDest = s.afternoonDestinationId ? destinationMap.get(s.afternoonDestinationId) || '' : '';
+    
+        const csvRows = students.map(s => {
+            const escapeCsv = (val: string | null | undefined) => `"${(val || '').replace(/"/g, '""')}"`;
+    
+            const morningDest = s.morningDestinationId ? destinationMap.get(s.morningDestinationId) : '';
+            const afternoonDest = s.afternoonDestinationId ? destinationMap.get(s.afternoonDestinationId) : '';
             
             const afterSchoolDestRow = days.map(day => {
                 const destId = s.afterSchoolDestinations?.[day];
-                return destId ? destinationMap.get(destId) || '' : '';
-            }).join(',');
-
-            return [s.name, s.contact || '', s.grade, s.class, s.gender, morningDest, afternoonDest, afterSchoolDestRow].join(',');
-        }).join('\n');
-
-        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + csvData;
+                return destId ? destinationMap.get(destId) : '';
+            });
+    
+            return [
+                escapeCsv(s.name),
+                escapeCsv(s.contact),
+                escapeCsv(s.grade),
+                escapeCsv(s.class),
+                escapeCsv(s.gender),
+                escapeCsv(morningDest),
+                escapeCsv(afternoonDest),
+                ...afterSchoolDestRow.map(escapeCsv)
+            ].join(',');
+        });
+    
+        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + [headers.join(','), ...csvRows].join('\n');
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -1757,7 +1768,7 @@ const StudentManagementTab = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }, [students, destinations, days, toast, t]);
+    }, [students, destinations, days, toast]);
 
     const handleDownloadUnassignedStudents = useCallback(() => {
         if (filteredUnassignedStudents.length === 0) {
@@ -2071,7 +2082,7 @@ const StudentManagementTab = ({
                                         <DialogTrigger asChild>
                                             <Button variant="outline" size="sm">
                                                 <Copy />
-                                                <span className="sr-only sm:not-sr-only sm:ml-2"><span className='break-keep'>{t('copy')}</span></span>
+                                                <span className="sr-only sm:not-sr-only sm:ml-2"><span className="break-keep">{t('copy')}</span></span>
                                             </Button>
                                         </DialogTrigger>
                                         <DialogContent>
