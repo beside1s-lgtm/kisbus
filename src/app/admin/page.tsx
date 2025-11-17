@@ -2139,11 +2139,10 @@ const StudentManagementTab = ({
         );
     }
 
-    const unassignedTitle = t('admin.student_management.unassigned.title', {
-        routeType: selectedRouteType === 'AfterSchool'
-            ? t('route_type.after_school')
-            : t(`route_type.${selectedRouteType.toLowerCase()}`)
-    });
+    const unassignedTitle = selectedRouteType === 'AfterSchool' 
+        ? t('admin.student_management.unassigned.title', { routeType: t('route_type.after_school') })
+        : t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) });
+
 
     return (
         <div className="space-y-6" onContextMenu={handleSeatContextMenu}>
