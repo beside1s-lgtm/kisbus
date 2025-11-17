@@ -306,6 +306,92 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
     );
 };
 
+const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>> }) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { toast } = useToast();
+    const { t } = useTranslation();
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const newTeachersData: NewTeacher[] = results.data.map((row: any) => ({
+                    name: (row['선생님 이름'] || row['name'] || '').trim()
+                })).filter(teacher => teacher.name);
+
+                if (newTeachersData.length === 0) {
+                    toast({ title: t('error'), description: t('admin.teacher_management.batch.validation_error'), variant: "destructive" });
+                    return;
+                }
+                const { dismiss } = toast({ title: t('processing'), description: t('admin.teacher_management.batch.processing') });
+                try {
+                    const addedTeachers = await addTeachersInBatch(newTeachersData);
+                    setTeachers(prev => [...prev, ...addedTeachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+                    dismiss();
+                    toast({ title: t('success'), description: t('admin.teacher_management.batch.success', { count: addedTeachers.length }) });
+                } catch (error) {
+                    dismiss();
+                    toast({ title: t('error'), description: t('admin.teacher_management.batch.error'), variant: "destructive" });
+                }
+            },
+            error: (error) => {
+                toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
+            }
+        });
+
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
+    
+    const handleDownloadTemplate = () => {
+        const headers = "선생님 이름";
+        const example = "홍길동";
+        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "teacher_template.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>{t('admin.teacher_management.title')}</CardTitle>
+                <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex justify-end gap-2 mb-4">
+                     <Button variant="outline" onClick={handleDownloadTemplate}><Download className="mr-2" /> {t('template')}</Button>
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+                </div>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {teachers.map(teacher => (
+                            <TableRow key={teacher.id}>
+                                <TableCell>{teacher.name}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
 const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes, onOpenChange }: { currentRoute: Route, allRoutes: Route[], teachers: Teacher[], setRoutes: React.Dispatch<React.SetStateAction<Route[]>>, onOpenChange: (open: boolean) => void }) => {
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
     const { toast } = useToast();
@@ -2658,6 +2744,124 @@ const AdminPageContent: React.FC<{
     );
 };
 
+const AdminPageFilter: React.FC<{
+    buses: Bus[];
+    routes: Route[];
+    destinations: Destination[];
+    selectedBusId: string | null;
+    setSelectedBusId: (id: string | null) => void;
+    selectedDay: DayOfWeek;
+    setSelectedDay: (day: DayOfWeek) => void;
+    selectedRouteType: RouteType;
+    setSelectedRouteType: (type: RouteType) => void;
+    days: DayOfWeek[];
+    filterConfiguredBusesOnly?: boolean;
+    showRouteStops?: boolean;
+}> = ({
+    buses,
+    routes,
+    destinations,
+    selectedBusId,
+    setSelectedBusId,
+    selectedDay,
+    setSelectedDay,
+    selectedRouteType,
+    setSelectedRouteType,
+    days,
+    filterConfiguredBusesOnly = false,
+    showRouteStops = false,
+}) => {
+    const { t } = useTranslation();
+
+    const filteredBuses = useMemo(() => {
+        if (!filterConfiguredBusesOnly) return buses;
+
+        const configuredBusIds = new Set<string>();
+        routes.forEach(route => {
+            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
+                configuredBusIds.add(route.busId);
+            }
+        });
+        return buses.filter(bus => configuredBusIds.has(bus.id));
+    }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
+
+    useEffect(() => {
+        if (filterConfiguredBusesOnly) {
+            if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
+                setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : null);
+            } else if (!selectedBusId && filteredBuses.length > 0) {
+                setSelectedBusId(filteredBuses[0].id);
+            }
+        } else {
+             if (!selectedBusId && buses.length > 0) {
+                setSelectedBusId(buses[0].id);
+            }
+        }
+    }, [filteredBuses, selectedBusId, setSelectedBusId, filterConfiguredBusesOnly, buses]);
+
+    const currentRouteStops = useMemo(() => {
+        if (!showRouteStops || !selectedBusId) return null;
+        const route = routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
+        if (!route || route.stops.length === 0) return t('no_route_info');
+        return route.stops.map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean).join(' -> ');
+    }, [showRouteStops, selectedBusId, routes, selectedDay, selectedRouteType, destinations, t]);
+
+    return (
+        <Card className="mb-6">
+            <CardContent className="flex flex-wrap items-end gap-4 p-4">
+                <div className="w-full sm:w-auto">
+                    <Label className="text-xs">{t('bus')}</Label>
+                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder={t('select_bus')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {filteredBuses.map((bus) => (
+                                <SelectItem key={bus.id} value={bus.id}>
+                                    {bus.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="w-full sm:w-auto">
+                    <Label className="text-xs">{t('day')}</Label>
+                    <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {days.map((day) => (
+                                <SelectItem key={day} value={day}>
+                                    {t(`day.${day.toLowerCase()}`)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="w-full sm:w-auto">
+                    <Label className="text-xs">{t('route')}</Label>
+                    <Select value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)}>
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
+                            <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
+                            <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                {showRouteStops && currentRouteStops && (
+                     <div className="flex-1 min-w-full sm:min-w-fit">
+                        <Label className="text-xs">{t('route')}</Label>
+                        <p className="text-sm p-2 bg-muted rounded-md truncate">{currentRouteStops}</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function AdminPage() {
     const { user, loading: authLoading } = useAuth();
