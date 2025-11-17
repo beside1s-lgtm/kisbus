@@ -2,7 +2,7 @@
 
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getBuses, getStudents, getRoutes, getDestinations, getLostItems, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
+import { onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onLostItemsUpdate, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -57,32 +57,20 @@ export function StudentPageContent() {
   }), [t]);
 
   useEffect(() => {
-    async function fetchData() {
-        setLoading(true);
-        try {
-            const [busesData, studentsData, routesData, destinationsData, lostItemsData] = await Promise.all([
-                getBuses(),
-                getStudents(),
-                getRoutes(),
-                getDestinations(),
-                getLostItems(),
-            ]);
+    setLoading(true);
+    const unsubscribers = [
+      onBusesUpdate((data) => setBuses(sortBuses(data))),
+      onStudentsUpdate(setAllStudents),
+      onRoutesUpdate(setRoutes),
+      onDestinationsUpdate(setDestinations),
+      onLostItemsUpdate(setLostItems),
+    ];
+    setLoading(false);
 
-            setBuses(sortBuses(busesData));
-            setAllStudents(studentsData);
-            setRoutes(routesData);
-            setDestinations(destinationsData);
-            setLostItems(lostItemsData);
-        } catch (error) {
-            console.error("Failed to fetch initial data:", error);
-            toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    fetchData();
-  }, [t, toast]);
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, []);
 
 
   const formatStudentName = (student: Student | null) => {

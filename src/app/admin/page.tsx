@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
 import { 
-    getBuses, getStudents, getRoutes, getDestinations, getSuggestedDestinations, getTeachers,
+    onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onSuggestedDestinationsUpdate, onTeachersUpdate,
     addBus, deleteBus, updateBus,
     addStudent, updateStudent, deleteStudentsInBatch,
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
@@ -14,7 +14,6 @@ import {
     addTeachersInBatch, updateRoute, deleteAllDestinations,
     copySeatingPlan,
     copyRoutePlan,
-    onRoutesUpdate,
     unassignStudentFromAllRoutes,
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
@@ -598,8 +597,6 @@ const BusConfigurationTab = ({
     try {
         await approveSuggestedDestination(suggestion);
         setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
-        const newDests = await getDestinations(); // Re-fetch all destinations
-        setDestinations(sortDestinations(newDests));
         toast({ title: t('success'), description: t('admin.bus_config.suggestions.approve_success')});
     } catch (error) {
         toast({ title: t('error'), description: t('admin.bus_config.suggestions.approve_error'), variant: 'destructive'});
@@ -1966,8 +1963,6 @@ const StudentManagementTab = ({
             toast({ title: t('success'), description: t('admin.student_management.search.dest_update_success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.student_management.search.dest_update_error'), variant: "destructive" });
-            const freshStudents = await getStudents();
-            setStudents(freshStudents);
         }
     }, [students, setStudents, selectedGlobalStudent, toast, t]);
     
@@ -2069,7 +2064,7 @@ const StudentManagementTab = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
-                        <CardHeader className="flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-2">
+                        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                             <div>
                                <CardTitle className="font-headline"><span className="break-keep">{t('admin.student_management.seat.title')}</span></CardTitle>
                                <CardDescription className="hidden md:block">
@@ -2520,219 +2515,6 @@ const StudentManagementTab = ({
     );
 };
 
-const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>> }) => {
-    const { toast } = useToast();
-    const { t } = useTranslation();
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleDownloadTeacherTemplate = () => {
-        const headers = "선생님 이름";
-        const example = "김선생";
-        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "teacher_template.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    const handleTeacherFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: async (results) => {
-                const newTeachersData: NewTeacher[] = results.data.map((row: any) => ({
-                    name: (row['선생님 이름'] || row['name'] || '').trim()
-                })).filter(teacher => teacher.name);
-
-                if (newTeachersData.length === 0) {
-                    toast({ title: t('error'), description: t('admin.teacher_management.batch.validation_error'), variant: "destructive" });
-                    return;
-                }
-
-                const { dismiss } = toast({ title: t('processing'), description: t('admin.teacher_management.batch.processing') });
-                try {
-                    const addedTeachers = await addTeachersInBatch(newTeachersData);
-                    setTeachers(prev => [...prev, ...addedTeachers].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
-                    dismiss();
-                    toast({ title: t('success'), description: t('admin.teacher_management.batch.success', {count: addedTeachers.length}) });
-                } catch (error) {
-                    dismiss();
-                    toast({ title: t('error'), description: t('admin.teacher_management.batch.error'), variant: "destructive" });
-                }
-            },
-            error: (error) => {
-                toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
-            }
-        });
-
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
-    };
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{t('admin.teacher_management.title')}</CardTitle>
-                <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex justify-end gap-2 mb-4">
-                    <Button variant="outline" onClick={handleDownloadTeacherTemplate}><Download className="mr-2" /> {t('template')}</Button>
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
-                    <input type="file" ref={fileInputRef} onChange={handleTeacherFileUpload} accept=".csv" className="hidden" />
-                </div>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {teachers.map(teacher => (
-                            <TableRow key={teacher.id}>
-                                <TableCell>{teacher.name}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
-    );
-};
-
-
-const AdminPageFilter: React.FC<{
-    buses: Bus[];
-    routes: Route[];
-    destinations: Destination[];
-    selectedBusId: string | null;
-    setSelectedBusId: (id: string | null) => void;
-    selectedDay: DayOfWeek;
-    setSelectedDay: (day: DayOfWeek) => void;
-    selectedRouteType: RouteType;
-    setSelectedRouteType: (type: RouteType) => void;
-    days: DayOfWeek[];
-    filterConfiguredBusesOnly?: boolean;
-    showRouteStops?: boolean;
-}> = ({
-    buses,
-    routes,
-    destinations,
-    selectedBusId,
-    setSelectedBusId,
-    selectedDay,
-    setSelectedDay,
-    selectedRouteType,
-    setSelectedRouteType,
-    days,
-    filterConfiguredBusesOnly = false,
-    showRouteStops = false,
-}) => {
-    const { t } = useTranslation();
-    
-    const displayBuses = useMemo(() => {
-        if (!filterConfiguredBusesOnly) {
-            return buses;
-        }
-        const configuredBusIds = new Set<string>();
-        routes.forEach(route => {
-            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
-                 const hasStops = route.stops.length > 0;
-                 const hasStudents = route.seating.some(s => s.studentId !== null);
-                 
-                 let isConfigured = false;
-                 if (route.type === 'AfterSchool') {
-                    isConfigured = hasStudents;
-                 } else {
-                    isConfigured = hasStops || hasStudents;
-                 }
-
-                 if (isConfigured) {
-                    configuredBusIds.add(route.busId);
-                 }
-            }
-        });
-        return buses.filter(bus => configuredBusIds.has(bus.id));
-    }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
-    
-    const getRouteStopsPreview = (busId: string) => {
-        const route = routes.find(r => r.busId === busId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
-        if (!route || route.stops.length === 0) return null;
-        
-        const stopNames = route.stops
-            .map(stopId => destinations.find(d => d.id === stopId)?.name)
-            .filter(Boolean)
-            .slice(0, 5)
-            .join(', ');
-            
-        return stopNames;
-    };
-
-    return (
-        <Card className="mb-6">
-            <CardContent className="p-4">
-                 <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-                  <div className="flex-1 min-w-[120px]">
-                    <Label className="text-xs">{t('bus')}</Label>
-                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('select_bus')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {displayBuses.map((bus) => {
-                           const stopsPreview = showRouteStops ? getRouteStopsPreview(bus.id) : null;
-                           return (
-                              <SelectItem key={bus.id} value={bus.id}>
-                                <div>
-                                    <p>{bus.name}</p>
-                                    {stopsPreview && (
-                                        <p className="text-xs text-muted-foreground">{stopsPreview}</p>
-                                    )}
-                                </div>
-                              </SelectItem>
-                           );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex-1 min-w-[120px]">
-                    <Label className="text-xs">{t('day')}</Label>
-                    <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('select_day')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {days.map((day) => (
-                          <SelectItem key={day} value={day}>
-                            {t(`day.${day.toLowerCase()}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex-1 min-w-[180px]">
-                    <Label className="text-xs">{t('route')}</Label>
-                    <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="Morning">{t('route_type.morning')}</TabsTrigger>
-                        <TabsTrigger value="Afternoon">{t('route_type.afternoon')}</TabsTrigger>
-                        <TabsTrigger value="AfterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
-};
-
 const AdminPageContent: React.FC<{
     buses: Bus[];
     students: Student[];
@@ -2898,64 +2680,34 @@ export default function AdminPage() {
     }, [user, authLoading, router]);
 
     useEffect(() => {
-        if (user && !authLoading) {
-            const fetchAndSubscribe = async () => {
-                setDataLoading(true);
-                try {
-                    let busesData = await getBuses();
-                    
-                    // Data migration
-                    const busesToUpdate = busesData.filter(b => b.capacity === 15);
-                    if (busesToUpdate.length > 0) {
-                        await Promise.all(busesToUpdate.map(bus => 
-                            updateBus(bus.id, { capacity: 16, type: '16-seater' })
-                        ));
-                        // Re-fetch buses data after migration
-                        busesData = await getBuses();
-                    }
+        if (!user || authLoading) return;
 
-                    const [studentsData, destinationsData, suggestionsData, teachersData] = await Promise.all([
-                        getStudents(),
-                        getDestinations(),
-                        getSuggestedDestinations(),
-                        getTeachers(),
-                    ]);
+        const unsubscribers = [
+            onBusesUpdate((busesData) => {
+                const sortedBuses = sortBuses(busesData);
+                setBuses(sortedBuses);
+                if (dataLoading) setDataLoading(false);
+            }),
+            onStudentsUpdate((studentsData) => {
+                setStudents(studentsData);
+                setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
+            }),
+            onRoutesUpdate((routesData) => {
+                setRoutes(routesData);
+            }),
+            onDestinationsUpdate((destinationsData) => {
+                setDestinations(sortDestinations(destinationsData));
+            }),
+            onSuggestedDestinationsUpdate(setSuggestedDestinations),
+            onTeachersUpdate((teachersData) => {
+                setTeachers(teachersData.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+            }),
+        ];
 
-                    const sortedBuses = sortBuses(busesData);
-                    setBuses(sortedBuses);
-                    setStudents(studentsData);
-                    setDestinations(sortDestinations(destinationsData));
-                    setSuggestedDestinations(suggestionsData);
-                    setTeachers(teachersData.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-                    setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
-
-                    const unsubscribeRoutes = onRoutesUpdate((routesData) => {
-                        setRoutes(routesData);
-setDataLoading(false);
-                    });
-
-                    return () => {
-                        unsubscribeRoutes();
-                    };
-                } catch (error) {
-                    console.error("Failed to fetch initial data:", error);
-                    toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
-                    setDataLoading(false);
-                }
-            };
-
-            const unsubscribePromise = fetchAndSubscribe();
-
-            return () => {
-                 unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
-            };
-        }
-    }, [user, authLoading, toast, t]);
-
-    useEffect(() => {
-        setPendingStudents(students.filter(s => s.applicationStatus === 'pending'));
-    }, [students]);
-
+        return () => {
+            unsubscribers.forEach(unsubscribe => unsubscribe());
+        };
+    }, [user, authLoading, dataLoading]);
 
     if (authLoading || dataLoading) {
         return (

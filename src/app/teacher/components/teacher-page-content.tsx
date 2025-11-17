@@ -4,16 +4,17 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
-    getGroupLeaderRecords, saveGroupLeaderRecords,
+    onBusesUpdate,
+    onStudentsUpdate,
+    onRoutesUpdate,
+    onDestinationsUpdate,
+    onTeachersUpdate,
+    onLostItemsUpdate,
+    getGroupLeaderRecords, 
+    saveGroupLeaderRecords,
     updateAttendance,
     updateRouteSeating,
     onAttendanceUpdate,
-    getBuses,
-    getStudents,
-    getRoutes,
-    getDestinations,
-    getTeachers,
-    getLostItems,
     updateBus
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
@@ -85,44 +86,21 @@ export function TeacherPageContent() {
   }), [t]);
 
   useEffect(() => {
-    async function fetchData() {
-        setLoading(true);
-        try {
-            let busesData = await getBuses();
-            
-            // Data migration from 15 to 16
-            const busesToUpdate = busesData.filter(b => b.capacity === 15);
-            if (busesToUpdate.length > 0) {
-                await Promise.all(busesToUpdate.map(bus => 
-                    updateBus(bus.id, { capacity: 16, type: '16-seater' })
-                ));
-                busesData = await getBuses();
-            }
+    const unsubscribers = [
+      onBusesUpdate((data) => setBuses(sortBuses(data))),
+      onStudentsUpdate(setStudents),
+      onRoutesUpdate(setAllRoutes),
+      onDestinationsUpdate(setDestinations),
+      onTeachersUpdate(setTeachers),
+      onLostItemsUpdate(setLostItems),
+    ];
 
-            const [studentsData, routesData, destinationsData, teachersData, lostItemsData] = await Promise.all([
-                getStudents(),
-                getRoutes(),
-                getDestinations(),
-                getTeachers(),
-                getLostItems(),
-            ]);
+    setLoading(false);
 
-            setBuses(sortBuses(busesData));
-            setStudents(studentsData);
-            setAllRoutes(routesData);
-            setDestinations(destinationsData);
-            setTeachers(teachersData);
-            setLostItems(lostItemsData);
-        } catch (error) {
-            console.error("Failed to fetch initial data:", error);
-            toast({ title: t('error'), description: t('loading.initial_data_error'), variant: "destructive" });
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    fetchData();
-  }, [t, toast]);
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, []);
   
 
   const formatStudentName = (student: Student) => {

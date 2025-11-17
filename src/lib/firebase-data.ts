@@ -69,8 +69,29 @@ async function addDocument<T extends {id: string}>(collectionName: string, data:
   return { id: docRef.id, ...data } as T;
 }
 
+// Generic realtime listener function
+function onCollectionUpdate<T>(collectionName: string, callback: (data: T[]) => void): () => void {
+    const q = query(collection(db, collectionName));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const data: T[] = [];
+        querySnapshot.forEach((doc) => {
+            data.push({ id: doc.id, ...doc.data() } as T);
+        });
+        callback(data);
+    }, (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: `/${collectionName}`,
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        // We don't rethrow here as it's a listener
+    });
+    return unsubscribe;
+}
+
 // Buses
 export const getBuses = () => fetchCollection<Bus>('buses');
+export const onBusesUpdate = (callback: (buses: Bus[]) => void) => onCollectionUpdate<Bus>('buses', callback);
 export const addBus = (bus: NewBus) => addDocument<Bus>('buses', bus);
 export const updateBus = async (busId: string, data: Partial<Bus>) => {
     const docRef = doc(db, 'buses', busId);
@@ -111,6 +132,7 @@ export const deleteBus = async (busId: string) => {
 
 // Students
 export const getStudents = () => fetchCollection<Student>('students');
+export const onStudentsUpdate = (callback: (students: Student[]) => void) => onCollectionUpdate<Student>('students', callback);
 
 export const addStudent = async (student: NewStudent): Promise<Student> => {
     const q = query(collection(db, "students"), 
@@ -148,11 +170,6 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         
         if (student.suggestedMorningDestination) updateData.morningDestinationId = null;
         if (student.suggestedAfternoonDestination) updateData.afternoonDestinationId = null;
-
-        if (student.morningDestinationId || student.afternoonDestinationId || student.afterSchoolDestinations) {
-            await unassignStudentFromAllRoutes(docRef.id);
-        }
-
 
         await updateDoc(docRef, updateData)
             .catch(async (serverError) => {
@@ -259,6 +276,7 @@ export const deleteStudentsInBatch = async (studentIds: string[]) => {
 
 // Destinations
 export const getDestinations = () => fetchCollection<Destination>('destinations');
+export const onDestinationsUpdate = (callback: (destinations: Destination[]) => void) => onCollectionUpdate<Destination>('destinations', callback);
 export const addDestination = (destination: NewDestination) => addDocument<Destination>('destinations', destination);
 export const addDestinationsInBatch = async (destinations: NewDestination[]): Promise<Destination[]> => {
     const batch = writeBatch(db);
@@ -325,6 +343,7 @@ export const deleteAllDestinations = async () => {
 
 // Teachers
 export const getTeachers = () => fetchCollection<Teacher>('teachers');
+export const onTeachersUpdate = (callback: (teachers: Teacher[]) => void) => onCollectionUpdate<Teacher>('teachers', callback);
 export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teacher[]> => {
     const batch = writeBatch(db);
     const newTeachers: Teacher[] = [];
@@ -355,24 +374,7 @@ export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teache
 
 // Routes
 export const getRoutes = () => fetchCollection<Route>('routes');
-export const onRoutesUpdate = (callback: (routes: Route[]) => void) => {
-    const q = query(collection(db, 'routes'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const routes: Route[] = [];
-        querySnapshot.forEach((doc) => {
-            routes.push({ id: doc.id, ...doc.data() } as Route);
-        });
-        callback(routes);
-    },
-    (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes`,
-            operation: 'list',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-    });
-    return unsubscribe;
-};
+export const onRoutesUpdate = (callback: (routes: Route[]) => void) => onCollectionUpdate<Route>('routes', callback);
 
 export const getRoutesForBus = (busId: string) => {
     const q = query(collection(db, "routes"), where("busId", "==", busId));
@@ -519,6 +521,7 @@ export const saveGroupLeaderRecords = async (routeId: string, records: GroupLead
 
 // Suggested Destinations
 export const getSuggestedDestinations = () => fetchCollection<Destination>('suggestedDestinations');
+export const onSuggestedDestinationsUpdate = (callback: (destinations: Destination[]) => void) => onCollectionUpdate<Destination>('suggestedDestinations', callback);
 export const addSuggestedDestination = async (destination: { name: string }) => {
     const trimmedName = destination.name.trim();
     if (!trimmedName) return;
@@ -652,6 +655,7 @@ export const onAttendanceUpdate = (routeId: string, date: string, callback: (rec
 
 // --- Lost & Found ---
 export const getLostItems = () => fetchCollection<LostItem>('lostItems');
+export const onLostItemsUpdate = (callback: (items: LostItem[]) => void) => onCollectionUpdate<LostItem>('lostItems', callback);
 export const addLostItem = (item: NewLostItem) => addDocument<LostItem>('lostItems', item);
 export const updateLostItem = (itemId: string, data: Partial<LostItem>) => {
     const docRef = doc(db, 'lostItems', itemId);
@@ -678,6 +682,3 @@ export const deleteLostItem = (itemId: string) => {
         throw serverError;
     });
 }
-
-    
-
