@@ -72,7 +72,7 @@ const sortDestinations = (destinations: Destination[]): Destination[] => {
     return destinations.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 };
 
-const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[], routes: Route[], teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>> }) => {
+const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { buses: Bus[], routes: Route[], teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>>, setRoutes: React.Dispatch<React.SetStateAction<Route[]>> }) => {
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'16-seater' | '29-seater' | '45-seater'>('45-seater');
     const { toast } = useToast();
@@ -80,7 +80,9 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const routeTypes: RouteType[] = ['Morning', 'Afternoon', 'AfterSchool'];
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [teacherViewType, setTeacherViewType] = useState<'MorningAndAfternoon' | 'AfterSchool'>('MorningAndAfternoon');
+    const [teacherAssignmentType, setTeacherAssignmentType] = useState<'commute' | 'afterSchool'>('commute');
+    const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
+    const [selectedBusForTeacher, setSelectedBusForTeacher] = useState<Bus | null>(null);
 
     const handleAddBus = async (busData: NewBus) => {
         try {
@@ -201,7 +203,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
     };
     
     const getTeachersForBus = (busId: string) => {
-        const relevantRouteType = teacherViewType === 'MorningAndAfternoon' ? 'Morning' : 'AfterSchool';
+        const relevantRouteType = teacherAssignmentType === 'commute' ? 'Morning' : 'AfterSchool';
         const relevantRoute = routes.find(r => r.busId === busId && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
         if (!relevantRoute || !relevantRoute.teacherIds) return t('unassigned');
 
@@ -212,6 +214,76 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
         return teacherNames.length > 0 ? teacherNames.join(', ') : t('unassigned');
     };
 
+    const handleBatchAssignTeachers = async () => {
+        if (teachers.length === 0) {
+            toast({ title: t('error'), description: t('admin.teacher_assignment.assign.no_teacher_error'), variant: 'destructive' });
+            return;
+        }
+
+        let routesToUpdate: Route[] = [];
+        let relevantDays: DayOfWeek[];
+
+        if (teacherAssignmentType === 'commute') {
+            relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+            routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+        } else { // afterSchool
+            relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
+        }
+
+        const shuffledTeachers = [...teachers].sort(() => 0.5 - Math.random());
+        let teacherIndex = 0;
+
+        const getNextTeacher = () => {
+            if (teacherIndex >= shuffledTeachers.length) {
+                teacherIndex = 0;
+            }
+            return shuffledTeachers[teacherIndex++];
+        };
+
+        const batch = writeBatch(db);
+
+        // Prioritize 45-seaters with 2 teachers
+        const buses45 = buses.filter(b => b.capacity === 45);
+        for (const bus of buses45) {
+            if (shuffledTeachers.length < 2) break; // Not enough teachers for 2
+            const teacher1 = getNextTeacher();
+            const teacher2 = getNextTeacher();
+            relevantDays.forEach(day => {
+                routesToUpdate.filter(r => r.busId === bus.id && r.dayOfWeek === day).forEach(route => {
+                    batch.update(doc(db, 'routes', route.id), { teacherIds: [teacher1.id, teacher2.id] });
+                });
+            });
+        }
+        
+        // Assign 1 teacher to remaining buses
+        const remainingBuses = buses.filter(b => b.capacity !== 45 || routesToUpdate.find(r => r.busId === b.id && (r.teacherIds?.length || 0) < 2));
+         for (const bus of remainingBuses) {
+             if (shuffledTeachers.length === 0) break;
+             const busRoutes = routesToUpdate.filter(r => r.busId === bus.id);
+             const isAlreadyAssigned = busRoutes.some(r => (r.teacherIds?.length || 0) > 0);
+             if (isAlreadyAssigned) continue;
+             
+             const teacher = getNextTeacher();
+             busRoutes.forEach(route => {
+                 batch.update(doc(db, 'routes', route.id), { teacherIds: [teacher.id] });
+             });
+         }
+        
+        try {
+            await batch.commit();
+            toast({ title: t('success'), description: t('admin.teacher_assignment.assign.success') });
+        } catch (error) {
+            console.error("Error batch assigning teachers:", error);
+            toast({ title: t('error'), description: t('admin.teacher_assignment.assign.error'), variant: 'destructive' });
+        }
+    };
+    
+    const handleManualAssignClick = (bus: Bus) => {
+        setSelectedBusForTeacher(bus);
+        setIsTeacherDialogOpen(true);
+    };
+
 
     return (
         <Card>
@@ -220,14 +292,17 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                 <CardDescription>{t('admin.bus_registration.description')}</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex justify-between items-center mb-4">
-                    <Tabs value={teacherViewType} onValueChange={(v) => setTeacherViewType(v as any)} className="w-auto">
-                      <TabsList className="grid grid-cols-2">
-                        <TabsTrigger value="MorningAndAfternoon">{t('route_type.commute')}</TabsTrigger>
-                        <TabsTrigger value="AfterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                    <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <div className="flex items-center gap-4">
+                        <Tabs value={teacherAssignmentType} onValueChange={(v) => setTeacherAssignmentType(v as any)} className="w-auto">
+                          <TabsList className="grid grid-cols-2">
+                            <TabsTrigger value="commute">{t('route_type.commute')}</TabsTrigger>
+                            <TabsTrigger value="afterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                        <Button onClick={handleBatchAssignTeachers}><UserCog className="mr-2"/>{t('admin.teacher_assignment.reassign')}</Button>
+                    </div>
+                    <div className="flex gap-2 self-end sm:self-center">
                         <Button variant="outline" onClick={handleDownloadBusTemplate}><Download className="mr-2" /> {t('template')}</Button>
                         <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
                         <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
@@ -277,6 +352,9 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                                 <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
                                 <TableCell>{getTeachersForBus(bus.id)}</TableCell>
                                 <TableCell className="text-right">
+                                    <Button variant="ghost" size="icon" onClick={() => handleManualAssignClick(bus)}>
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <Button variant="ghost" size="icon">
@@ -302,6 +380,17 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses }: { buses: Bus[
                     </TableBody>
                 </Table>
             </CardContent>
+            {selectedBusForTeacher && (
+              <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
+                <TeacherAssignmentDialog 
+                    targetBus={selectedBusForTeacher} 
+                    allRoutes={routes} 
+                    teachers={teachers} 
+                    assignmentType={teacherAssignmentType}
+                    onOpenChange={setIsTeacherDialogOpen} 
+                />
+              </Dialog>
+            )}
         </Card>
     );
 };
@@ -392,38 +481,52 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
     );
 };
 
-const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes, onOpenChange }: { currentRoute: Route, allRoutes: Route[], teachers: Teacher[], setRoutes: React.Dispatch<React.SetStateAction<Route[]>>, onOpenChange: (open: boolean) => void }) => {
+const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentType, onOpenChange }: { targetBus: Bus, allRoutes: Route[], teachers: Teacher[], assignmentType: 'commute' | 'afterSchool', onOpenChange: (open: boolean) => void }) => {
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
     const { toast } = useToast();
     const { t } = useTranslation();
+    const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
+    const allDays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
+
+    const relevantRoutes = useMemo(() => {
+        if (assignmentType === 'commute') {
+            return allRoutes.filter(r => r.busId === targetBus.id && weekdays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+        }
+        return allRoutes.filter(r => r.busId === targetBus.id && r.type === 'AfterSchool');
+    }, [allRoutes, targetBus, assignmentType, weekdays]);
 
     useEffect(() => {
-        if (currentRoute) {
-            setSelectedTeacherIds(currentRoute.teacherIds || []);
+        if (relevantRoutes.length > 0) {
+            setSelectedTeacherIds(relevantRoutes[0].teacherIds || []);
         }
-    }, [currentRoute]);
+    }, [relevantRoutes]);
     
     const assignedToOtherRoutesIds = useMemo(() => {
-        if (!currentRoute) return new Set<string>();
-        const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
-        const relevantRouteTypes = isCommuteRoute ? ['Morning', 'Afternoon'] : ['AfterSchool'];
+        const otherRoutes = allRoutes.filter(r => {
+            if (r.busId === targetBus.id) return false;
+            if (assignmentType === 'commute') {
+                return weekdays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon');
+            }
+            return r.type === 'AfterSchool';
+        });
 
-        const otherRoutes = allRoutes.filter(r => 
-            r.id !== currentRoute.id && 
-            r.dayOfWeek === currentRoute.dayOfWeek &&
-            relevantRouteTypes.includes(r.type)
-        );
         const ids = new Set<string>();
         otherRoutes.forEach(r => {
             r.teacherIds?.forEach(id => ids.add(id));
         });
         return ids;
-    }, [allRoutes, currentRoute]);
+    }, [allRoutes, targetBus.id, assignmentType, weekdays]);
 
     const handleSave = async () => {
-        if (!currentRoute) return;
+        if (relevantRoutes.length === 0) return;
+        
         try {
-            await updateRoute(currentRoute.id, { teacherIds: selectedTeacherIds });
+            const batch = writeBatch(db);
+            relevantRoutes.forEach(route => {
+                const routeRef = doc(db, 'routes', route.id);
+                batch.update(routeRef, { teacherIds: selectedTeacherIds });
+            });
+            await batch.commit();
             toast({ title: t('success'), description: t('admin.teacher_assignment.change.success') });
             onOpenChange(false);
         } catch (error) {
@@ -436,13 +539,20 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
             checked ? [...prev, teacherId] : prev.filter(id => id !== teacherId)
         );
     };
+    
+    const handleReset = () => {
+        setSelectedTeacherIds([]);
+    }
 
     const sortedTeachers = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
     
     return (
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>{t('admin.teacher_assignment.change.title')}</DialogTitle>
+                <DialogTitle>{t('admin.teacher_assignment.change.title')} - {targetBus.name}</DialogTitle>
+                <CardDescription>
+                    {assignmentType === 'commute' ? "평일 등하교" : "방과후"} 노선에 대한 담당교사를 변경합니다.
+                </CardDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
                 {sortedTeachers.map(teacher => {
@@ -466,9 +576,12 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
                     );
                 })}
             </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
-                <Button onClick={handleSave}>{t('save')}</Button>
+            <DialogFooter className="justify-between">
+                <Button variant="destructive" onClick={handleReset}>{t('reset')}</Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
+                    <Button onClick={handleSave}>{t('save')}</Button>
+                </div>
             </DialogFooter>
         </DialogContent>
     );
@@ -478,24 +591,20 @@ const TeacherAssignmentDialog = ({ currentRoute, allRoutes, teachers, setRoutes,
 const BusConfigurationTab = ({
   buses,
   routes,
-  setRoutes,
   destinations,
   setDestinations,
   suggestedDestinations,
   setSuggestedDestinations,
-  teachers,
   selectedDay,
   selectedRouteType,
   selectedBusId,
 }: {
   buses: Bus[];
   routes: Route[];
-  setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   destinations: Destination[];
   setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   suggestedDestinations: Destination[],
   setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
-  teachers: Teacher[];
   selectedDay: DayOfWeek;
   selectedRouteType: RouteType;
   selectedBusId: string | null;
@@ -505,7 +614,6 @@ const BusConfigurationTab = ({
   const { toast } = useToast();
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
 
   const [selectedRouteStopId, setSelectedRouteStopId] = useState<string | null>(null);
   const [selectedAllDestId, setSelectedAllDestId] = useState<string | null>(null);
@@ -552,11 +660,6 @@ const BusConfigurationTab = ({
     return currentRoute.stops.map(stopId => destinations.find(d => d.id === stopId)!).filter(Boolean);
   }, [currentRoute, destinations]);
 
-    const assignedTeachers = useMemo(() => {
-        if (!currentRoute || !currentRoute.teacherIds) return [];
-        return currentRoute.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
-    }, [currentRoute, teachers]);
-  
    const handleAddDestination = async () => {
         const trimmedName = newDestinationName.trim();
         if (!trimmedName) return;
@@ -751,124 +854,6 @@ const BusConfigurationTab = ({
         setSelectedRouteStopId(null);
     }, [currentRoute, selectedRouteStopId]);
 
-
-  const assignRandomTeachers = useCallback(async () => {
-    if (!selectedBus || !currentRoute) {
-        toast({ title: t('error'), description: t('admin.teacher_assignment.assign.no_route_error'), variant: "destructive" });
-        return;
-    }
-    if (teachers.length === 0) {
-        toast({ title: t('error'), description: t('admin.teacher_assignment.assign.no_teacher_error'), variant: "destructive" });
-        return;
-    }
-
-    let numToAssign = 1;
-    if (selectedBus.type === '45-seater') {
-        numToAssign = 2;
-    }
-
-    const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
-    const relevantRouteTypes = isCommuteRoute ? ['Morning', 'Afternoon'] : ['AfterSchool'];
-
-    const availableTeachers = teachers.filter(teacher => {
-        const isAssignedToOtherRoute = routes.some(route => 
-            route.id !== currentRoute.id && 
-            route.dayOfWeek === currentRoute.dayOfWeek &&
-            relevantRouteTypes.includes(route.type) &&
-            route.teacherIds?.includes(teacher.id)
-        );
-        return !isAssignedToOtherRoute;
-    });
-
-    if (availableTeachers.length < numToAssign) {
-        toast({ title: t('notice'), description: t('admin.teacher_assignment.assign.not_enough_teachers', { count: availableTeachers.length }), variant: "default" });
-        numToAssign = availableTeachers.length;
-    }
-
-    const shuffledTeachers = [...availableTeachers].sort(() => 0.5 - Math.random());
-    const assignedTeacherIds = shuffledTeachers.slice(0, numToAssign).map(t => t.id);
-
-    try {
-        await updateRoute(currentRoute.id, { teacherIds: assignedTeacherIds });
-        toast({ title: t('success'), description: t('admin.teacher_assignment.assign.success') });
-    } catch (error) {
-        console.error("Error assigning teachers:", error);
-        toast({ title: t('error'), description: t('admin.teacher_assignment.assign.error'), variant: 'destructive' });
-    }
-  }, [selectedBus, currentRoute, teachers, routes, toast, t]);
-  
-  const handleResetTeachers = useCallback(async () => {
-    if (!currentRoute) return;
-
-    const isCommuteRoute = currentRoute.type === 'Morning' || currentRoute.type === 'Afternoon';
-    const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
-    let routesToUpdate: Route[] = [];
-
-    if (isCommuteRoute) {
-        routesToUpdate = routes.filter(r => 
-            r.busId === currentRoute.busId &&
-            weekdays.includes(r.dayOfWeek) &&
-            (r.type === 'Morning' || r.type === 'Afternoon')
-        );
-    } else { // AfterSchool
-        routesToUpdate = routes.filter(r =>
-            r.busId === currentRoute.busId &&
-            r.type === 'AfterSchool'
-        );
-    }
-
-    if (routesToUpdate.length === 0) {
-        toast({ title: t('notice'), description: t('admin.teacher_assignment.reset.no_routes') });
-        return;
-    }
-
-    try {
-        const batch = writeBatch(db);
-        routesToUpdate.forEach(route => {
-            const routeRef = doc(db, 'routes', route.id);
-            batch.update(routeRef, { teacherIds: [] });
-        });
-        await batch.commit();
-
-        toast({ title: t('success'), description: t('admin.teacher_assignment.reset.success') });
-    } catch (error) {
-        console.error("Error resetting teachers:", error);
-        toast({ title: t('error'), description: t('admin.teacher_assignment.reset.error'), variant: "destructive" });
-    }
-  }, [currentRoute, routes, toast, t]);
-  
-  const handleCopyToAllWeekdays = useCallback(async () => {
-    if (!currentRoute) {
-        toast({title: t('error'), description: t('admin.teacher_assignment.copy.no_route_error'), variant: 'destructive'});
-        return;
-    }
-
-    const teacherIdsToCopy = currentRoute.teacherIds || [];
-    const targetBusId = currentRoute.busId;
-    const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
-    const routesToUpdate = routes.filter(r => 
-        r.busId === targetBusId && 
-        weekdays.includes(r.dayOfWeek) && 
-        (r.type === 'Morning' || r.type === 'Afternoon')
-    );
-
-    try {
-        const batch = writeBatch(db);
-        routesToUpdate.forEach(route => {
-            const routeRef = doc(db, 'routes', route.id);
-            batch.update(routeRef, { teacherIds: teacherIdsToCopy });
-        });
-        await batch.commit();
-
-        toast({title: t('success'), description: t('admin.teacher_assignment.copy.success')});
-    } catch (error) {
-        console.error("Error copying teachers:", error);
-        toast({title: t('error'), description: t('admin.teacher_assignment.copy.error'), variant: 'destructive'});
-    }
-  }, [currentRoute, routes, toast, t]);
-  
  const handleCopyRoute = useCallback(async () => {
       if (!currentRoute) {
           toast({ title: t('error'), description: t('admin.bus_config.route.copy.no_source_error'), variant: "destructive" });
@@ -1154,102 +1139,51 @@ const BusConfigurationTab = ({
                 </CardContent>
             </Card>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {suggestedDestinations.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                        <CardTitle>{t('admin.bus_config.suggestions.title')}</CardTitle>
-                        <CardDescription>
-                            {t('admin.bus_config.suggestions.description')}
-                        </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                        <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
-                            {suggestedDestinations.map(suggestion => (
-                            <Badge 
-                                key={suggestion.id}
-                                variant="outline" 
-                                onClick={() => handleApproveSuggestion(suggestion)}
-                                className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
-                            >
-                                {suggestion.name}
-                            </Badge>
-                            ))}
-                        </div>
-                        </CardContent>
-                            <CardFooter>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" className="w-full">
-                                        <Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>{t('admin.bus_config.suggestions.delete_all.confirm_title')}</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        {t('admin.bus_config.suggestions.delete_all.confirm_description')}
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleClearAllSuggestions}>{t('delete')}</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </CardFooter>
-                    </Card>
-                )}
-
-                {selectedBus && currentRoute && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{t('admin.teacher_assignment.title')}</CardTitle>
-                            <CardDescription>{t('admin.teacher_assignment.description', { busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`) })}</CardDescription>
-                        </CardHeader>
-                            <CardContent>
-                            {assignedTeachers.length > 0 ? (
-                                <div className="text-sm text-muted-foreground">
-                                    <strong>{t('admin.teacher_assignment.assigned_teachers')}:</strong> {assignedTeachers.map(t => t.name).join(', ')}
-                                </div>
-                            ) : (
-                                <div className="text-sm text-muted-foreground">{t('admin.teacher_assignment.no_teachers_assigned')}</div>
-                            )}
-                            {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
-                                    <Button variant="link" onClick={handleCopyToAllWeekdays} className="p-0 h-auto mt-2 text-sm">
-                                    <Copy className="mr-2"/> {t('admin.teacher_assignment.copy.button')}
-                                </Button>
-                            )}
-                        </CardContent>
-                        <CardFooter className="grid grid-cols-3 gap-2">
-                            <Button onClick={assignRandomTeachers}><UserCog className="mr-2"/>{t('admin.teacher_assignment.reassign')}</Button>
-                            <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline"><Pencil className="mr-2"/>{t('admin.teacher_assignment.manual_change')}</Button>
-                                </DialogTrigger>
-                                {currentRoute && <TeacherAssignmentDialog currentRoute={currentRoute} allRoutes={routes} teachers={teachers} setRoutes={setRoutes} onOpenChange={setIsTeacherDialogOpen} />}
-                            </Dialog>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" disabled={!assignedTeachers || assignedTeachers.length === 0}><RotateCcw className="mr-2"/>{t('reset')}</Button>
-                                </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>{t('admin.teacher_assignment.reset.confirm_title')}</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            {t('admin.teacher_assignment.reset.confirm_description')}
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleResetTeachers}>{t('unassign')}</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </CardFooter>
-                    </Card>
-                )}
-        </div>
+        {suggestedDestinations.length > 0 && (
+            <Card>
+                <CardHeader>
+                <CardTitle>{t('admin.bus_config.suggestions.title')}</CardTitle>
+                <CardDescription>
+                    {t('admin.bus_config.suggestions.description')}
+                </CardDescription>
+                </CardHeader>
+                <CardContent>
+                <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
+                    {suggestedDestinations.map(suggestion => (
+                    <Badge 
+                        key={suggestion.id}
+                        variant="outline" 
+                        onClick={() => handleApproveSuggestion(suggestion)}
+                        className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
+                    >
+                        {suggestion.name}
+                    </Badge>
+                    ))}
+                </div>
+                </CardContent>
+                    <CardFooter>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" className="w-full">
+                                <Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>{t('admin.bus_config.suggestions.delete_all.confirm_title')}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t('admin.bus_config.suggestions.delete_all.confirm_description')}
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleClearAllSuggestions}>{t('delete')}</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </CardFooter>
+            </Card>
+        )}
     </div>
   );
 };
@@ -2675,7 +2609,7 @@ const AdminPageContent: React.FC<{
                     <TabsTrigger value="student-management">{t('admin.tabs.student_management')}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="bus-registration" className="mt-6">
-                    <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} setBuses={setBuses} />
+                    <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} setBuses={setBuses} setRoutes={setRoutes} />
                 </TabsContent>
                  <TabsContent value="teacher-management" className="mt-6">
                     <TeacherManagementTab teachers={teachers} setTeachers={setTeachers} />
@@ -2696,12 +2630,10 @@ const AdminPageContent: React.FC<{
                     <BusConfigurationTab
                         buses={buses}
                         routes={routes}
-                        setRoutes={setRoutes}
                         destinations={destinations}
                         setDestinations={setDestinations}
                         suggestedDestinations={suggestedDestinations}
                         setSuggestedDestinations={setSuggestedDestinations}
-                        teachers={teachers}
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
                         selectedBusId={selectedBusId}
