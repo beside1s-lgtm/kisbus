@@ -9,6 +9,11 @@ import type {NextConfig} from 'next';
 const projectRoot = path.join(__dirname, '../'); 
 
 const nextConfig: NextConfig = {
+  experimental: {
+    turbopack: {
+      root: projectRoot,
+    },
+  },
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
