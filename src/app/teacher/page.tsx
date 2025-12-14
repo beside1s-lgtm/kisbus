@@ -729,14 +729,16 @@ export default function TeacherPage() {
                                         <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                         <TableCell>
                                             <Badge 
-                                                variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
+                                                variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleSeatClick(0, student.id);
+                                                    if (!disembarkedStudentIds.includes(student.id)) {
+                                                        handleSeatClick(0, student.id);
+                                                    }
                                                 }}
                                                 className="cursor-pointer"
                                             >
-                                                {boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
+                                                {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
                                             </Badge>
                                         </TableCell>
                                     </TableRow>
@@ -835,14 +837,16 @@ export default function TeacherPage() {
                                             <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                             <TableCell>
                                                 <Badge 
-                                                    variant={boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
+                                                    variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleSeatClick(0, student.id);
+                                                        if (!disembarkedStudentIds.includes(student.id)) {
+                                                            handleSeatClick(0, student.id);
+                                                        }
                                                     }}
                                                     className="cursor-pointer"
                                                 >
-                                                    {boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
+                                                    {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
                                                 </Badge>
                                             </TableCell>
                                         </TableRow>
