@@ -14,6 +14,7 @@ import {
     copySeatingPlan,
     copyRoutePlan,
     unassignStudentFromAllRoutes,
+    getBuses, getStudents, getRoutes, getDestinations, getTeachers
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewBus, NewStudent, NewDestination, Teacher, NewTeacher } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -2888,6 +2889,7 @@ export default function AdminPage() {
     useEffect(() => {
         if (!user || authLoading) return;
         
+        setDataLoading(true);
         const unsubscribers = [
             onBusesUpdate(data => setBuses(sortBuses(data))),
             onStudentsUpdate(data => {
@@ -2949,3 +2951,4 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
+
