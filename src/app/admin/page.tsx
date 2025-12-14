@@ -1,5 +1,4 @@
 
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -2591,13 +2590,22 @@ const AdminPageContent: React.FC<{
     const handleAcknowledgeSingle = async (studentId: string) => {
         try {
             await updateStudent(studentId, { applicationStatus: 'reviewed' });
-            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, applicationStatus: 'reviewed' } : s));
-            setPendingStudents(prev => prev.filter(s => s.id !== studentId));
+            // The onStudentsUpdate listener will handle the state update automatically.
             toast({ title: t('success'), description: "신청 건을 확인 처리했습니다." });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.new_applications.acknowledge_error'), variant: "destructive" });
         }
     };
+
+    const handleDeleteSingle = async (studentId: string) => {
+        try {
+            await deleteStudentsInBatch([studentId]);
+            // The onStudentsUpdate listener will handle the state update automatically.
+            toast({ title: t('success'), description: "신청 건을 삭제했습니다." });
+        } catch (error) {
+            toast({ title: t('error'), description: "신청 건 삭제 중 오류가 발생했습니다.", variant: "destructive" });
+        }
+    }
 
     const getDestinationName = (destId: string | null | undefined) => {
         if (!destId) return null;
@@ -2634,9 +2642,30 @@ const AdminPageContent: React.FC<{
                                                 <p>방과후: {Object.entries(student.afterSchoolDestinations || {}).filter(([, destId]) => destId).map(([day, destId]) => `${t(`day_short.${day.toLowerCase()}`)}: ${getDestinationName(destId)}`).join(', ') || "변경 없음"}</p>
                                             </div>
                                         </div>
-                                        <Button size="sm" variant="outline" onClick={() => handleAcknowledgeSingle(student.id)}>
-                                            <Check className="mr-1 h-3 w-3" /> 확인
-                                        </Button>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="outline" onClick={() => handleAcknowledgeSingle(student.id)}>
+                                                <Check className="mr-1 h-3 w-3" /> 확인
+                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button size="sm" variant="destructive">
+                                                        <Trash2 className="mr-1 h-3 w-3" /> 삭제
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>정말 이 신청을 삭제하시겠습니까?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            {student.name} 학생의 신청 정보가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>취소</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteSingle(student.id)}>삭제</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
                                     </div>
                                 </Card>
                             ))}
@@ -2858,45 +2887,36 @@ export default function AdminPage() {
 
     useEffect(() => {
         if (!user || authLoading) return;
-        setDataLoading(true);
+        
         const unsubscribers = [
-            onBusesUpdate(data => {
-                setBuses(sortBuses(data));
-                checkDataLoaded();
-            }),
+            onBusesUpdate(data => setBuses(sortBuses(data))),
             onStudentsUpdate(data => {
                 setStudents(data);
                 setPendingStudents(data.filter(s => s.applicationStatus === 'pending'));
-                checkDataLoaded();
             }),
-            onRoutesUpdate(data => {
-                setRoutes(data);
-                checkDataLoaded();
-            }),
-            onDestinationsUpdate(data => {
-                setDestinations(sortDestinations(data));
-                checkDataLoaded();
-            }),
+            onRoutesUpdate(setRoutes),
+            onDestinationsUpdate(data => setDestinations(sortDestinations(data))),
             onSuggestedDestinationsUpdate(setSuggestedDestinations),
-            onTeachersUpdate(data => {
-                setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-                checkDataLoaded();
-            }),
+            onTeachersUpdate(data => setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
         ];
-        
-        const checkDataLoaded = () => {
-            if (buses.length > 0 && students.length > 0 && routes.length > 0 && destinations.length > 0 && teachers.length > 0) {
-               setDataLoading(false);
-            }
-        }
-        
-        // Initial check in case data is already there
-        checkDataLoaded();
+
+        Promise.all([
+            getBuses(),
+            getStudents(),
+            getRoutes(),
+            getDestinations(),
+            getTeachers(),
+        ]).then(() => {
+            setDataLoading(false);
+        }).catch(error => {
+            console.error("Error fetching initial data:", error);
+            setDataLoading(false);
+        });
 
         return () => {
             unsubscribers.forEach(unsubscribe => unsubscribe());
         };
-    }, [user, authLoading, buses.length, students.length, routes.length, destinations.length, teachers.length]);
+    }, [user, authLoading]);
 
     if (authLoading || dataLoading) {
         return (
