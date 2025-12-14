@@ -1,10 +1,204 @@
+/**
+ * Core Philosophy:
+ * This ruleset is designed for a school bus management application during its
+ * prototyping phase. It establishes a security model where core administrative
+ * data (like buses, routes, and destinations) is locked down by default,
+ * awaiting the implementation of a proper administrative role system.
+ *
+ * For student-related data, the rules are temporarily permissive, allowing any
+ * authenticated user to manage records. This facilitates rapid development and
+ * testing, with the explicit understanding that this will be replaced with a
+ * more robust ownership or role-based model (e.g., parent or teacher access)
+ * before production.
+ *
+ * Data Structure:
+ * The data is organized into several top-level collections:
+ * - /schoolBuses: Master list of all buses.
+ * - /destinations: Master list of all pickup/dropoff points.
+ * - /busRoutes: Defines the sequence of destinations for each bus.
+ * - /students: A central collection for all student records.
+ *
+ * Each student document in /students can contain nested subcollections for
+ * more detailed tracking:
+ * - /students/{studentId}/absences: Records of a student's absences.
+ * - /students/{studentId}/groupLeaderInfo: Information about a student's role
+ *   as a group leader.
+ *
+ * Key Security Decisions:
+ * - Admin Collections Locked by Default: Collections intended for
+ *   administrators (/schoolBuses, /destinations, /busRoutes) are completely
+ *   locked down. This is a secure default that forces the implementation of a
+ *   role system (e.g., using Firebase Auth custom claims) before this data can
+ *   be manipulated.
+ * - Permissive Student Data Access: To support prototyping, any signed-in user
+ *   can currently create, read, update, and delete student data. This model is
+ *   not secure for production but allows the frontend and backend logic to be
+ *   built out.
+ * - Relational Integrity over Schema Validation: In line with the prototyping
+ *   philosophy, these rules do not validate the specific shape or data types of
+ *   documents. However, they strictly enforce the integrity of relationships
+ *   between documents (e.g., ensuring an `absence` record's `studentId` field
+ *   matches its parent student document).
+ * - No Public Access: All collections require user authentication for any type
+ *   of access. There is no publicly readable or writable data.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // Warning: This is insecure. Everyone can read and write to all data.
-      allow read, write: if true;
+
+    // -------------------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------------------
+
+    /**
+     * isSignedIn
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * isExistingDoc
+     * Checks if a document already exists. Essential for update/delete ops.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+    /**
+     * isStudentIdConsistentOnCreate
+     * On create, ensures the document's internal 'id' field matches its ID in the path.
+     */
+    function hasConsistentStudentIdOnCreate(studentId) {
+      return request.resource.data.id == studentId;
+    }
+
+    /**
+     * isStudentIdImmutable
+     * On update, ensures the document's internal 'id' field cannot be changed.
+     */
+    function isStudentIdImmutable() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * hasConsistentStudentForeignKeyOnCreate
+     * On create, ensures a subcollection document's 'studentId' foreign key
+     * matches the parent document's ID from the path.
+     */
+    function hasConsistentStudentForeignKeyOnCreate(studentId) {
+      return request.resource.data.studentId == studentId;
+    }
+
+    /**
+     * isStudentForeignKeyImmutable
+     * On update, ensures a subcollection document's 'studentId' foreign key
+     * cannot be changed.
+     */
+    function isStudentForeignKeyImmutable() {
+      return request.resource.data.studentId == resource.data.id;
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin-Only Collections (Locked by Default)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Manages school bus details. Locked until an admin role system is implemented.
+     * @path /schoolBuses/{schoolBusId}
+     * @allow (N/A) All requests are denied by default.
+     * @deny (any) Any user attempting to read or write a school bus document.
+     * @principle Secure by default. Prevents unauthorized access to critical data until a proper admin verification mechanism (e.g., custom claims) is added.
+     */
+    match /schoolBuses/{schoolBusId} {
+      // TODO: Implement admin-only access, likely via custom claims check: request.auth.token.isAdmin == true
+      allow get: if false;
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Manages bus stop and destination details. Locked until an admin role system is implemented.
+     * @path /destinations/{destinationId}
+     * @allow (N/A) All requests are denied by default.
+     * @deny (any) Any user attempting to read or write a destination document.
+     * @principle Secure by default. Prevents unauthorized access to critical data until a proper admin verification mechanism (e.g., custom claims) is added.
+     */
+    match /destinations/{destinationId} {
+      // TODO: Implement admin-only access, likely via custom claims check: request.auth.token.isAdmin == true
+      allow get: if false;
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Manages bus route definitions. Locked until an admin role system is implemented.
+     * @path /busRoutes/{busRouteId}
+     * @allow (N/A) All requests are denied by default.
+     * @deny (any) Any user attempting to read or write a bus route document.
+     * @principle Secure by default. Prevents unauthorized access to critical data until a proper admin verification mechanism (e.g., custom claims) is added.
+     */
+    match /busRoutes/{busRouteId} {
+      // TODO: Implement admin-only access, likely via custom claims check: request.auth.token.isAdmin == true
+      allow get: if false;
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Student Data Collections (Permissive for Prototyping)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Manages student records. Access is currently open to any authenticated user for prototyping purposes.
+     * @path /students/{studentId}
+     * @allow (create) An authenticated user creates a new student document.
+     * @deny (create) An unauthenticated user attempts to create a student document.
+     * @principle Authenticated access. During prototyping, allows any signed-in user to manage student data, facilitating rapid development.
+     */
+    match /students/{studentId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && hasConsistentStudentIdOnCreate(studentId);
+      allow update: if isSignedIn() && isExistingDoc() && isStudentIdImmutable();
+      allow delete: if isSignedIn() && isExistingDoc();
+
+      /**
+       * @description Tracks student absences. Inherits access from the parent student document.
+       * @path /students/{studentId}/absences/{absenceId}
+       * @allow (create) An authenticated user adds an absence record for student 'student_123'.
+       * @deny (create) A user tries to create an absence record where the internal 'studentId' field does not match 'student_123'.
+       * @principle Relational integrity. Ensures that subcollection data correctly points back to its parent document.
+       */
+      match /absences/{absenceId} {
+        allow get: if isSignedIn();
+        allow list: if isSignedIn();
+        allow create: if isSignedIn() && hasConsistentStudentForeignKeyOnCreate(studentId);
+        allow update: if isSignedIn() && isExistingDoc() && isStudentForeignKeyImmutable();
+        allow delete: if isSignedIn() && isExistingDoc();
+      }
+
+      /**
+       * @description Tracks a student's status as a group leader. Inherits access from the parent student document.
+       * @path /students/{studentId}/groupLeaderInfo/{groupLeaderInfoId}
+       * @allow (create) An authenticated user adds group leader info for student 'student_123'.
+       * @deny (create) A user tries to create a group leader record where the internal 'studentId' field does not match 'student_123'.
+       * @principle Relational integrity. Ensures that subcollection data correctly points back to its parent document.
+       */
+      match /groupLeaderInfo/{groupLeaderInfoId} {
+        allow get: if isSignedIn();
+        allow list: if isSignedIn();
+        allow create: if isSignedIn() && hasConsistentStudentForeignKeyOnCreate(studentId);
+        allow update: if isSignedIn() && isExistingDoc() && isStudentForeignKeyImmutable();
+        allow delete: if isSignedIn() && isExistingDoc();
+      }
     }
   }
 }

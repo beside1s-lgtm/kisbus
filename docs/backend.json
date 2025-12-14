@@ -1,0 +1,331 @@
+{
+  "entities": {
+    "SchoolBus": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SchoolBus",
+      "type": "object",
+      "description": "Represents a school bus with its details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SchoolBus entity."
+        },
+        "busNumber": {
+          "type": "string",
+          "description": "The number assigned to the bus for identification."
+        },
+        "capacity": {
+          "type": "number",
+          "description": "The seating capacity of the bus (e.g., 45, 25, 15)."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type or model of the bus."
+        }
+      },
+      "required": [
+        "id",
+        "busNumber",
+        "capacity",
+        "type"
+      ]
+    },
+    "Student": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Student",
+      "type": "object",
+      "description": "Represents a student and their associated information.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Student entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The student's full name."
+        },
+        "destinationId": {
+          "type": "string",
+          "description": "Reference to Destination. (Relationship: Destination 1:N Student)"
+        },
+        "arrivalBusId": {
+          "type": "string",
+          "description": "Reference to SchoolBus for arrival. (Relationship: SchoolBus 1:N Student (Arrival))"
+        },
+        "departureBusId": {
+          "type": "string",
+          "description": "Reference to SchoolBus for departure. (Relationship: SchoolBus 1:N Student (Departure))"
+        },
+        "monday": {
+          "type": "boolean",
+          "description": "Indicates whether the student rides the bus on Monday."
+        },
+        "tuesday": {
+          "type": "boolean",
+          "description": "Indicates whether the student rides the bus on Tuesday."
+        },
+        "wednesday": {
+          "type": "boolean",
+          "description": "Indicates whether the student rides the bus on Wednesday."
+        },
+        "thursday": {
+          "type": "boolean",
+          "description": "Indicates whether the student rides the bus on Thursday."
+        },
+        "friday": {
+          "type": "boolean",
+          "description": "Indicates whether the student rides the bus on Friday."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "destinationId"
+      ]
+    },
+    "Destination": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Destination",
+      "type": "object",
+      "description": "Represents a destination or stop along a bus route.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Destination entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the destination."
+        },
+        "address": {
+          "type": "string",
+          "description": "The physical address of the destination."
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude coordinate of the destination."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude coordinate of the destination."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "BusRoute": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BusRoute",
+      "type": "object",
+      "description": "Represents a specific route for a school bus, including the order of destinations.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the BusRoute entity."
+        },
+        "busId": {
+          "type": "string",
+          "description": "Reference to SchoolBus. (Relationship: SchoolBus 1:N BusRoute)"
+        },
+        "destinationIds": {
+          "type": "array",
+          "description": "References to Destinations in order. (Relationship: Destination 1:N BusRoute)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "routeName": {
+          "type": "string",
+          "description": "The name of the bus route."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of the bus route (e.g., arrival, departure)."
+        }
+      },
+      "required": [
+        "id",
+        "busId",
+        "destinationIds",
+        "routeName"
+      ]
+    },
+    "Absence": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Absence",
+      "type": "object",
+      "description": "Represents a record of a student's absence on a particular day.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Absence entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N Absence)"
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the absence.",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason for the absence (optional)."
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "date"
+      ]
+    },
+    "GroupLeader": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GroupLeader",
+      "type": "object",
+      "description": "Represents the designation of a student as a group leader, including volunteer time tracking.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the GroupLeader entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N GroupLeader)"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The date the student was designated as group leader.",
+          "format": "date-time"
+        },
+        "totalVolunteerMinutes": {
+          "type": "number",
+          "description": "The total volunteer time in minutes accumulated by the student as a group leader."
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "startDate"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/schoolBuses/{schoolBusId}",
+        "definition": {
+          "entityName": "SchoolBus",
+          "schema": {
+            "$ref": "#/backend/entities/SchoolBus"
+          },
+          "description": "Stores school bus details. Allows admin to create and manage buses.",
+          "params": [
+            {
+              "name": "schoolBusId",
+              "description": "Unique identifier for the school bus."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/destinations/{destinationId}",
+        "definition": {
+          "entityName": "Destination",
+          "schema": {
+            "$ref": "#/backend/entities/Destination"
+          },
+          "description": "Stores destination information, managed by admins.",
+          "params": [
+            {
+              "name": "destinationId",
+              "description": "Unique identifier for the destination."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/busRoutes/{busRouteId}",
+        "definition": {
+          "entityName": "BusRoute",
+          "schema": {
+            "$ref": "#/backend/entities/BusRoute"
+          },
+          "description": "Stores bus route information, managed by admins.",
+          "params": [
+            {
+              "name": "busRouteId",
+              "description": "Unique identifier for the bus route."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/students/{studentId}",
+        "definition": {
+          "entityName": "Student",
+          "schema": {
+            "$ref": "#/backend/entities/Student"
+          },
+          "description": "Stores individual student data. Includes references to destination and arrival/departure buses.",
+          "params": [
+            {
+              "name": "studentId",
+              "description": "Unique identifier for the student."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/students/{studentId}/absences/{absenceId}",
+        "definition": {
+          "entityName": "Absence",
+          "schema": {
+            "$ref": "#/backend/entities/Absence"
+          },
+          "description": "Tracks student absences. Accessible to teachers/admins.",
+          "params": [
+            {
+              "name": "studentId",
+              "description": "Unique identifier for the student."
+            },
+            {
+              "name": "absenceId",
+              "description": "Unique identifier for the absence record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/students/{studentId}/groupLeaderInfo/{groupLeaderInfoId}",
+        "definition": {
+          "entityName": "GroupLeader",
+          "schema": {
+            "$ref": "#/backend/entities/GroupLeader"
+          },
+          "description": "Tracks group leader assignments and volunteer time.",
+          "params": [
+            {
+              "name": "studentId",
+              "description": "Unique identifier for the student."
+            },
+            {
+              "name": "groupLeaderInfoId",
+              "description": "Unique identifier for the group leader assignment."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to manage school bus operations effectively, addressing admin, teacher, and student needs.  Authorization Independence is achieved through path-based ownership for user-specific data (students).  The structure also leverages denormalization where necessary to avoid complex `get()` calls in security rules.\n\n*   `/schoolBuses`: Stores school bus details. Allows admin to create and manage buses. QAPs are met as only authorized admins can `list` and `create` here.\n*   `/destinations`: Stores destination information, also managed by admins.\n*   `/busRoutes`: Stores bus route information, managed by admins.\n*   `/students/{studentId}`:  Stores individual student data. This supports the ability to assign students to destinations and arrival/departure buses. Path-based ownership ensures only the user themselves can access/modify their data, meeting QAPs.\n*   `/students/{studentId}/absences/{absenceId}`: Tracks student absences. Accessible to teachers/admins who need to mark absences. The nested structure allows for efficient querying of absences for a specific student. Path-based ownership ensures only authorized teachers/admins can access student absence records.\n*   `/students/{studentId}/groupLeaderInfo/{groupLeaderInfoId}`: Tracks group leader assignments and volunteer time.  Accessible to teachers/admins. Nested under `/students/{studentId}` to simplify security rules.\n\nThis structure avoids hierarchical authorization by directly associating student data with the appropriate bus route and destination through denormalized fields. This avoids the need for complex `get()` calls in Firestore security rules, improving performance and security."
+  }
+}
