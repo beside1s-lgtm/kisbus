@@ -1,9 +1,8 @@
-
 'use client';
 import type { FC, ReactNode } from 'react';
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, LogOut } from 'lucide-react';
+import { Home, LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
@@ -45,17 +44,19 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
     );
   }
 
-  const showBackButton = pathname.startsWith('/admin') || pathname.startsWith('/teacher');
+  const showHomeButton = pathname.startsWith('/admin') || pathname.startsWith('/teacher');
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
        <header className="sticky top-0 z-10 flex flex-col gap-2 border-b bg-card/80 px-4 py-2 backdrop-blur-sm sm:gap-4 md:px-6">
           <div className="flex w-full items-center justify-between">
               <div className="flex items-center gap-4">
-                  {showBackButton && (
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => router.back()}>
-                      <ArrowLeft className="h-4 w-4" />
-                      <span className="sr-only">Back</span>
+                  {showHomeButton && (
+                    <Button asChild variant="outline" size="icon" className="h-8 w-8">
+                      <Link href="/">
+                        <Home className="h-4 w-4" />
+                        <span className="sr-only">Home</span>
+                      </Link>
                     </Button>
                   )}
                   <h1 className="text-lg font-semibold md:text-xl font-headline">
