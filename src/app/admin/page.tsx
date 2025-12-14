@@ -21,7 +21,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { StudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX, Armchair } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX, Armchair, ChevronDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +40,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/use-auth';
 import { useTranslation } from '@/hooks/use-translation';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -2587,19 +2588,61 @@ const AdminPageContent: React.FC<{
         }
     };
     
+    const handleAcknowledgeSingle = async (studentId: string) => {
+        try {
+            await updateStudent(studentId, { applicationStatus: 'reviewed' });
+            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, applicationStatus: 'reviewed' } : s));
+            setPendingStudents(prev => prev.filter(s => s.id !== studentId));
+            toast({ title: t('success'), description: "신청 건을 확인 처리했습니다." });
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.new_applications.acknowledge_error'), variant: "destructive" });
+        }
+    };
+
+    const getDestinationName = (destId: string | null | undefined) => {
+        if (!destId) return null;
+        return destinations.find(d => d.id === destId)?.name || null;
+    }
+    
     return (
         <>
             {pendingStudents.length > 0 && (
-                <Alert className="mb-6">
-                    <Bell className="h-4 w-4" />
-                    <AlertTitle>{t('admin.new_applications.title')}</AlertTitle>
-                    <AlertDescription className="flex justify-between items-center">
-                        {t('admin.new_applications.description', {count: pendingStudents.length})}
-                         <Button onClick={handleAcknowledgeAll}>
-                            <Check className="mr-2" /> {t('admin.new_applications.acknowledge_button')}
-                        </Button>
-                    </AlertDescription>
-                </Alert>
+                 <Collapsible defaultOpen={true} className="mb-6">
+                    <Alert>
+                        <Bell className="h-4 w-4" />
+                        <div className="flex justify-between items-center w-full">
+                            <CollapsibleTrigger asChild>
+                                <div className="flex items-center cursor-pointer">
+                                    <AlertTitle>{t('admin.new_applications.title')}</AlertTitle>
+                                    <AlertDescription className="ml-2">({t('admin.new_applications.description', {count: pendingStudents.length})})</AlertDescription>
+                                    <ChevronDown className="h-4 w-4 ml-1 transition-transform [&[data-state=open]]:rotate-180" />
+                                </div>
+                            </CollapsibleTrigger>
+                             <Button onClick={handleAcknowledgeAll} size="sm">
+                                <Check className="mr-2" /> {t('admin.new_applications.acknowledge_button')}
+                            </Button>
+                        </div>
+                         <CollapsibleContent className="mt-4 space-y-2">
+                             {pendingStudents.map(student => (
+                                <Card key={student.id} className="p-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold">{student.name} ({student.grade} {student.class})</p>
+                                            <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                                                <p>등교: {getDestinationName(student.morningDestinationId) || student.suggestedMorningDestination || "변경 없음"}</p>
+                                                <p>하교: {getDestinationName(student.afternoonDestinationId) || student.suggestedAfternoonDestination || "변경 없음"}</p>
+                                                <p>방과후: {Object.entries(student.afterSchoolDestinations || {}).filter(([, destId]) => destId).map(([day, destId]) => `${t(`day_short.${day.toLowerCase()}`)}: ${getDestinationName(destId)}`).join(', ') || "변경 없음"}</p>
+                                            </div>
+                                        </div>
+                                        <Button size="sm" variant="outline" onClick={() => handleAcknowledgeSingle(student.id)}>
+                                            <Check className="mr-1 h-3 w-3" /> 확인
+                                        </Button>
+                                    </div>
+                                </Card>
+                            ))}
+                        </CollapsibleContent>
+                    </Alert>
+                </Collapsible>
             )}
             <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
                 <TabsList className="grid w-full grid-cols-4">
@@ -2803,7 +2846,7 @@ export default function AdminPage() {
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [dataLoading, setDataLoading] = useState(true);
+    const [dataLoading, setDataLoading]_ = useState(true);
     const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
     const { t } = useTranslation();
     
@@ -2814,37 +2857,31 @@ export default function AdminPage() {
     }, [user, authLoading, router]);
 
     useEffect(() => {
-    if (!user || authLoading) return;
+        if (!user || authLoading) return;
 
-    const unsubscribers = [
-      onBusesUpdate(data => setBuses(sortBuses(data))),
-      onStudentsUpdate(data => {
-        setStudents(data);
-        setPendingStudents(data.filter(s => s.applicationStatus === 'pending'));
-      }),
-      onRoutesUpdate(setRoutes),
-      onDestinationsUpdate(data => setDestinations(sortDestinations(data))),
-      onSuggestedDestinationsUpdate(setSuggestedDestinations),
-      onTeachersUpdate(data => setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
-    ];
-    
-    // Check if all initial data has been loaded
-    const checkDataLoaded = () => {
-        if (buses.length > 0 && students.length > 0 && routes.length > 0 && destinations.length > 0 && teachers.length > 0) {
-            setDataLoading(false);
-        }
-    };
-    
-    // Call checkDataLoaded whenever data updates
-    checkDataLoaded();
+        const unsubscribers = [
+            onBusesUpdate(data => setBuses(sortBuses(data))),
+            onStudentsUpdate(data => {
+                setStudents(data);
+                setPendingStudents(data.filter(s => s.applicationStatus === 'pending'));
+            }),
+            onRoutesUpdate(setRoutes),
+            onDestinationsUpdate(data => setDestinations(sortDestinations(data))),
+            onSuggestedDestinationsUpdate(setSuggestedDestinations),
+            onTeachersUpdate(data => setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
+        ];
 
-    return () => {
-      unsubscribers.forEach(unsubscribe => unsubscribe());
-    };
-  }, [user, authLoading, buses.length, students.length, routes.length, destinations.length, teachers.length]);
+        return () => {
+            unsubscribers.forEach(unsubscribe => unsubscribe());
+        };
+    }, [user, authLoading]);
+
+    const dataLoaded = useMemo(() => {
+        return buses.length > 0 && students.length > 0 && routes.length > 0 && destinations.length > 0 && teachers.length > 0;
+    }, [buses, students, routes, destinations, teachers]);
 
 
-    if (authLoading || dataLoading) {
+    if (authLoading || !dataLoaded) {
         return (
             <MainLayout>
                 <div className="flex justify-center items-center h-64">
