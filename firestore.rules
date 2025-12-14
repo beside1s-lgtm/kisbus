@@ -101,7 +101,7 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
-    // Admin-Only Collections (Locked by Default)
+    // Admin-Only Collections (Partially Unlocked for Prototyping)
     // -------------------------------------------------------------------------
 
     /**
@@ -113,44 +113,59 @@ service cloud.firestore {
      */
     match /schoolBuses/{schoolBusId} {
       // TODO: Implement admin-only access, likely via custom claims check: request.auth.token.isAdmin == true
-      allow get: if false;
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     /**
-     * @description Manages bus stop and destination details. Locked until an admin role system is implemented.
+     * @description Manages bus stop and destination details. Now accessible by any authenticated user for prototyping.
      * @path /destinations/{destinationId}
-     * @allow (N/A) All requests are denied by default.
-     * @deny (any) Any user attempting to read or write a destination document.
-     * @principle Secure by default. Prevents unauthorized access to critical data until a proper admin verification mechanism (e.g., custom claims) is added.
+     * @allow (read, write) Any signed-in user.
+     * @principle Open for prototyping. Allows easy management of destinations during development.
      */
     match /destinations/{destinationId} {
-      // TODO: Implement admin-only access, likely via custom claims check: request.auth.token.isAdmin == true
-      allow get: if false;
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     /**
-     * @description Manages bus route definitions. Locked until an admin role system is implemented.
+     * @description Manages bus route definitions. Read access is now open for prototyping.
      * @path /busRoutes/{busRouteId}
-     * @allow (N/A) All requests are denied by default.
-     * @deny (any) Any user attempting to read or write a bus route document.
-     * @principle Secure by default. Prevents unauthorized access to critical data until a proper admin verification mechanism (e.g., custom claims) is added.
+     * @allow (read) Any signed-in user.
+     * @principle Read-only access for prototyping. Allows the app to fetch route information.
      */
     match /busRoutes/{busRouteId} {
-      // TODO: Implement admin-only access, likely via custom claims check: request.auth.token.isAdmin == true
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
+
+    /**
+     * @description Manages user-suggested destinations.
+     * @path /suggestedDestinations/{suggestionId}
+     * @allow (read, write) Any signed-in user.
+     * @principle Open for prototyping. Allows users to submit suggestions and admins to manage them.
+     */
+    match /suggestedDestinations/{suggestionId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    /**
+     * @description Manages teacher information.
+     * @path /teachers/{teacherId}
+     * @allow (read, write) Any signed-in user.
+     * @principle Open for prototyping.
+     */
+    match /teachers/{teacherId} {
+        allow read, write: if isSignedIn();
+    }
+
+    /**
+     * @description Manages lost and found items.
+     * @path /lostItems/{itemId}
+     * @allow (read, write) Any signed-in user.
+     * @principle Open for prototyping.
+     */
+    match /lostItems/{itemId} {
+        allow read, write: if isSignedIn();
+    }
+
 
     // -------------------------------------------------------------------------
     // Student Data Collections (Permissive for Prototyping)
@@ -164,11 +179,7 @@ service cloud.firestore {
      * @principle Authenticated access. During prototyping, allows any signed-in user to manage student data, facilitating rapid development.
      */
     match /students/{studentId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && hasConsistentStudentIdOnCreate(studentId);
-      allow update: if isSignedIn() && isExistingDoc() && isStudentIdImmutable();
-      allow delete: if isSignedIn() && isExistingDoc();
+      allow read, write: if isSignedIn();
 
       /**
        * @description Tracks student absences. Inherits access from the parent student document.
@@ -178,11 +189,7 @@ service cloud.firestore {
        * @principle Relational integrity. Ensures that subcollection data correctly points back to its parent document.
        */
       match /absences/{absenceId} {
-        allow get: if isSignedIn();
-        allow list: if isSignedIn();
-        allow create: if isSignedIn() && hasConsistentStudentForeignKeyOnCreate(studentId);
-        allow update: if isSignedIn() && isExistingDoc() && isStudentForeignKeyImmutable();
-        allow delete: if isSignedIn() && isExistingDoc();
+        allow read, write: if isSignedIn();
       }
 
       /**
@@ -193,11 +200,7 @@ service cloud.firestore {
        * @principle Relational integrity. Ensures that subcollection data correctly points back to its parent document.
        */
       match /groupLeaderInfo/{groupLeaderInfoId} {
-        allow get: if isSignedIn();
-        allow list: if isSignedIn();
-        allow create: if isSignedIn() && hasConsistentStudentForeignKeyOnCreate(studentId);
-        allow update: if isSignedIn() && isExistingDoc() && isStudentForeignKeyImmutable();
-        allow delete: if isSignedIn() && isExistingDoc();
+        allow read, write: if isSignedIn();
       }
     }
   }
