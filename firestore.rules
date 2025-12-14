@@ -1,3 +1,4 @@
+
 /**
  * Core Philosophy:
  * This ruleset is designed for a school bus management application during its
@@ -111,8 +112,7 @@ service cloud.firestore {
      * @deny (any) Any user attempting to read or write a school bus document.
      * @principle Secure by default. Prevents unauthorized access to critical data until a proper admin verification mechanism (e.g., custom claims) is added.
      */
-    match /schoolBuses/{schoolBusId} {
-      // TODO: Implement admin-only access, likely via custom claims check: request.auth.token.isAdmin == true
+    match /buses/{busId} {
       allow read, write: if isSignedIn();
     }
 
@@ -132,7 +132,7 @@ service cloud.firestore {
      * @allow (read) Any signed-in user.
      * @principle Read-only access for prototyping. Allows the app to fetch route information.
      */
-    match /busRoutes/{busRouteId} {
+    match /routes/{routeId} {
       allow read, write: if isSignedIn();
     }
 
