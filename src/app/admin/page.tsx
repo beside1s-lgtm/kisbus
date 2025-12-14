@@ -2805,7 +2805,6 @@ export default function AdminPage() {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
-    const { toast } = useToast();
     const { t } = useTranslation();
     
     useEffect(() => {
@@ -2815,34 +2814,35 @@ export default function AdminPage() {
     }, [user, authLoading, router]);
 
     useEffect(() => {
-        if (!user || authLoading) return;
+    if (!user || authLoading) return;
 
-        const unsubscribers = [
-            onBusesUpdate((busesData) => {
-                const sortedBuses = sortBuses(busesData);
-                setBuses(sortedBuses);
-                if (dataLoading) setDataLoading(false);
-            }),
-            onStudentsUpdate((studentsData) => {
-                setStudents(studentsData);
-                setPendingStudents(studentsData.filter(s => s.applicationStatus === 'pending'));
-            }),
-            onRoutesUpdate((routesData) => {
-                setRoutes(routesData);
-            }),
-            onDestinationsUpdate((destinationsData) => {
-                setDestinations(sortDestinations(destinationsData));
-            }),
-            onSuggestedDestinationsUpdate(setSuggestedDestinations),
-            onTeachersUpdate((teachersData) => {
-                setTeachers(teachersData.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-            }),
-        ];
+    const unsubscribers = [
+      onBusesUpdate(data => setBuses(sortBuses(data))),
+      onStudentsUpdate(data => {
+        setStudents(data);
+        setPendingStudents(data.filter(s => s.applicationStatus === 'pending'));
+      }),
+      onRoutesUpdate(setRoutes),
+      onDestinationsUpdate(data => setDestinations(sortDestinations(data))),
+      onSuggestedDestinationsUpdate(setSuggestedDestinations),
+      onTeachersUpdate(data => setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
+    ];
+    
+    // Check if all initial data has been loaded
+    const checkDataLoaded = () => {
+        if (buses.length > 0 && students.length > 0 && routes.length > 0 && destinations.length > 0 && teachers.length > 0) {
+            setDataLoading(false);
+        }
+    };
+    
+    // Call checkDataLoaded whenever data updates
+    checkDataLoaded();
 
-        return () => {
-            unsubscribers.forEach(unsubscribe => unsubscribe());
-        };
-    }, [user, authLoading, dataLoading]);
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [user, authLoading, buses.length, students.length, routes.length, destinations.length, teachers.length]);
+
 
     if (authLoading || dataLoading) {
         return (
@@ -2853,7 +2853,6 @@ export default function AdminPage() {
             </MainLayout>
         );
     }
-
 
     return (
         <MainLayout>
