@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -20,7 +19,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, UserX, ArrowLeftRight, Search } from 'lucide-react';
+import { Crown, UserX, ArrowLeftRight, Search, CheckCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -35,6 +34,7 @@ import { LostAndFound } from './components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { cn } from '@/lib/utils';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
@@ -62,6 +62,7 @@ export default function TeacherPage() {
   
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
+  const [disembarkedStudentIds, setDisembarkedStudentIds] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student & { isGroupLeader?: boolean } | null>(null);
   const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +71,7 @@ export default function TeacherPage() {
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
+  const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
 
 
   const { toast } = useToast();
@@ -160,10 +162,13 @@ export default function TeacherPage() {
         unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
             setBoardedStudentIds(attendance?.boarded || []);
             setAbsentStudentIds(attendance?.absent || []);
+            setDisembarkedStudentIds(attendance?.disembarked || []);
         });
+        setSelectedDestinationId(null);
     } else {
         setBoardedStudentIds([]);
         setAbsentStudentIds([]);
+        setDisembarkedStudentIds([]);
     }
      return () => {
       if (unsubscribe) {
@@ -274,7 +279,7 @@ export default function TeacherPage() {
     
     const newBoardedIds = boardedStudentIds.filter(id => id !== student.id); // If absent, cannot be boarded
 
-    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds })
+    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds, disembarked: disembarkedStudentIds })
       .then(() => {
         toast({ title: t("success"), description: `${formatStudentName(student)} ${t('teacher_page.absence_updated')}`});
       })
@@ -282,7 +287,23 @@ export default function TeacherPage() {
         console.error("Error updating absence:", error);
         toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive"});
       });
-  }, [currentRoute, today, absentStudentIds, boardedStudentIds, toast, t]);
+  }, [currentRoute, today, absentStudentIds, boardedStudentIds, disembarkedStudentIds, toast, t]);
+
+  const toggleDisembark = useCallback(async (studentId: string) => {
+      if (!currentRoute) return;
+
+      const isDisembarked = disembarkedStudentIds.includes(studentId);
+      const newDisembarkedIds = isDisembarked
+        ? disembarkedStudentIds.filter(id => id !== studentId)
+        : [...disembarkedStudentIds, studentId];
+      
+      try {
+          await updateAttendance(currentRoute.id, today, { disembarked: newDisembarkedIds });
+      } catch (error) {
+          console.error("Error updating disembark status", error);
+          toast({ title: "Error", description: "Failed to update disembark status.", variant: "destructive" });
+      }
+  }, [currentRoute, today, disembarkedStudentIds, toast]);
 
   
   const toggleGroupLeader = (student: Student) => {
@@ -336,7 +357,7 @@ export default function TeacherPage() {
       
       const newAbsentIds = absentStudentIds.filter(id => id !== studentId);
   
-      updateAttendance(currentRoute.id, today, { boarded: newBoardedIds, absent: newAbsentIds })
+      updateAttendance(currentRoute.id, today, { boarded: newBoardedIds, absent: newAbsentIds, disembarked: disembarkedStudentIds })
           .then(() => {
               setLastClickedStudentId(studentId);
           })
@@ -456,6 +477,22 @@ export default function TeacherPage() {
       }
   }, [filteredBuses, selectedBusId]);
 
+  const studentsToDisembark = useMemo(() => {
+    if (!selectedDestinationId) return [];
+    
+    const getStudentDestinationId = (student: Student) => {
+        if (selectedRouteType === 'Morning') return student.morningDestinationId;
+        if (selectedRouteType === 'Afternoon') return student.afternoonDestinationId;
+        if (selectedRouteType === 'AfterSchool') return student.afterSchoolDestinations?.[selectedDay] || null;
+        return null;
+    }
+
+    return studentsOnCurrentRoute.filter(student => 
+        getStudentDestinationId(student) === selectedDestinationId &&
+        boardedStudentIds.includes(student.id) &&
+        !disembarkedStudentIds.includes(student.id)
+    );
+  }, [selectedDestinationId, studentsOnCurrentRoute, boardedStudentIds, disembarkedStudentIds, selectedRouteType, selectedDay]);
 
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-2">
@@ -654,6 +691,53 @@ export default function TeacherPage() {
                             <div className="text-center py-10 text-muted-foreground">
                                 {filteredBuses.length === 0 && !loading ? t('teacher_page.no_assigned_routes') : t('teacher_page.no_route_info') }
                             </div>
+                        )}
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>하차 관리</CardTitle>
+                        <CardDescription>목적지를 선택하여 하차할 학생 명단을 확인하고, 하차 시 이름을 클릭하여 명단에서 제거하세요.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {(currentRoute?.stops || []).map(stopId => {
+                                const dest = destinations.find(d => d.id === stopId);
+                                return dest ? (
+                                    <Button key={stopId} variant={selectedDestinationId === stopId ? "default" : "outline"} onClick={() => setSelectedDestinationId(prev => prev === stopId ? null : stopId)}>
+                                        {dest.name}
+                                    </Button>
+                                ) : null;
+                            })}
+                        </div>
+                        {selectedDestinationId && (
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>학생 이름</TableHead>
+                                        <TableHead>하차</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {studentsToDisembark.map(student => (
+                                        <TableRow key={student.id} onClick={() => toggleDisembark(student.id)} className="cursor-pointer">
+                                            <TableCell>{formatStudentName(student)}</TableCell>
+                                            <TableCell>
+                                                <Button size="sm" variant="ghost">
+                                                    <CheckCircle className="h-5 w-5 text-green-600" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {studentsToDisembark.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={2} className="text-center text-muted-foreground">
+                                                이 정류장에서 내릴 학생이 없습니다.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
                         )}
                     </CardContent>
                 </Card>

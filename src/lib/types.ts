@@ -59,6 +59,7 @@ export type AttendanceRecord = {
   routeId: string;
   absent: string[]; // student IDs
   boarded: string[]; // student IDs
+  disembarked?: string[]; // student IDs
 };
 
 export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
