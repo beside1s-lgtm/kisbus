@@ -134,6 +134,20 @@ service cloud.firestore {
      */
     match /routes/{routeId} {
       allow read, write: if isSignedIn();
+
+      /**
+       * @description Tracks student attendance for a specific route and date.
+       * @path /routes/{routeId}/attendance/{attendanceId}
+       * @allow (read, write) Any signed-in user.
+       * @principle Open for prototyping. Allows teachers and students to manage attendance.
+       */
+       match /attendance/{attendanceId} {
+        allow read, write: if isSignedIn();
+       }
+       
+       match /groupLeaderRecords/{recordId} {
+        allow read, write: if isSignedIn();
+       }
     }
 
     /**
@@ -205,3 +219,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
