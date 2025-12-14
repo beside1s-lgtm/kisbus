@@ -21,7 +21,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { StudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX, Armchair, ChevronDown } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX, Armchair, ChevronDown, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -2615,6 +2615,13 @@ const AdminPageContent: React.FC<{
     
     return (
         <>
+            <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Security Check Recommended (CVE-2025-55182)</AlertTitle>
+                <AlertDescription>
+                    Please review your application's dependencies. If you are running React or Next.js applications, immediately update to the latest stable versions.
+                </AlertDescription>
+            </Alert>
             {pendingStudents.length > 0 && (
                  <Collapsible defaultOpen={true} className="mb-6">
                     <Alert>
@@ -2951,4 +2958,3 @@ export default function AdminPage() {
         </MainLayout>
     );
 }
-
