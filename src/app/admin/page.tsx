@@ -2846,7 +2846,7 @@ export default function AdminPage() {
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [dataLoading, setDataLoading]_ = useState(true);
+    const [dataLoading, setDataLoading] = useState(true);
     const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
     const { t } = useTranslation();
     
@@ -2858,30 +2858,47 @@ export default function AdminPage() {
 
     useEffect(() => {
         if (!user || authLoading) return;
-
+        setDataLoading(true);
         const unsubscribers = [
-            onBusesUpdate(data => setBuses(sortBuses(data))),
+            onBusesUpdate(data => {
+                setBuses(sortBuses(data));
+                checkDataLoaded();
+            }),
             onStudentsUpdate(data => {
                 setStudents(data);
                 setPendingStudents(data.filter(s => s.applicationStatus === 'pending'));
+                checkDataLoaded();
             }),
-            onRoutesUpdate(setRoutes),
-            onDestinationsUpdate(data => setDestinations(sortDestinations(data))),
+            onRoutesUpdate(data => {
+                setRoutes(data);
+                checkDataLoaded();
+            }),
+            onDestinationsUpdate(data => {
+                setDestinations(sortDestinations(data));
+                checkDataLoaded();
+            }),
             onSuggestedDestinationsUpdate(setSuggestedDestinations),
-            onTeachersUpdate(data => setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
+            onTeachersUpdate(data => {
+                setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+                checkDataLoaded();
+            }),
         ];
+        
+        const checkDataLoaded = () => {
+            if (buses.length > 0 && students.length > 0 && routes.length > 0 && destinations.length > 0 && teachers.length > 0) {
+               setDataLoading(false);
+            }
+        }
+        
+        // Initial check in case data is already there
+        checkDataLoaded();
 
         return () => {
             unsubscribers.forEach(unsubscribe => unsubscribe());
         };
-    }, [user, authLoading]);
+    }, [user, authLoading, buses.length, students.length, routes.length, destinations.length, teachers.length]);
 
-    const dataLoaded = useMemo(() => {
-        return buses.length > 0 && students.length > 0 && routes.length > 0 && destinations.length > 0 && teachers.length > 0;
-    }, [buses, students, routes, destinations, teachers]);
-
-
-    if (authLoading || !dataLoaded) {
+    if (authLoading || dataLoading) {
         return (
             <MainLayout>
                 <div className="flex justify-center items-center h-64">
