@@ -1,5 +1,5 @@
-
 'use client';
+
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ArrowRight, UserCog, User, ShieldCheck } from "lucide-react";
 import Link from "next/link";
@@ -39,32 +39,33 @@ export default function Home() {
 
   return (
     <MainLayout>
-        <div className="flex flex-col gap-8 items-center justify-center h-full">
-            <header className="text-center">
-                <h1 className="text-4xl font-bold font-headline">{t('main.title')}</h1>
-                <p className="text-muted-foreground mt-2">{t('main.select_role')}</p>
-            </header>
-            <main className="grid gap-6 md:grid-cols-3 max-w-4xl w-full">
-                <RoleCard 
-                    href="/login"
-                    icon={ShieldCheck}
-                    title={t('role.admin')}
-                    description={t('role.admin.description')}
-                />
-                <RoleCard 
-                    href="/teacher"
-                    icon={UserCog}
-                    title={t('role.teacher')}
-                    description={t('role.teacher.description')}
-                />
-                 <RoleCard 
-                    href="/parents"
-                    icon={User}
-                    title={t('role.parent')}
-                    description={t('role.parent.description')}
-                />
-            </main>
-        </div>
+      <div className="flex flex-col gap-8 items-center justify-center h-full">
+        <header className="text-center">
+          <h1 className="text-4xl font-bold font-headline">{t("main.title")}</h1>
+          <p className="text-muted-foreground mt-2">{t("main.select_role")}</p>
+        </header>
+
+        <main className="grid gap-6 md:grid-cols-3 max-w-4xl w-full">
+          <RoleCard
+            href="/login"
+            icon={ShieldCheck}
+            title={t("role.admin")}
+            description={t("role.admin.description")}
+          />
+          <RoleCard
+            href="/teacher"
+            icon={UserCog}
+            title={t("role.teacher")}
+            description={t("role.teacher.description")}
+          />
+          <RoleCard
+            href="/parents"
+            icon={User}
+            title={t("role.parent")}
+            description={t("role.parent.description")}
+          />
+        </main>
+      </div>
     </MainLayout>
   );
 }

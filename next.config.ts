@@ -7,12 +7,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  experimental: {
-    // This is the setting that will fix the Turbopack root directory issue.
-    turbopack: {
-      root: path.resolve(__dirname),
-    },
-  },
   images: {
     remotePatterns: [
       {
