@@ -1,3 +1,4 @@
+
 'use client';
 import type { FC, ReactNode } from 'react';
 import React from 'react';
@@ -26,8 +27,6 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
     return t(`page.title.${currentPath || 'home'}`);
   }
 
-  const isHomePage = pathname === '/';
-  
   const handleLogout = async () => {
       try {
         await logout();
@@ -45,13 +44,6 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
     );
   }
 
-  const getBackLink = () => {
-    if (!user) return '/'; // 로그아웃 상태에서는 무조건 홈으로
-    if (pathname.startsWith('/admin') || pathname.startsWith('/teacher')) return '/';
-    if (pathname.startsWith('/student') || pathname.startsWith('/apply')) return '/parents';
-    return '/';
-  }
-
   return (
     <div className="flex flex-col min-h-screen bg-background">
        <header className="sticky top-0 z-10 flex flex-col gap-2 border-b bg-card/80 px-4 py-2 backdrop-blur-sm sm:gap-4 md:px-6">
@@ -63,7 +55,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
               </div>
               <div className="flex items-center gap-2">
                   <LanguageSwitcher />
-                  {user && (pathname.startsWith('/admin')) && (
+                  {user && pathname.startsWith('/admin') && (
                       <Button variant="outline" size="sm" onClick={handleLogout}>
                       <LogOut className="mr-2" /> {t('logout.button')}
                       </Button>
