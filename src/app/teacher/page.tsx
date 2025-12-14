@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -694,53 +695,6 @@ export default function TeacherPage() {
                         )}
                     </CardContent>
                 </Card>
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>하차 관리</CardTitle>
-                        <CardDescription>목적지를 선택하여 하차할 학생 명단을 확인하고, 하차 시 이름을 클릭하여 명단에서 제거하세요.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {(currentRoute?.stops || []).map(stopId => {
-                                const dest = destinations.find(d => d.id === stopId);
-                                return dest ? (
-                                    <Button key={stopId} variant={selectedDestinationId === stopId ? "default" : "outline"} onClick={() => setSelectedDestinationId(prev => prev === stopId ? null : stopId)}>
-                                        {dest.name}
-                                    </Button>
-                                ) : null;
-                            })}
-                        </div>
-                        {selectedDestinationId && (
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>학생 이름</TableHead>
-                                        <TableHead>하차</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {studentsToDisembark.map(student => (
-                                        <TableRow key={student.id} onClick={() => toggleDisembark(student.id)} className="cursor-pointer">
-                                            <TableCell>{formatStudentName(student)}</TableCell>
-                                            <TableCell>
-                                                <Button size="sm" variant="ghost">
-                                                    <CheckCircle className="h-5 w-5 text-green-600" />
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {studentsToDisembark.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                                이 정류장에서 내릴 학생이 없습니다.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
                  <div className="lg:hidden">
                     <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
                 </div>
@@ -789,6 +743,53 @@ export default function TeacherPage() {
                                 ))}
                             </TableBody>
                         </Table>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>하차 관리</CardTitle>
+                        <CardDescription>목적지를 선택하여 하차할 학생 명단을 확인하고, 하차 시 이름을 클릭하여 명단에서 제거하세요.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {(currentRoute?.stops || []).map(stopId => {
+                                const dest = destinations.find(d => d.id === stopId);
+                                return dest ? (
+                                    <Button key={stopId} variant={selectedDestinationId === stopId ? "default" : "outline"} onClick={() => setSelectedDestinationId(prev => prev === stopId ? null : stopId)}>
+                                        {dest.name}
+                                    </Button>
+                                ) : null;
+                            })}
+                        </div>
+                        {selectedDestinationId && (
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>학생 이름</TableHead>
+                                        <TableHead>하차</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {studentsToDisembark.map(student => (
+                                        <TableRow key={student.id} onClick={() => toggleDisembark(student.id)} className="cursor-pointer">
+                                            <TableCell>{formatStudentName(student)}</TableCell>
+                                            <TableCell>
+                                                <Button size="sm" variant="ghost">
+                                                    <CheckCircle className="h-5 w-5 text-green-600" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {studentsToDisembark.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={2} className="text-center text-muted-foreground">
+                                                이 정류장에서 내릴 학생이 없습니다.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        )}
                     </CardContent>
                 </Card>
                 <Card>
@@ -848,6 +849,55 @@ export default function TeacherPage() {
                                     ))}
                                 </TableBody>
                             </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+                <div className="lg:order-none">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>하차 관리</CardTitle>
+                            <CardDescription>목적지를 선택하여 하차할 학생 명단을 확인하고, 하차 시 이름을 클릭하여 명단에서 제거하세요.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {(currentRoute?.stops || []).map(stopId => {
+                                    const dest = destinations.find(d => d.id === stopId);
+                                    return dest ? (
+                                        <Button key={stopId} variant={selectedDestinationId === stopId ? "default" : "outline"} onClick={() => setSelectedDestinationId(prev => prev === stopId ? null : stopId)}>
+                                            {dest.name}
+                                        </Button>
+                                    ) : null;
+                                })}
+                            </div>
+                            {selectedDestinationId && (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>학생 이름</TableHead>
+                                            <TableHead>하차</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {studentsToDisembark.map(student => (
+                                            <TableRow key={student.id} onClick={() => toggleDisembark(student.id)} className="cursor-pointer">
+                                                <TableCell>{formatStudentName(student)}</TableCell>
+                                                <TableCell>
+                                                    <Button size="sm" variant="ghost">
+                                                        <CheckCircle className="h-5 w-5 text-green-600" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {studentsToDisembark.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={2} className="text-center text-muted-foreground">
+                                                    이 정류장에서 내릴 학생이 없습니다.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
