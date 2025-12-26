@@ -85,14 +85,12 @@ export function StudentPageContent() {
   }
 
    useEffect(() => {
-    if (selectedStudent && allRoutes.length > 0) {
+    if (selectedStudent && allRoutes.length > 0 && isClient) {
         const studentRoutes = allRoutes.filter(route => 
             route.seating.some(seat => seat.studentId === selectedStudent.id)
         );
         setAssignedRoutes(studentRoutes);
 
-        if (!isClient) return;
-        
         const targetDate = new Date(selectedDate);
         if (isSunday(targetDate)) {
              setViewingDay(null);
@@ -143,11 +141,15 @@ export function StudentPageContent() {
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     
-    if (!isClient) return;
+    if (!isClient || !studentRoute || !selectedDate) {
+        setBoardedStudentIds([]);
+        setNotBoardingStudentIds([]);
+        return;
+    };
 
     const targetDayOfWeek = days[getDay(new Date(selectedDate)) - 1];
 
-    if (studentRoute && selectedDate && studentRoute.dayOfWeek === targetDayOfWeek) {
+    if (studentRoute.dayOfWeek === targetDayOfWeek) {
       unsubscribe = onAttendanceUpdate(studentRoute.id, selectedDate, (attendance) => {
         setBoardedStudentIds(attendance?.boarded || []);
         setNotBoardingStudentIds(attendance?.notBoarding || []);
@@ -255,10 +257,17 @@ export function StudentPageContent() {
   }
   
   const getDayOfWeekString = (dateString: string) => {
-    const date = new Date(dateString);
-    const dayIndex = getDay(date);
-    if(isSunday(date)) return '';
-    return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        // Check if date is valid
+        if (isNaN(date.getTime())) return '';
+        const dayIndex = getDay(date);
+        if(isSunday(date)) return '';
+        return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+    } catch(e) {
+        return '';
+    }
   };
 
   const headerContent = (
@@ -291,15 +300,15 @@ export function StudentPageContent() {
         {selectedStudent && (
             <div className="w-full sm:w-auto">
                 <Label htmlFor="not-boarding-date" className="text-xs">{t('student_page.not_boarding_date_label')}</Label>
-                <div className="flex items-center gap-2">
+                 <div className="flex items-center rounded-md border border-input bg-background h-10 px-3">
                     <Input
                         id="not-boarding-date"
                         type="date"
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
-                        className="w-full sm:w-auto"
+                        className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
-                    <span className="text-sm text-muted-foreground">{getDayOfWeekString(selectedDate)}</span>
+                    <span className="text-sm text-muted-foreground ml-2">{getDayOfWeekString(selectedDate)}</span>
                 </div>
             </div>
         )}

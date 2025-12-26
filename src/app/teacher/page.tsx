@@ -500,10 +500,17 @@ export default function TeacherPage() {
   }, [selectedDestinationId, studentsOnCurrentRoute, boardedStudentIds, disembarkedStudentIds, selectedRouteType, selectedDay]);
 
   const getDayOfWeekString = (dateString: string) => {
-    const date = new Date(dateString);
-    const dayIndex = getDay(date);
-    if(isSunday(date)) return '';
-    return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        // Check if date is valid
+        if (isNaN(date.getTime())) return '';
+        const dayIndex = getDay(date);
+        if(isSunday(date)) return '';
+        return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+    } catch(e) {
+        return '';
+    }
   };
 
   const headerContent = (
@@ -525,9 +532,14 @@ export default function TeacherPage() {
         </div>
         <div className="flex-1 min-w-[120px]">
             <Label className="text-xs">날짜</Label>
-            <div className="flex items-center gap-2">
-                <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
-                <span className="text-sm text-muted-foreground">{getDayOfWeekString(selectedDate)}</span>
+            <div className="flex items-center rounded-md border border-input bg-background h-10 px-3">
+                <Input 
+                    type="date" 
+                    value={selectedDate} 
+                    onChange={e => setSelectedDate(e.target.value)}
+                    className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+                <span className="text-sm text-muted-foreground ml-2">{getDayOfWeekString(selectedDate)}</span>
             </div>
         </div>
         <div className="flex-1 min-w-[180px]">
