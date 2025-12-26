@@ -7,14 +7,14 @@ import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem }
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MainLayout } from '@/components/layout/main-layout';
-import { Label } from '@/components/ui/label';
 import { format, getDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
+import { Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
@@ -35,27 +35,21 @@ export function StudentPageContent() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
   
-  const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
   const { toast } = useToast();
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Student[]>([]);
 
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
-  const dayLabels: { [key in DayOfWeek]: string } = useMemo(() => ({
-    Monday: t('day.monday'),
-    Tuesday: t('day.tuesday'),
-    Wednesday: t('day.wednesday'),
-    Thursday: t('day.thursday'),
-    Friday: t('day.friday'),
-    Saturday: t('day.saturday'),
-  }), [t]);
-
+  
   useEffect(() => {
     setLoading(true);
     const unsubscribers = [
@@ -113,24 +107,31 @@ export function StudentPageContent() {
       clearInterval(dateCheckInterval);
     };
   }, [today]);
-
-  const currentRoute = useMemo(() => {
-     return routes.find(r => 
-        r.busId === selectedBusId && 
+  
+  const studentRoute = useMemo(() => {
+    if (!selectedStudent) return null;
+    return routes.find(r => 
         r.dayOfWeek === selectedDay && 
-        r.type === selectedRouteType
-     );
-  }, [routes, selectedBusId, selectedDay, selectedRouteType]);
+        r.type === selectedRouteType && 
+        r.seating.some(s => s.studentId === selectedStudent.id)
+    );
+  }, [routes, selectedStudent, selectedDay, selectedRouteType]);
+
+  const selectedBus = useMemo(() => {
+      if (!studentRoute) return null;
+      return buses.find(b => b.id === studentRoute.busId);
+  }, [buses, studentRoute]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
-    if (currentRoute && today) {
-      unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
+    if (studentRoute && today) {
+      unsubscribe = onAttendanceUpdate(studentRoute.id, today, (attendance) => {
         setBoardedStudentIds(attendance?.boarded || []);
         setAbsentStudentIds(attendance?.absent || []);
       });
-
-      setSelectedStudentId(null);
+    } else {
+        setBoardedStudentIds([]);
+        setAbsentStudentIds([]);
     }
     
     return () => {
@@ -138,21 +139,8 @@ export function StudentPageContent() {
         unsubscribe();
       }
     };
-  }, [currentRoute, today]);
-  
-  const studentsOnCurrentRoute = useMemo(() => {
-    if (!currentRoute) return [];
-    const studentIdsOnRoute = currentRoute.seating
-      .map(seat => seat.studentId)
-      .filter((id): id is string => id !== null);
+  }, [studentRoute, today]);
 
-    return allStudents
-      .filter(student => studentIdsOnRoute.includes(student.id))
-      .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
-  }, [currentRoute, allStudents]);
-
-  const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
-  
   const findRoutesForStudent = useCallback(async (student: Student): Promise<Route[]> => {
     const studentDay = selectedDay;
 
@@ -162,8 +150,7 @@ export function StudentPageContent() {
     else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[studentDay] || null;
 
     if (!destId) return [];
-
-    // Since we already have all routes, we can filter them on the client
+    
     return routes.filter(r =>
       r.stops.includes(destId!) &&
       r.dayOfWeek === studentDay &&
@@ -212,9 +199,7 @@ export function StudentPageContent() {
   }, [today, toast, findRoutesForStudent, allStudents, boardedStudentIds, t]);
 
  const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
-      if (!studentId) return;
-      const student = allStudents.find(s => s.id === studentId);
-      if (!student) return;
+      if (!studentId || !selectedStudent || studentId !== selectedStudent.id) return;
       
       if (boardedStudentIds.includes(studentId)) {
         toast({ title: t('notice'), description: t('student_page.already_boarded_error'), variant: 'default' });
@@ -224,89 +209,49 @@ export function StudentPageContent() {
       if (absentStudentIds.includes(studentId)) {
           toggleAbsence(studentId);
       } else {
-          setStudentToConfirmAbsence(student);
+          setStudentToConfirmAbsence(selectedStudent);
       }
-  }, [toggleAbsence, allStudents, absentStudentIds, boardedStudentIds, toast, t]);
-
-  const filteredBuses = useMemo(() => {
-    const configuredBusIds = new Set<string>();
-    routes.forEach(route => {
-        if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
-            configuredBusIds.add(route.busId);
-        }
-    });
-    return buses.filter(bus => configuredBusIds.has(bus.id));
-  }, [buses, routes, selectedDay, selectedRouteType]);
+  }, [toggleAbsence, selectedStudent, absentStudentIds, boardedStudentIds, toast, t]);
 
   useEffect(() => {
-    if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
-        setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : '');
-    } else if (!selectedBusId && filteredBuses.length > 0) {
-        setSelectedBusId(filteredBuses[0].id);
+    if (searchQuery.trim() === '') {
+        setSearchResults([]);
+        return;
     }
-  }, [filteredBuses, selectedBusId]);
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    const results = allStudents.filter(s => s.name.toLowerCase().includes(lowerCaseQuery));
+    setSearchResults(results);
+  }, [searchQuery, allStudents]);
 
+  const handleSelectStudentFromSearch = (student: Student) => {
+      setSelectedStudent(student);
+      setSearchQuery('');
+      setSearchResults([]);
+  };
 
   const headerContent = (
-    <div className="flex flex-wrap items-end gap-2">
-        <div className="w-[140px]">
-          <Label className="text-xs">{t('bus')}</Label>
-          <Select value={selectedBusId} onValueChange={setSelectedBusId}>
-            <SelectTrigger>
-              <SelectValue placeholder={t('select_bus')} />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredBuses.map((bus) => (
-                <SelectItem key={bus.id} value={bus.id}>
-                  {bus.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-[140px]">
-          <Label className="text-xs">{t('day')}</Label>
-          <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
-            <SelectTrigger>
-              <SelectValue placeholder={t('select_day')} />
-            </SelectTrigger>
-            <SelectContent>
-              {days.map((day) => (
-                <SelectItem key={day} value={day}>
-                  {dayLabels[day]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-[140px]">
-          <Label className="text-xs">{t('route')}</Label>
-          <Select value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)}>
-            <SelectTrigger>
-              <SelectValue placeholder={t('select_route')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
-              <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
-              <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-[200px]">
-            <Label className="text-xs">{t('student.name')}</Label>
-            <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ''} disabled={!currentRoute}>
-                <SelectTrigger>
-                    <SelectValue placeholder={t('select_student')} />
-                </SelectTrigger>
-                <SelectContent>
-                    {studentsOnCurrentRoute.length > 0 ? (
-                        studentsOnCurrentRoute.map(s => <SelectItem key={s.id} value={s.id}>{formatStudentName(s)}</SelectItem>)
-                    ) : (
-                        <SelectItem value="no-student" disabled>{t('no_students')}</SelectItem>
-                    )}
-                </SelectContent>
-            </Select>
-        </div>
+    <div className="relative w-full max-w-sm">
+      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+      <Input
+          type="search"
+          placeholder={t('teacher_page.search_student_placeholder')}
+          className="pl-8 w-full"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+      />
+      {searchResults.length > 0 && (
+          <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
+              <CardContent className="p-2">
+                  {searchResults.map(student => (
+                      <div key={student.id} 
+                           className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
+                           onClick={() => handleSelectStudentFromSearch(student)}>
+                          {formatStudentName(student)}
+                      </div>
+                  ))}
+              </CardContent>
+          </Card>
+      )}
     </div>
   );
 
@@ -348,18 +293,18 @@ export function StudentPageContent() {
             <CardHeader>
                 <CardTitle className="font-headline">{t('student_page.title')}</CardTitle>
                 <CardDescription>
-                {t('student_page.description')}
+                {selectedStudent ? t('student_page.description') : '학생 이름을 검색하여 탑승 정보를 확인하세요.'}
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                {currentRoute && selectedBus ? (
+                {selectedStudent && studentRoute && selectedBus ? (
                     <BusSeatMap 
                         bus={selectedBus}
-                        seating={currentRoute.seating}
+                        seating={studentRoute.seating}
                         students={allStudents}
                         destinations={destinations}
                         onSeatClick={handleSeatClick}
-                        highlightedStudentId={selectedStudentId}
+                        highlightedStudentId={selectedStudent.id}
                         boardedStudentIds={boardedStudentIds}
                         absentStudentIds={absentStudentIds}
                         routeType={selectedRouteType}
@@ -367,9 +312,9 @@ export function StudentPageContent() {
                     />
                 ) : (
                     <Alert>
-                        <AlertTitle>{t('no_route_info')}</AlertTitle>
+                        <AlertTitle>{selectedStudent ? t('no_route_info') : '학생을 선택하세요'}</AlertTitle>
                         <AlertDescription>
-                            {t('no_route_info_description')}
+                            {selectedStudent ? t('no_route_info_description') : '상단 검색창에서 학생 이름을 검색하여 선택해주세요.'}
                         </AlertDescription>
                     </Alert>
                 )}
@@ -387,3 +332,4 @@ export function StudentPageContent() {
     </MainLayout>
   );
 }
+
