@@ -62,7 +62,7 @@ export default function TeacherPage() {
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
   
-  const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
+  const [notBoardingStudentIds, setNotBoardingStudentIds] = useState<string[]>([]);
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [disembarkedStudentIds, setDisembarkedStudentIds] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student & { isGroupLeader?: boolean } | null>(null);
@@ -72,7 +72,7 @@ export default function TeacherPage() {
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
-  const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
+  const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
 
@@ -166,13 +166,13 @@ export default function TeacherPage() {
     if (currentRoute) {
         unsubscribe = onAttendanceUpdate(currentRoute.id, selectedDate, (attendance) => {
             setBoardedStudentIds(attendance?.boarded || []);
-            setAbsentStudentIds(attendance?.absent || []);
+            setNotBoardingStudentIds(attendance?.notBoarding || []);
             setDisembarkedStudentIds(attendance?.disembarked || []);
         });
         setSelectedDestinationId(null);
     } else {
         setBoardedStudentIds([]);
-        setAbsentStudentIds([]);
+        setNotBoardingStudentIds([]);
         setDisembarkedStudentIds([]);
     }
      return () => {
@@ -270,29 +270,29 @@ export default function TeacherPage() {
           });
   }, [currentRoute, students]);
   
- const toggleAbsence = useCallback((student: Student) => {
+ const toggleNotBoarding = useCallback((student: Student) => {
     if (!currentRoute) {
         toast({ title: t("error"), description: t("teacher_page.no_route_info"), variant: 'destructive'});
         return;
     }
 
-    const isAbsent = absentStudentIds.includes(student.id);
+    const isNotBoarding = notBoardingStudentIds.includes(student.id);
 
-    const newAbsentIds = isAbsent
-        ? absentStudentIds.filter(id => id !== student.id)
-        : [...absentStudentIds, student.id];
+    const newNotBoardingIds = isNotBoarding
+        ? notBoardingStudentIds.filter(id => id !== student.id)
+        : [...notBoardingStudentIds, student.id];
     
-    const newBoardedIds = boardedStudentIds.filter(id => id !== student.id); // If absent, cannot be boarded
+    const newBoardedIds = boardedStudentIds.filter(id => id !== student.id);
 
-    updateAttendance(currentRoute.id, selectedDate, { absent: newAbsentIds, boarded: newBoardedIds, disembarked: disembarkedStudentIds })
+    updateAttendance(currentRoute.id, selectedDate, { notBoarding: newNotBoardingIds, boarded: newBoardedIds, disembarked: disembarkedStudentIds })
       .then(() => {
-        toast({ title: t("success"), description: `${formatStudentName(student)} ${t('teacher_page.absence_updated')}`});
+        toast({ title: t("success"), description: `${formatStudentName(student)} ${t('teacher_page.not_boarding_updated')}`});
       })
       .catch((error) => {
-        console.error("Error updating absence:", error);
+        console.error("Error updating not-boarding status:", error);
         toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive"});
       });
-  }, [currentRoute, selectedDate, absentStudentIds, boardedStudentIds, disembarkedStudentIds, toast, t]);
+  }, [currentRoute, selectedDate, notBoardingStudentIds, boardedStudentIds, disembarkedStudentIds, toast, t]);
 
   const toggleDisembark = useCallback(async (studentId: string) => {
       if (!currentRoute) return;
@@ -360,9 +360,9 @@ export default function TeacherPage() {
           ? boardedStudentIds.filter(id => id !== studentId)
           : [...boardedStudentIds, studentId];
       
-      const newAbsentIds = absentStudentIds.filter(id => id !== studentId);
+      const newNotBoardingIds = notBoardingStudentIds.filter(id => id !== studentId);
   
-      updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, absent: newAbsentIds, disembarked: disembarkedStudentIds })
+      updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, notBoarding: newNotBoardingIds, disembarked: disembarkedStudentIds })
           .then(() => {
               setLastClickedStudentId(studentId);
           })
@@ -584,11 +584,11 @@ export default function TeacherPage() {
                 <Separator className="my-4" />
                 <div className="space-y-3">
                     <Button
-                        variant={absentStudentIds.includes(selectedStudent.id) ? "destructive" : "outline"}
+                        variant={notBoardingStudentIds.includes(selectedStudent.id) ? "destructive" : "outline"}
                         className="w-full"
-                        onClick={() => setStudentToConfirmAbsence(selectedStudent)}
+                        onClick={() => setStudentToConfirm(selectedStudent)}
                     >
-                        <UserX className="mr-2" /> {t('teacher_page.mark_absent')}
+                        <UserX className="mr-2" /> {t('teacher_page.mark_not_boarding')}
                     </Button>
                     <Button
                         variant={selectedStudent.isGroupLeader ? "default" : "outline"}
@@ -626,24 +626,24 @@ export default function TeacherPage() {
   return (
     <MainLayout headerContent={headerContent}>
         <AlertDialog
-            open={!!studentToConfirmAbsence}
-            onOpenChange={(open) => !open && setStudentToConfirmAbsence(null)}
+            open={!!studentToConfirm}
+            onOpenChange={(open) => !open && setStudentToConfirm(null)}
         >
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>결석 처리 확인</AlertDialogTitle>
+                    <AlertDialogTitle>탑승 안 함 처리 확인</AlertDialogTitle>
                     <AlertDialogDescription>
-                        {studentToConfirmAbsence ? `'${formatStudentName(studentToConfirmAbsence)}' 학생을 결석 처리하시겠습니까?` : ''}
+                        {studentToConfirm ? `'${formatStudentName(studentToConfirm)}' 학생을 탑승 안 함 처리하시겠습니까?` : ''}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>취소</AlertDialogCancel>
                     <AlertDialogAction
                         onClick={() => {
-                            if (studentToConfirmAbsence) {
-                                toggleAbsence(studentToConfirmAbsence);
+                            if (studentToConfirm) {
+                                toggleNotBoarding(studentToConfirm);
                             }
-                            setStudentToConfirmAbsence(null);
+                            setStudentToConfirm(null);
                         }}
                     >
                         확인
@@ -674,7 +674,7 @@ export default function TeacherPage() {
                                 destinations={destinations}
                                 onSeatClick={handleSeatClick}
                                 onSeatContextMenu={handleSeatContextMenu}
-                                absentStudentIds={absentStudentIds}
+                                notBoardingStudentIds={notBoardingStudentIds}
                                 boardedStudentIds={boardedStudentIds}
                                 highlightedSeatNumber={selectedSeat?.seatNumber}
                                 routeType={selectedRouteType}
@@ -722,7 +722,7 @@ export default function TeacherPage() {
                                         <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                         <TableCell>
                                             <Badge 
-                                                variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
+                                                variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (notBoardingStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     if (!disembarkedStudentIds.includes(student.id)) {
@@ -731,7 +731,7 @@ export default function TeacherPage() {
                                                 }}
                                                 className="cursor-pointer"
                                             >
-                                                {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
+                                                {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : t('teacher_page.status_not_boarded'))}
                                             </Badge>
                                         </TableCell>
                                     </TableRow>
@@ -830,7 +830,7 @@ export default function TeacherPage() {
                                             <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
                                             <TableCell>
                                                 <Badge 
-                                                    variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (absentStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
+                                                    variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (notBoardingStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         if (!disembarkedStudentIds.includes(student.id)) {
@@ -839,7 +839,7 @@ export default function TeacherPage() {
                                                     }}
                                                     className="cursor-pointer"
                                                 >
-                                                    {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (absentStudentIds.includes(student.id) ? t('teacher_page.status_absent') : t('teacher_page.status_not_boarded'))}
+                                                    {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : t('teacher_page.status_not_boarded'))}
                                                 </Badge>
                                             </TableCell>
                                         </TableRow>

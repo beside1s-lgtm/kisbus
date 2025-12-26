@@ -14,7 +14,7 @@ interface BusSeatMapProps {
   destinations: Destination[];
   onSeatClick?: (seatNumber: number, studentId: string | null) => void;
   onSeatContextMenu?: (e: React.MouseEvent, seatNumber: number) => void;
-  absentStudentIds?: string[];
+  notBoardingStudentIds?: string[];
   boardedStudentIds?: string[];
   highlightedStudentId?: string | null;
   highlightedSeatNumber?: number | null;
@@ -81,7 +81,7 @@ export function BusSeatMap({
   destinations,
   onSeatClick,
   onSeatContextMenu,
-  absentStudentIds = [],
+  notBoardingStudentIds = [],
   boardedStudentIds = [],
   highlightedStudentId = null,
   highlightedSeatNumber = null,
@@ -142,7 +142,7 @@ export function BusSeatMap({
             if (!seat) return null;
 
             const student = getStudentById(seat.studentId);
-            const isAbsent = !!student && absentStudentIds.includes(student.id);
+            const isNotBoarding = !!student && notBoardingStudentIds.includes(student.id);
             const isBoarded = !!student && boardedStudentIds.includes(student.id);
             const isHighlightedByStudent = !!student && highlightedStudentId === student.id;
             const isHighlightedBySeat = highlightedSeatNumber === seat.seatNumber;
@@ -157,7 +157,7 @@ export function BusSeatMap({
                       'w-full h-full absolute top-0 left-0 rounded-md flex flex-col items-center justify-end pb-1',
                       'bg-card',
                       isBoarded && 'bg-green-300 dark:bg-green-800',
-                      isAbsent && 'bg-blue-300 dark:bg-blue-800'
+                      isNotBoarding && 'bg-blue-300 dark:bg-blue-800'
                     )}
                   >
                     {student ? (
@@ -198,7 +198,7 @@ export function BusSeatMap({
                     'bg-card border',
                     isBoarded && 'bg-green-300 dark:bg-green-800 border-solid',
                     isHighlighted && 'ring-4 ring-primary ring-offset-2 ring-offset-background',
-                    isAbsent && 'bg-blue-300 dark:bg-blue-800 border-solid'
+                    isNotBoarding && 'bg-blue-300 dark:bg-blue-800 border-solid'
                   )}
                 >
                   <span className="absolute top-1 left-1 text-[10px] font-bold text-muted-foreground">{seat.seatNumber}</span>

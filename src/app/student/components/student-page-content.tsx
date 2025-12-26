@@ -41,11 +41,11 @@ export function StudentPageContent() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
-  const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
+  const [notBoardingStudentIds, setNotBoardingStudentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const { toast } = useToast();
-  const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
+  const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Student[]>([]);
   const [isClient, setIsClient] = useState(false);
@@ -145,11 +145,11 @@ export function StudentPageContent() {
     if (studentRoute && selectedDate && studentRoute.dayOfWeek === targetDayOfWeek) {
       unsubscribe = onAttendanceUpdate(studentRoute.id, selectedDate, (attendance) => {
         setBoardedStudentIds(attendance?.boarded || []);
-        setAbsentStudentIds(attendance?.absent || []);
+        setNotBoardingStudentIds(attendance?.notBoarding || []);
       });
     } else {
         setBoardedStudentIds([]);
-        setAbsentStudentIds([]);
+        setNotBoardingStudentIds([]);
     }
     
     return () => {
@@ -174,7 +174,7 @@ export function StudentPageContent() {
     );
   }, [allRoutes]);
 
-  const toggleAbsence = useCallback(async (studentId: string) => {
+  const toggleNotBoarding = useCallback(async (studentId: string) => {
     const student = allStudents.find(s => s.id === studentId);
     if (!student || !viewingDay || !viewingRouteType) return;
 
@@ -192,24 +192,24 @@ export function StudentPageContent() {
     studentRoutes.forEach(async (route) => {
       const attendance = await getAttendance(route.id, selectedDate);
       const currentBoarded = attendance?.boarded || [];
-      const currentAbsent = attendance?.absent || [];
+      const currentNotBoarding = attendance?.notBoarding || [];
       
-      const isAbsent = currentAbsent.includes(student.id);
+      const isNotBoarding = currentNotBoarding.includes(student.id);
 
-      const newAbsentIds = isAbsent
-        ? currentAbsent.filter(id => id !== student.id)
-        : [...currentAbsent, student.id];
+      const newNotBoardingIds = isNotBoarding
+        ? currentNotBoarding.filter(id => id !== student.id)
+        : [...currentNotBoarding, student.id];
 
-      const newBoardedIds = isAbsent 
+      const newBoardedIds = isNotBoarding 
         ? currentBoarded
         : currentBoarded.filter(id => id !== student.id);
 
       try {
-        await updateAttendance(route.id, selectedDate, { absent: newAbsentIds, boarded: newBoardedIds });
-        toast({ title: t('success'), description: t('student_page.absence_update_success', { studentName: formatStudentName(student) })});
+        await updateAttendance(route.id, selectedDate, { notBoarding: newNotBoardingIds, boarded: newBoardedIds });
+        toast({ title: t('success'), description: t('student_page.not_boarding_update_success', { studentName: formatStudentName(student) })});
       } catch (error) {
-        console.error("Error updating absence:", error);
-        toast({ title: t('error'), description: t('student_page.absence_update_error', { routeId: route.id }), variant: "destructive"});
+        console.error("Error updating not-boarding status:", error);
+        toast({ title: t('error'), description: t('student_page.not_boarding_update_error', { routeId: route.id }), variant: "destructive"});
       }
     });
   }, [selectedDate, toast, findRoutesForStudent, allStudents, boardedStudentIds, t, viewingDay, viewingRouteType]);
@@ -222,12 +222,12 @@ export function StudentPageContent() {
         return;
       }
 
-      if (absentStudentIds.includes(studentId)) {
-          toggleAbsence(studentId);
+      if (notBoardingStudentIds.includes(studentId)) {
+          toggleNotBoarding(studentId);
       } else {
-          setStudentToConfirmAbsence(selectedStudent);
+          setStudentToConfirm(selectedStudent);
       }
-  }, [toggleAbsence, selectedStudent, absentStudentIds, boardedStudentIds, toast, t]);
+  }, [toggleNotBoarding, selectedStudent, notBoardingStudentIds, boardedStudentIds, toast, t]);
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
@@ -276,9 +276,9 @@ export function StudentPageContent() {
         </div>
         {selectedStudent && (
             <div className="w-full sm:w-auto">
-                <Label htmlFor="absence-date">결석일 선택</Label>
+                <Label htmlFor="not-boarding-date">미탑승일 선택</Label>
                 <Input
-                    id="absence-date"
+                    id="not-boarding-date"
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
@@ -298,24 +298,24 @@ export function StudentPageContent() {
       ) : (
         <div className="space-y-6">
             <AlertDialog
-                open={!!studentToConfirmAbsence}
-                onOpenChange={(open) => !open && setStudentToConfirmAbsence(null)}
+                open={!!studentToConfirm}
+                onOpenChange={(open) => !open && setStudentToConfirm(null)}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>{t('student_page.absence_confirm_title')}</AlertDialogTitle>
+                        <AlertDialogTitle>{t('student_page.not_boarding_confirm_title')}</AlertDialogTitle>
                         <AlertDialogDescription>
-                           {t('student_page.absence_confirm_description', { studentName: studentToConfirmAbsence?.name })}
+                           {t('student_page.not_boarding_confirm_description', { studentName: studentToConfirm?.name })}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => {
-                                if (studentToConfirmAbsence) {
-                                    toggleAbsence(studentToConfirmAbsence.id);
+                                if (studentToConfirm) {
+                                    toggleNotBoarding(studentToConfirm.id);
                                 }
-                                setStudentToConfirmAbsence(null);
+                                setStudentToConfirm(null);
                             }}
                         >
                             {t('confirm')}
@@ -362,7 +362,7 @@ export function StudentPageContent() {
                         onSeatClick={handleSeatClick}
                         highlightedStudentId={selectedStudent.id}
                         boardedStudentIds={boardedStudentIds}
-                        absentStudentIds={absentStudentIds}
+                        notBoardingStudentIds={notBoardingStudentIds}
                         routeType={viewingRouteType || 'Morning'}
                         dayOfWeek={viewingDay || 'Monday'}
                     />

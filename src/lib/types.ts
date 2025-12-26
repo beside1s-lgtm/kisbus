@@ -57,7 +57,7 @@ export type Route = {
 export type AttendanceRecord = {
   id: string; // YYYY-MM-DD
   routeId: string;
-  absent: string[]; // student IDs
+  notBoarding: string[]; // student IDs
   boarded: string[]; // student IDs
   disembarked?: string[]; // student IDs
 };
