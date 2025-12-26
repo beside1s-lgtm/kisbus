@@ -47,8 +47,13 @@ export function StudentPageContent() {
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Student[]>([]);
+  const [isClient, setIsClient] = useState(false);
 
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   useEffect(() => {
     setLoading(true);
@@ -75,25 +80,27 @@ export function StudentPageContent() {
   }
 
    useEffect(() => {
-    const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
+    if (isClient) {
+      const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
 
-    const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
-    setSelectedDay(currentDay);
-    
-    if (dayIndex === 6) { // Saturday
-        setSelectedRouteType('AfterSchool');
-    } else {
-        const now = new Date();
-        const vietnamHour = (now.getUTCHours() + 7) % 24;
-        if (vietnamHour >= 16) {
-            setSelectedRouteType('AfterSchool');
-        } else if (vietnamHour >= 11) {
-            setSelectedRouteType('Afternoon');
-        } else {
-            setSelectedRouteType('Morning');
-        }
+      const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
+      setSelectedDay(currentDay);
+      
+      if (dayIndex === 6) { // Saturday
+          setSelectedRouteType('AfterSchool');
+      } else {
+          const now = new Date();
+          const vietnamHour = (now.getUTCHours() + 7) % 24;
+          if (vietnamHour >= 16) {
+              setSelectedRouteType('AfterSchool');
+          } else if (vietnamHour >= 11) {
+              setSelectedRouteType('Afternoon');
+          } else {
+              setSelectedRouteType('Morning');
+          }
+      }
     }
-  }, [days]);
+  }, [days, isClient]);
 
   useEffect(() => {
     const dateCheckInterval = setInterval(() => {
@@ -332,4 +339,3 @@ export function StudentPageContent() {
     </MainLayout>
   );
 }
-

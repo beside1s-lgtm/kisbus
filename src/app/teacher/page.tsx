@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -73,6 +74,7 @@ export default function TeacherPage() {
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
 
   const { toast } = useToast();
@@ -86,6 +88,10 @@ export default function TeacherPage() {
       Friday: t('day.friday'),
       Saturday: t('day.saturday'),
   }), [t]);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     const unsubscribers = [
@@ -113,25 +119,27 @@ export default function TeacherPage() {
   }
 
   useEffect(() => {
-    const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
-    
-    const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
-    setSelectedDay(currentDay);
-    
-    if (dayIndex === 6) { // Saturday
-        setSelectedRouteType('AfterSchool');
-    } else {
-        const now = new Date();
-        const vietnamHour = (now.getUTCHours() + 7) % 24;
-        if (vietnamHour >= 16) {
-            setSelectedRouteType('AfterSchool');
-        } else if (vietnamHour >= 11) {
-            setSelectedRouteType('Afternoon');
-        } else {
-            setSelectedRouteType('Morning');
-        }
+    if (isClient) {
+      const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
+      
+      const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
+      setSelectedDay(currentDay);
+      
+      if (dayIndex === 6) { // Saturday
+          setSelectedRouteType('AfterSchool');
+      } else {
+          const now = new Date();
+          const vietnamHour = (now.getUTCHours() + 7) % 24;
+          if (vietnamHour >= 16) {
+              setSelectedRouteType('AfterSchool');
+          } else if (vietnamHour >= 11) {
+              setSelectedRouteType('Afternoon');
+          } else {
+              setSelectedRouteType('Morning');
+          }
+      }
     }
-  }, [days]);
+  }, [days, isClient]);
 
   
   const currentRoute = useMemo(() => {
