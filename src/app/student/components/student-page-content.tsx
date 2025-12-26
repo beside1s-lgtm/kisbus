@@ -91,6 +91,8 @@ export function StudentPageContent() {
         );
         setAssignedRoutes(studentRoutes);
 
+        if (!isClient) return;
+        
         const targetDate = new Date(selectedDate);
         if (isSunday(targetDate)) {
              setViewingDay(null);
@@ -122,7 +124,7 @@ export function StudentPageContent() {
         setViewingDay(null);
         setViewingRouteType(null);
     }
-}, [selectedStudent, allRoutes, selectedDate, days]);
+}, [selectedStudent, allRoutes, selectedDate, days, isClient]);
 
   
   const studentRoute = useMemo(() => {
@@ -140,6 +142,9 @@ export function StudentPageContent() {
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    
+    if (!isClient) return;
+
     const targetDayOfWeek = days[getDay(new Date(selectedDate)) - 1];
 
     if (studentRoute && selectedDate && studentRoute.dayOfWeek === targetDayOfWeek) {
@@ -157,7 +162,7 @@ export function StudentPageContent() {
         unsubscribe();
       }
     };
-  }, [studentRoute, selectedDate, days]);
+  }, [studentRoute, selectedDate, days, isClient]);
 
   const findRoutesForStudent = useCallback(async (student: Student, day: DayOfWeek, routeType: RouteType): Promise<Route[]> => {
     let destId: string | null = null;
@@ -248,12 +253,21 @@ export function StudentPageContent() {
   const getRouteTypeLabel = (routeType: RouteType) => {
     return t(`route_type.${routeType.toLowerCase()}`);
   }
+  
+  const getDayOfWeekString = (dateString: string) => {
+    const date = new Date(dateString);
+    const dayIndex = getDay(date);
+    if(isSunday(date)) return '';
+    return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+  };
 
   const headerContent = (
-    <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="student-search" className="text-xs">{t('student.name')}</Label>
+            <Search className="absolute left-2.5 top-8 h-4 w-4 text-muted-foreground" />
             <Input
+                id="student-search"
                 type="search"
                 placeholder={t('teacher_page.search_student_placeholder')}
                 className="pl-8 w-full"
@@ -276,14 +290,17 @@ export function StudentPageContent() {
         </div>
         {selectedStudent && (
             <div className="w-full sm:w-auto">
-                <Label htmlFor="not-boarding-date">미탑승일 선택</Label>
-                <Input
-                    id="not-boarding-date"
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full sm:w-auto"
-                />
+                <Label htmlFor="not-boarding-date" className="text-xs">{t('student_page.not_boarding_date_label')}</Label>
+                <div className="flex items-center gap-2">
+                    <Input
+                        id="not-boarding-date"
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="w-full sm:w-auto"
+                    />
+                    <span className="text-sm text-muted-foreground">{getDayOfWeekString(selectedDate)}</span>
+                </div>
             </div>
         )}
     </div>

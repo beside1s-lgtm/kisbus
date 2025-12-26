@@ -499,6 +499,13 @@ export default function TeacherPage() {
     );
   }, [selectedDestinationId, studentsOnCurrentRoute, boardedStudentIds, disembarkedStudentIds, selectedRouteType, selectedDay]);
 
+  const getDayOfWeekString = (dateString: string) => {
+    const date = new Date(dateString);
+    const dayIndex = getDay(date);
+    if(isSunday(date)) return '';
+    return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+  };
+
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-2">
         <div className="flex-1 min-w-[120px]">
@@ -518,7 +525,10 @@ export default function TeacherPage() {
         </div>
         <div className="flex-1 min-w-[120px]">
             <Label className="text-xs">날짜</Label>
-            <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
+            <div className="flex items-center gap-2">
+                <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
+                <span className="text-sm text-muted-foreground">{getDayOfWeekString(selectedDate)}</span>
+            </div>
         </div>
         <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
@@ -731,7 +741,7 @@ export default function TeacherPage() {
                                                 }}
                                                 className="cursor-pointer"
                                             >
-                                                {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : t('teacher_page.status_not_boarded'))}
+                                                {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : '미탑승')}
                                             </Badge>
                                         </TableCell>
                                     </TableRow>
@@ -839,7 +849,7 @@ export default function TeacherPage() {
                                                     }}
                                                     className="cursor-pointer"
                                                 >
-                                                    {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : t('teacher_page.status_not_boarded'))}
+                                                    {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : '미탑승')}
                                                 </Badge>
                                             </TableCell>
                                         </TableRow>

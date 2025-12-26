@@ -319,6 +319,7 @@
     "select_or_search_destination": "Chọn hoặc tìm kiếm điểm đến...",
     "student_page.title": "Tình hình lên xe của học sinh",
     "student_page.description": "Bạn có thể nhấp vào chỗ ngồi của con mình để đánh dấu 'Không lên xe'. Chỗ ngồi đã lên xe có màu xanh lá cây, chỗ ngồi không lên xe có màu xanh lam và chỗ ngồi của con bạn được đánh dấu bằng đường viền.",
+    "student_page.not_boarding_date_label": "Chọn ngày không lên xe",
     "student_page.not_boarding_confirm_title": "Xác nhận không lên xe",
     "student_page.not_boarding_confirm_description": "Bạn có chắc chắn muốn đánh dấu học sinh '{{studentName}}' là 'Không lên xe' không?",
     "student_page.already_boarded_error": "Học sinh đã được xử lý lên xe. Không thể thay đổi.",
@@ -386,6 +387,7 @@
     "teacher_page.boarding_list_title": "Danh sách học sinh lên xe",
     "teacher_page.status": "Tình trạng",
     "teacher_page.status_boarded": "Đã lên xe",
-    "teacher_page.status_not_boarding": "Không lên xe"
+    "teacher_page.status_not_boarding": "Không lên xe",
+    "teacher_page.status_not_boarded": "Chưa lên xe"
 }
   
