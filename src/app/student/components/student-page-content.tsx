@@ -8,7 +8,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MainLayout } from '@/components/layout/main-layout';
-import { format, getDay } from 'date-fns';
+import { format, getDay, isSaturday, isSunday } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
@@ -17,6 +17,7 @@ import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
@@ -42,7 +43,7 @@ export function StudentPageContent() {
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const { toast } = useToast();
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,55 +91,39 @@ export function StudentPageContent() {
         );
         setAssignedRoutes(studentRoutes);
 
-        if (studentRoutes.length > 0) {
-            const todayIndex = getDay(new Date()); // 0:Sun, 1:Mon
-            const dayOrder: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Monday'];
-            
-            let closestDay: DayOfWeek | null = null;
-            let closestRouteType: RouteType | null = null;
-            
-            for(let i=0; i < 7; i++) {
-                const checkDayIndex = (todayIndex -1 + i) % 7;
-                const checkDay = dayOrder[checkDayIndex];
-                const routesForDay = studentRoutes.filter(r => r.dayOfWeek === checkDay).sort((a,b) => {
-                    if(a.type === 'Morning') return -1;
-                    if(b.type === 'Morning') return 1;
-                    if(a.type === 'Afternoon') return -1;
-                    if(b.type === 'Afternoon') return 1;
-                    return 0;
-                });
-                
-                if(routesForDay.length > 0){
-                    closestDay = routesForDay[0].dayOfWeek;
-                    closestRouteType = routesForDay[0].type;
-                    break;
-                }
-            }
-            setViewingDay(closestDay);
-            setViewingRouteType(closestRouteType);
+        const targetDate = new Date(selectedDate);
+        if (isSunday(targetDate)) {
+             setViewingDay(null);
+             setViewingRouteType(null);
+             return;
+        }
+
+        const dayIndex = getDay(targetDate); 
+        const dayOfWeek = days[dayIndex - 1];
+
+        const routesForDay = studentRoutes.filter(r => r.dayOfWeek === dayOfWeek).sort((a,b) => {
+            if(a.type === 'Morning') return -1;
+            if(b.type === 'Morning') return 1;
+            if(a.type === 'Afternoon') return -1;
+            if(b.type === 'Afternoon') return 1;
+            return 0;
+        });
+
+        if (routesForDay.length > 0) {
+            setViewingDay(dayOfWeek);
+            setViewingRouteType(routesForDay[0].type); 
         } else {
             setViewingDay(null);
             setViewingRouteType(null);
         }
+
     } else {
         setAssignedRoutes([]);
         setViewingDay(null);
         setViewingRouteType(null);
     }
-}, [selectedStudent, allRoutes]);
+}, [selectedStudent, allRoutes, selectedDate, days]);
 
-  useEffect(() => {
-    const dateCheckInterval = setInterval(() => {
-      const currentDate = format(new Date(), 'yyyy-MM-dd');
-      if (currentDate !== today) {
-        setToday(currentDate);
-      }
-    }, 60000);
-
-    return () => {
-      clearInterval(dateCheckInterval);
-    };
-  }, [today]);
   
   const studentRoute = useMemo(() => {
     if (!selectedStudent || !viewingDay || !viewingRouteType) return null;
@@ -155,8 +140,10 @@ export function StudentPageContent() {
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
-    if (studentRoute && today && studentRoute.dayOfWeek === days[getDay(new Date()) - 1]) {
-      unsubscribe = onAttendanceUpdate(studentRoute.id, today, (attendance) => {
+    const targetDayOfWeek = days[getDay(new Date(selectedDate)) - 1];
+
+    if (studentRoute && selectedDate && studentRoute.dayOfWeek === targetDayOfWeek) {
+      unsubscribe = onAttendanceUpdate(studentRoute.id, selectedDate, (attendance) => {
         setBoardedStudentIds(attendance?.boarded || []);
         setAbsentStudentIds(attendance?.absent || []);
       });
@@ -170,7 +157,7 @@ export function StudentPageContent() {
         unsubscribe();
       }
     };
-  }, [studentRoute, today, days]);
+  }, [studentRoute, selectedDate, days]);
 
   const findRoutesForStudent = useCallback(async (student: Student, day: DayOfWeek, routeType: RouteType): Promise<Route[]> => {
     let destId: string | null = null;
@@ -203,7 +190,7 @@ export function StudentPageContent() {
     }
     
     studentRoutes.forEach(async (route) => {
-      const attendance = await getAttendance(route.id, today);
+      const attendance = await getAttendance(route.id, selectedDate);
       const currentBoarded = attendance?.boarded || [];
       const currentAbsent = attendance?.absent || [];
       
@@ -218,14 +205,14 @@ export function StudentPageContent() {
         : currentBoarded.filter(id => id !== student.id);
 
       try {
-        await updateAttendance(route.id, today, { absent: newAbsentIds, boarded: newBoardedIds });
+        await updateAttendance(route.id, selectedDate, { absent: newAbsentIds, boarded: newBoardedIds });
         toast({ title: t('success'), description: t('student_page.absence_update_success', { studentName: formatStudentName(student) })});
       } catch (error) {
         console.error("Error updating absence:", error);
         toast({ title: t('error'), description: t('student_page.absence_update_error', { routeId: route.id }), variant: "destructive"});
       }
     });
-  }, [today, toast, findRoutesForStudent, allStudents, boardedStudentIds, t, viewingDay, viewingRouteType]);
+  }, [selectedDate, toast, findRoutesForStudent, allStudents, boardedStudentIds, t, viewingDay, viewingRouteType]);
 
  const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
       if (!studentId || !selectedStudent || studentId !== selectedStudent.id) return;
@@ -263,28 +250,42 @@ export function StudentPageContent() {
   }
 
   const headerContent = (
-    <div className="relative w-full max-w-sm">
-      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-      <Input
-          type="search"
-          placeholder={t('teacher_page.search_student_placeholder')}
-          className="pl-8 w-full"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-      />
-      {searchResults.length > 0 && (
-          <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
-              <CardContent className="p-2">
-                  {searchResults.map(student => (
-                      <div key={student.id} 
-                           className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
-                           onClick={() => handleSelectStudentFromSearch(student)}>
-                          {formatStudentName(student)}
-                      </div>
-                  ))}
-              </CardContent>
-          </Card>
-      )}
+    <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+        <div className="relative w-full max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+                type="search"
+                placeholder={t('teacher_page.search_student_placeholder')}
+                className="pl-8 w-full"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchResults.length > 0 && (
+                <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
+                    <CardContent className="p-2">
+                        {searchResults.map(student => (
+                            <div key={student.id} 
+                                className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
+                                onClick={() => handleSelectStudentFromSearch(student)}>
+                                {formatStudentName(student)}
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+        {selectedStudent && (
+            <div className="w-full sm:w-auto">
+                <Label htmlFor="absence-date">결석일 선택</Label>
+                <Input
+                    id="absence-date"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full sm:w-auto"
+                />
+            </div>
+        )}
     </div>
   );
 
@@ -369,7 +370,7 @@ export function StudentPageContent() {
                     <Alert>
                         <AlertTitle>{selectedStudent ? t('no_route_info') : '학생을 선택하세요'}</AlertTitle>
                         <AlertDescription>
-                            {selectedStudent ? t('no_route_info_description') : '상단 검색창에서 학생 이름을 검색하여 선택해주세요.'}
+                            {selectedStudent ? '선택한 날짜에 해당하는 학생의 노선 정보가 없습니다.' : '상단 검색창에서 학생 이름을 검색하여 선택해주세요.'}
                         </AlertDescription>
                     </Alert>
                 )}
@@ -387,4 +388,3 @@ export function StudentPageContent() {
     </MainLayout>
   );
 }
-

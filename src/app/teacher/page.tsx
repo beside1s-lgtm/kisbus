@@ -29,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {format, differenceInDays, getDay} from 'date-fns';
+import {format, differenceInDays, getDay, isSunday} from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { LostAndFound } from './components/lost-and-found';
@@ -70,7 +70,7 @@ export default function TeacherPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
-  const [today, setToday] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
   const [studentToConfirmAbsence, setStudentToConfirmAbsence] = useState<Student | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
@@ -120,26 +120,35 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (isClient) {
-      const dayIndex = getDay(new Date()); // 0:Sun, 1:Mon, ..., 6:Sat
+      const targetDate = new Date(selectedDate);
+      if (isSunday(targetDate)) {
+        setSelectedDay('Monday');
+        return;
+      }
       
-      const currentDay = (dayIndex > 0 && dayIndex < 7) ? days[dayIndex - 1] : 'Monday';
+      const dayIndex = getDay(targetDate); 
+      const currentDay = days[dayIndex - 1];
       setSelectedDay(currentDay);
       
-      if (dayIndex === 6) { // Saturday
+       if (dayIndex === 6) { // Saturday
           setSelectedRouteType('AfterSchool');
       } else {
           const now = new Date();
           const vietnamHour = (now.getUTCHours() + 7) % 24;
-          if (vietnamHour >= 16) {
-              setSelectedRouteType('AfterSchool');
-          } else if (vietnamHour >= 11) {
-              setSelectedRouteType('Afternoon');
-          } else {
+           if (format(targetDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')) {
+                if (vietnamHour >= 16) {
+                    setSelectedRouteType('AfterSchool');
+                } else if (vietnamHour >= 11) {
+                    setSelectedRouteType('Afternoon');
+                } else {
+                    setSelectedRouteType('Morning');
+                }
+           } else {
               setSelectedRouteType('Morning');
-          }
+           }
       }
     }
-  }, [days, isClient]);
+  }, [selectedDate, isClient, days]);
 
   
   const currentRoute = useMemo(() => {
@@ -153,22 +162,9 @@ export default function TeacherPage() {
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
   useEffect(() => {
-    const dateCheckInterval = setInterval(async () => {
-        const currentDate = format(new Date(), 'yyyy-MM-dd');
-        if (currentDate !== today) {
-            setToday(currentDate);
-        }
-    }, 60000); 
-
-    return () => {
-        clearInterval(dateCheckInterval);
-    };
-  }, [today]);
-
-  useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     if (currentRoute) {
-        unsubscribe = onAttendanceUpdate(currentRoute.id, today, (attendance) => {
+        unsubscribe = onAttendanceUpdate(currentRoute.id, selectedDate, (attendance) => {
             setBoardedStudentIds(attendance?.boarded || []);
             setAbsentStudentIds(attendance?.absent || []);
             setDisembarkedStudentIds(attendance?.disembarked || []);
@@ -184,7 +180,7 @@ export default function TeacherPage() {
         unsubscribe();
       }
     };
-  }, [currentRoute, today]);
+  }, [currentRoute, selectedDate]);
 
   useEffect(() => {
     if (lastClickedStudentId) {
@@ -288,7 +284,7 @@ export default function TeacherPage() {
     
     const newBoardedIds = boardedStudentIds.filter(id => id !== student.id); // If absent, cannot be boarded
 
-    updateAttendance(currentRoute.id, today, { absent: newAbsentIds, boarded: newBoardedIds, disembarked: disembarkedStudentIds })
+    updateAttendance(currentRoute.id, selectedDate, { absent: newAbsentIds, boarded: newBoardedIds, disembarked: disembarkedStudentIds })
       .then(() => {
         toast({ title: t("success"), description: `${formatStudentName(student)} ${t('teacher_page.absence_updated')}`});
       })
@@ -296,7 +292,7 @@ export default function TeacherPage() {
         console.error("Error updating absence:", error);
         toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive"});
       });
-  }, [currentRoute, today, absentStudentIds, boardedStudentIds, disembarkedStudentIds, toast, t]);
+  }, [currentRoute, selectedDate, absentStudentIds, boardedStudentIds, disembarkedStudentIds, toast, t]);
 
   const toggleDisembark = useCallback(async (studentId: string) => {
       if (!currentRoute) return;
@@ -307,12 +303,12 @@ export default function TeacherPage() {
         : [...disembarkedStudentIds, studentId];
       
       try {
-          await updateAttendance(currentRoute.id, today, { disembarked: newDisembarkedIds });
+          await updateAttendance(currentRoute.id, selectedDate, { disembarked: newDisembarkedIds });
       } catch (error) {
           console.error("Error updating disembark status", error);
           toast({ title: "Error", description: "Failed to update disembark status.", variant: "destructive" });
       }
-  }, [currentRoute, today, disembarkedStudentIds, toast]);
+  }, [currentRoute, selectedDate, disembarkedStudentIds, toast]);
 
   
   const toggleGroupLeader = (student: Student) => {
@@ -366,7 +362,7 @@ export default function TeacherPage() {
       
       const newAbsentIds = absentStudentIds.filter(id => id !== studentId);
   
-      updateAttendance(currentRoute.id, today, { boarded: newBoardedIds, absent: newAbsentIds, disembarked: disembarkedStudentIds })
+      updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, absent: newAbsentIds, disembarked: disembarkedStudentIds })
           .then(() => {
               setLastClickedStudentId(studentId);
           })
@@ -521,19 +517,8 @@ export default function TeacherPage() {
             </Select>
         </div>
         <div className="flex-1 min-w-[120px]">
-            <Label className="text-xs">{t('day')}</Label>
-            <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)} disabled={loading}>
-                <SelectTrigger>
-                    <SelectValue placeholder={t('select_day')} />
-                </SelectTrigger>
-                <SelectContent>
-                    {days.map((day) => (
-                        <SelectItem key={day} value={day}>
-                            {dayLabels[day]}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+            <Label className="text-xs">날짜</Label>
+            <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
         </div>
         <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
