@@ -253,7 +253,10 @@ export function StudentPageContent() {
   };
 
   const getRouteTypeLabel = (routeType: RouteType) => {
-    return t(`route_type.${routeType.toLowerCase()}`);
+      if (routeType === 'AfterSchool') {
+        return t('route_type.after_school');
+      }
+      return t(`route_type.${routeType.toLowerCase()}`);
   }
   
   const getDayOfWeekString = (dateString: string) => {
