@@ -1,8 +1,9 @@
+
 'use client';
 import type { FC, ReactNode } from 'react';
 import React from 'react';
 import Link from 'next/link';
-import { Home, LogOut } from 'lucide-react';
+import { Home, LogOut, ArrowLeft } from 'lucide-react';
 import { Button } from '../ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
@@ -45,6 +46,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
   }
 
   const showHomeButton = pathname.startsWith('/admin') || pathname.startsWith('/teacher');
+  const showParentBackButton = pathname.startsWith('/student') || pathname.startsWith('/apply');
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -56,6 +58,14 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
                       <Link href="/">
                         <Home className="h-4 w-4" />
                         <span className="sr-only">Home</span>
+                      </Link>
+                    </Button>
+                  )}
+                  {showParentBackButton && (
+                     <Button asChild variant="outline" size="icon" className="h-8 w-8">
+                      <Link href="/parents">
+                        <ArrowLeft className="h-4 w-4" />
+                        <span className="sr-only">Back</span>
                       </Link>
                     </Button>
                   )}
