@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -5,6 +6,8 @@ import { ArrowRight, UserCog, User, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { MainLayout } from "@/components/layout/main-layout";
 import { useTranslation } from "@/hooks/use-translation";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface RoleCardProps {
   href: string;
@@ -36,6 +39,16 @@ function RoleCard({ href, icon: Icon, title, description }: RoleCardProps) {
 
 export default function Home() {
   const { t } = useTranslation();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isParent = sessionStorage.getItem('isParent');
+      if (isParent) {
+        router.replace('/parents');
+      }
+    }
+  }, [router]);
 
   return (
     <MainLayout>

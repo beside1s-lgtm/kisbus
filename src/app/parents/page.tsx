@@ -5,9 +5,17 @@ import { MainLayout } from "@/components/layout/main-layout";
 import { CheckSquare, Edit } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "@/hooks/use-translation";
+import { useEffect } from "react";
 
 export default function ParentsPage() {
   const { t } = useTranslation();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('isParent', 'true');
+    }
+  }, []);
+
   return (
     <MainLayout>
       <div className="flex flex-col gap-8 items-center justify-center h-full">
