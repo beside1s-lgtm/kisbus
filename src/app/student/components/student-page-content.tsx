@@ -1,5 +1,4 @@
 
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onLostItemsUpdate, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
@@ -268,7 +267,6 @@ export function StudentPageContent() {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        // Check if date is valid
         if (isNaN(date.getTime())) return '';
         const dayIndex = getDay(date);
         if(isSunday(date)) return '';
@@ -282,30 +280,32 @@ export function StudentPageContent() {
     if (!selectedStudent) return null;
 
     if (disembarkedStudentIds.includes(selectedStudent.id)) {
-      return { text: '하차 완료', icon: <CheckCircle className="text-blue-500" />, color: 'text-blue-500' };
+      return { text: '하차 완료', color: 'text-blue-500' };
     }
     if (boardedStudentIds.includes(selectedStudent.id)) {
-      return { text: '탑승 완료', icon: <CheckCircle className="text-green-500" />, color: 'text-green-500' };
+      return { text: '탑승', color: 'text-green-500' };
     }
     if (notBoardingStudentIds.includes(selectedStudent.id)) {
-      return { text: '탑승 안 함', icon: <XCircle className="text-red-500" />, color: 'text-red-500' };
+      return { text: '탑승 안 함', color: 'text-red-500' };
     }
-    return { text: '미탑승', icon: <Info className="text-gray-500" />, color: 'text-gray-500' };
+    return { text: '미탑승', color: 'text-gray-500' };
   }, [selectedStudent, boardedStudentIds, notBoardingStudentIds, disembarkedStudentIds]);
 
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="relative w-full max-w-sm">
             <Label htmlFor="student-search" className="text-xs">{t('student.name')}</Label>
-            <Search className="absolute left-2.5 top-8 h-4 w-4 text-muted-foreground" />
-            <Input
-                id="student-search"
-                type="search"
-                placeholder={t('teacher_page.search_student_placeholder')}
-                className="pl-8 w-full"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-            />
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    id="student-search"
+                    type="search"
+                    placeholder={t('teacher_page.search_student_placeholder')}
+                    className="pl-8 w-full"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
             {searchResults.length > 0 && (
                 <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
                     <CardContent className="p-2">
@@ -383,11 +383,9 @@ export function StudentPageContent() {
                 {selectedStudent && studentStatus && (
                     <Alert className="mb-4">
                         <Info className="h-4 w-4" />
-                        <AlertTitle>탑승 정보: {selectedBus?.name || '미배정'}</AlertTitle>
-                        <AlertDescription className={cn("flex items-center gap-2 font-bold", studentStatus.color)}>
-                            {studentStatus.icon}
-                            {studentStatus.text}
-                        </AlertDescription>
+                        <AlertTitle>
+                            탑승 정보: {selectedBus?.name || '미배정'}, <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
+                        </AlertTitle>
                     </Alert>
                 )}
                 {selectedStudent && assignedRoutes.length > 0 && (
