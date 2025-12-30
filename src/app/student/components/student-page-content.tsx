@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
-import { Search } from 'lucide-react';
+import { Search, Info, CheckCircle, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -42,8 +42,9 @@ export function StudentPageContent() {
   
   const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
   const [notBoardingStudentIds, setNotBoardingStudentIds] = useState<string[]>([]);
+  const [disembarkedStudentIds, setDisembarkedStudentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState('');
   const { toast } = useToast();
   const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +59,7 @@ export function StudentPageContent() {
   
   useEffect(() => {
     setIsClient(true);
+    setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
   }, []);
   
   useEffect(() => {
@@ -144,6 +146,7 @@ export function StudentPageContent() {
     if (!isClient || !studentRoute || !selectedDate) {
         setBoardedStudentIds([]);
         setNotBoardingStudentIds([]);
+        setDisembarkedStudentIds([]);
         return;
     };
 
@@ -153,10 +156,12 @@ export function StudentPageContent() {
       unsubscribe = onAttendanceUpdate(studentRoute.id, selectedDate, (attendance) => {
         setBoardedStudentIds(attendance?.boarded || []);
         setNotBoardingStudentIds(attendance?.notBoarding || []);
+        setDisembarkedStudentIds(attendance?.disembarked || []);
       });
     } else {
         setBoardedStudentIds([]);
         setNotBoardingStudentIds([]);
+        setDisembarkedStudentIds([]);
     }
     
     return () => {
@@ -273,6 +278,21 @@ export function StudentPageContent() {
     }
   };
 
+  const studentStatus = useMemo(() => {
+    if (!selectedStudent) return null;
+
+    if (disembarkedStudentIds.includes(selectedStudent.id)) {
+      return { text: '하차 완료', icon: <CheckCircle className="text-blue-500" />, color: 'text-blue-500' };
+    }
+    if (boardedStudentIds.includes(selectedStudent.id)) {
+      return { text: '탑승 완료', icon: <CheckCircle className="text-green-500" />, color: 'text-green-500' };
+    }
+    if (notBoardingStudentIds.includes(selectedStudent.id)) {
+      return { text: '탑승 안 함', icon: <XCircle className="text-red-500" />, color: 'text-red-500' };
+    }
+    return { text: '미탑승', icon: <Info className="text-gray-500" />, color: 'text-gray-500' };
+  }, [selectedStudent, boardedStudentIds, notBoardingStudentIds, disembarkedStudentIds]);
+
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="relative w-full max-w-sm">
@@ -360,6 +380,16 @@ export function StudentPageContent() {
                 </CardDescription>
             </CardHeader>
             <CardContent>
+                {selectedStudent && studentStatus && (
+                    <Alert className="mb-4">
+                        <Info className="h-4 w-4" />
+                        <AlertTitle>탑승 정보: {selectedBus?.name || '미배정'}</AlertTitle>
+                        <AlertDescription className={cn("flex items-center gap-2 font-bold", studentStatus.color)}>
+                            {studentStatus.icon}
+                            {studentStatus.text}
+                        </AlertDescription>
+                    </Alert>
+                )}
                 {selectedStudent && assignedRoutes.length > 0 && (
                     <div className="mb-4">
                         <div className="flex flex-wrap gap-2">
