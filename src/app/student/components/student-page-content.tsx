@@ -55,6 +55,7 @@ export function StudentPageContent() {
   const [viewingRouteType, setViewingRouteType] = useState<RouteType | null>(null);
 
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
+  const routeTypeOrder: RouteType[] = useMemo(() => ['Morning', 'Afternoon', 'AfterSchool'], []);
   
   useEffect(() => {
     setIsClient(true);
@@ -102,17 +103,33 @@ export function StudentPageContent() {
         const dayIndex = getDay(targetDate); 
         const dayOfWeek = days[dayIndex - 1];
 
-        const routesForDay = studentRoutes.filter(r => r.dayOfWeek === dayOfWeek).sort((a,b) => {
-            if(a.type === 'Morning') return -1;
-            if(b.type === 'Morning') return 1;
-            if(a.type === 'Afternoon') return -1;
-            if(b.type === 'Afternoon') return 1;
-            return 0;
-        });
+        const routesForDay = studentRoutes
+          .filter(r => r.dayOfWeek === dayOfWeek)
+          .sort((a,b) => routeTypeOrder.indexOf(a.type) - routeTypeOrder.indexOf(b.type));
 
         if (routesForDay.length > 0) {
             setViewingDay(dayOfWeek);
-            setViewingRouteType(routesForDay[0].type); 
+            // Default to the most relevant route type based on current time
+            if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
+                const now = new Date();
+                const vietnamHour = (now.getUTCHours() + 7) % 24;
+                
+                const afterSchoolRoute = routesForDay.find(r => r.type === 'AfterSchool');
+                const afternoonRoute = routesForDay.find(r => r.type === 'Afternoon');
+                const morningRoute = routesForDay.find(r => r.type === 'Morning');
+
+                if (vietnamHour >= 15 && afterSchoolRoute) {
+                    setViewingRouteType('AfterSchool');
+                } else if (vietnamHour >= 12 && afternoonRoute) {
+                    setViewingRouteType('Afternoon');
+                } else if (morningRoute) {
+                    setViewingRouteType('Morning');
+                } else {
+                    setViewingRouteType(routesForDay[0].type);
+                }
+            } else {
+                setViewingRouteType(routesForDay[0].type); 
+            }
         } else {
             setViewingDay(null);
             setViewingRouteType(null);
@@ -123,7 +140,7 @@ export function StudentPageContent() {
         setViewingDay(null);
         setViewingRouteType(null);
     }
-}, [selectedStudent, allRoutes, selectedDate, days, isClient]);
+}, [selectedStudent, allRoutes, selectedDate, days, isClient, routeTypeOrder]);
 
   
   const studentRoute = useMemo(() => {
@@ -391,22 +408,24 @@ export function StudentPageContent() {
                 {selectedStudent && assignedRoutes.length > 0 && (
                     <div className="mb-4">
                         <div className="flex flex-wrap gap-2">
-                            {days.map(day => {
-                                const routesForDay = assignedRoutes.filter(r => r.dayOfWeek === day);
-                                if (routesForDay.length === 0) return null;
-                                return routesForDay.map(route => (
-                                    <Button
-                                        key={`${day}-${route.type}`}
-                                        variant={viewingDay === day && viewingRouteType === route.type ? 'default' : 'outline'}
-                                        onClick={() => {
-                                            setViewingDay(day);
-                                            setViewingRouteType(route.type);
-                                        }}
-                                    >
-                                        {t(`day_short.${day.toLowerCase()}`)} {getRouteTypeLabel(route.type)}
-                                    </Button>
-                                ));
-                            })}
+                           {days.map(day => 
+                                routeTypeOrder.map(type => {
+                                    const route = assignedRoutes.find(r => r.dayOfWeek === day && r.type === type);
+                                    if (!route) return null;
+                                    return (
+                                        <Button
+                                            key={`${day}-${type}`}
+                                            variant={viewingDay === day && viewingRouteType === type ? 'default' : 'outline'}
+                                            onClick={() => {
+                                                setViewingDay(day);
+                                                setViewingRouteType(type);
+                                            }}
+                                        >
+                                            {t(`day_short.${day.toLowerCase()}`)} {getRouteTypeLabel(type)}
+                                        </Button>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
                 )}
@@ -445,3 +464,5 @@ export function StudentPageContent() {
     </MainLayout>
   );
 }
+
+    
