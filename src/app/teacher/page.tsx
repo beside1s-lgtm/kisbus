@@ -70,7 +70,7 @@ export default function TeacherPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState('');
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
   const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
@@ -91,6 +91,7 @@ export default function TeacherPage() {
 
   useEffect(() => {
     setIsClient(true);
+    setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
   }, []);
 
   useEffect(() => {
@@ -119,7 +120,7 @@ export default function TeacherPage() {
   }
 
   useEffect(() => {
-    if (isClient) {
+    if (isClient && selectedDate) {
       const targetDate = new Date(selectedDate);
       if (isSunday(targetDate)) {
         setSelectedDay('Monday');
@@ -298,17 +299,22 @@ export default function TeacherPage() {
       if (!currentRoute) return;
 
       const isDisembarked = disembarkedStudentIds.includes(studentId);
+      
       const newDisembarkedIds = isDisembarked
         ? disembarkedStudentIds.filter(id => id !== studentId)
         : [...disembarkedStudentIds, studentId];
-      
+        
+      const newBoardedIds = isDisembarked
+        ? [...boardedStudentIds, studentId] // Re-boarding
+        : boardedStudentIds.filter(id => id !== studentId); // Disembarking
+
       try {
-          await updateAttendance(currentRoute.id, selectedDate, { disembarked: newDisembarkedIds });
+          await updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, disembarked: newDisembarkedIds });
       } catch (error) {
           console.error("Error updating disembark status", error);
           toast({ title: "Error", description: "Failed to update disembark status.", variant: "destructive" });
       }
-  }, [currentRoute, selectedDate, disembarkedStudentIds, toast]);
+  }, [currentRoute, selectedDate, boardedStudentIds, disembarkedStudentIds, toast]);
 
   
   const toggleGroupLeader = (student: Student) => {
