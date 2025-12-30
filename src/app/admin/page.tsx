@@ -2084,6 +2084,28 @@ const StudentManagementTab = ({
         }
     }, [selectedGlobalStudent, toast, t]);
 
+    const handleDeleteAllStudents = useCallback(async () => {
+        if (students.length === 0) {
+            toast({ title: t('notice'), description: "삭제할 학생이 없습니다." });
+            return;
+        }
+
+        const { dismiss } = toast({ title: t('processing'), description: "모든 학생 정보를 삭제하는 중..." });
+        try {
+            const studentIds = students.map(s => s.id);
+            await deleteStudentsInBatch(studentIds); // This function also handles un-assigning from routes
+            setStudents([]);
+            setSelectedStudentIds(new Set());
+            setSelectedGlobalStudent(null);
+            dismiss();
+            toast({ title: t('success'), description: "모든 학생 정보가 성공적으로 삭제되었습니다." });
+        } catch (error) {
+            dismiss();
+            console.error("Error deleting all students:", error);
+            toast({ title: t('error'), description: "모든 학생 정보 삭제 중 오류가 발생했습니다.", variant: "destructive" });
+        }
+    }, [students, setStudents, toast]);
+
     const getUnassignableReason = (student: Student) => {
         const allValidStopIds = new Set<string>();
         routes.forEach(r => r.stops.forEach(stopId => allValidStopIds.add(stopId)));
@@ -2467,11 +2489,32 @@ const StudentManagementTab = ({
                                     </Card>
                                 )}
                             </div>
-                            <div className="flex justify-end mb-2 gap-2 flex-wrap">
+                            <div className="flex justify-end mb-4 gap-2 flex-wrap">
                                 <Button size="sm" variant="outline" onClick={handleDownloadAllStudents}><Download className="mr-2 h-4 w-4" /> 전체 학생 명단</Button>
                                 <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.student_management.student_template')}</Button>
                                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
                                 <input type="file" ref={fileInputRef} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
+                            </div>
+                            <div className="mb-4">
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button size="sm" variant="destructive" className="w-full">
+                                            <Trash2 className="mr-2 h-4 w-4" /> 전체 학생 명단 초기화
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>정말 모든 학생 명단을 초기화하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                이 작업은 되돌릴 수 없습니다. 모든 학생 정보 및 버스 배정 내역이 영구적으로 삭제됩니다. 새 학년이 시작될 때 사용해주세요.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>취소</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleDeleteAllStudents}>초기화</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </div>
                             {selectedGlobalStudent && (
                                 <div className="space-y-4 p-4 border rounded-md">
