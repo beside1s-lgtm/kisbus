@@ -8,6 +8,7 @@ import { MainLayout } from "@/components/layout/main-layout";
 import { useTranslation } from "@/hooks/use-translation";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from 'next/dynamic';
 
 interface RoleCardProps {
   href: string;
@@ -37,7 +38,7 @@ function RoleCard({ href, icon: Icon, title, description }: RoleCardProps) {
   );
 }
 
-export default function Home() {
+function HomeComponent() {
   const { t } = useTranslation();
   const router = useRouter();
 
@@ -82,3 +83,5 @@ export default function Home() {
     </MainLayout>
   );
 }
+
+export default dynamic(() => Promise.resolve(HomeComponent), { ssr: false });
