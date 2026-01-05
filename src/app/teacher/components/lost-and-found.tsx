@@ -17,6 +17,7 @@ import Image from 'next/image';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface LostAndFoundProps {
     lostItems: LostItem[];
@@ -28,6 +29,7 @@ interface LostAndFoundProps {
 const MAX_IMAGE_SIZE_BYTES = 1048576; // 1MB
 
 export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = false }: LostAndFoundProps) {
+    const { t } = useTranslation();
     const { toast } = useToast();
     const [isAddDialogOpen, setAddDialogOpen] = useState(false);
     const [isViewImageDialogOpen, setViewImageDialogOpen] = useState(false);
@@ -43,8 +45,8 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
         if (file) {
             if (file.size > MAX_IMAGE_SIZE_BYTES) {
                 toast({
-                    title: '오류',
-                    description: '이미지 파일은 1MB를 초과할 수 없습니다.',
+                    title: t('error'),
+                    description: t('lost_and_found.image_size_error'),
                     variant: 'destructive',
                 });
                 if(fileInputRef.current) {
@@ -62,18 +64,18 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
 
     const handleAddItem = async () => {
         if (!newItem.itemType && !newItem.itemPhotoUrl) {
-            toast({ title: '오류', description: '분실물 종류 또는 사진 중 하나는 반드시 입력해야 합니다.', variant: 'destructive' });
+            toast({ title: t('error'), description: t('lost_and_found.add.validation_error'), variant: 'destructive' });
             return;
         }
 
         try {
             const addedItem = await addLostItem({ ...newItem, status: 'unclaimed' } as NewLostItem);
             setLostItems(prev => [addedItem, ...prev].sort((a,b) => (b.foundDate || '').localeCompare(a.foundDate || '')));
-            toast({ title: '성공', description: '분실물이 등록되었습니다.' });
+            toast({ title: t('success'), description: t('lost_and_found.add.success') });
             setNewItem({ foundDate: format(new Date(), 'yyyy-MM-dd'), status: 'unclaimed' });
             setAddDialogOpen(false);
         } catch (error) {
-            toast({ title: '오류', description: '분실물 등록에 실패했습니다.', variant: 'destructive' });
+            toast({ title: t('error'), description: t('lost_and_found.add.error'), variant: 'destructive' });
         }
     };
 
@@ -87,9 +89,9 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
         try {
             await updateLostItem(item.id, { status: newStatus });
             setLostItems(prev => prev.map(i => i.id === item.id ? { ...i, status: newStatus } : i));
-            toast({ title: '성공', description: `상태가 '${newStatus === 'claimed' ? '반환 완료' : '미반환'}'으로 변경되었습니다.` });
+            toast({ title: t('success'), description: t('lost_and_found.status_change.success', { status: t(`lost_and_found.action.${newStatus === 'claimed' ? 'claim' : 'unclaim'}`)}) });
         } catch (error) {
-            toast({ title: '오류', description: '상태 변경에 실패했습니다.', variant: 'destructive' });
+            toast({ title: t('error'), description: t('lost_and_found.status_change.error'), variant: 'destructive' });
         }
     }
     
@@ -98,9 +100,9 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
          try {
             await updateLostItem(item.id, { status: 'acknowledged' });
             setLostItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'acknowledged' } : i));
-            toast({ title: '성공', description: '분실물 확인 처리가 완료되었습니다.' });
+            toast({ title: t('success'), description: t('lost_and_found.acknowledge.success') });
         } catch (error) {
-            toast({ title: '오류', description: '상태 변경에 실패했습니다.', variant: 'destructive' });
+            toast({ title: t('error'), description: t('lost_and_found.acknowledge.error'), variant: 'destructive' });
         }
     }
 
@@ -108,9 +110,9 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
         try {
             await deleteLostItem(itemId);
             setLostItems(prev => prev.filter(i => i.id !== itemId));
-            toast({ title: '성공', description: '분실물 정보가 삭제되었습니다.' });
+            toast({ title: t('success'), description: t('lost_and_found.delete.success') });
         } catch (error) {
-            toast({ title: '오류', description: '삭제에 실패했습니다.', variant: 'destructive' });
+            toast({ title: t('error'), description: t('lost_and_found.delete.error'), variant: 'destructive' });
         }
     }
 
@@ -135,13 +137,13 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
     const getStatusText = (status: LostItem['status']): string => {
         switch (status) {
             case 'claimed':
-                return '반환 완료';
+                return t('lost_and_found.status.claimed');
             case 'unclaimed':
-                return '미반환';
+                return t('lost_and_found.status.unclaimed');
             case 'acknowledged':
-                return '확인됨';
+                return t('lost_and_found.status.acknowledged');
             default:
-                return '알 수 없음';
+                return t('lost_and_found.status.unknown');
         }
     }
 
@@ -150,48 +152,48 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                    <CardTitle>분실물 현황</CardTitle>
-                    <CardDescription>버스에서 발견된 분실물 목록입니다.</CardDescription>
+                    <CardTitle>{t('lost_and_found.title')}</CardTitle>
+                    <CardDescription>{t('lost_and_found.description')}</CardDescription>
                 </div>
                 {!isReadOnly && (
                     <Dialog open={isAddDialogOpen} onOpenChange={setAddDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button><PlusCircle className="mr-2"/> 분실물 추가</Button>
+                            <Button><PlusCircle className="mr-2"/> {t('lost_and_found.add_button')}</Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>새 분실물 등록</DialogTitle>
+                                <DialogTitle>{t('lost_and_found.add.title')}</DialogTitle>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="itemType">분실물 종류</Label>
-                                    <Input id="itemType" value={newItem.itemType || ''} onChange={e => setNewItem(p => ({...p, itemType: e.target.value}))} placeholder="예: 파란색 물병" />
+                                    <Label htmlFor="itemType">{t('lost_and_found.item_type')}</Label>
+                                    <Input id="itemType" value={newItem.itemType || ''} onChange={e => setNewItem(p => ({...p, itemType: e.target.value}))} placeholder={t('lost_and_found.item_type_placeholder')} />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="foundDate">발견 날짜</Label>
+                                    <Label htmlFor="foundDate">{t('lost_and_found.found_date')}</Label>
                                     <Input id="foundDate" type="date" value={newItem.foundDate || ''} onChange={e => setNewItem(p => ({...p, foundDate: e.target.value}))} />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="foundBus">발견 버스</Label>
+                                    <Label htmlFor="foundBus">{t('lost_and_found.found_bus')}</Label>
                                     <Select value={newItem.foundBusId || ''} onValueChange={v => setNewItem(p => ({...p, foundBusId: v}))}>
-                                        <SelectTrigger><SelectValue placeholder="버스 선택" /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder={t('lost_and_found.select_bus')} /></SelectTrigger>
                                         <SelectContent>
                                             {buses.map(bus => <SelectItem key={bus.id} value={bus.id}>{bus.name}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>사진</Label>
+                                    <Label>{t('lost_and_found.photo')}</Label>
                                     <div className="flex items-center gap-2">
-                                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Camera className="mr-2"/> 사진 선택</Button>
-                                        <span className="text-xs text-muted-foreground">(1MB 미만)</span>
+                                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Camera className="mr-2"/> {t('lost_and_found.select_photo')}</Button>
+                                        <span className="text-xs text-muted-foreground">{t('lost_and_found.photo_size_limit')}</span>
                                     </div>
                                     <Input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                                     {newItem.itemPhotoUrl && <Image src={newItem.itemPhotoUrl} alt="Preview" width={100} height={100} className="rounded-md mt-2" />}
                                 </div>
                             </div>
                             <DialogFooter>
-                                <Button onClick={handleAddItem}>등록</Button>
+                                <Button onClick={handleAddItem}>{t('add')}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
@@ -201,12 +203,12 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>종류</TableHead>
-                            <TableHead>발견 날짜</TableHead>
-                            <TableHead>발견 버스</TableHead>
-                            <TableHead>사진</TableHead>
-                            <TableHead>상태</TableHead>
-                            <TableHead className="text-right">작업</TableHead>
+                            <TableHead>{t('lost_and_found.table.type')}</TableHead>
+                            <TableHead>{t('lost_and_found.table.found_date')}</TableHead>
+                            <TableHead>{t('lost_and_found.table.found_bus')}</TableHead>
+                            <TableHead>{t('lost_and_found.table.photo')}</TableHead>
+                            <TableHead>{t('lost_and_found.table.status')}</TableHead>
+                            <TableHead className="text-right">{t('lost_and_found.table.actions')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -231,13 +233,13 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                                 <TableCell className="text-right space-x-1">
                                     {isReadOnly && item.status === 'unclaimed' && (
                                          <Button variant="outline" size="sm" onClick={() => handleAcknowledge(item)}>
-                                           <CheckCircle className="mr-1 h-3 w-3"/> 확인
+                                           <CheckCircle className="mr-1 h-3 w-3"/> {t('lost_and_found.action.acknowledge')}
                                         </Button>
                                     )}
                                     {!isReadOnly && (
                                         <>
                                             <Button variant="outline" size="sm" onClick={() => handleToggleStatus(item)}>
-                                               <Undo2 className="mr-1 h-3 w-3"/> {item.status === 'claimed' ? '미반환' : '반환'}
+                                               <Undo2 className="mr-1 h-3 w-3"/> {item.status === 'claimed' ? t('lost_and_found.action.unclaim') : t('lost_and_found.action.claim')}
                                             </Button>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
@@ -245,11 +247,11 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
-                                                        <AlertDialogTitle>정말 이 항목을 삭제하시겠습니까?</AlertDialogTitle>
+                                                        <AlertDialogTitle>{t('lost_and_found.delete.confirm_title')}</AlertDialogTitle>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
-                                                        <AlertDialogCancel>취소</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteItem(item.id)}>삭제</AlertDialogAction>
+                                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteItem(item.id)}>{t('delete')}</AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
@@ -262,7 +264,7 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                 </Table>
                  {sortedItems.length === 0 && (
                     <div className="text-center text-sm text-muted-foreground py-8">
-                        등록된 분실물이 없습니다.
+                        {t('lost_and_found.no_items')}
                     </div>
                 )}
             </CardContent>
@@ -270,7 +272,7 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
             <Dialog open={isViewImageDialogOpen} onOpenChange={setViewImageDialogOpen}>
                 <DialogContent className="max-w-3xl">
                      <DialogHeader>
-                        <DialogTitle>분실물 사진</DialogTitle>
+                        <DialogTitle>{t('lost_and_found.view_photo_title')}</DialogTitle>
                     </DialogHeader>
                     {imageToView && <Image src={imageToView} alt="Lost Item" width={800} height={600} style={{width: '100%', height: 'auto'}} className="rounded-md" />}
                 </DialogContent>
