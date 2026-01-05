@@ -537,7 +537,7 @@ export default function TeacherPage() {
             </Select>
         </div>
         <div className="flex-1 min-w-[120px]">
-            <Label className="text-xs">날짜</Label>
+            <Label className="text-xs">{t('day')}</Label>
             <div className="flex items-center rounded-md border border-input bg-background h-10 px-3">
                 <Input 
                     type="date" 
@@ -659,13 +659,13 @@ export default function TeacherPage() {
         >
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>탑승 안 함 처리 확인</AlertDialogTitle>
+                    <AlertDialogTitle>{t('teacher_page.not_boarding_confirm.title')}</AlertDialogTitle>
                     <AlertDialogDescription>
-                        {studentToConfirm ? `'${formatStudentName(studentToConfirm)}' 학생을 탑승 안 함 처리하시겠습니까?` : ''}
+                        {studentToConfirm ? t('teacher_page.not_boarding_confirm.description', {studentName: formatStudentName(studentToConfirm)}) : ''}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                     <AlertDialogAction
                         onClick={() => {
                             if (studentToConfirm) {
@@ -674,7 +674,7 @@ export default function TeacherPage() {
                             setStudentToConfirm(null);
                         }}
                     >
-                        확인
+                        {t('confirm')}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -759,7 +759,7 @@ export default function TeacherPage() {
                                                 }}
                                                 className="cursor-pointer"
                                             >
-                                                {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : '미탑승')}
+                                                {disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : t('teacher_page.status_not_boarded'))}
                                             </Badge>
                                         </TableCell>
                                     </TableRow>
@@ -770,8 +770,8 @@ export default function TeacherPage() {
                 </Card>
                 <Card>
                     <CardHeader>
-                        <CardTitle>하차 관리</CardTitle>
-                        <CardDescription>목적지를 선택하여 하차할 학생 명단을 확인하고, 하차 시 이름을 클릭하여 명단에서 제거하세요.</CardDescription>
+                        <CardTitle>{t('teacher_page.disembark_management.title')}</CardTitle>
+                        <CardDescription>{t('teacher_page.disembark_management.description')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="flex flex-wrap gap-2 mb-4">
@@ -788,8 +788,8 @@ export default function TeacherPage() {
                              <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>학생 이름</TableHead>
-                                        <TableHead>하차</TableHead>
+                                        <TableHead>{t('student.name')}</TableHead>
+                                        <TableHead>{t('teacher_page.disembark_management.disembark')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -806,7 +806,7 @@ export default function TeacherPage() {
                                     {studentsToDisembark.length === 0 && (
                                         <TableRow>
                                             <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                                이 정류장에서 내릴 학생이 없습니다.
+                                                {t('teacher_page.disembark_management.no_students')}
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -867,7 +867,7 @@ export default function TeacherPage() {
                                                     }}
                                                     className="cursor-pointer"
                                                 >
-                                                    {disembarkedStudentIds.includes(student.id) ? '하차 완료' : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : '미탑승')}
+                                                    {disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : t('teacher_page.status_not_boarded'))}
                                                 </Badge>
                                             </TableCell>
                                         </TableRow>
@@ -880,8 +880,8 @@ export default function TeacherPage() {
                 <div className="lg:order-none">
                      <Card>
                         <CardHeader>
-                            <CardTitle>하차 관리</CardTitle>
-                            <CardDescription>목적지를 선택하여 하차할 학생 명단을 확인하고, 하차 시 이름을 클릭하여 명단에서 제거하세요.</CardDescription>
+                            <CardTitle>{t('teacher_page.disembark_management.title')}</CardTitle>
+                            <CardDescription>{t('teacher_page.disembark_management.description')}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="flex flex-wrap gap-2 mb-4">
@@ -898,8 +898,8 @@ export default function TeacherPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>학생 이름</TableHead>
-                                            <TableHead>하차</TableHead>
+                                            <TableHead>{t('student.name')}</TableHead>
+                                            <TableHead>{t('teacher_page.disembark_management.disembark')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -916,7 +916,7 @@ export default function TeacherPage() {
                                         {studentsToDisembark.length === 0 && (
                                             <TableRow>
                                                 <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                                    이 정류장에서 내릴 학생이 없습니다.
+                                                    {t('teacher_page.disembark_management.no_students')}
                                                 </TableCell>
                                             </TableRow>
                                         )}

@@ -19,6 +19,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { differenceInDays, format } from 'date-fns';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface GroupLeaderManagerProps {
     records: GroupLeaderRecord[];
@@ -26,6 +27,7 @@ interface GroupLeaderManagerProps {
 }
 
 export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerProps) {
+  const { t } = useTranslation();
   
   const handleClearAll = () => {
     setRecords([]);
@@ -52,10 +54,10 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Crown /> 조장 관리
+          <Crown /> {t('teacher_page.group_leader_management.title')}
         </CardTitle>
         <CardDescription>
-            현재 노선의 조장 임명 및 활동 이력입니다.
+            {t('teacher_page.group_leader_management.description')}
         </CardDescription>
       </CardHeader>
       <CardContent className="max-h-[40vh] overflow-y-auto">
@@ -63,10 +65,10 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>이름</TableHead>
-                <TableHead>시작일</TableHead>
-                <TableHead>종료일</TableHead>
-                <TableHead className="text-right">일수</TableHead>
+                <TableHead>{t('teacher_page.group_leader_management.name')}</TableHead>
+                <TableHead>{t('teacher_page.group_leader_management.start_date')}</TableHead>
+                <TableHead>{t('teacher_page.group_leader_management.end_date')}</TableHead>
+                <TableHead className="text-right">{t('teacher_page.group_leader_management.days')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -75,7 +77,7 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
                   <TableCell>{record.name}</TableCell>
                   <TableCell>{record.startDate}</TableCell>
                   <TableCell>
-                    {record.endDate ? record.endDate : <Badge variant="secondary">활동 중</Badge>}
+                    {record.endDate ? record.endDate : <Badge variant="secondary">{t('teacher_page.group_leader_management.active')}</Badge>}
                   </TableCell>
                   <TableCell className="text-right">{record.days}</TableCell>
                 </TableRow>
@@ -84,7 +86,7 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
           </Table>
         ) : (
           <div className="text-center text-sm text-muted-foreground py-8">
-            조장으로 임명된 학생이 없습니다.
+            {t('teacher_page.group_leader_management.no_leaders')}
           </div>
         )}
       </CardContent>
@@ -93,19 +95,19 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" className="w-full">
-                  <Trash2 className="mr-2 h-4 w-4" /> 모든 기록 삭제
+                  <Trash2 className="mr-2 h-4 w-4" /> {t('teacher_page.group_leader_management.delete_all_records')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>정말 모든 기록을 삭제하시겠습니까?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('teacher_page.group_leader_management.delete_confirm.title')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    이 작업은 되돌릴 수 없습니다. 현재 노선의 모든 조장 임명 기록이 영구적으로 삭제됩니다.
+                    {t('teacher_page.group_leader_management.delete_confirm.description')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>취소</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearAll}>삭제</AlertDialogAction>
+                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearAll}>{t('delete')}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
