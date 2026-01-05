@@ -5,7 +5,7 @@ import React, { createContext, useState, useContext, ReactNode, useEffect } from
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../lib/i18n';
 
-type Language = 'ko' | 'vi';
+type Language = 'ko' | 'vi' | 'en';
 
 interface LanguageContextType {
   language: Language;
@@ -19,7 +19,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const savedLanguage = localStorage.getItem('language') as Language;
-    if (savedLanguage && ['ko', 'vi'].includes(savedLanguage)) {
+    if (savedLanguage && ['ko', 'vi', 'en'].includes(savedLanguage)) {
       setLanguage(savedLanguage);
       i18n.changeLanguage(savedLanguage);
     }
