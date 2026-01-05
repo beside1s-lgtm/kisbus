@@ -373,7 +373,7 @@
     "teacher_page.swap_error": "좌석 교체 실패",
     "teacher_page.seat_selected": "좌석 선택됨",
     "teacher_page.seat_selected_description": "교체할 다른 좌석을 우클릭하세요. 취소하려면 아무 좌석이나 좌클릭하세요.",
-    "teacher_page.search_student_placeholder": "학생 이름으로 검색...",
+    "teacher_page.search_student_placeholder": "학생 영문 이름으로 검색...",
     "teacher_page.mark_not_boarding": "탑승 안 함 처리",
     "teacher_page.demote_leader": "조장 해제",
     "teacher_page.promote_leader": "조장 임명",
@@ -391,5 +391,3 @@
     "teacher_page.status_not_boarded": "미탑승"
 }
   
-
-    
