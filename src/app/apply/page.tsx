@@ -47,10 +47,7 @@ export default function ApplyPage() {
     const [customAfternoonDestName, setCustomAfternoonDestName] = useState('');
 
     const [afterSchoolDays, setAfterSchoolDays] = useState<Partial<Record<DayOfWeek, boolean>>>({});
-    const [afterSchoolDestinations, setAfterSchoolDestinations] = useState<Partial<Record<DayOfWeek, string | null>>>({});
-    const [useCustomAfterSchoolDests, setUseCustomAfterSchoolDests] = useState<Partial<Record<DayOfWeek, boolean>>>({});
-    const [customAfterSchoolDestNames, setCustomAfterSchoolDestNames] = useState<Partial<Record<DayOfWeek, string>>>({});
-
+    
     const { toast } = useToast();
 
     useEffect(() => {
@@ -170,56 +167,33 @@ export default function ApplyPage() {
 
     const handleAfterSchoolSubmit = async () => {
         if (!validateBaseInfo()) return;
-
+    
         const existingStudent = findExistingStudent();
-        let finalDestinations: Partial<Record<DayOfWeek, string | null>> = existingStudent?.afterSchoolDestinations || {};
-        let finalSuggestedDests: Partial<Record<DayOfWeek, string | null>> = existingStudent?.suggestedAfterSchoolDestinations || {};
-
-        let hasError = false;
-        const suggestionPromises = [];
-
-        for (const day of daysOfWeek) {
-            if (afterSchoolDays[day]) {
-                const isCustom = useCustomAfterSchoolDests[day];
-                const customName = customAfterSchoolDestNames[day]?.trim();
-                const selectedId = afterSchoolDestinations[day];
-
-                if (!isCustom && !selectedId) {
-                    toast({ title: t('error'), description: t('apply.validation.after_school_dest_error', { day: dayLabels[day] }), variant: "destructive" });
-                    hasError = true;
-                    break;
-                }
-                if (isCustom && !customName) {
-                    toast({ title: t('error'), description: t('apply.validation.after_school_custom_dest_error', { day: dayLabels[day] }), variant: "destructive" });
-                    hasError = true;
-                    break;
-                }
-                if (isCustom && customName) {
-                    suggestionPromises.push(addSuggestedDestination({ name: customName }));
-                    finalDestinations[day] = null;
-                    finalSuggestedDests[day] = customName;
-                } else {
-                    finalDestinations[day] = selectedId || null;
-                    finalSuggestedDests[day] = null;
-                }
-            } else {
-                 finalDestinations[day] = finalDestinations[day] !== undefined ? finalDestinations[day] : null;
-                 finalSuggestedDests[day] = finalSuggestedDests[day] !== undefined ? finalSuggestedDests[day] : null;
-            }
-        }
-        if (hasError) return;
         
-        try {
-            await Promise.all(suggestionPromises);
-            if (suggestionPromises.length > 0) {
-                 toast({ title: t('apply.suggestion_submitted'), description: t('apply.after_school_suggestion_submitted_desc') });
-            }
-        } catch(e) {
-            toast({ title: t('error'), description: t('apply.after_school_suggestion_error'), variant: "destructive" });
+        let commuteDestinationId: string | null = null;
+    
+        if (existingStudent) {
+            commuteDestinationId = existingStudent.afternoonDestinationId || existingStudent.morningDestinationId;
+        } else {
+            commuteDestinationId = afternoonDestinationId || morningDestinationId;
+        }
+    
+        if (!commuteDestinationId) {
+            toast({ title: t('error'), description: "방과후 버스를 신청하려면 먼저 등교 또는 하교 목적지를 설정해야 합니다.", variant: "destructive" });
             return;
         }
-
-        const updateData: Partial<Student> = { 
+    
+        let finalDestinations: Partial<Record<DayOfWeek, string | null>> = existingStudent?.afterSchoolDestinations || {};
+    
+        for (const day of daysOfWeek) {
+            if (afterSchoolDays[day]) {
+                finalDestinations[day] = commuteDestinationId;
+            } else {
+                finalDestinations[day] = null;
+            }
+        }
+    
+        const updateData: Partial<Student> = {
             ...existingStudent,
             name: name.trim(),
             grade: grade.trim(),
@@ -227,37 +201,31 @@ export default function ApplyPage() {
             gender,
             contact: contact.trim(),
             afterSchoolDestinations: finalDestinations,
-            suggestedAfterSchoolDestinations: finalSuggestedDests,
             applicationStatus: 'pending'
         };
-
-         try {
+    
+        try {
             if (existingStudent) {
                 await updateStudent(existingStudent.id, updateData);
-                setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } : s));
+                setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } as Student : s));
             } else {
-                 const newStudentData: NewStudent = {
+                const newStudentData: NewStudent = {
                     name: name.trim(),
                     grade: grade.trim(),
                     class: studentClass.trim(),
                     gender,
                     contact: contact.trim(),
-                    morningDestinationId: existingStudent?.morningDestinationId || null,
-                    afternoonDestinationId: existingStudent?.afternoonDestinationId || null,
+                    morningDestinationId: morningDestinationId || null,
+                    afternoonDestinationId: afternoonDestinationId || null,
                     afterSchoolDestinations: finalDestinations,
-                    suggestedAfterSchoolDestinations: finalSuggestedDests,
                     applicationStatus: 'pending'
                 };
                 const addedStudent = await addStudent(newStudentData);
                 setAllStudents(prevStudents => [...prevStudents, addedStudent]);
             }
             toast({ title: t('apply.after_school.success_title'), description: t('apply.after_school.success_desc', { studentName: name }) });
-
+    
             setAfterSchoolDays({});
-            setAfterSchoolDestinations({});
-            setUseCustomAfterSchoolDests({});
-            setCustomAfterSchoolDestNames({});
-
         } catch (error) {
             console.error("Error submitting after school application:", error);
             toast({ title: t('error'), description: t('apply.submit_error'), variant: 'destructive' });
@@ -267,11 +235,6 @@ export default function ApplyPage() {
 
     const handleToggleAfterSchoolDay = (day: DayOfWeek, checked: boolean) => {
         setAfterSchoolDays(prev => ({...prev, [day]: checked}));
-        if (!checked) {
-            setAfterSchoolDestinations(prev => ({...prev, [day]: null}));
-            setUseCustomAfterSchoolDests(prev => ({...prev, [day]: false}));
-            setCustomAfterSchoolDestNames(prev => ({...prev, [day]: ''}));
-        }
     }
 
     return (
@@ -390,9 +353,9 @@ export default function ApplyPage() {
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
                                 <Label>{t('apply.after_school.select_days')}</Label>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                     {daysOfWeek.map(day => (
-                                        <div key={day} className="flex items-center gap-1">
+                                        <div key={day} className="flex items-center gap-2">
                                             <Checkbox
                                                 id={`day-${day}`}
                                                 checked={!!afterSchoolDays[day]}
@@ -403,34 +366,9 @@ export default function ApplyPage() {
                                     ))}
                                 </div>
                             </div>
-                            
-                            {daysOfWeek.map(day => afterSchoolDays[day] && (
-                                <div key={day} className="p-3 border rounded-md space-y-3">
-                                    <Label className="font-semibold">{t('apply.after_school.dest_for_day', { day: dayLabels[day] })}</Label>
-                                     <Combobox 
-                                        options={destinationOptions}
-                                        value={afterSchoolDestinations[day]}
-                                        onSelect={(value) => setAfterSchoolDestinations(prev => ({...prev, [day]: value}))}
-                                        placeholder={t('select_or_search_destination')}
-                                        disabled={!!useCustomAfterSchoolDests[day]}
-                                    />
-                                     <div className="flex items-center space-x-2">
-                                        <Checkbox 
-                                            id={`custom-day-${day}`}
-                                            checked={!!useCustomAfterSchoolDests[day]}
-                                            onCheckedChange={(checked) => setUseCustomAfterSchoolDests(prev => ({...prev, [day]: checked as boolean}))}
-                                        />
-                                        <label htmlFor={`custom-day-${day}`} className="text-sm font-medium">{t('apply.custom_dest_prompt_short')}</label>
-                                    </div>
-                                    {useCustomAfterSchoolDests[day] && (
-                                        <Input
-                                            value={customAfterSchoolDestNames[day] || ''}
-                                            onChange={(e) => setCustomAfterSchoolDestNames(prev => ({...prev, [day]: e.target.value}))}
-                                            placeholder={t('apply.new_after_school_dest_placeholder')}
-                                        />
-                                    )}
-                                </div>
-                            ))}
+                            <p className="text-xs text-muted-foreground">
+                                방과후 버스 하차 지점은 기본 하교 지점과 동일하게 설정됩니다.
+                            </p>
                             
                             <Button onClick={handleAfterSchoolSubmit} className="w-full" disabled={Object.values(afterSchoolDays).every(v => !v)}>{t('apply.after_school.submit_button')}</Button>
                         </CardContent>
@@ -440,3 +378,5 @@ export default function ApplyPage() {
         </MainLayout>
     );
 }
+
+    

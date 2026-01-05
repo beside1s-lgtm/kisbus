@@ -14,7 +14,7 @@
     "page.title.student": "Xác nhận lên xe",
     "page.title.apply": "Đăng ký đi xe",
     "page.title.login": "Đăng nhập quản trị viên",
-    "page.title.parents": "Phụ huynh/Học sinh",
+    "page.title.parents": "Trình quản lý xe buýt trường học KIS",
     "logout.button": "Đăng xuất",
     "logout.success": "Đăng xuất thành công",
     "logout.success.description": "Đang chuyển đến màn hình chính.",
@@ -391,3 +391,5 @@
     "teacher_page.status_not_boarded": "Chưa lên xe"
 }
   
+
+    
