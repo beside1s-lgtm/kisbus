@@ -1667,35 +1667,26 @@ const StudentManagementTab = ({
         const getSeatLayout = (capacity: number) => {
             const windowSeats: number[] = [];
             const aisleSeats: number[] = [];
-            const seatPairs: [number, number][] = [];
     
             const numRows = Math.ceil(capacity / 4);
     
             for (let row = 0; row < numRows; row++) {
                 const base = row * 4;
                 if (capacity === 16) {
-                    if (base + 2 <= capacity) windowSeats.push(base + 2);
-                    if (base + 3 <= capacity) aisleSeats.push(base + 3);
-                    if (base + 4 <= capacity) windowSeats.push(base + 4);
-                    // Special 16-seater layout adjustments
-                    if (row < 3) {
+                    if (row < 3) { // First 3 rows
                        if (base + 1 <= capacity) windowSeats.push(base + 1);
-                       if (base + 1 <= capacity && base + 2 <= capacity) seatPairs.push([base+1, base+2]);
-                    } else if (row === 3) {
+                       if (base + 2 <= capacity) aisleSeats.push(base + 2);
+                    } else if (row === 3) { // 4th row is different
                        if (base + 1 <= capacity) windowSeats.push(base + 1);
                        if (base + 2 <= capacity) aisleSeats.push(base + 2);
                        if (base + 3 <= capacity) aisleSeats.push(base + 3);
                        if (base + 4 <= capacity) windowSeats.push(base + 4);
-                       if (base + 1 <= capacity && base + 2 <= capacity) seatPairs.push([base+1, base+2]);
-                       if (base + 3 <= capacity && base + 4 <= capacity) seatPairs.push([base+3, base+4]);
                     }
-                } else { // 29 & 45 seaters
+                } else { // 29 & 45 seaters, first few rows are standard
                     if (base + 1 <= capacity) windowSeats.push(base + 1);
                     if (base + 2 <= capacity) aisleSeats.push(base + 2);
                     if (base + 4 <= capacity) windowSeats.push(base + 4);
                     if (base + 3 <= capacity) aisleSeats.push(base + 3);
-                    if (base + 1 <= capacity && base + 2 <= capacity) seatPairs.push([base + 1, base + 2]);
-                    if (base + 4 <= capacity && base + 3 <= capacity) seatPairs.push([base + 4, base + 3]);
                 }
             }
              // Adjust for last row of 45-seater (5 seats)
@@ -1704,7 +1695,6 @@ const StudentManagementTab = ({
                 aisleSeats.push(42);
                 aisleSeats.push(44); // middle-aisle
                 windowSeats.push(45);
-                // Last row pairs are tricky, handled by individual assignment if needed
             }
              // Adjust for last row of 29-seater (5 seats)
             if (capacity === 29) {
@@ -1713,86 +1703,45 @@ const StudentManagementTab = ({
                 aisleSeats.push(28);
                 windowSeats.push(29);
             }
-            return { windowSeats: Array.from(new Set(windowSeats)), aisleSeats: Array.from(new Set(aisleSeats)), seatPairs };
+            return { windowSeats: Array.from(new Set(windowSeats)), aisleSeats: Array.from(new Set(aisleSeats)) };
         };
     
-        const { windowSeats, aisleSeats, seatPairs } = getSeatLayout(selectedBus.capacity);
+        const { windowSeats, aisleSeats } = getSeatLayout(selectedBus.capacity);
         const newSeatingPlan = generateInitialSeating(selectedBus.capacity);
-    
-        // Rule 1: Window seat priority if seats are ample
-        if (studentsForThisRoute.length <= windowSeats.length) {
-            const sortedStudents = [...studentsForThisRoute].sort((a, b) => getGradeValue(a.grade) - getGradeValue(b.grade));
-            const availableWindowSeats = [...windowSeats];
-    
-            for (const student of sortedStudents) {
-                if (availableWindowSeats.length > 0) {
-                    const seatNumber = availableWindowSeats.shift()!;
-                    const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNumber);
-                    if (seatIndex !== -1) {
-                        newSeatingPlan[seatIndex].studentId = student.id;
-                    }
+        const sortedStudents = [...studentsForThisRoute].sort((a, b) => getGradeValue(a.grade) - getGradeValue(b.grade));
+        
+        let studentIndex = 0;
+        
+        // 1. Fill window seats first
+        for (const seatNumber of windowSeats) {
+            if (studentIndex < sortedStudents.length) {
+                const seatIndexInPlan = newSeatingPlan.findIndex(s => s.seatNumber === seatNumber);
+                if (seatIndexInPlan !== -1) {
+                    newSeatingPlan[seatIndexInPlan].studentId = sortedStudents[studentIndex].id;
+                    studentIndex++;
                 }
-            }
-        } else {
-            // Rule 2: Pairing logic
-            const stopOrderMap = new Map(currentRoute.stops.map((stopId, index) => [stopId, index]));
-            
-            const sortedStudents = [...studentsForThisRoute].sort((a, b) => {
-                const gradeDiff = getGradeValue(a.grade) - getGradeValue(b.grade);
-                if (gradeDiff !== 0) return gradeDiff;
-                return a.name.localeCompare(b.name, 'ko');
-            });
-            
-            let males = sortedStudents.filter(s => s.gender === 'Male');
-            let females = sortedStudents.filter(s => s.gender === 'Female');
-            
-            const availablePairs = [...seatPairs];
-    
-            const assignPairs = (studentList: Student[]) => {
-                while (studentList.length >= 2 && availablePairs.length > 0) {
-                    const student1 = studentList.shift()!;
-                    const student2 = studentList.shift()!;
-                    const pair = availablePairs.shift()!;
-                    
-                    const dest1Index = stopOrderMap.get(getStudentDestination(student1)!) ?? Infinity;
-                    const dest2Index = stopOrderMap.get(getStudentDestination(student2)!) ?? Infinity;
-
-                    const windowStudent = dest1Index > dest2Index ? student1 : student2;
-                    const aisleStudent = dest1Index > dest2Index ? student2 : student1;
-
-                    const windowSeatNumber = windowSeats.includes(pair[0]) ? pair[0] : pair[1];
-                    const aisleSeatNumber = aisleSeats.includes(pair[0]) ? pair[0] : pair[1];
-
-                    const windowSeatIndex = newSeatingPlan.findIndex(s => s.seatNumber === windowSeatNumber);
-                    const aisleSeatIndex = newSeatingPlan.findIndex(s => s.seatNumber === aisleSeatNumber);
-
-                    if (windowSeatIndex !== -1) newSeatingPlan[windowSeatIndex].studentId = windowStudent.id;
-                    if (aisleSeatIndex !== -1) newSeatingPlan[aisleSeatIndex].studentId = aisleStudent.id;
-                }
-            };
-    
-            assignPairs(males);
-            assignPairs(females);
-    
-            // Assign remaining single students
-            const remainingStudents = [...males, ...females];
-            const emptySeats = newSeatingPlan.filter(s => !s.studentId).map(s => s.seatNumber);
-            
-            for (const student of remainingStudents) {
-                if (emptySeats.length > 0) {
-                    const seatNumber = emptySeats.shift()!;
-                    const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNumber);
-                    if (seatIndex !== -1) {
-                        newSeatingPlan[seatIndex].studentId = student.id;
-                    }
-                }
+            } else {
+                break;
             }
         }
-    
+        
+        // 2. Fill aisle seats next
+        for (const seatNumber of aisleSeats) {
+             if (studentIndex < sortedStudents.length) {
+                const seatIndexInPlan = newSeatingPlan.findIndex(s => s.seatNumber === seatNumber);
+                if (seatIndexInPlan !== -1) {
+                    newSeatingPlan[seatIndexInPlan].studentId = sortedStudents[studentIndex].id;
+                    studentIndex++;
+                }
+            } else {
+                break;
+            }
+        }
+
         await handleSeatUpdate(newSeatingPlan);
         toast({ title: t('success'), description: t('admin.student_management.seat.random_assign_success') });
     
-        if ((selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && studentsForThisRoute.length > windowSeats.length) {
+        if ((selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon')) {
             setCopySeatingDialogOpen(true);
         }
     }, [selectedBus, students, currentRoute, handleSeatUpdate, toast, t, selectedDay, selectedRouteType, setCopySeatingDialogOpen]);
