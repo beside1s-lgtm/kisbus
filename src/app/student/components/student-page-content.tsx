@@ -393,15 +393,14 @@ export function StudentPageContent() {
             <CardHeader>
                 <CardTitle className="font-headline">{t('student_page.title')}</CardTitle>
                 <CardDescription>
-                {selectedStudent ? t('student_page.description') : '학생 이름을 검색하여 탑승 정보를 확인하세요.'}
+                {selectedStudent ? t('student_page.description.student_selected') : t('student_page.description.no_student')}
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 {selectedStudent && studentStatus && (
                     <Alert className="mb-4">
-                        <Info className="h-4 w-4" />
                         <AlertTitle>
-                            탑승 정보: {selectedBus?.name || '미배정'}, <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
+                            {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}, <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
                         </AlertTitle>
                     </Alert>
                 )}
@@ -444,9 +443,9 @@ export function StudentPageContent() {
                     />
                 ) : (
                     <Alert>
-                        <AlertTitle>{selectedStudent ? t('no_route_info') : '학생을 선택하세요'}</AlertTitle>
+                        <AlertTitle>{selectedStudent ? t('no_route_info') : t('student_page.select_student_prompt')}</AlertTitle>
                         <AlertDescription>
-                            {selectedStudent ? '선택한 날짜에 해당하는 학생의 노선 정보가 없습니다.' : '상단 검색창에서 학생 이름을 검색하여 선택해주세요.'}
+                            {selectedStudent ? '선택한 날짜에 해당하는 학생의 노선 정보가 없습니다.' : t('student_page.select_student_description')}
                         </AlertDescription>
                     </Alert>
                 )}
