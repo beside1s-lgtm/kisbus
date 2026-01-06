@@ -1640,8 +1640,8 @@ const StudentManagementTab = ({
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
-        
-        setPreviousSeating(currentRoute.seating);
+    
+        setPreviousSeating([...currentRoute.seating]);
     
         const getStudentDestination = (student: Student) => {
             if (selectedRouteType === 'Morning') return student.morningDestinationId;
@@ -1664,72 +1664,82 @@ const StudentManagementTab = ({
             const upperGrade = grade.toUpperCase();
             if (upperGrade.startsWith('K')) {
                 const num = parseInt(upperGrade.replace('K', ''));
-                return isNaN(num) ? -1 : -num; // K2, K1
+                return isNaN(num) ? -1 : -num; // K2 > K1
             }
             const num = parseInt(upperGrade.replace(/\D/g, ''));
             return isNaN(num) ? 99 : num; // G1, G2 ...
         };
 
+        // Separate low grade students for special handling
         const lowGradeStudents = studentsForThisRoute.filter(s => ['K1', 'K2', 'G1', 'G2'].includes(s.grade.toUpperCase()));
         const otherStudents = studentsForThisRoute.filter(s => !lowGradeStudents.some(lg => lg.id === s.id));
-
+        
+        // Sort both groups by grade and then randomize within grade
         lowGradeStudents.sort((a,b) => getGradeValue(b.grade) - getGradeValue(a.grade));
         otherStudents.sort((a,b) => getGradeValue(a.grade) - getGradeValue(b.grade));
 
         let newSeatingPlan = generateInitialSeating(selectedBus.capacity);
-
-        const assignStudents = (studentsToAssign: Student[], availableSeats: number[]) => {
-            const shuffledStudents = [...studentsToAssign].sort(() => 0.5 - Math.random());
-            const shuffledSeats = [...availableSeats].sort(() => 0.5 - Math.random());
-            
-            for (const student of shuffledStudents) {
-                if(shuffledSeats.length === 0) break;
-                const seatNum = shuffledSeats.pop()!;
-                const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNum);
-                if (seatIndex !== -1) {
-                    newSeatingPlan[seatIndex].studentId = student.id;
-                }
-            }
-        };
-
-        const lowGradeSeats = Array.from({length: 20}, (_, i) => i + 1);
-        assignStudents(lowGradeStudents, lowGradeSeats);
         
-        const remainingSeats = newSeatingPlan.filter(s => s.studentId === null).map(s => s.seatNumber);
-        assignStudents(otherStudents, remainingSeats);
+        let availableSeats = newSeatingPlan.map(s => s.seatNumber);
+        
+        // 1. Assign low-grade students to seats <= 20
+        let lowGradeSeats = availableSeats.filter(s => s <= 20).sort(() => 0.5 - Math.random());
+        for(const student of lowGradeStudents) {
+            if(lowGradeSeats.length > 0) {
+                const seatNum = lowGradeSeats.pop()!;
+                const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNum);
+                if(seatIndex > -1) newSeatingPlan[seatIndex].studentId = student.id;
+            }
+        }
+        
+        // 2. Assign other students to remaining seats
+        let remainingSeats = newSeatingPlan.filter(s => s.studentId === null).map(s => s.seatNumber).sort(() => 0.5 - Math.random());
+        for(const student of otherStudents) {
+            if(remainingSeats.length > 0) {
+                const seatNum = remainingSeats.pop()!;
+                const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNum);
+                if(seatIndex > -1) newSeatingPlan[seatIndex].studentId = student.id;
+            }
+        }
 
-        // Final check for pairing by gender if seats are shared
-        let tempSeating = [...newSeatingPlan];
-        for (let i = 0; i < tempSeating.length; i++) {
-            const seat = tempSeating[i];
-            if (seat.studentId) {
-                const student = students.find(s => s.id === seat.studentId);
-                const pairedSeatNum = (seat.seatNumber % 2 === 0) ? seat.seatNumber - 1 : seat.seatNumber + 1;
-                const pairedSeat = tempSeating.find(s => s.seatNumber === pairedSeatNum);
+        // 3. Final check for gender pairing in 2-seater rows
+        for (let i = 0; i < newSeatingPlan.length; i++) {
+            const seat = newSeatingPlan[i];
+            if (!seat.studentId) continue;
+            
+            const isPairedSeat = seat.seatNumber % 2 === 0 ? seat.seatNumber - 1 : seat.seatNumber + 1;
+            const pairedSeat = newSeatingPlan.find(s => s.seatNumber === isPairedSeat);
 
-                if (pairedSeat && pairedSeat.studentId) {
-                    const pairedStudent = students.find(s => s.id === pairedSeat.studentId);
-                    if (student && pairedStudent && student.gender !== pairedStudent.gender) {
-                        // try to find a swap
-                        for (let j = i + 1; j < tempSeating.length; j++) {
-                            const swapCandidateSeat = tempSeating[j];
-                            if (swapCandidateSeat.studentId) {
-                                const swapCandidateStudent = students.find(s => s.id === swapCandidateSeat.studentId);
-                                if (swapCandidateStudent && swapCandidateStudent.gender === student.gender) {
-                                    const candidatePairedSeatNum = (swapCandidateSeat.seatNumber % 2 === 0) ? swapCandidateSeat.seatNumber - 1 : swapCandidateSeat.seatNumber + 1;
-                                    const candidatePairedSeat = tempSeating.find(s => s.seatNumber === candidatePairedSeatNum);
-                                    if (!candidatePairedSeat || !candidatePairedSeat.studentId) { // if candidate is single
-                                        [tempSeating[i].studentId, tempSeating[j].studentId] = [tempSeating[j].studentId, tempSeating[i].studentId];
-                                        break; 
-                                    }
+            if (pairedSeat && pairedSeat.studentId) {
+                const student1 = students.find(s => s.id === seat.studentId);
+                const student2 = students.find(s => s.id === pairedSeat.studentId);
+
+                if (student1 && student2 && student1.gender !== student2.gender) {
+                    // Find a suitable swap
+                    for (let j = i + 1; j < newSeatingPlan.length; j++) {
+                        const swapCandidateSeat = newSeatingPlan[j];
+                        if (!swapCandidateSeat.studentId) continue;
+
+                        const swapCandidateStudent = students.find(s => s.id === swapCandidateSeat.studentId);
+                        if (swapCandidateStudent && swapCandidateStudent.gender === student1.gender) {
+                            const candidatePairedSeatNum = (swapCandidateSeat.seatNumber % 2 === 0) ? swapCandidateSeat.seatNumber - 1 : swapCandidateSeat.seatNumber + 1;
+                            const candidatePairedSeat = newSeatingPlan.find(s => s.seatNumber === candidatePairedSeatNum);
+                            
+                            // Check if the swap would create another mixed-gender pair
+                            if (candidatePairedSeat && candidatePairedSeat.studentId) {
+                                const candidatePairedStudent = students.find(s => s.id === candidatePairedSeat.studentId);
+                                if(candidatePairedStudent && candidatePairedStudent.gender !== student2.gender) {
+                                    continue; // This swap would create another issue, skip
                                 }
                             }
+                            // Perform the swap
+                            [newSeatingPlan[i].studentId, newSeatingPlan[j].studentId] = [newSeatingPlan[j].studentId, newSeatingPlan[i].studentId];
+                            break; // Move to the next seat to check
                         }
                     }
                 }
             }
         }
-        newSeatingPlan = tempSeating;
         
         await handleSeatUpdate(newSeatingPlan);
         toast({ title: t('success'), description: t('admin.student_management.seat.random_assign_success') });
@@ -2911,7 +2921,14 @@ const AdminPageFilter: React.FC<{
         if (!showRouteStops || !selectedBusId) return null;
         const route = routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
         if (!route || route.stops.length === 0) return t('no_route_info');
-        return route.stops.map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean).join(' -> ');
+
+        const stopNames = route.stops.map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
+        
+        if (selectedRouteType === 'Afternoon') {
+            return stopNames.reverse().join(' -> ');
+        }
+        
+        return stopNames.join(' -> ');
     }, [showRouteStops, selectedBusId, routes, selectedDay, selectedRouteType, destinations, t]);
 
     return (
