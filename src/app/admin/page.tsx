@@ -1244,6 +1244,7 @@ const StudentManagementTab = ({
     const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
 
     const [previousSeating, setPreviousSeating] = useState<{ seatNumber: number; studentId: string | null }[] | null>(null);
+    const [unassignedView, setUnassignedView] = useState<'current' | 'all'>('current');
 
     const assignedRoutesForSelectedStudent = useMemo(() => {
         if (!selectedGlobalStudent) return [];
@@ -1380,7 +1381,7 @@ const StudentManagementTab = ({
             setFilteredUnassignedStudents([]);
             return;
         }
-
+        
         const allAssignedStudentIdsThisType = new Set<string>();
         routes.forEach(route => {
             if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
@@ -1391,58 +1392,53 @@ const StudentManagementTab = ({
                 });
             }
         });
-        
-        const afterSchoolStudentIds = new Set<string>();
-        if (selectedRouteType === 'Afternoon') {
-             routes.forEach(route => {
-                if (route.dayOfWeek === selectedDay && route.type === 'AfterSchool') {
-                    route.seating.forEach(seat => {
-                        if (seat.studentId) {
-                            afterSchoolStudentIds.add(seat.studentId);
-                        }
-                    });
-                }
+
+        let unassigned: Student[];
+
+        if (unassignedView === 'current') {
+            const afterSchoolStudentIds = new Set<string>();
+            if (selectedRouteType === 'Afternoon') {
+                routes.forEach(route => {
+                    if (route.dayOfWeek === selectedDay && route.type === 'AfterSchool') {
+                        route.seating.forEach(seat => {
+                            if (seat.studentId) afterSchoolStudentIds.add(seat.studentId);
+                        });
+                    }
+                });
+            }
+
+            unassigned = students.filter(student => {
+                if (unassignableStudents.some(u => u.id === student.id)) return false;
+                if (allAssignedStudentIdsThisType.has(student.id)) return false;
+                if (selectedRouteType === 'Afternoon' && afterSchoolStudentIds.has(student.id)) return false;
+
+                let destId: string | null = null;
+                if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
+                else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
+                else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[selectedDay] ?? null;
+                
+                return destId && currentRoute.stops.includes(destId);
             });
+        } else { // 'all' view
+            unassigned = students.filter(student => !allAssignedStudentIdsThisType.has(student.id));
         }
 
-        const unassigned = students.filter(student => {
-            if (unassignableStudents.some(u => u.id === student.id)) return false;
-            if (allAssignedStudentIdsThisType.has(student.id)) return false;
-            
-            if (selectedRouteType === 'Afternoon' && afterSchoolStudentIds.has(student.id)) {
-                return false;
-            }
-
-            let destId: string | null = null;
-            if (selectedRouteType === 'Morning') {
-                destId = student.morningDestinationId;
-            } else if (selectedRouteType === 'Afternoon') {
-                destId = student.afternoonDestinationId;
-            } else if (selectedRouteType === 'AfterSchool') {
-                destId = student.afterSchoolDestinations?.[selectedDay] ?? null;
-            }
-            
-            if (!destId) return false;
-
-            if (!unassignedSearchQuery) return true;
-
+        if (unassignedSearchQuery) {
             const lowerCaseQuery = unassignedSearchQuery.toLowerCase();
-            const nameMatch = student.name.toLowerCase().includes(lowerCaseQuery);
-            const destinationName = destinations.find(d => d.id === destId)?.name.toLowerCase() || '';
-            const destMatch = destinationName.includes(lowerCaseQuery);
-
-            return nameMatch || destMatch;
-        });
+            unassigned = unassigned.filter(student => 
+                student.name.toLowerCase().includes(lowerCaseQuery)
+            );
+        }
 
         const sortedUnassigned = unassigned.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
         setFilteredUnassignedStudents(sortedUnassigned);
 
-    }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, destinations, unassignableStudents]);
+    }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, unassignableStudents, unassignedView]);
     
     useEffect(() => {
         setSelectedSeat(null);
         setPreviousSeating(null);
-    }, [currentRoute]);
+    }, [currentRoute, unassignedView]);
     
     const handleToggleSelectAll = useCallback(() => {
         if (!filteredUnassignedStudents) return;
@@ -1668,60 +1664,72 @@ const StudentManagementTab = ({
             const upperGrade = grade.toUpperCase();
             if (upperGrade.startsWith('K')) {
                 const num = parseInt(upperGrade.replace('K', ''));
-                return isNaN(num) ? -1 : -num;
+                return isNaN(num) ? -1 : -num; // K2, K1
             }
             const num = parseInt(upperGrade.replace(/\D/g, ''));
-            return isNaN(num) ? 99 : num;
+            return isNaN(num) ? 99 : num; // G1, G2 ...
         };
-    
+
         const lowGradeStudents = studentsForThisRoute.filter(s => ['K1', 'K2', 'G1', 'G2'].includes(s.grade.toUpperCase()));
-        const otherStudents = studentsForThisRoute.filter(s => !lowGradeStudents.includes(s));
-        
-        const newSeatingPlan = generateInitialSeating(selectedBus.capacity);
+        const otherStudents = studentsForThisRoute.filter(s => !lowGradeStudents.some(lg => lg.id === s.id));
 
-        const availableSeats = newSeatingPlan.map(s => s.seatNumber);
-        const lowGradeSeats = availableSeats.filter(s => s <= 20);
-        const otherSeats = availableSeats.filter(s => s > 20);
+        lowGradeStudents.sort((a,b) => getGradeValue(b.grade) - getGradeValue(a.grade));
+        otherStudents.sort((a,b) => getGradeValue(a.grade) - getGradeValue(b.grade));
 
-        const seatStudent = (student: Student, seatNumber: number) => {
-            const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNumber);
-            if (seatIndex !== -1 && newSeatingPlan[seatIndex].studentId === null) {
-                newSeatingPlan[seatIndex].studentId = student.id;
-                return true;
+        let newSeatingPlan = generateInitialSeating(selectedBus.capacity);
+
+        const assignStudents = (studentsToAssign: Student[], availableSeats: number[]) => {
+            const shuffledStudents = [...studentsToAssign].sort(() => 0.5 - Math.random());
+            const shuffledSeats = [...availableSeats].sort(() => 0.5 - Math.random());
+            
+            for (const student of shuffledStudents) {
+                if(shuffledSeats.length === 0) break;
+                const seatNum = shuffledSeats.pop()!;
+                const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNum);
+                if (seatIndex !== -1) {
+                    newSeatingPlan[seatIndex].studentId = student.id;
+                }
             }
-            return false;
         };
+
+        const lowGradeSeats = Array.from({length: 20}, (_, i) => i + 1);
+        assignStudents(lowGradeStudents, lowGradeSeats);
         
-        // 1. Assign low grade students to front seats
-        for(const student of lowGradeStudents) {
-            let seated = false;
-            for(const seatNum of lowGradeSeats) {
-                if(seatStudent(student, seatNum)) {
-                    seated = true;
-                    break;
+        const remainingSeats = newSeatingPlan.filter(s => s.studentId === null).map(s => s.seatNumber);
+        assignStudents(otherStudents, remainingSeats);
+
+        // Final check for pairing by gender if seats are shared
+        let tempSeating = [...newSeatingPlan];
+        for (let i = 0; i < tempSeating.length; i++) {
+            const seat = tempSeating[i];
+            if (seat.studentId) {
+                const student = students.find(s => s.id === seat.studentId);
+                const pairedSeatNum = (seat.seatNumber % 2 === 0) ? seat.seatNumber - 1 : seat.seatNumber + 1;
+                const pairedSeat = tempSeating.find(s => s.seatNumber === pairedSeatNum);
+
+                if (pairedSeat && pairedSeat.studentId) {
+                    const pairedStudent = students.find(s => s.id === pairedSeat.studentId);
+                    if (student && pairedStudent && student.gender !== pairedStudent.gender) {
+                        // try to find a swap
+                        for (let j = i + 1; j < tempSeating.length; j++) {
+                            const swapCandidateSeat = tempSeating[j];
+                            if (swapCandidateSeat.studentId) {
+                                const swapCandidateStudent = students.find(s => s.id === swapCandidateSeat.studentId);
+                                if (swapCandidateStudent && swapCandidateStudent.gender === student.gender) {
+                                    const candidatePairedSeatNum = (swapCandidateSeat.seatNumber % 2 === 0) ? swapCandidateSeat.seatNumber - 1 : swapCandidateSeat.seatNumber + 1;
+                                    const candidatePairedSeat = tempSeating.find(s => s.seatNumber === candidatePairedSeatNum);
+                                    if (!candidatePairedSeat || !candidatePairedSeat.studentId) { // if candidate is single
+                                        [tempSeating[i].studentId, tempSeating[j].studentId] = [tempSeating[j].studentId, tempSeating[i].studentId];
+                                        break; 
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-        
-        // 2. Assign other students to remaining seats
-        for(const student of otherStudents) {
-            let seated = false;
-            // Try remaining front seats first
-            for(const seatNum of lowGradeSeats) {
-                 if(seatStudent(student, seatNum)) {
-                    seated = true;
-                    break;
-                }
-            }
-            if(seated) continue;
-            // Then try back seats
-            for(const seatNum of otherSeats) {
-                 if(seatStudent(student, seatNum)) {
-                    seated = true;
-                    break;
-                }
-            }
-        }
+        newSeatingPlan = tempSeating;
         
         await handleSeatUpdate(newSeatingPlan);
         toast({ title: t('success'), description: t('admin.student_management.seat.random_assign_success') });
@@ -2147,12 +2155,10 @@ const StudentManagementTab = ({
                                </CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
-                                {previousSeating && (
-                                    <Button variant="outline" size="sm" onClick={handleUndoRandomize}>
-                                        <Undo2 />
-                                        <span className="sr-only sm:not-sr-only sm:ml-2">실행 취소</span>
-                                    </Button>
-                                )}
+                                <Button variant="outline" size="sm" onClick={handleUndoRandomize} disabled={!previousSeating}>
+                                    <Undo2 />
+                                    <span className="sr-only sm:not-sr-only sm:ml-2">실행 취소</span>
+                                </Button>
                                 {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
                                     <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
                                         <DialogTrigger asChild>
@@ -2372,9 +2378,17 @@ const StudentManagementTab = ({
                 <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-20 h-fit">
                      <Card>
                         <CardHeader>
-                            <CardTitle className="font-headline">{unassignedTitle}</CardTitle>
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="font-headline">{unassignedTitle}</CardTitle>
+                                <Tabs value={unassignedView} onValueChange={(v) => setUnassignedView(v as any)}>
+                                    <TabsList>
+                                        <TabsTrigger value="current">현재 노선</TabsTrigger>
+                                        <TabsTrigger value="all">전체</TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
+                            </div>
                             <CardDescription>
-                                {t('admin.student_management.unassigned.description')}
+                                {unassignedView === 'current' ? '현재 노선에 맞는 학생들입니다.' : '아직 배정되지 않은 모든 학생들입니다.'}
                             </CardDescription>
                         </CardHeader>
                         <Separator />
