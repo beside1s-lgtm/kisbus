@@ -21,7 +21,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { StudentCard } from '@/components/bus/draggable-student-card';
-import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX, Armchair, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Shuffle, UserPlus, Upload, Trash2, PlusCircle, Download, X, RotateCcw, UserCog, Pencil, Search, Copy, Check, Bell, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, UserX, Armchair, ChevronDown, AlertTriangle, Undo2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1243,6 +1243,8 @@ const StudentManagementTab = ({
     
     const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
 
+    const [previousSeating, setPreviousSeating] = useState<{ seatNumber: number; studentId: string | null }[] | null>(null);
+
     const assignedRoutesForSelectedStudent = useMemo(() => {
         if (!selectedGlobalStudent) return [];
         return routes
@@ -1439,6 +1441,7 @@ const StudentManagementTab = ({
     
     useEffect(() => {
         setSelectedSeat(null);
+        setPreviousSeating(null);
     }, [currentRoute]);
     
     const handleToggleSelectAll = useCallback(() => {
@@ -1592,6 +1595,7 @@ const StudentManagementTab = ({
         }
         if (!currentRoute) return;
 
+        setPreviousSeating(currentRoute.seating);
         const emptySeating = generateInitialSeating(selectedBus.capacity);
         await handleSeatUpdate(emptySeating);
         toast({ title: t('success'), description: t('admin.student_management.seat.reset.success', {busName: selectedBus.name, day: t(`day.${selectedDay.toLowerCase()}`), routeType: selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`)}) });
@@ -1640,6 +1644,8 @@ const StudentManagementTab = ({
 
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
+        
+        setPreviousSeating(currentRoute.seating);
     
         const getStudentDestination = (student: Student) => {
             if (selectedRouteType === 'Morning') return student.morningDestinationId;
@@ -1662,18 +1668,20 @@ const StudentManagementTab = ({
             const upperGrade = grade.toUpperCase();
             if (upperGrade.startsWith('K')) {
                 const num = parseInt(upperGrade.replace('K', ''));
-                return isNaN(num) ? -1 : -num; // K2 (-2) < K1 (-1)
+                return isNaN(num) ? -1 : -num;
             }
             const num = parseInt(upperGrade.replace(/\D/g, ''));
             return isNaN(num) ? 99 : num;
         };
     
-        studentsForThisRoute.sort((a, b) => getGradeValue(a.grade) - getGradeValue(b.grade));
-
         const lowGradeStudents = studentsForThisRoute.filter(s => ['K1', 'K2', 'G1', 'G2'].includes(s.grade.toUpperCase()));
-        const highGradeStudents = studentsForThisRoute.filter(s => !['K1', 'K2', 'G1', 'G2'].includes(s.grade.toUpperCase()));
-
+        const otherStudents = studentsForThisRoute.filter(s => !lowGradeStudents.includes(s));
+        
         const newSeatingPlan = generateInitialSeating(selectedBus.capacity);
+
+        const availableSeats = newSeatingPlan.map(s => s.seatNumber);
+        const lowGradeSeats = availableSeats.filter(s => s <= 20);
+        const otherSeats = availableSeats.filter(s => s > 20);
 
         const seatStudent = (student: Student, seatNumber: number) => {
             const seatIndex = newSeatingPlan.findIndex(s => s.seatNumber === seatNumber);
@@ -1683,56 +1691,37 @@ const StudentManagementTab = ({
             }
             return false;
         };
-
-        let lowGradeSeated = 0;
-        for (const student of lowGradeStudents) {
+        
+        // 1. Assign low grade students to front seats
+        for(const student of lowGradeStudents) {
             let seated = false;
-            for (let seatNum = 1; seatNum <= 20; seatNum++) {
-                if (seatStudent(student, seatNum)) {
+            for(const seatNum of lowGradeSeats) {
+                if(seatStudent(student, seatNum)) {
                     seated = true;
-                    lowGradeSeated++;
                     break;
                 }
             }
         }
         
-        let highGradeSeated = 0;
-        for (const student of highGradeStudents) {
+        // 2. Assign other students to remaining seats
+        for(const student of otherStudents) {
             let seated = false;
-            for (let seatNum = 1; seatNum <= selectedBus.capacity; seatNum++) {
-                if (seatStudent(student, seatNum)) {
+            // Try remaining front seats first
+            for(const seatNum of lowGradeSeats) {
+                 if(seatStudent(student, seatNum)) {
                     seated = true;
-                    highGradeSeated++;
+                    break;
+                }
+            }
+            if(seated) continue;
+            // Then try back seats
+            for(const seatNum of otherSeats) {
+                 if(seatStudent(student, seatNum)) {
+                    seated = true;
                     break;
                 }
             }
         }
-
-        const remainingStudents = studentsForThisRoute.slice(lowGradeSeated + highGradeSeated);
-        let remainingMales = remainingStudents.filter(s => s.gender === 'Male');
-        let remainingFemales = remainingStudents.filter(s => s.gender === 'Female');
-        
-        const emptyPairedSeats = newSeatingPlan.filter(seat => seat.studentId === null)
-            .map(seat => seat.seatNumber)
-            .filter(seatNum => {
-                const pairSeatNum = [1,2,3,4].includes(seatNum % 5) ? (seatNum % 2 === 1 ? seatNum + 1 : seatNum -1) : seatNum;
-                const pairSeat = newSeatingPlan.find(s => s.seatNumber === pairSeatNum);
-                return pairSeat && pairSeat.studentId === null;
-            });
-            
-        const assignPairs = (students: Student[], seats: number[]) => {
-            let i = 0;
-            while(students.length >= 2 && i < seats.length -1) {
-                const student1 = students.shift()!;
-                const student2 = students.shift()!;
-                seatStudent(student1, seats[i]);
-                seatStudent(student2, seats[i+1]);
-                i += 2;
-            }
-        }
-
-        assignPairs(remainingMales, emptyPairedSeats);
-        assignPairs(remainingFemales, emptyPairedSeats.filter(s => newSeatingPlan.find(p => p.seatNumber === s)?.studentId === null));
         
         await handleSeatUpdate(newSeatingPlan);
         toast({ title: t('success'), description: t('admin.student_management.seat.random_assign_success') });
@@ -1742,6 +1731,13 @@ const StudentManagementTab = ({
         }
     }, [selectedBus, students, currentRoute, handleSeatUpdate, toast, t, selectedDay, selectedRouteType, setCopySeatingDialogOpen]);
     
+    const handleUndoRandomize = useCallback(async () => {
+        if (!previousSeating || !currentRoute) return;
+        await handleSeatUpdate(previousSeating);
+        setPreviousSeating(null);
+        toast({ title: t('success'), description: "랜덤 배정을 이전 상태로 되돌렸습니다." });
+    }, [previousSeating, currentRoute, handleSeatUpdate, toast, t]);
+
     const handleDownloadStudentTemplate = () => {
         const headers = "학생 이름,연락처,학년,반,성별,등교 목적지,하교 목적지,방과후 목적지(월요일),방과후 목적지(화요일),방과후 목적지(수요일),방과후 목적지(목요일),방과후 목적지(금요일),방과후 목적지(토요일)";
         const example = "김민준,010-1234-5678,G1,C1,Male,강남역,서초역,양재역,양재역,양재역,양재역,양재역,";
@@ -2051,6 +2047,32 @@ const StudentManagementTab = ({
         }
     }, [students, setStudents, toast]);
 
+    const handleAssignStudentFromSearch = useCallback(async () => {
+        if (!selectedGlobalStudent || !currentRoute) {
+            toast({ title: t('error'), description: "학생과 노선을 먼저 선택해주세요.", variant: 'destructive' });
+            return;
+        }
+
+        if (currentRoute.seating.some(s => s.studentId === selectedGlobalStudent.id)) {
+            toast({ title: t('notice'), description: "이 학생은 이미 이 버스에 배정되어 있습니다." });
+            return;
+        }
+
+        const emptySeat = currentRoute.seating.find(s => s.studentId === null);
+        if (!emptySeat) {
+            toast({ title: t('error'), description: "빈 좌석이 없습니다.", variant: 'destructive' });
+            return;
+        }
+
+        const newSeating = currentRoute.seating.map(s =>
+            s.seatNumber === emptySeat.seatNumber ? { ...s, studentId: selectedGlobalStudent.id } : s
+        );
+
+        await handleSeatUpdate(newSeating);
+        toast({ title: t('success'), description: `${selectedGlobalStudent.name} 학생을 ${emptySeat.seatNumber}번 좌석에 배정했습니다.` });
+
+    }, [selectedGlobalStudent, currentRoute, handleSeatUpdate, toast, t]);
+
     const getUnassignableReason = (student: Student) => {
         const allValidStopIds = new Set<string>();
         routes.forEach(r => r.stops.forEach(stopId => allValidStopIds.add(stopId)));
@@ -2125,6 +2147,12 @@ const StudentManagementTab = ({
                                </CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
+                                {previousSeating && (
+                                    <Button variant="outline" size="sm" onClick={handleUndoRandomize}>
+                                        <Undo2 />
+                                        <span className="sr-only sm:not-sr-only sm:ml-2">실행 취소</span>
+                                    </Button>
+                                )}
                                 {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
                                     <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
                                         <DialogTrigger asChild>
@@ -2488,6 +2516,7 @@ const StudentManagementTab = ({
                                         </div>
                                         <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>{t('close')}</Button>
                                     </div>
+                                    <Button size="sm" className="w-full" onClick={handleAssignStudentFromSearch}>이 버스에 배정</Button>
                                     <div className="space-y-2">
                                         <Label>{t('student.contact')}</Label>
                                         <Input
