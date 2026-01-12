@@ -413,21 +413,23 @@ export function StudentPageContent() {
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                 {selectedStudent && (
-                    <Alert className="mb-4">
-                        <AlertTitle className="flex items-center gap-4">
-                            <span>
-                                {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}
-                            </span>
-                            {studentStatus && (
-                                <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
-                            )}
-                            {busDepartureStatus && studentStatus?.text !== t('teacher_page.status_disembarked') && (
-                                <span className={cn("font-bold", busDepartureStatus.color)}>{busDepartureStatus.text}</span>
-                            )}
-                        </AlertTitle>
-                    </Alert>
-                )}
+                <Alert className="mb-4 min-h-[68px]">
+                    {selectedStudent ? (
+                    <AlertTitle className="flex items-center gap-4">
+                        <span>
+                            {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}
+                        </span>
+                        {studentStatus && (
+                            <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
+                        )}
+                        {busDepartureStatus && !disembarkedStudentIds.includes(selectedStudent.id) && (
+                            <span className={cn("font-bold", busDepartureStatus.color)}>{busDepartureStatus.text}</span>
+                        )}
+                    </AlertTitle>
+                    ) : (
+                        <AlertTitle>{t('student_page.select_student_prompt')}</AlertTitle>
+                    )}
+                </Alert>
                 {selectedStudent && assignedRoutes.length > 0 && (
                     <div className="mb-4">
                         <div className="flex flex-wrap gap-2">
@@ -466,12 +468,14 @@ export function StudentPageContent() {
                         dayOfWeek={viewingDay || 'Monday'}
                     />
                 ) : (
-                    <Alert>
-                        <AlertTitle>{selectedStudent ? t('no_route_info') : t('student_page.select_student_prompt')}</AlertTitle>
-                        <AlertDescription>
-                            {selectedStudent ? '선택한 날짜에 해당하는 학생의 노선 정보가 없습니다.' : t('student_page.select_student_description')}
-                        </AlertDescription>
-                    </Alert>
+                    <div className="min-h-[300px] flex items-center justify-center">
+                        <Alert className="max-w-md text-center">
+                            <AlertTitle>{selectedStudent ? t('no_route_info') : t('student_page.select_student_prompt')}</AlertTitle>
+                            <AlertDescription>
+                                {selectedStudent ? '선택한 날짜에 해당하는 학생의 노선 정보가 없습니다.' : t('student_page.select_student_description')}
+                            </AlertDescription>
+                        </Alert>
+                    </div>
                 )}
             </CardContent>
             </Card>
@@ -487,5 +491,3 @@ export function StudentPageContent() {
     </MainLayout>
   );
 }
-
-    
