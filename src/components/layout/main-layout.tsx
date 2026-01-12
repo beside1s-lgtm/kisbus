@@ -89,9 +89,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
           )}
       </header>
       <main className="flex-1 p-4 md:p-6 lg:p-8">
-        <div className="w-full max-w-6xl mx-auto">
-          {children}
-        </div>
+        {children}
       </main>
     </div>
   );

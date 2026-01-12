@@ -378,7 +378,7 @@ export function StudentPageContent() {
             <p>{t('loading.data')}</p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="w-full max-w-6xl mx-auto space-y-6">
             <AlertDialog
                 open={!!studentToConfirm}
                 onOpenChange={(open) => !open && setStudentToConfirm(null)}
@@ -422,7 +422,7 @@ export function StudentPageContent() {
                         {studentStatus && (
                             <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
                         )}
-                        {busDepartureStatus && !disembarkedStudentIds.includes(selectedStudent.id) && (
+                        {busDepartureStatus && !(selectedStudent && disembarkedStudentIds.includes(selectedStudent.id)) && (
                             <span className={cn("font-bold", busDepartureStatus.color)}>{busDepartureStatus.text}</span>
                         )}
                     </AlertTitle>
