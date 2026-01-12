@@ -19,7 +19,7 @@ import {
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
@@ -704,15 +704,6 @@ export default function TeacherPage() {
                                 </CardTitle>
                                 <CardDescription className="hidden md:block">{t('teacher_page.seat_map_description')}</CardDescription>
                             </div>
-                            {selectedBus && (
-                                <Button 
-                                    onClick={handleToggleDeparture}
-                                    variant={selectedBus.status === 'departed' ? 'destructive' : 'default'}
-                                >
-                                    {selectedBus.status === 'departed' ? <Undo2 className="mr-2"/> : <Rocket className="mr-2" />}
-                                    {selectedBus.status === 'departed' ? "출발 취소" : "버스 출발"}
-                                </Button>
-                            )}
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -789,6 +780,18 @@ export default function TeacherPage() {
                             </TableBody>
                         </Table>
                     </CardContent>
+                    <CardFooter>
+                        {selectedBus && (
+                            <Button 
+                                onClick={handleToggleDeparture}
+                                variant={selectedBus.status === 'departed' ? 'destructive' : 'default'}
+                                className="w-full"
+                            >
+                                {selectedBus.status === 'departed' ? <Undo2 className="mr-2"/> : <Rocket className="mr-2" />}
+                                {selectedBus.status === 'departed' ? "출발 취소" : "버스 출발"}
+                            </Button>
+                        )}
+                    </CardFooter>
                 </Card>
                 <Card>
                     <CardHeader>
@@ -897,6 +900,18 @@ export default function TeacherPage() {
                                 </TableBody>
                             </Table>
                         </CardContent>
+                        <CardFooter>
+                            {selectedBus && (
+                                <Button 
+                                    onClick={handleToggleDeparture}
+                                    variant={selectedBus.status === 'departed' ? 'destructive' : 'default'}
+                                    className="w-full"
+                                >
+                                    {selectedBus.status === 'departed' ? <Undo2 className="mr-2"/> : <Rocket className="mr-2" />}
+                                    {selectedBus.status === 'departed' ? "출발 취소" : "버스 출발"}
+                                </Button>
+                            )}
+                        </CardFooter>
                     </Card>
                 </div>
                 <div className="lg:order-none">
