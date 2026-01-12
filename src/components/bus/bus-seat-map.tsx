@@ -90,16 +90,6 @@ export function BusSeatMap({
   groupLeaderRecords = [],
 }: BusSeatMapProps) {
   const highlightedRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    if (highlightedRef.current) {
-      highlightedRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'center',
-      });
-    }
-  }, [highlightedStudentId, highlightedSeatNumber]);
 
   const getStudentById = (id: string | null) => {
     if (!id) return null;
