@@ -1,6 +1,6 @@
 
 {
-    "main.title": "KIS School Bus Manager",
+    "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
     "role.admin": "Admin",
     "role.admin.description": "Manage buses, routes, students, and the entire system.",

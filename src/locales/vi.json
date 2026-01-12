@@ -1,6 +1,6 @@
 
 {
-    "main.title": "Trình quản lý xe buýt trường học KIS",
+    "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
     "role.admin": "Quản trị viên",
     "role.admin.description": "Quản lý xe buýt, tuyến đường, học sinh và toàn bộ hệ thống.",

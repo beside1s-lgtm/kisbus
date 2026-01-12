@@ -1,6 +1,6 @@
 
 {
-    "main.title": "KIS 스쿨버스 매니저",
+    "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
     "role.admin": "관리자",
     "role.admin.description": "버스, 노선, 학생 등 시스템 전체를 관리합니다.",

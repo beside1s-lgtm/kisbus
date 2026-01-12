@@ -55,7 +55,7 @@ function HomeComponent() {
     <MainLayout>
       <div className="flex flex-col gap-8 items-center justify-center h-full">
         <header className="text-center">
-          <h1 className="text-4xl font-bold font-headline">{t("main.title")}</h1>
+          <h1 className="text-4xl font-bold font-headline" dangerouslySetInnerHTML={{ __html: t("main.title") }} />
           <p className="text-muted-foreground mt-2">{t("main.select_role")}</p>
         </header>
 
