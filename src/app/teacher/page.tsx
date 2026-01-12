@@ -17,7 +17,7 @@ import {
     onAttendanceUpdate,
     updateBus
 } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem } from '@/lib/types';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem, AttendanceRecord } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,9 +62,7 @@ export default function TeacherPage() {
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
   
-  const [notBoardingStudentIds, setNotBoardingStudentIds] = useState<string[]>([]);
-  const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
-  const [disembarkedStudentIds, setDisembarkedStudentIds] = useState<string[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student & { isGroupLeader?: boolean } | null>(null);
   const [groupLeaderRecords, setGroupLeaderRecords] = useState<GroupLeaderRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,16 +163,12 @@ export default function TeacherPage() {
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     if (currentRoute) {
-        unsubscribe = onAttendanceUpdate(currentRoute.id, selectedDate, (attendance) => {
-            setBoardedStudentIds(attendance?.boarded || []);
-            setNotBoardingStudentIds(attendance?.notBoarding || []);
-            setDisembarkedStudentIds(attendance?.disembarked || []);
+        unsubscribe = onAttendanceUpdate(currentRoute.id, selectedDate, (att) => {
+            setAttendance(att);
         });
         setSelectedDestinationId(null);
     } else {
-        setBoardedStudentIds([]);
-        setNotBoardingStudentIds([]);
-        setDisembarkedStudentIds([]);
+        setAttendance(null);
     }
      return () => {
       if (unsubscribe) {
@@ -182,6 +176,11 @@ export default function TeacherPage() {
       }
     };
   }, [currentRoute, selectedDate]);
+  
+  const boardedStudentIds = useMemo(() => attendance?.boarded || [], [attendance]);
+  const notBoardingStudentIds = useMemo(() => attendance?.notBoarding || [], [attendance]);
+  const disembarkedStudentIds = useMemo(() => attendance?.disembarked || [], [attendance]);
+  const completedDestinations = useMemo(() => attendance?.completedDestinations || [], [attendance]);
 
   useEffect(() => {
     if (lastClickedStudentId) {
@@ -285,7 +284,7 @@ export default function TeacherPage() {
     
     const newBoardedIds = boardedStudentIds.filter(id => id !== student.id);
 
-    updateAttendance(currentRoute.id, selectedDate, { notBoarding: newNotBoardingIds, boarded: newBoardedIds, disembarked: disembarkedStudentIds })
+    updateAttendance(currentRoute.id, selectedDate, { notBoarding: newNotBoardingIds, boarded: newBoardedIds, disembarked: disembarkedStudentIds, completedDestinations })
       .then(() => {
         toast({ title: t("success"), description: `${formatStudentName(student)} ${t('teacher_page.not_boarding_updated')}`});
       })
@@ -293,28 +292,53 @@ export default function TeacherPage() {
         console.error("Error updating not-boarding status:", error);
         toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive"});
       });
-  }, [currentRoute, selectedDate, notBoardingStudentIds, boardedStudentIds, disembarkedStudentIds, toast, t]);
+  }, [currentRoute, selectedDate, notBoardingStudentIds, boardedStudentIds, disembarkedStudentIds, completedDestinations, toast, t]);
 
-  const toggleDisembark = useCallback(async (studentId: string) => {
-      if (!currentRoute) return;
+  const toggleDisembark = useCallback(async (studentId: string, destinationId: string) => {
+    if (!currentRoute) return;
 
-      const isDisembarked = disembarkedStudentIds.includes(studentId);
-      
-      const newDisembarkedIds = isDisembarked
+    const isDisembarked = disembarkedStudentIds.includes(studentId);
+    
+    const newDisembarkedIds = isDisembarked
         ? disembarkedStudentIds.filter(id => id !== studentId)
         : [...disembarkedStudentIds, studentId];
-        
-      const newBoardedIds = isDisembarked
+      
+    const newBoardedIds = isDisembarked
         ? [...boardedStudentIds, studentId] // Re-boarding
         : boardedStudentIds.filter(id => id !== studentId); // Disembarking
 
-      try {
-          await updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, disembarked: newDisembarkedIds });
-      } catch (error) {
-          console.error("Error updating disembark status", error);
-          toast({ title: "Error", description: "Failed to update disembark status.", variant: "destructive" });
-      }
-  }, [currentRoute, selectedDate, boardedStudentIds, disembarkedStudentIds, toast]);
+    let newCompletedDestinations = [...completedDestinations];
+    
+    // Check if this destination is now complete
+    const studentsForDestination = studentsOnCurrentRoute.filter(s => {
+        let destId: string | null = null;
+        if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
+        else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
+        else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
+        return destId === destinationId;
+    });
+
+    const disembarkedForDestination = studentsForDestination.filter(s => newDisembarkedIds.includes(s.id));
+
+    if (disembarkedForDestination.length === studentsForDestination.length) {
+        if (!newCompletedDestinations.includes(destinationId)) {
+            newCompletedDestinations.push(destinationId);
+        }
+    } else {
+        newCompletedDestinations = newCompletedDestinations.filter(id => id !== destinationId);
+    }
+      
+    try {
+        await updateAttendance(currentRoute.id, selectedDate, { 
+            boarded: newBoardedIds, 
+            disembarked: newDisembarkedIds,
+            completedDestinations: newCompletedDestinations
+        });
+    } catch (error) {
+        console.error("Error updating disembark status", error);
+        toast({ title: "Error", description: "Failed to update disembark status.", variant: "destructive" });
+    }
+  }, [currentRoute, selectedDate, studentsOnCurrentRoute, selectedRouteType, selectedDay, boardedStudentIds, disembarkedStudentIds, completedDestinations, toast]);
 
   
   const toggleGroupLeader = (student: Student) => {
@@ -368,7 +392,7 @@ export default function TeacherPage() {
       
       const newNotBoardingIds = notBoardingStudentIds.filter(id => id !== studentId);
   
-      updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, notBoarding: newNotBoardingIds, disembarked: disembarkedStudentIds })
+      updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, notBoarding: newNotBoardingIds, disembarked: disembarkedStudentIds, completedDestinations })
           .then(() => {
               setLastClickedStudentId(studentId);
           })
@@ -819,7 +843,7 @@ export default function TeacherPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {studentsToDisembark.map(student => (
-                                        <TableRow key={student.id} onClick={() => toggleDisembark(student.id)} className="cursor-pointer">
+                                        <TableRow key={student.id} onClick={() => toggleDisembark(student.id, selectedDestinationId)} className="cursor-pointer">
                                             <TableCell>{formatStudentName(student)}</TableCell>
                                             <TableCell>
                                                 <Button size="sm" variant="ghost">
@@ -941,7 +965,7 @@ export default function TeacherPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {studentsToDisembark.map(student => (
-                                            <TableRow key={student.id} onClick={() => toggleDisembark(student.id)} className="cursor-pointer">
+                                            <TableRow key={student.id} onClick={() => toggleDisembark(student.id, selectedDestinationId)} className="cursor-pointer">
                                                 <TableCell>{formatStudentName(student)}</TableCell>
                                                 <TableCell>
                                                     <Button size="sm" variant="ghost">
@@ -978,3 +1002,4 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+

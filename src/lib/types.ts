@@ -62,6 +62,7 @@ export type AttendanceRecord = {
   notBoarding: string[]; // student IDs
   boarded: string[]; // student IDs
   disembarked?: string[]; // student IDs
+  completedDestinations?: string[]; // destination IDs
 };
 
 export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
@@ -85,3 +86,4 @@ export type LostItem = {
     status: 'claimed' | 'unclaimed' | 'acknowledged';
 }
 export type NewLostItem = Omit<LostItem, 'id'>;
+

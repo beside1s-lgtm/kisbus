@@ -2,7 +2,7 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onLostItemsUpdate, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
-import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem } from '@/lib/types';
+import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem, AttendanceRecord } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -40,9 +40,7 @@ export function StudentPageContent() {
   
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   
-  const [boardedStudentIds, setBoardedStudentIds] = useState<string[]>([]);
-  const [notBoardingStudentIds, setNotBoardingStudentIds] = useState<string[]>([]);
-  const [disembarkedStudentIds, setDisembarkedStudentIds] = useState<string[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState('');
   const { toast } = useToast();
@@ -161,9 +159,7 @@ export function StudentPageContent() {
     let unsubscribe: (() => void) | undefined;
     
     if (!isClient || !studentRoute || !selectedDate) {
-        setBoardedStudentIds([]);
-        setNotBoardingStudentIds([]);
-        setDisembarkedStudentIds([]);
+        setAttendance(null);
         return;
     };
 
@@ -171,14 +167,10 @@ export function StudentPageContent() {
 
     if (studentRoute.dayOfWeek === targetDayOfWeek) {
       unsubscribe = onAttendanceUpdate(studentRoute.id, selectedDate, (attendance) => {
-        setBoardedStudentIds(attendance?.boarded || []);
-        setNotBoardingStudentIds(attendance?.notBoarding || []);
-        setDisembarkedStudentIds(attendance?.disembarked || []);
+        setAttendance(attendance);
       });
     } else {
-        setBoardedStudentIds([]);
-        setNotBoardingStudentIds([]);
-        setDisembarkedStudentIds([]);
+        setAttendance(null);
     }
     
     return () => {
@@ -187,6 +179,11 @@ export function StudentPageContent() {
       }
     };
   }, [studentRoute, selectedDate, days, isClient]);
+
+  const boardedStudentIds = useMemo(() => attendance?.boarded || [], [attendance]);
+  const notBoardingStudentIds = useMemo(() => attendance?.notBoarding || [], [attendance]);
+  const disembarkedStudentIds = useMemo(() => attendance?.disembarked || [], [attendance]);
+  const completedDestinations = useMemo(() => attendance?.completedDestinations || [], [attendance]);
 
   const findRoutesForStudent = useCallback(async (student: Student, day: DayOfWeek, routeType: RouteType): Promise<Route[]> => {
     let destId: string | null = null;
@@ -294,36 +291,38 @@ export function StudentPageContent() {
     }
   };
 
+  const getStudentDestination = useCallback((student: Student) => {
+    if (!viewingDay || !viewingRouteType) return { id: null, name: null };
+    
+    let destId: string | null = null;
+    if (viewingRouteType === 'Morning') destId = student.morningDestinationId;
+    else if (viewingRouteType === 'Afternoon') destId = student.afternoonDestinationId;
+    else if (viewingRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[viewingDay] || null;
+
+    if (!destId) return { id: null, name: null };
+    
+    const destination = destinations.find(d => d.id === destId);
+    return { id: destId, name: destination?.name || null };
+  }, [viewingDay, viewingRouteType, destinations]);
+
   const studentStatus = useMemo(() => {
-    if (!selectedStudent) return null;
+    if (!selectedStudent || !selectedBus) return null;
 
-    if (disembarkedStudentIds.includes(selectedStudent.id)) {
-      return { text: t('teacher_page.status_disembarked'), color: 'text-blue-500' };
-    }
-    if (boardedStudentIds.includes(selectedStudent.id)) {
-      return { text: t('teacher_page.status_boarded'), color: 'text-green-500' };
-    }
-    if (notBoardingStudentIds.includes(selectedStudent.id)) {
-      return { text: t('teacher_page.status_not_boarding'), color: 'text-red-500' };
-    }
-    return { text: t('teacher_page.status_not_boarded'), color: 'text-gray-500' };
-  }, [selectedStudent, boardedStudentIds, notBoardingStudentIds, disembarkedStudentIds, t]);
+    const studentDest = getStudentDestination(selectedStudent);
 
-  const busDepartureStatus = useMemo(() => {
-    if (!selectedBus) return null;
-    if (selectedBus.status === 'departed' && selectedBus.departureTime) {
-      const departureTime = new Date(selectedBus.departureTime);
-      let timeString;
-      if (i18n.language === 'ko') {
-        timeString = formatDistanceToNow(departureTime, { addSuffix: true, locale: ko });
-      } else {
-        timeString = formatDistanceToNow(departureTime, { addSuffix: true });
-      }
-      return { text: `출발 (${timeString})`, color: 'text-green-600' };
+    if (studentDest.id && completedDestinations.includes(studentDest.id)) {
+        return { text: t('student_page.status.destination_complete', { destination: studentDest.name }), color: 'text-blue-500' };
     }
-    return { text: "출발 준비", color: 'text-yellow-600' };
-  }, [selectedBus, i18n.language]);
+    if (selectedBus.status === 'departed') {
+        return { text: t('student_page.status.en_route'), color: 'text-green-600' };
+    }
+    if (selectedBus.status === 'ready' || !selectedBus.status) {
+        return { text: t('student_page.status.ready'), color: 'text-yellow-600' };
+    }
 
+    return null;
+  }, [selectedStudent, selectedBus, completedDestinations, getStudentDestination, t]);
+  
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="relative w-full max-w-sm">
@@ -422,9 +421,6 @@ export function StudentPageContent() {
                         {studentStatus && (
                             <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
                         )}
-                        {busDepartureStatus && !(selectedStudent && disembarkedStudentIds.includes(selectedStudent.id)) && (
-                            <span className={cn("font-bold", busDepartureStatus.color)}>{busDepartureStatus.text}</span>
-                        )}
                     </AlertTitle>
                     ) : (
                         <AlertTitle>{t('student_page.select_student_prompt')}</AlertTitle>
@@ -491,3 +487,4 @@ export function StudentPageContent() {
     </MainLayout>
   );
 }
+
