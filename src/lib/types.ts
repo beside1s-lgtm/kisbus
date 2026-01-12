@@ -23,6 +23,8 @@ export type Bus = {
   name: string;
   capacity: 16 | 29 | 45;
   type: '16-seater' | '29-seater' | '45-seater';
+  status?: 'ready' | 'departed';
+  departureTime?: string | null;
 };
 export type NewBus = Omit<Bus, 'id'>;
 

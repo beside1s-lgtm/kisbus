@@ -7,7 +7,8 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MainLayout } from '@/components/layout/main-layout';
-import { format, getDay, isSaturday, isSunday } from 'date-fns';
+import { format, getDay, isSaturday, isSunday, formatDistanceToNow } from 'date-fns';
+import { ko } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
@@ -30,7 +31,7 @@ const sortBuses = (buses: Bus[]): Bus[] => {
 };
 
 export function StudentPageContent() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [buses, setBuses] = useState<Bus[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -297,16 +298,31 @@ export function StudentPageContent() {
     if (!selectedStudent) return null;
 
     if (disembarkedStudentIds.includes(selectedStudent.id)) {
-      return { text: '하차 완료', color: 'text-blue-500' };
+      return { text: t('teacher_page.status_disembarked'), color: 'text-blue-500' };
     }
     if (boardedStudentIds.includes(selectedStudent.id)) {
-      return { text: '탑승', color: 'text-green-500' };
+      return { text: t('teacher_page.status_boarded'), color: 'text-green-500' };
     }
     if (notBoardingStudentIds.includes(selectedStudent.id)) {
-      return { text: '탑승 안 함', color: 'text-red-500' };
+      return { text: t('teacher_page.status_not_boarding'), color: 'text-red-500' };
     }
-    return { text: '미탑승', color: 'text-gray-500' };
-  }, [selectedStudent, boardedStudentIds, notBoardingStudentIds, disembarkedStudentIds]);
+    return { text: t('teacher_page.status_not_boarded'), color: 'text-gray-500' };
+  }, [selectedStudent, boardedStudentIds, notBoardingStudentIds, disembarkedStudentIds, t]);
+
+  const busDepartureStatus = useMemo(() => {
+    if (!selectedBus) return null;
+    if (selectedBus.status === 'departed' && selectedBus.departureTime) {
+      const departureTime = new Date(selectedBus.departureTime);
+      let timeString;
+      if (i18n.language === 'ko') {
+        timeString = formatDistanceToNow(departureTime, { addSuffix: true, locale: ko });
+      } else {
+        timeString = formatDistanceToNow(departureTime, { addSuffix: true });
+      }
+      return { text: `출발 (${timeString})`, color: 'text-green-600' };
+    }
+    return { text: "출발 준비", color: 'text-yellow-600' };
+  }, [selectedBus, i18n.language]);
 
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-4">
@@ -397,10 +413,14 @@ export function StudentPageContent() {
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                {selectedStudent && studentStatus && (
+                 {selectedStudent && (
                     <Alert className="mb-4">
-                        <AlertTitle>
-                            {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}, <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
+                        <AlertTitle className="flex items-center gap-4">
+                            <span>
+                                {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}
+                            </span>
+                            {studentStatus && <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>}
+                             {busDepartureStatus && <span className={cn("font-bold", busDepartureStatus.color)}>{busDepartureStatus.text}</span>}
                         </AlertTitle>
                     </Alert>
                 )}

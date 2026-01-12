@@ -21,7 +21,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, UserX, ArrowLeftRight, Search, CheckCircle } from 'lucide-react';
+import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -518,6 +518,15 @@ export default function TeacherPage() {
         return '';
     }
   };
+  
+  const handleToggleDeparture = async () => {
+    if (!selectedBus) return;
+    if (selectedBus.status === 'departed') {
+        await updateBus(selectedBus.id, { status: 'ready', departureTime: null });
+    } else {
+        await updateBus(selectedBus.id, { status: 'departed', departureTime: new Date().toISOString() });
+    }
+  }
 
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-2">
@@ -683,15 +692,28 @@ export default function TeacherPage() {
             <div className="lg:col-span-2 flex flex-col gap-6 order-last lg:order-first">
                 <Card>
                     <CardHeader>
-                        <CardTitle className="font-headline flex items-center">
-                            {t('teacher_page.seat_map_title')}
-                            {assignedTeachers.length > 0 && (
-                                <span className="text-sm font-medium text-muted-foreground ml-2">
-                                - {assignedTeachers.map(t => t.name).join(', ')} {t('teacher_page.assigned_teacher_suffix')}
-                                </span>
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
+                             <div>
+                                <CardTitle className="font-headline flex items-center">
+                                    {t('teacher_page.seat_map_title')}
+                                    {assignedTeachers.length > 0 && (
+                                        <span className="text-sm font-medium text-muted-foreground ml-2">
+                                        - {assignedTeachers.map(t => t.name).join(', ')} {t('teacher_page.assigned_teacher_suffix')}
+                                        </span>
+                                    )}
+                                </CardTitle>
+                                <CardDescription className="hidden md:block">{t('teacher_page.seat_map_description')}</CardDescription>
+                            </div>
+                            {selectedBus && (
+                                <Button 
+                                    onClick={handleToggleDeparture}
+                                    variant={selectedBus.status === 'departed' ? 'destructive' : 'default'}
+                                >
+                                    {selectedBus.status === 'departed' ? <Undo2 className="mr-2"/> : <Rocket className="mr-2" />}
+                                    {selectedBus.status === 'departed' ? "출발 취소" : "버스 출발"}
+                                </Button>
                             )}
-                        </CardTitle>
-                        <CardDescription className="hidden md:block">{t('teacher_page.seat_map_description')}</CardDescription>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {selectedBus && currentRoute ? (
