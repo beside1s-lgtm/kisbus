@@ -419,8 +419,12 @@ export function StudentPageContent() {
                             <span>
                                 {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}
                             </span>
-                            {studentStatus && <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>}
-                             {busDepartureStatus && <span className={cn("font-bold", busDepartureStatus.color)}>{busDepartureStatus.text}</span>}
+                            {studentStatus && (
+                                <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
+                            )}
+                            {busDepartureStatus && studentStatus?.text !== t('teacher_page.status_disembarked') && (
+                                <span className={cn("font-bold", busDepartureStatus.color)}>{busDepartureStatus.text}</span>
+                            )}
                         </AlertTitle>
                     </Alert>
                 )}
