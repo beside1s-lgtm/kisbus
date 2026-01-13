@@ -92,7 +92,7 @@ function onCollectionUpdate<T>(collectionName: string, callback: (data: T[]) => 
 // Buses
 export const getBuses = () => fetchCollection<Bus>('buses');
 export const onBusesUpdate = (callback: (buses: Bus[]) => void) => onCollectionUpdate<Bus>('buses', callback);
-export const addBus = (bus: NewBus) => addDocument<Bus>('buses', bus);
+export const addBus = (bus: NewBus) => addDocument<Bus>('buses', { ...bus, isActive: true });
 export const updateBus = async (busId: string, data: Partial<Bus>) => {
     const docRef = doc(db, 'buses', busId);
     await updateDoc(docRef, data)

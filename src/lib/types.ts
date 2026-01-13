@@ -25,6 +25,7 @@ export type Bus = {
   type: '16-seater' | '29-seater' | '45-seater';
   status?: 'ready' | 'departed';
   departureTime?: string | null;
+  isActive?: boolean;
 };
 export type NewBus = Omit<Bus, 'id'>;
 
@@ -86,4 +87,5 @@ export type LostItem = {
     status: 'claimed' | 'unclaimed' | 'acknowledged';
 }
 export type NewLostItem = Omit<LostItem, 'id'>;
+
 

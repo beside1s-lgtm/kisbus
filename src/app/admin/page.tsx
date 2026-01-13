@@ -42,6 +42,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useTranslation } from '@/hooks/use-translation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { getDay, isSunday, format } from 'date-fns';
+import { Switch } from '@/components/ui/switch';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -139,6 +140,18 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
             toast({ title: t('error'), description: t('admin.bus_registration.delete.error'), variant: 'destructive' });
         }
     }
+
+    const handleToggleBusActive = async (bus: Bus) => {
+        try {
+            const newIsActive = !(bus.isActive ?? true);
+            await updateBus(bus.id, { isActive: newIsActive });
+            setBuses(prev => prev.map(b => b.id === bus.id ? { ...b, isActive: newIsActive } : b));
+            toast({ title: t('success'), description: `"${bus.name}" 버스 상태가 ${newIsActive ? '활성' : '비활성'}으로 변경되었습니다.` });
+        } catch (error) {
+            console.error("Error updating bus status:", error);
+            toast({ title: t('error'), description: "버스 상태 변경 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
+    };
 
     const handleDownloadBusTemplate = () => {
         const headers = "번호,타입";
@@ -341,6 +354,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead>활성화</TableHead>
                             <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
                             <TableHead>{t('type')}</TableHead>
                             <TableHead>{t('admin.teacher_assignment.title')}</TableHead>
@@ -349,7 +363,14 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
                     </TableHeader>
                     <TableBody>
                         {buses.map(bus => (
-                            <TableRow key={bus.id}>
+                            <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "text-muted-foreground")}>
+                                <TableCell>
+                                    <Switch
+                                        checked={bus.isActive ?? true}
+                                        onCheckedChange={() => handleToggleBusActive(bus)}
+                                        aria-label="Toggle bus active state"
+                                    />
+                                </TableCell>
                                 <TableCell>{bus.name}</TableCell>
                                 <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
                                 <TableCell>{getTeachersForBus(bus.id)}</TableCell>
