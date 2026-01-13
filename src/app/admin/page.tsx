@@ -41,6 +41,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/use-auth';
 import { useTranslation } from '@/hooks/use-translation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { getDay, isSunday, format } from 'date-fns';
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
@@ -2674,12 +2675,41 @@ const AdminPageContent: React.FC<{
     setPendingStudents,
 }) => {
     const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
     const { toast } = useToast();
     const { t } = useTranslation();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    useEffect(() => {
+        const targetDate = new Date(selectedDate);
+        if (isSunday(targetDate)) {
+            setSelectedDay('Monday');
+            return;
+        }
+
+        const dayIndex = getDay(targetDate);
+        const currentDay = days[dayIndex - 1];
+        setSelectedDay(currentDay);
+
+        if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
+            const now = new Date();
+            const vietnamHour = (now.getUTCHours() + 7) % 24;
+
+            if (vietnamHour >= 9 && vietnamHour < 15) {
+                setSelectedRouteType('Afternoon');
+            } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                setSelectedRouteType('AfterSchool');
+            } else {
+                setSelectedRouteType('Morning');
+            }
+        } else {
+            setSelectedRouteType('Morning');
+        }
+    }, [selectedDate, days]);
+
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
@@ -2808,6 +2838,8 @@ const AdminPageContent: React.FC<{
                         destinations={destinations}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
+                        selectedDate={selectedDate}
+                        setSelectedDate={setSelectedDate}
                         selectedDay={selectedDay}
                         setSelectedDay={setSelectedDay}
                         selectedRouteType={selectedRouteType}
@@ -2833,6 +2865,8 @@ const AdminPageContent: React.FC<{
                         destinations={destinations}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
+                        selectedDate={selectedDate}
+                        setSelectedDate={setSelectedDate}
                         selectedDay={selectedDay}
                         setSelectedDay={setSelectedDay}
                         selectedRouteType={selectedRouteType}
@@ -2868,6 +2902,8 @@ const AdminPageFilter: React.FC<{
     destinations: Destination[];
     selectedBusId: string | null;
     setSelectedBusId: (id: string | null) => void;
+    selectedDate: string;
+    setSelectedDate: (date: string) => void;
     selectedDay: DayOfWeek;
     setSelectedDay: (day: DayOfWeek) => void;
     selectedRouteType: RouteType;
@@ -2881,6 +2917,8 @@ const AdminPageFilter: React.FC<{
     destinations,
     selectedBusId,
     setSelectedBusId,
+    selectedDate,
+    setSelectedDate,
     selectedDay,
     setSelectedDay,
     selectedRouteType,
@@ -2930,6 +2968,19 @@ const AdminPageFilter: React.FC<{
         
         return stopNames.join(' -> ');
     }, [showRouteStops, selectedBusId, routes, selectedDay, selectedRouteType, destinations, t]);
+    
+    const getDayOfWeekString = (dateString: string) => {
+        if (!dateString) return '';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '';
+            const dayIndex = getDay(date);
+            if(isSunday(date)) return '';
+            return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+        } catch(e) {
+            return '';
+        }
+    };
 
     return (
         <Card className="mb-6">
@@ -2951,18 +3002,15 @@ const AdminPageFilter: React.FC<{
                 </div>
                 <div className="w-full sm:w-auto">
                     <Label className="text-xs">{t('day')}</Label>
-                    <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
-                        <SelectTrigger className="w-full sm:w-[120px]">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {days.map((day) => (
-                                <SelectItem key={day} value={day}>
-                                    {t(`day.${day.toLowerCase()}`)}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <div className="flex items-center rounded-md border border-input bg-background h-10 px-3">
+                        <Input 
+                            type="date" 
+                            value={selectedDate} 
+                            onChange={e => setSelectedDate(e.target.value)}
+                            className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                        <span className="text-sm text-muted-foreground ml-2">{getDayOfWeekString(selectedDate)}</span>
+                    </div>
                 </div>
                 <div className="w-full sm:w-auto">
                     <Label className="text-xs">{t('route')}</Label>

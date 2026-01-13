@@ -108,23 +108,17 @@ export function StudentPageContent() {
 
         if (routesForDay.length > 0) {
             setViewingDay(dayOfWeek);
-            // Default to the most relevant route type based on current time
+            
             if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
                 const now = new Date();
                 const vietnamHour = (now.getUTCHours() + 7) % 24;
                 
-                const afterSchoolRoute = routesForDay.find(r => r.type === 'AfterSchool');
-                const afternoonRoute = routesForDay.find(r => r.type === 'Afternoon');
-                const morningRoute = routesForDay.find(r => r.type === 'Morning');
-
-                if (vietnamHour >= 15 && afterSchoolRoute) {
-                    setViewingRouteType('AfterSchool');
-                } else if (vietnamHour >= 12 && afternoonRoute) {
+                if (vietnamHour >= 9 && vietnamHour < 15) {
                     setViewingRouteType('Afternoon');
-                } else if (morningRoute) {
-                    setViewingRouteType('Morning');
+                } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                    setViewingRouteType('AfterSchool');
                 } else {
-                    setViewingRouteType(routesForDay[0].type);
+                    setViewingRouteType('Morning');
                 }
             } else {
                 setViewingRouteType(routesForDay[0].type); 
@@ -372,119 +366,120 @@ export function StudentPageContent() {
 
   return (
     <MainLayout headerContent={headerContent}>
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-            <p>{t('loading.data')}</p>
-        </div>
-      ) : (
-        <div className="w-full max-w-6xl mx-auto space-y-6">
-            <AlertDialog
-                open={!!studentToConfirm}
-                onOpenChange={(open) => !open && setStudentToConfirm(null)}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{t('student_page.not_boarding_confirm_title')}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                           {t('student_page.not_boarding_confirm_description', { studentName: studentToConfirm?.name })}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => {
-                                if (studentToConfirm) {
-                                    toggleNotBoarding(studentToConfirm.id);
-                                }
-                                setStudentToConfirm(null);
-                            }}
-                        >
-                            {t('confirm')}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-            <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">{t('student_page.title')}</CardTitle>
-                <CardDescription>
-                {selectedStudent ? t('student_page.description.student_selected') : t('student_page.description.no_student')}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Alert className="mb-4 min-h-[68px]">
-                    {selectedStudent ? (
-                    <AlertTitle className="flex items-center gap-4">
-                        <span>
-                            {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}
-                        </span>
-                        {studentStatus && (
-                            <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
-                        )}
-                    </AlertTitle>
-                    ) : (
-                        <AlertTitle>{t('student_page.select_student_prompt')}</AlertTitle>
-                    )}
-                </Alert>
-                {selectedStudent && assignedRoutes.length > 0 && (
-                    <div className="mb-4">
-                        <div className="flex flex-wrap gap-2">
-                           {days.map(day => 
-                                routeTypeOrder.map(type => {
-                                    const route = assignedRoutes.find(r => r.dayOfWeek === day && r.type === type);
-                                    if (!route) return null;
-                                    return (
-                                        <Button
-                                            key={`${day}-${type}`}
-                                            variant={viewingDay === day && viewingRouteType === type ? 'default' : 'outline'}
-                                            onClick={() => {
-                                                setViewingDay(day);
-                                                setViewingRouteType(type);
-                                            }}
-                                        >
-                                            {t(`day_short.${day.toLowerCase()}`)} {getRouteTypeLabel(type)}
-                                        </Button>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
-                {selectedStudent && studentRoute && selectedBus ? (
-                    <BusSeatMap 
-                        bus={selectedBus}
-                        seating={studentRoute.seating}
-                        students={allStudents}
-                        destinations={destinations}
-                        onSeatClick={handleSeatClick}
-                        highlightedStudentId={selectedStudent.id}
-                        boardedStudentIds={boardedStudentIds}
-                        notBoardingStudentIds={notBoardingStudentIds}
-                        routeType={viewingRouteType || 'Morning'}
-                        dayOfWeek={viewingDay || 'Monday'}
-                    />
-                ) : (
-                    <div className="min-h-[300px] flex items-center justify-center">
-                        <Alert className="max-w-md text-center">
-                            <AlertTitle>{selectedStudent ? t('no_route_info') : t('student_page.select_student_prompt')}</AlertTitle>
-                            <AlertDescription>
-                                {selectedStudent ? '선택한 날짜에 해당하는 학생의 노선 정보가 없습니다.' : t('student_page.select_student_description')}
-                            </AlertDescription>
-                        </Alert>
-                    </div>
-                )}
-            </CardContent>
-            </Card>
-            
-            <LostAndFound 
-                lostItems={lostItems}
-                setLostItems={setLostItems}
-                buses={buses}
-                isReadOnly={true}
-            />
-        </div>
-      )}
+      <div className="w-full max-w-6xl mx-auto">
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+              <p>{t('loading.data')}</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+              <AlertDialog
+                  open={!!studentToConfirm}
+                  onOpenChange={(open) => !open && setStudentToConfirm(null)}
+              >
+                  <AlertDialogContent>
+                      <AlertDialogHeader>
+                          <AlertDialogTitle>{t('student_page.not_boarding_confirm_title')}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {t('student_page.not_boarding_confirm_description', { studentName: studentToConfirm?.name })}
+                          </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                          <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                          <AlertDialogAction
+                              onClick={() => {
+                                  if (studentToConfirm) {
+                                      toggleNotBoarding(studentToConfirm.id);
+                                  }
+                                  setStudentToConfirm(null);
+                              }}
+                          >
+                              {t('confirm')}
+                          </AlertDialogAction>
+                      </AlertDialogFooter>
+                  </AlertDialogContent>
+              </AlertDialog>
+              <Card>
+              <CardHeader>
+                  <CardTitle className="font-headline">{t('student_page.title')}</CardTitle>
+                  <CardDescription>
+                  {selectedStudent ? t('student_page.description.student_selected') : t('student_page.description.no_student')}
+                  </CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <Alert className="mb-4 min-h-[68px]">
+                      {selectedStudent ? (
+                      <AlertTitle className="flex items-center gap-4">
+                          <span>
+                              {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}
+                          </span>
+                          {studentStatus && (
+                              <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
+                          )}
+                      </AlertTitle>
+                      ) : (
+                          <AlertTitle>{t('student_page.select_student_prompt')}</AlertTitle>
+                      )}
+                  </Alert>
+                  {selectedStudent && assignedRoutes.length > 0 && (
+                      <div className="mb-4">
+                          <div className="flex flex-wrap gap-2">
+                            {days.map(day => 
+                                  routeTypeOrder.map(type => {
+                                      const route = assignedRoutes.find(r => r.dayOfWeek === day && r.type === type);
+                                      if (!route) return null;
+                                      return (
+                                          <Button
+                                              key={`${day}-${type}`}
+                                              variant={viewingDay === day && viewingRouteType === type ? 'default' : 'outline'}
+                                              onClick={() => {
+                                                  setViewingDay(day);
+                                                  setViewingRouteType(type);
+                                              }}
+                                          >
+                                              {t(`day_short.${day.toLowerCase()}`)} {getRouteTypeLabel(type)}
+                                          </Button>
+                                      );
+                                  })
+                              )}
+                          </div>
+                      </div>
+                  )}
+                  {selectedStudent && studentRoute && selectedBus ? (
+                      <BusSeatMap 
+                          bus={selectedBus}
+                          seating={studentRoute.seating}
+                          students={allStudents}
+                          destinations={destinations}
+                          onSeatClick={handleSeatClick}
+                          highlightedStudentId={selectedStudent.id}
+                          boardedStudentIds={boardedStudentIds}
+                          notBoardingStudentIds={notBoardingStudentIds}
+                          routeType={viewingRouteType || 'Morning'}
+                          dayOfWeek={viewingDay || 'Monday'}
+                      />
+                  ) : (
+                      <div className="min-h-[300px] flex items-center justify-center">
+                          <Alert className="max-w-md text-center">
+                              <AlertTitle>{selectedStudent ? t('no_route_info') : t('student_page.select_student_prompt')}</AlertTitle>
+                              <AlertDescription>
+                                  {selectedStudent ? '선택한 날짜에 해당하는 학생의 노선 정보가 없습니다.' : t('student_page.select_student_description')}
+                              </AlertDescription>
+                          </Alert>
+                      </div>
+                  )}
+              </CardContent>
+              </Card>
+              
+              <LostAndFound 
+                  lostItems={lostItems}
+                  setLostItems={setLostItems}
+                  buses={buses}
+                  isReadOnly={true}
+              />
+          </div>
+        )}
+      </div>
     </MainLayout>
   );
 }
-

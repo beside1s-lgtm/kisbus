@@ -119,33 +119,31 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (isClient && selectedDate) {
-      const targetDate = new Date(selectedDate);
-      if (isSunday(targetDate)) {
-        setSelectedDay('Monday');
-        return;
-      }
-      
-      const dayIndex = getDay(targetDate); 
-      const currentDay = days[dayIndex - 1];
-      setSelectedDay(currentDay);
-      
-       if (dayIndex === 6) { // Saturday
-          setSelectedRouteType('AfterSchool');
-      } else {
-          const now = new Date();
-          const vietnamHour = (now.getUTCHours() + 7) % 24;
-           if (format(targetDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')) {
-                if (vietnamHour >= 16) {
-                    setSelectedRouteType('AfterSchool');
-                } else if (vietnamHour >= 11) {
-                    setSelectedRouteType('Afternoon');
-                } else {
-                    setSelectedRouteType('Morning');
-                }
-           } else {
-              setSelectedRouteType('Morning');
-           }
-      }
+        const targetDate = new Date(selectedDate);
+        if (isSunday(targetDate)) {
+            setSelectedDay('Monday');
+            return;
+        }
+
+        const dayIndex = getDay(targetDate);
+        const currentDay = days[dayIndex - 1];
+        setSelectedDay(currentDay);
+
+        if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
+            const now = new Date();
+            const vietnamHour = (now.getUTCHours() + 7) % 24;
+
+            if (vietnamHour >= 9 && vietnamHour < 15) {
+                setSelectedRouteType('Afternoon');
+            } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                setSelectedRouteType('AfterSchool');
+            } else {
+                setSelectedRouteType('Morning');
+            }
+        } else {
+            // For past or future dates, default to Morning
+            setSelectedRouteType('Morning');
+        }
     }
   }, [selectedDate, isClient, days]);
 
