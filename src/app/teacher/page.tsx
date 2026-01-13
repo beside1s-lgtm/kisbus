@@ -493,14 +493,18 @@ export default function TeacherPage() {
   };
 
   const filteredBuses = useMemo(() => {
-    const configuredBusIds = new Set<string>();
+    const operationalBusIds = new Set<string>();
     allRoutes.forEach(route => {
-        if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
-            configuredBusIds.add(route.busId);
+        if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
+            // A bus is considered operational if it has stops configured OR if it has students assigned.
+            if (route.stops.length > 0 || route.seating.some(s => s.studentId !== null)) {
+                operationalBusIds.add(route.busId);
+            }
         }
     });
-    return buses.filter(bus => configuredBusIds.has(bus.id));
-  }, [buses, allRoutes, selectedDay, selectedRouteType]);
+    return buses.filter(bus => operationalBusIds.has(bus.id));
+}, [buses, allRoutes, selectedDay, selectedRouteType]);
+
 
   useEffect(() => {
       if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
@@ -1000,4 +1004,5 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+
 

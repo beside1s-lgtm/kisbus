@@ -1373,11 +1373,6 @@ const StudentManagementTab = ({
 
 
     useEffect(() => {
-        if (!currentRoute) {
-            setFilteredUnassignedStudents([]);
-            return;
-        }
-
         if (selectedDay === 'Friday' && selectedRouteType === 'AfterSchool') {
             setFilteredUnassignedStudents([]);
             return;
@@ -1397,6 +1392,10 @@ const StudentManagementTab = ({
         let unassigned: Student[];
 
         if (unassignedView === 'current') {
+             if (!currentRoute) {
+                setFilteredUnassignedStudents([]);
+                return;
+            }
             const afterSchoolStudentIds = new Set<string>();
             if (selectedRouteType === 'Afternoon') {
                 routes.forEach(route => {
@@ -2932,13 +2931,15 @@ const AdminPageFilter: React.FC<{
     const filteredBuses = useMemo(() => {
         if (!filterConfiguredBusesOnly) return buses;
 
-        const configuredBusIds = new Set<string>();
+        const operationalBusIds = new Set<string>();
         routes.forEach(route => {
-            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.stops.length > 0) {
-                configuredBusIds.add(route.busId);
+            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
+                if (route.stops.length > 0 || route.seating.some(s => s.studentId !== null)) {
+                    operationalBusIds.add(route.busId);
+                }
             }
         });
-        return buses.filter(bus => configuredBusIds.has(bus.id));
+        return buses.filter(bus => operationalBusIds.has(bus.id));
     }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
 
     useEffect(() => {
@@ -2963,7 +2964,7 @@ const AdminPageFilter: React.FC<{
         const stopNames = route.stops.map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
         
         if (selectedRouteType === 'Afternoon') {
-            return stopNames.reverse().join(' -> ');
+            return [...stopNames].reverse().join(' -> ');
         }
         
         return stopNames.join(' -> ');
