@@ -243,6 +243,13 @@ export default function TeacherPage() {
           if(seat.studentId) studentIdsOnRoute.add(seat.studentId);
       });
       
+      const getStatusPriority = (studentId: string) => {
+        if (boardedStudentIds.includes(studentId) || notBoardingStudentIds.includes(studentId)) {
+            return 2; // Processed
+        }
+        return 1; // Unprocessed
+      };
+
       const getGradePriority = (grade: string) => {
         const upperGrade = grade.toUpperCase();
         if (upperGrade.startsWith('K')) return 1;
@@ -254,6 +261,10 @@ export default function TeacherPage() {
           .map(id => students.find(s => s.id === id))
           .filter((s): s is Student => !!s)
           .sort((a,b) => {
+              const statusPriorityA = getStatusPriority(a.id);
+              const statusPriorityB = getStatusPriority(b.id);
+              if (statusPriorityA !== statusPriorityB) return statusPriorityA - statusPriorityB;
+
               const gradePriorityA = getGradePriority(a.grade);
               const gradePriorityB = getGradePriority(b.grade);
               if (gradePriorityA !== gradePriorityB) return gradePriorityA - gradePriorityB;
@@ -266,7 +277,7 @@ export default function TeacherPage() {
 
               return a.name.localeCompare(b.name, 'ko');
           });
-  }, [currentRoute, students]);
+  }, [currentRoute, students, boardedStudentIds, notBoardingStudentIds]);
   
  const toggleNotBoarding = useCallback((student: Student) => {
     if (!currentRoute) {
@@ -651,7 +662,7 @@ export default function TeacherPage() {
                         className="w-full"
                         onClick={() => setStudentToConfirm(selectedStudent)}
                     >
-                        <UserX className="mr-2" /> {t('teacher_page.mark_not_boarding')}
+                        <UserX className="mr-2" /> {t('teacher_page.mark_not_riding_today')}
                     </Button>
                     <Button
                         variant={selectedStudent.isGroupLeader ? "default" : "outline"}
@@ -798,7 +809,7 @@ export default function TeacherPage() {
                                                 }}
                                                 className="cursor-pointer"
                                             >
-                                                {disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : t('teacher_page.status_not_boarded'))}
+                                                {disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_riding_today') : t('teacher_page.status_not_boarded'))}
                                             </Badge>
                                         </TableCell>
                                     </TableRow>
@@ -918,7 +929,7 @@ export default function TeacherPage() {
                                                     }}
                                                     className="cursor-pointer"
                                                 >
-                                                    {disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_boarding') : t('teacher_page.status_not_boarded'))}
+                                                    {disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_riding_today') : t('teacher_page.status_not_boarded'))}
                                                 </Badge>
                                             </TableCell>
                                         </TableRow>
@@ -1004,5 +1015,6 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+
 
 
