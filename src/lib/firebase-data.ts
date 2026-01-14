@@ -31,7 +31,8 @@ import type {
   Teacher,
   NewTeacher,
   LostItem,
-  NewLostItem
+  NewLostItem,
+  RouteType,
 } from './types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -201,10 +202,27 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 };
 
 export const updateStudent = async (studentId: string, data: Partial<Student>) => {
+    const studentBeforeUpdate = await getDoc(doc(db, 'students', studentId));
+    if (!studentBeforeUpdate.exists()) return;
+
+    const oldData = studentBeforeUpdate.data() as Student;
     const docRef = doc(db, 'students', studentId);
-    if(data.morningDestinationId || data.afternoonDestinationId || data.afterSchoolDestinations) {
-        await unassignStudentFromAllRoutes(studentId);
+    
+    let affectedRouteTypes: RouteType[] = [];
+    if ('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) {
+        affectedRouteTypes.push('Morning');
     }
+    if ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
+        affectedRouteTypes.push('Afternoon');
+    }
+    if ('afterSchoolDestinations' in data) {
+         affectedRouteTypes.push('AfterSchool');
+    }
+
+    if (affectedRouteTypes.length > 0) {
+        await unassignStudentFromAllRoutes(studentId, affectedRouteTypes);
+    }
+    
     await updateDoc(docRef, data)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -568,7 +586,7 @@ export const clearAllSuggestedDestinations = async () => {
     });
 };
 
-export const unassignStudentFromAllRoutes = async (studentId: string) => {
+export const unassignStudentFromAllRoutes = async (studentId: string, routeTypes?: RouteType[]) => {
     if (!studentId) return;
 
     const routesSnapshot = await getDocs(collection(db, 'routes'));
@@ -577,6 +595,12 @@ export const unassignStudentFromAllRoutes = async (studentId: string) => {
     const batch = writeBatch(db);
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
+        
+        // If routeTypes are specified, only check routes of those types
+        if (routeTypes && !routeTypes.includes(routeData.type)) {
+            return;
+        }
+
         let seatingChanged = false;
         const newSeating = routeData.seating.map(seat => {
             if (seat.studentId === studentId) {

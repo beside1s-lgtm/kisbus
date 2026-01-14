@@ -2772,13 +2772,6 @@ const AdminPageContent: React.FC<{
     
     return (
         <>
-            <Alert variant="destructive" className="mb-6">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Security Check Recommended (CVE-2025-55182)</AlertTitle>
-                <AlertDescription>
-                    Please review your application's dependencies. If you are running React or Next.js applications, immediately update to the latest stable versions.
-                </AlertDescription>
-            </Alert>
             {pendingStudents.length > 0 && (
                  <Collapsible defaultOpen={true} className="mb-6">
                     <Alert>
@@ -2950,7 +2943,7 @@ const AdminPageFilter: React.FC<{
     const { t } = useTranslation();
 
     const filteredBuses = useMemo(() => {
-        if (!filterConfiguredBusesOnly) return buses;
+        if (!filterConfiguredBusesOnly) return buses.filter(bus => bus.isActive);
 
         const operationalBusIds = new Set<string>();
         routes.forEach(route => {
@@ -2960,7 +2953,7 @@ const AdminPageFilter: React.FC<{
                 }
             }
         });
-        return buses.filter(bus => operationalBusIds.has(bus.id));
+        return buses.filter(bus => bus.isActive && operationalBusIds.has(bus.id));
     }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
 
     useEffect(() => {
@@ -2972,7 +2965,8 @@ const AdminPageFilter: React.FC<{
             }
         } else {
              if (!selectedBusId && buses.length > 0) {
-                setSelectedBusId(buses[0].id);
+                 const activeBuses = buses.filter(b => b.isActive);
+                setSelectedBusId(activeBuses.length > 0 ? activeBuses[0].id : null);
             }
         }
     }, [filteredBuses, selectedBusId, setSelectedBusId, filterConfiguredBusesOnly, buses]);

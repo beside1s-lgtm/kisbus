@@ -50,6 +50,13 @@ function HomeComponent() {
       }
     }
   }, [router]);
+  
+  useEffect(() => {
+    // Clear the parent flag when returning to the home page
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('isParent');
+    }
+  }, []);
 
   return (
     <MainLayout>
