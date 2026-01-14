@@ -1,4 +1,5 @@
 
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onLostItemsUpdate, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
@@ -42,7 +43,7 @@ export function StudentPageContent() {
   
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState('');
   const { toast } = useToast();
   const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,6 +60,12 @@ export function StudentPageContent() {
   useEffect(() => {
     setIsClient(true);
   }, []);
+  
+  useEffect(() => {
+    if (isClient && !selectedDate) {
+        setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
+    }
+  }, [isClient, selectedDate]);
   
   useEffect(() => {
     setLoading(true);
@@ -303,6 +310,9 @@ export function StudentPageContent() {
 
     const studentDest = getStudentDestination(selectedStudent);
 
+    if (disembarkedStudentIds.includes(selectedStudent.id)) {
+        return { text: t('teacher_page.status_disembarked'), color: 'text-gray-500' };
+    }
     if (studentDest.id && completedDestinations.includes(studentDest.id)) {
         return { text: t('student_page.status.destination_complete', { destination: studentDest.name }), color: 'text-blue-500' };
     }
@@ -314,7 +324,7 @@ export function StudentPageContent() {
     }
 
     return null;
-  }, [selectedStudent, selectedBus, completedDestinations, getStudentDestination, t]);
+  }, [selectedStudent, selectedBus, completedDestinations, disembarkedStudentIds, getStudentDestination, t]);
   
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-4">

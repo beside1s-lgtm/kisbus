@@ -68,7 +68,7 @@ export default function TeacherPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
-  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState('');
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
   const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
@@ -90,6 +90,13 @@ export default function TeacherPage() {
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  useEffect(() => {
+    if (isClient && !selectedDate) {
+        setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
+    }
+  }, [isClient, selectedDate]);
+
 
   useEffect(() => {
     const unsubscribers = [
@@ -1015,6 +1022,7 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+
 
 
 
