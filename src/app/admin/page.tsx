@@ -272,7 +272,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
         }
         
         // Assign 1 teacher to remaining buses
-        const remainingBuses = buses.filter(b => b.capacity !== 45 || routesToUpdate.find(r => r.busId === b.id && (r.teacherIds?.length || 0) < 2));
+        const remainingBuses = buses.filter(b => b.capacity !== 45 || routesToUpdate.find(r => r.busId === bus.id && (r.teacherIds?.length || 0) < 2));
          for (const bus of remainingBuses) {
              if (shuffledTeachers.length === 0) break;
              const busRoutes = routesToUpdate.filter(r => r.busId === bus.id);
@@ -2695,38 +2695,52 @@ const AdminPageContent: React.FC<{
     setPendingStudents,
 }) => {
     const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
-    const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+    const [selectedDate, setSelectedDate] = useState<string>('');
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
     const { toast } = useToast();
     const { t } = useTranslation();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const [isClient, setIsClient] = useState(false);
 
     useEffect(() => {
-        const targetDate = new Date(selectedDate);
-        if (isSunday(targetDate)) {
-            setSelectedDay('Monday');
-            return;
+        setIsClient(true);
+    }, []);
+
+    useEffect(() => {
+        if (isClient && !selectedDate) {
+            setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
         }
+    }, [isClient, selectedDate]);
 
-        const dayIndex = getDay(targetDate);
-        const currentDay = days[dayIndex - 1];
-        setSelectedDay(currentDay);
 
-        if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
-            const now = new Date();
-            const vietnamHour = (now.getUTCHours() + 7) % 24;
+    useEffect(() => {
+        if (selectedDate) {
+            const targetDate = new Date(selectedDate);
+            if (isSunday(targetDate)) {
+                setSelectedDay('Monday');
+                return;
+            }
 
-            if (vietnamHour >= 9 && vietnamHour < 15) {
-                setSelectedRouteType('Afternoon');
-            } else if (vietnamHour >= 15 && vietnamHour < 20) {
-                setSelectedRouteType('AfterSchool');
+            const dayIndex = getDay(targetDate);
+            const currentDay = days[dayIndex - 1];
+            setSelectedDay(currentDay);
+
+            if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
+                const now = new Date();
+                const vietnamHour = (now.getUTCHours() + 7) % 24;
+
+                if (vietnamHour >= 9 && vietnamHour < 15) {
+                    setSelectedRouteType('Afternoon');
+                } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                    setSelectedRouteType('AfterSchool');
+                } else {
+                    setSelectedRouteType('Morning');
+                }
             } else {
                 setSelectedRouteType('Morning');
             }
-        } else {
-            setSelectedRouteType('Morning');
         }
     }, [selectedDate, days]);
 
@@ -2943,7 +2957,8 @@ const AdminPageFilter: React.FC<{
     const { t } = useTranslation();
 
     const filteredBuses = useMemo(() => {
-        if (!filterConfiguredBusesOnly) return buses.filter(bus => bus.isActive);
+        const activeBuses = buses.filter(bus => bus.isActive ?? true);
+        if (!filterConfiguredBusesOnly) return activeBuses;
 
         const operationalBusIds = new Set<string>();
         routes.forEach(route => {
@@ -2953,7 +2968,7 @@ const AdminPageFilter: React.FC<{
                 }
             }
         });
-        return buses.filter(bus => bus.isActive && operationalBusIds.has(bus.id));
+        return activeBuses.filter(bus => operationalBusIds.has(bus.id));
     }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
 
     useEffect(() => {
@@ -2965,7 +2980,7 @@ const AdminPageFilter: React.FC<{
             }
         } else {
              if (!selectedBusId && buses.length > 0) {
-                 const activeBuses = buses.filter(b => b.isActive);
+                 const activeBuses = buses.filter(b => b.isActive ?? true);
                 setSelectedBusId(activeBuses.length > 0 ? activeBuses[0].id : null);
             }
         }

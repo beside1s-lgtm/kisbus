@@ -53,7 +53,8 @@ function HomeComponent() {
   
   useEffect(() => {
     // Clear the parent flag when returning to the home page
-    if (typeof window !== 'undefined') {
+    // This allows users to switch roles if they navigate back to home.
+    if (typeof window !== 'undefined' && window.location.pathname === '/') {
       sessionStorage.removeItem('isParent');
     }
   }, []);

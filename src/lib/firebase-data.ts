@@ -202,31 +202,44 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 };
 
 export const updateStudent = async (studentId: string, data: Partial<Student>) => {
-    const studentBeforeUpdate = await getDoc(doc(db, 'students', studentId));
+    const studentDocRef = doc(db, 'students', studentId);
+    const studentBeforeUpdate = await getDoc(studentDocRef);
     if (!studentBeforeUpdate.exists()) return;
 
     const oldData = studentBeforeUpdate.data() as Student;
-    const docRef = doc(db, 'students', studentId);
     
     let affectedRouteTypes: RouteType[] = [];
+
     if ('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) {
         affectedRouteTypes.push('Morning');
     }
     if ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
         affectedRouteTypes.push('Afternoon');
     }
-    if ('afterSchoolDestinations' in data) {
-         affectedRouteTypes.push('AfterSchool');
-    }
+    
+    const oldAfterSchoolDests = oldData.afterSchoolDestinations || {};
+    const newAfterSchoolDests = ('afterSchoolDestinations' in data && data.afterSchoolDestinations) ? data.afterSchoolDestinations : oldAfterSchoolDests;
+    const allAfterSchoolDays = new Set([...Object.keys(oldAfterSchoolDests), ...Object.keys(newAfterSchoolDests)]);
 
+    let afterSchoolChanged = false;
+    for (const day of allAfterSchoolDays) {
+        if (oldAfterSchoolDests[day as DayOfWeek] !== newAfterSchoolDests[day as DayOfWeek]) {
+            afterSchoolChanged = true;
+            break;
+        }
+    }
+    if (afterSchoolChanged) {
+        affectedRouteTypes.push('AfterSchool');
+    }
+    
     if (affectedRouteTypes.length > 0) {
         await unassignStudentFromAllRoutes(studentId, affectedRouteTypes);
     }
     
-    await updateDoc(docRef, data)
+    await updateDoc(studentDocRef, data)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: docRef.path,
+            path: studentDocRef.path,
             operation: 'update',
             requestResourceData: data,
         } satisfies SecurityRuleContext);
