@@ -95,7 +95,7 @@ export default function TeacherPage() {
     if (isClient && !selectedDate) {
         setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
     }
-  }, [isClient, selectedDate]);
+  }, [isClient]);
 
 
   useEffect(() => {
@@ -124,7 +124,7 @@ export default function TeacherPage() {
   }
 
   useEffect(() => {
-    if (isClient && selectedDate) {
+    if (selectedDate) {
         const targetDate = new Date(selectedDate);
         if (isSunday(targetDate)) {
             setSelectedDay('Monday');
@@ -151,7 +151,7 @@ export default function TeacherPage() {
             setSelectedRouteType('Morning');
         }
     }
-  }, [selectedDate, isClient, days]);
+  }, [selectedDate, days]);
 
   
   const currentRoute = useMemo(() => {
@@ -668,7 +668,7 @@ export default function TeacherPage() {
                         className="w-full"
                         onClick={() => setStudentToConfirm(selectedStudent)}
                     >
-                        <UserX className="mr-2" /> {t('teacher_page.mark_not_riding_today')}
+                        <UserX className="mr-2" /> {t('teacher_page.status_not_riding_today')}
                     </Button>
                     <Button
                         variant={selectedStudent.isGroupLeader ? "default" : "outline"}
@@ -1022,6 +1022,7 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+
 
 
 

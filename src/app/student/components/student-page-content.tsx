@@ -65,7 +65,7 @@ export function StudentPageContent() {
     if (isClient && !selectedDate) {
         setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
     }
-  }, [isClient, selectedDate]);
+  }, [isClient]);
   
   useEffect(() => {
     setLoading(true);
@@ -92,7 +92,7 @@ export function StudentPageContent() {
   }
 
    useEffect(() => {
-    if (selectedStudent && allRoutes.length > 0 && isClient) {
+    if (selectedStudent && allRoutes.length > 0 && selectedDate) {
         const studentRoutes = allRoutes.filter(route => 
             route.seating.some(seat => seat.studentId === selectedStudent.id)
         );
@@ -139,7 +139,7 @@ export function StudentPageContent() {
         setViewingDay(null);
         setViewingRouteType(null);
     }
-}, [selectedStudent, allRoutes, selectedDate, days, isClient, routeTypeOrder]);
+}, [selectedStudent, allRoutes, selectedDate, days, routeTypeOrder]);
 
   
   const studentRoute = useMemo(() => {
@@ -158,7 +158,7 @@ export function StudentPageContent() {
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     
-    if (!isClient || !studentRoute || !selectedDate) {
+    if (!studentRoute || !selectedDate) {
         setAttendance(null);
         return;
     };
@@ -178,7 +178,7 @@ export function StudentPageContent() {
         unsubscribe();
       }
     };
-  }, [studentRoute, selectedDate, days, isClient]);
+  }, [studentRoute, selectedDate, days]);
 
   const boardedStudentIds = useMemo(() => attendance?.boarded || [], [attendance]);
   const notBoardingStudentIds = useMemo(() => attendance?.notBoarding || [], [attendance]);
