@@ -42,7 +42,7 @@ export function StudentPageContent() {
   
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const { toast } = useToast();
   const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +58,6 @@ export function StudentPageContent() {
   
   useEffect(() => {
     setIsClient(true);
-    setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
   }, []);
   
   useEffect(() => {

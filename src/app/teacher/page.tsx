@@ -68,7 +68,7 @@ export default function TeacherPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
   const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
@@ -89,7 +89,6 @@ export default function TeacherPage() {
 
   useEffect(() => {
     setIsClient(true);
-    setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
   }, []);
 
   useEffect(() => {
@@ -754,6 +753,7 @@ export default function TeacherPage() {
                                 onSeatContextMenu={handleSeatContextMenu}
                                 notBoardingStudentIds={notBoardingStudentIds}
                                 boardedStudentIds={boardedStudentIds}
+                                highlightedStudentId={selectedStudent?.id}
                                 highlightedSeatNumber={selectedSeat?.seatNumber}
                                 routeType={selectedRouteType}
                                 dayOfWeek={selectedDay}
@@ -1015,6 +1015,7 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+
 
 
 
