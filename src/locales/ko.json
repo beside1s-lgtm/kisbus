@@ -372,6 +372,8 @@
     "lost_and_found.action.acknowledge": "확인",
     "lost_and_found.action.unclaim": "미반환",
     "lost_and_found.action.claim": "반환",
+    "teacher_page.all_buses": "전체",
+    "teacher_page.all_buses_view.title": "전체 버스 탑승 현황",
     "teacher_page.login_prompt": "선생님 정보를 보려면 로그인이 필요합니다.",
     "teacher_page.select_bus": "담당 버스를 선택하세요",
     "teacher_page.boarding_error": "탑승 처리 실패",

@@ -372,6 +372,8 @@
     "lost_and_found.action.acknowledge": "Xác nhận",
     "lost_and_found.action.unclaim": "Chưa trả",
     "lost_and_found.action.claim": "Đã trả",
+    "teacher_page.all_buses": "Tất cả",
+    "teacher_page.all_buses_view.title": "Tình trạng lên xe tổng thể",
     "teacher_page.login_prompt": "Cần đăng nhập để xem thông tin giáo viên.",
     "teacher_page.select_bus": "Chọn xe buýt bạn phụ trách",
     "teacher_page.boarding_error": "Xử lý lên xe thất bại",

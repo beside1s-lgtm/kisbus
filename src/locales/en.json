@@ -372,6 +372,8 @@
     "lost_and_found.action.acknowledge": "Acknowledge",
     "lost_and_found.action.unclaim": "Unclaim",
     "lost_and_found.action.claim": "Claim",
+    "teacher_page.all_buses": "All",
+    "teacher_page.all_buses_view.title": "Overall Boarding Status",
     "teacher_page.login_prompt": "Login is required to view teacher information.",
     "teacher_page.select_bus": "Select your assigned bus",
     "teacher_page.boarding_error": "Boarding process failed",
@@ -416,5 +418,3 @@
     "teacher_page.group_leader_management.delete_confirm.title": "Are you sure you want to delete all records?",
     "teacher_page.group_leader_management.delete_confirm.description": "This action cannot be undone. All group leader appointment records for the current route will be permanently deleted."
 }
-
-
