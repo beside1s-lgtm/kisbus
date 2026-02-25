@@ -38,6 +38,16 @@ import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
+const getGradeValue = (grade: string): number => {
+  const upperGrade = grade.toUpperCase();
+  if (upperGrade.startsWith('K')) {
+      const num = parseInt(upperGrade.replace('K', ''));
+      return isNaN(num) ? 0 : -100 + num;
+  }
+  const num = parseInt(upperGrade.replace(/\D/g, ''));
+  return isNaN(num) ? 999 : num;
+};
+
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
     const numA = parseInt(a.name.replace(/\D/g, ''), 10);
@@ -102,13 +112,8 @@ const AllStudentsBoardingStatus = ({
               const statusPriorityB = getStatusPriority(b.status);
               if (statusPriorityA !== statusPriorityB) return statusPriorityA - statusPriorityB;
               
-              const gradeOrder = ['K1', 'K2', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12'];
-              let gradeA = gradeOrder.indexOf(a.grade.toUpperCase());
-              let gradeB = gradeOrder.indexOf(b.grade.toUpperCase());
-              
-              if(gradeA === -1) gradeA = Infinity;
-              if(gradeB === -1) gradeB = Infinity;
-
+              const gradeA = getGradeValue(a.grade);
+              const gradeB = getGradeValue(b.grade);
               if (gradeA !== gradeB) return gradeA - gradeB;
 
               const classCompare = a.class.localeCompare(b.class, undefined, { numeric: true });
@@ -416,13 +421,8 @@ export default function TeacherPage() {
               const statusPriorityB = getStatusPriority(b.id);
               if (statusPriorityA !== statusPriorityB) return statusPriorityA - statusPriorityB;
 
-              const gradeOrder = ['K1', 'K2', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12'];
-              let gradeA = gradeOrder.indexOf(a.grade.toUpperCase());
-              let gradeB = gradeOrder.indexOf(b.grade.toUpperCase());
-              
-              if(gradeA === -1) gradeA = Infinity;
-              if(gradeB === -1) gradeB = Infinity;
-
+              const gradeA = getGradeValue(a.grade);
+              const gradeB = getGradeValue(b.grade);
               if (gradeA !== gradeB) return gradeA - gradeB;
               
               const classCompare = a.class.localeCompare(b.class, undefined, { numeric: true });
@@ -1181,6 +1181,7 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
+
 
 
 
