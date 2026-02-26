@@ -138,6 +138,10 @@
     "admin.teacher_management.batch.processing": "교사 명단을 일괄 등록하는 중...",
     "admin.teacher_management.batch.success": "{{count}}명의 교사가 일괄 등록되었습니다.",
     "admin.teacher_management.batch.error": "일괄 등록 중 오류가 발생했습니다.",
+    "admin.teacher_management.delete.success": "교사 정보가 삭제되었습니다.",
+    "admin.teacher_management.delete.error": "교사 정보 삭제 중 오류가 발생했습니다.",
+    "admin.teacher_management.delete_all.confirm_title": "모든 교사 정보를 삭제하시겠습니까?",
+    "admin.teacher_management.delete_all.confirm_description": "이 작업은 되돌릴 수 없습니다. 모든 교사 정보와 버스 배정 정보가 삭제됩니다.",
     "admin.bus_config.dest.title": "전체 목적지 목록",
     "admin.bus_config.dest.description": "버튼으로 노선을 관리하세요.",
     "admin.bus_config.dest.download.button": "목적지 목록",
@@ -393,7 +397,7 @@
     "teacher_page.seat_map_title": "버스 좌석 및 탑승 현황",
     "teacher_page.assigned_teacher_suffix": "담당 선생님",
     "teacher_page.seat_map_description": "좌석을 클릭하면 탑승/미탑승 처리됩니다. 우클릭으로 좌석을 교체할 수 있습니다.",
-    "teacher_page.no_assigned_routes": "담당하는 노선이 없습니다. 관리자에게 문의하세요.",
+    "teacher_page.no_assigned_routes": "담당하는 노선이 없습니다. 담당 노선이 없는 경우 관리자에게 문의하세요.",
     "teacher_page.no_route_info": "로딩 중이거나 유효한 노선 정보가 없습니다.",
     "teacher_page.student_info_title": "학생 정보",
     "teacher_page.boarding_list_title": "탑승 학생 명단",
@@ -418,4 +422,3 @@
     "teacher_page.group_leader_management.delete_confirm.title": "정말 모든 기록을 삭제하시겠습니까?",
     "teacher_page.group_leader_management.delete_confirm.description": "이 작업은 되돌릴 수 없습니다. 현재 노선의 모든 조장 임명 기록이 영구적으로 삭제됩니다."
 }
-  

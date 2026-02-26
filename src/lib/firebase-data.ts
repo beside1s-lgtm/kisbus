@@ -1,5 +1,4 @@
 
-
 import { db } from './firebase';
 import {
   collection,
@@ -33,6 +32,7 @@ import type {
   LostItem,
   NewLostItem,
   RouteType,
+  DayOfWeek,
 } from './types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -401,6 +401,55 @@ export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teache
         throw serverError;
     });
     return newTeachers;
+};
+
+export const deleteTeacher = async (teacherId: string) => {
+    const batch = writeBatch(db);
+    
+    // Delete the teacher doc
+    batch.delete(doc(db, 'teachers', teacherId));
+    
+    // Remove from all route assignments
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    routesSnapshot.forEach(routeDoc => {
+        const routeData = routeDoc.data() as Route;
+        if (routeData.teacherIds && routeData.teacherIds.includes(teacherId)) {
+            const newTeacherIds = routeData.teacherIds.filter(id => id !== teacherId);
+            batch.update(routeDoc.ref, { teacherIds: newTeacherIds });
+        }
+    });
+
+    await batch.commit()
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: `/teachers/${teacherId}`,
+            operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+};
+
+export const deleteAllTeachers = async () => {
+    const batch = writeBatch(db);
+    
+    const teachersSnapshot = await getDocs(collection(db, 'teachers'));
+    teachersSnapshot.forEach(doc => batch.delete(doc.ref));
+    
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    routesSnapshot.forEach(doc => {
+        batch.update(doc.ref, { teacherIds: [] });
+    });
+
+    await batch.commit()
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: `/teachers`,
+            operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
 };
 
 // Routes
