@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -268,6 +267,8 @@ const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes:
             return !busRoutes.some(r => (r.teacherIds?.length || 0) > 0);
         });
 
+        const assignedBusIds = new Set<string>();
+
         const buses45 = targetBuses.filter(b => b.capacity === 45);
         for (const bus of buses45) {
             if (shuffledTeachers.length < 2) break; 
@@ -280,13 +281,11 @@ const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes:
                     batch.update(doc(db, 'routes', route.id), { teacherIds: [teacher1.id, teacher2.id] });
                 });
             });
+            assignedBusIds.add(bus.id);
             updatedCount++;
         }
         
-        const remainingBuses = targetBuses.filter(b => {
-            const isAssigned = (batch as any)._mutations?.some((m: any) => m.path.segments.includes('routes') && routesToUpdate.find(r => r.id === m.path.segments[m.path.segments.length - 1] && r.busId === b.id));
-            return !isAssigned;
-        });
+        const remainingBuses = targetBuses.filter(b => !assignedBusIds.has(b.id));
 
         for (const bus of remainingBuses) {
              const teacher = getNextTeacher();
@@ -498,9 +497,9 @@ const TeacherManagementTab = ({ teachers }: { teachers: Teacher[] }) => {
                 }
                 const { dismiss } = toast({ title: t('processing'), description: t('admin.teacher_management.batch.processing') });
                 try {
-                    const addedTeachers = await addTeachersInBatch(newTeachersData);
+                    await addTeachersInBatch(newTeachersData);
                     dismiss();
-                    toast({ title: t('success'), description: t('admin.teacher_management.batch.success', { count: addedTeachers.length }) });
+                    toast({ title: t('success'), description: t('admin.teacher_management.batch.success', { count: newTeachersData.length }) });
                 } catch (error) {
                     dismiss();
                     toast({ title: t('error'), description: t('admin.teacher_management.batch.error'), variant: "destructive" });
@@ -875,9 +874,9 @@ const BusConfigurationTab = ({
             }
             const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_config.dest.batch.processing') });
             try {
-                const addedDests = await addDestinationsInBatch(newDestinationsData);
+                await addDestinationsInBatch(newDestinationsData);
                 dismiss();
-                toast({ title: t('success'), description: t('admin.bus_config.dest.batch.success', {count: addedDests.length}) });
+                toast({ title: t('success'), description: t('admin.bus_config.dest.batch.success', {count: newDestinationsData.length}) });
             } catch (error) {
                 dismiss();
                 toast({ title: t('error'), description: t('admin.bus_config.dest.batch.error'), variant: "destructive" });
