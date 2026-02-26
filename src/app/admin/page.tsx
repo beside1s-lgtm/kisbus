@@ -76,7 +76,7 @@ const sortDestinations = (destinations: Destination[]): Destination[] => {
     return destinations.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 };
 
-const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { buses: Bus[], routes: Route[], teachers: Teacher[], setBuses: React.Dispatch<React.SetStateAction<Bus[]>>, setRoutes: React.Dispatch<React.SetStateAction<Route[]>> }) => {
+const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes: Route[], teachers: Teacher[] }) => {
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'16-seater' | '29-seater' | '45-seater'>('45-seater');
     const { toast } = useToast();
@@ -88,7 +88,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
     const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
     const [selectedBusForTeacher, setSelectedBusForTeacher] = useState<Bus | null>(null);
 
-    const handleAddBus = async (busData: NewBus) => {
+    const handleAddBusLogic = async (busData: NewBus) => {
         try {
             const newBus = await addBus(busData);
             
@@ -123,8 +123,8 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
         const newBusData: NewBus = { name: newBusName, type: newBusType, capacity: capacityMap[newBusType] };
 
         try {
-            const newBus = await handleAddBus(newBusData);
-            setBuses(prev => sortBuses([...prev, newBus]));
+            await handleAddBusLogic(newBusData);
+            setNewBusName('');
             toast({ title: t('success'), description: t('admin.bus_registration.add.success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.bus_registration.add.error'), variant: 'destructive' });
@@ -134,7 +134,6 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
     const handleDeleteBus = async (busId: string) => {
         try {
             await deleteBus(busId);
-            setBuses(prev => prev.filter(b => b.id !== busId));
             toast({ title: t('success'), description: t('admin.bus_registration.delete.success')});
         } catch (error) {
             console.error("Error deleting bus:", error);
@@ -146,7 +145,6 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
         try {
             const newIsActive = !(bus.isActive ?? true);
             await updateBus(bus.id, { isActive: newIsActive });
-            setBuses(prev => prev.map(b => b.id === bus.id ? { ...b, isActive: newIsActive } : b));
             toast({ title: t('success'), description: `"${bus.name}" 버스 상태가 ${newIsActive ? '활성' : '비활성'}으로 변경되었습니다.` });
         } catch (error) {
             console.error("Error updating bus status:", error);
@@ -199,10 +197,9 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
                 }
                 const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_registration.batch.processing') });
                 try {
-                    const addedBuses = await Promise.all(newBusesData.map(busData => handleAddBus(busData)));
-                    setBuses(prev => sortBuses([...prev, ...addedBuses]));
+                    await Promise.all(newBusesData.map(busData => handleAddBusLogic(busData)));
                     dismiss();
-                    toast({ title: t('success'), description: t('admin.bus_registration.batch.success', { count: addedBuses.length }) });
+                    toast({ title: t('success'), description: t('admin.bus_registration.batch.success', { count: newBusesData.length }) });
                 } catch (error) {
                     dismiss();
                     toast({ title: t('error'), description: t('admin.bus_registration.batch.error'), variant: "destructive" });
@@ -247,7 +244,6 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
             routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
         }
 
-        // Identify fixed assignments (routes that already have teachers)
         const fixedTeacherIds = new Set<string>();
         const routesAlreadyAssigned = routesToUpdate.filter(r => (r.teacherIds?.length || 0) > 0);
         routesAlreadyAssigned.forEach(r => r.teacherIds?.forEach(id => fixedTeacherIds.add(id)));
@@ -267,13 +263,11 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
         const batch = writeBatch(db);
         let updatedCount = 0;
 
-        // Target routes that are NOT fixed
         const targetBuses = buses.filter(bus => {
             const busRoutes = routesToUpdate.filter(r => r.busId === bus.id);
             return !busRoutes.some(r => (r.teacherIds?.length || 0) > 0);
         });
 
-        // 1. Prioritize 45-seaters with 2 teachers (from available pool)
         const buses45 = targetBuses.filter(b => b.capacity === 45);
         for (const bus of buses45) {
             if (shuffledTeachers.length < 2) break; 
@@ -289,9 +283,8 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
             updatedCount++;
         }
         
-        // 2. Assign 1 teacher to remaining empty buses
         const remainingBuses = targetBuses.filter(b => {
-            const isAssigned = routesToUpdate.some(r => r.busId === b.id && (batch as any)._mutations?.some((m: any) => m.path.segments.includes(r.id)));
+            const isAssigned = (batch as any)._mutations?.some((m: any) => m.path.segments.includes('routes') && routesToUpdate.find(r => r.id === m.path.segments[m.path.segments.length - 1] && r.busId === b.id));
             return !isAssigned;
         });
 
@@ -482,7 +475,7 @@ const BusRegistrationTab = ({ buses, routes, teachers, setBuses, setRoutes }: { 
     );
 };
 
-const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>> }) => {
+const TeacherManagementTab = ({ teachers }: { teachers: Teacher[] }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     const { t } = useTranslation();
@@ -506,7 +499,6 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
                 const { dismiss } = toast({ title: t('processing'), description: t('admin.teacher_management.batch.processing') });
                 try {
                     const addedTeachers = await addTeachersInBatch(newTeachersData);
-                    setTeachers(prev => [...prev, ...addedTeachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
                     dismiss();
                     toast({ title: t('success'), description: t('admin.teacher_management.batch.success', { count: addedTeachers.length }) });
                 } catch (error) {
@@ -540,7 +532,6 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
     const handleDeleteSingleTeacher = async (id: string) => {
         try {
             await deleteTeacher(id);
-            setTeachers(prev => prev.filter(t => t.id !== id));
             toast({ title: t('success'), description: t('admin.teacher_management.delete.success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.teacher_management.delete.error'), variant: 'destructive' });
@@ -550,7 +541,6 @@ const TeacherManagementTab = ({ teachers, setTeachers }: { teachers: Teacher[], 
     const handleClearAllTeachers = async () => {
         try {
             await deleteAllTeachers();
-            setTeachers([]);
             toast({ title: t('success'), description: "모든 교사 정보가 삭제되었습니다." });
         } catch (error) {
             toast({ title: t('error'), description: "교사 정보 삭제 중 오류가 발생했습니다.", variant: 'destructive' });
@@ -628,7 +618,6 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
     const { toast } = useToast();
     const { t } = useTranslation();
     const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
-    const allDays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
 
     const relevantRoutes = useMemo(() => {
         if (assignmentType === 'commute') {
@@ -734,9 +723,7 @@ const BusConfigurationTab = ({
   buses,
   routes,
   destinations,
-  setDestinations,
   suggestedDestinations,
-  setSuggestedDestinations,
   selectedDay,
   selectedRouteType,
   selectedBusId,
@@ -744,9 +731,7 @@ const BusConfigurationTab = ({
   buses: Bus[];
   routes: Route[];
   destinations: Destination[];
-  setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   suggestedDestinations: Destination[],
-  setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
   selectedDay: DayOfWeek;
   selectedRouteType: RouteType;
   selectedBusId: string | null;
@@ -812,8 +797,7 @@ const BusConfigurationTab = ({
         }
 
         try {
-            const newDest = await addDestination({ name: trimmedName });
-            setDestinations(prev => sortDestinations([...prev, newDest]));
+            await addDestination({ name: trimmedName });
             setNewDestinationName('');
             toast({ title: t('success'), description: t('admin.bus_config.dest.add.success') });
         } catch (error) {
@@ -824,7 +808,6 @@ const BusConfigurationTab = ({
     const handleDeleteDestination = async (id: string) => {
         try {
             await deleteDestination(id);
-            setDestinations(prev => prev.filter(d => d.id !== id));
             toast({ title: t('success'), description: t('admin.bus_config.dest.delete.success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.bus_config.dest.delete.error'), variant: 'destructive' });
@@ -835,7 +818,6 @@ const BusConfigurationTab = ({
         const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_config.dest.delete_all.processing') });
         try {
             await deleteAllDestinations();
-            setDestinations([]);
             dismiss();
             toast({ title: t('success'), description: t('admin.bus_config.dest.delete_all.success') });
         } catch (error) {
@@ -894,7 +876,6 @@ const BusConfigurationTab = ({
             const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_config.dest.batch.processing') });
             try {
                 const addedDests = await addDestinationsInBatch(newDestinationsData);
-                setDestinations(prev => sortDestinations([...prev, ...addedDests]));
                 dismiss();
                 toast({ title: t('success'), description: t('admin.bus_config.dest.batch.success', {count: addedDests.length}) });
             } catch (error) {
@@ -918,7 +899,6 @@ const BusConfigurationTab = ({
         toast({ title: t('notice'), description: t('admin.bus_config.suggestions.already_exists') });
         try {
             await deleteDoc(doc(db, 'suggestedDestinations', suggestion.id));
-            setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
         } catch (error) {
              toast({ title: t('error'), description: t('admin.bus_config.suggestions.delete_error'), variant: 'destructive'});
         }
@@ -927,7 +907,6 @@ const BusConfigurationTab = ({
       
     try {
         await approveSuggestedDestination(suggestion);
-        setSuggestedDestinations(prev => prev.filter(s => s.id !== suggestion.id));
         toast({ title: t('success'), description: t('admin.bus_config.suggestions.approve_success')});
     } catch (error) {
         toast({ title: t('error'), description: t('admin.bus_config.suggestions.approve_error'), variant: 'destructive'});
@@ -938,7 +917,6 @@ const BusConfigurationTab = ({
     const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_config.suggestions.delete_all.processing') });
     try {
         await clearAllSuggestedDestinations();
-        setSuggestedDestinations([]);
         dismiss();
         toast({ title: t('success'), description: t('admin.bus_config.suggestions.delete_all.success') });
     } catch (error) {
@@ -1333,32 +1311,22 @@ const BusConfigurationTab = ({
 
 const StudentManagementTab = ({
     students,
-    setStudents,
     buses,
     routes,
-    setRoutes,
     destinations,
     selectedBusId,
     selectedDay,
     selectedRouteType,
     days,
-    setSelectedBusId,
-    setSelectedDay,
-    setSelectedRouteType,
 }: {
     students: Student[];
-    setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
     buses: Bus[];
     routes: Route[];
-    setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
     destinations: Destination[];
     selectedBusId: string | null;
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
     days: DayOfWeek[];
-    setSelectedBusId: (id: string | null) => void;
-    setSelectedDay: (day: DayOfWeek) => void;
-    setSelectedRouteType: (type: RouteType) => void;
 }) => {
     const { toast } = useToast();
     const { t } = useTranslation();
@@ -1539,6 +1507,9 @@ const StudentManagementTab = ({
             const afterSchoolStudentIds = new Set<string>();
             if (selectedRouteType === 'Afternoon') {
                 routes.forEach(route => {
+                    if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
+                        // After school routes are separate
+                    }
                     if (route.dayOfWeek === selectedDay && route.type === 'AfterSchool') {
                         route.seating.forEach(seat => {
                             if (seat.studentId) afterSchoolStudentIds.add(seat.studentId);
@@ -1611,8 +1582,6 @@ const StudentManagementTab = ({
         try {
             const idsToDelete = Array.from(selectedStudentIds);
             await deleteStudentsInBatch(idsToDelete);
-
-            setStudents(prev => prev.filter(s => !idsToDelete.includes(s.id)));
             
             setSelectedStudentIds(new Set());
             dismiss();
@@ -1622,7 +1591,7 @@ const StudentManagementTab = ({
             console.error("Error deleting students:", error);
             toast({ title: t('error'), description: t('admin.student_management.unassigned.delete_error'), variant: "destructive" });
         }
-    }, [selectedStudentIds, setStudents, toast, t]);
+    }, [selectedStudentIds, toast, t]);
 
     const handleSeatUpdate = useCallback(async (newSeating: {seatNumber: number; studentId: string | null}[]) => {
         if (!currentRoute) return;
@@ -2041,21 +2010,9 @@ const StudentManagementTab = ({
                 }
                 const { dismiss } = toast({ title: t('processing'), description: t('admin.student_management.batch_upload.processing') });
                 try {
-                    const processedStudents = await Promise.all(studentsToProcess.map(s => addStudent(s)));
-
-                    const newStudentList = [...students];
-                    processedStudents.forEach(processedStudent => {
-                        const index = newStudentList.findIndex(s => s.id === processedStudent.id);
-                        if (index !== -1) {
-                            newStudentList[index] = processedStudent;
-                        } else {
-                            newStudentList.push(processedStudent);
-                        }
-                    });
-
-                    setStudents(newStudentList.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+                    await Promise.all(studentsToProcess.map(s => addStudent(s)));
                     dismiss();
-                    toast({ title: t('success'), description: t('admin.student_management.batch_upload.success', {count: processedStudents.length}) });
+                    toast({ title: t('success'), description: t('admin.student_management.batch_upload.success', {count: studentsToProcess.length}) });
     
                 } catch (error) {
                     console.error(error);
@@ -2090,28 +2047,7 @@ const StudentManagementTab = ({
                 afterSchoolDestinations: afterSchoolDestinations || {},
                 applicationStatus: 'pending'
             };
-            const newStudent = await addStudent(newStudentData);
-
-            setStudents(prev => {
-                const studentExists = prev.some(s => s.id === newStudent.id);
-                if (studentExists) {
-                    return prev.map(s => s.id === newStudent.id ? newStudent : s);
-                }
-                return [...prev, newStudent].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
-            });
-            
-            let hasDestinationForThisRoute = false;
-            if (selectedRouteType === 'Morning') {
-                hasDestinationForThisRoute = !!newStudent.morningDestinationId;
-            } else if (selectedRouteType === 'Afternoon') {
-                hasDestinationForThisRoute = !!newStudent.afternoonDestinationId;
-            } else if (selectedRouteType === 'AfterSchool') {
-                hasDestinationForThisRoute = newStudent.afterSchoolDestinations ? !!newStudent.afterSchoolDestinations[selectedDay] : false;
-            }
-
-            if (hasDestinationForThisRoute) {
-                setFilteredUnassignedStudents(prev => [...prev, newStudent].sort((a,b) => a.name.localeCompare(b.name, 'ko')));
-            }
+            await addStudent(newStudentData);
 
             setNewStudentForm({ name: '', grade: '', class: '', contact: '', gender: 'Male', morningDestinationId: null, afternoonDestinationId: null, afterSchoolDestinations: {} });
             toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
@@ -2140,17 +2076,15 @@ const StudentManagementTab = ({
         try {
             await updateStudent(studentId, updateData);
             
-            const updatedStudent = { ...student, ...updateData };
-            setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? updatedStudent : s));
             if (selectedGlobalStudent?.id === studentId) {
-                setSelectedGlobalStudent(updatedStudent);
+                setSelectedGlobalStudent({ ...student, ...updateData });
             }
             
             toast({ title: t('success'), description: t('admin.student_management.search.dest_update_success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.student_management.search.dest_update_error'), variant: "destructive" });
         }
-    }, [students, setStudents, selectedGlobalStudent, toast, t]);
+    }, [students, selectedGlobalStudent, toast, t]);
     
     const handleStudentInfoChange = useCallback(async (studentId: string, field: 'gender' | 'contact', value: string) => {
         const student = students.find(s => s.id === studentId);
@@ -2161,17 +2095,15 @@ const StudentManagementTab = ({
         try {
             await updateStudent(studentId, updateData);
             
-            const updatedStudent = { ...student, [field]: value };
-            setStudents(prevStudents => prevStudents.map(s => s.id === studentId ? updatedStudent : s));
             if (selectedGlobalStudent?.id === studentId) {
-                setSelectedGlobalStudent(updatedStudent);
+                setSelectedGlobalStudent({ ...student, [field]: value });
             }
             
             toast({ title: t('success'), description: t('admin.student_management.search.info_update_success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.student_management.search.info_update_error'), variant: "destructive" });
         }
-    }, [students, setStudents, selectedGlobalStudent, toast, t]);
+    }, [students, selectedGlobalStudent, toast, t]);
 
     const handleUnassignAllFromStudent = useCallback(async () => {
         if (!selectedGlobalStudent) return;
@@ -2185,15 +2117,14 @@ const StudentManagementTab = ({
 
     const handleDeleteAllStudents = useCallback(async () => {
         if (students.length === 0) {
-            toast({ title: t('notice'), description: "삭제할 학생이 없습니다." });
+            toast({ title: t('notice'), description: "다운로드할 학생이 없습니다." });
             return;
         }
 
         const { dismiss } = toast({ title: t('processing'), description: "모든 학생 정보를 삭제하는 중..." });
         try {
             const studentIds = students.map(s => s.id);
-            await deleteStudentsInBatch(studentIds); // This function also handles un-assigning from routes
-            setStudents([]);
+            await deleteStudentsInBatch(studentIds);
             setSelectedStudentIds(new Set());
             setSelectedGlobalStudent(null);
             dismiss();
@@ -2203,7 +2134,7 @@ const StudentManagementTab = ({
             console.error("Error deleting all students:", error);
             toast({ title: t('error'), description: "모든 학생 정보 삭제 중 오류가 발생했습니다.", variant: "destructive" });
         }
-    }, [students, setStudents, toast]);
+    }, [students, toast]);
 
     const handleAssignStudentFromSearch = useCallback(async () => {
         if (!selectedGlobalStudent || !currentRoute) {
@@ -2790,13 +2721,6 @@ const AdminPageContent: React.FC<{
     suggestedDestinations: Destination[];
     teachers: Teacher[];
     pendingStudents: Student[];
-    setBuses: React.Dispatch<React.SetStateAction<Bus[]>>;
-    setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
-    setRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
-    setDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
-    setSuggestedDestinations: React.Dispatch<React.SetStateAction<Destination[]>>;
-    setTeachers: React.Dispatch<React.SetStateAction<Teacher[]>>;
-    setPendingStudents: React.Dispatch<React.SetStateAction<Student[]>>;
 }> = ({
     buses,
     students,
@@ -2805,13 +2729,6 @@ const AdminPageContent: React.FC<{
     suggestedDestinations,
     teachers,
     pendingStudents,
-    setBuses,
-    setStudents,
-    setRoutes,
-    setDestinations,
-    setSuggestedDestinations,
-    setTeachers,
-    setPendingStudents,
 }) => {
     const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
     const [selectedDate, setSelectedDate] = useState<string>('');
@@ -2870,8 +2787,6 @@ const AdminPageContent: React.FC<{
 
         try {
             await updateStudentsInBatch(pendingStudentIds.map(id => ({ id, applicationStatus: 'reviewed' })));
-            setStudents(prev => prev.map(s => pendingStudentIds.includes(s.id) ? { ...s, applicationStatus: 'reviewed' } : s));
-            setPendingStudents([]);
             toast({ title: t('success'), description: t('admin.new_applications.acknowledge_success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.new_applications.acknowledge_error'), variant: "destructive" });
@@ -2881,7 +2796,6 @@ const AdminPageContent: React.FC<{
     const handleAcknowledgeSingle = async (studentId: string) => {
         try {
             await updateStudent(studentId, { applicationStatus: 'reviewed' });
-            // The onStudentsUpdate listener will handle the state update automatically.
             toast({ title: t('success'), description: "신청 건을 확인 처리했습니다." });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.new_applications.acknowledge_error'), variant: "destructive" });
@@ -2891,7 +2805,6 @@ const AdminPageContent: React.FC<{
     const handleDeleteSingle = async (studentId: string) => {
         try {
             await deleteStudentsInBatch([studentId]);
-            // The onStudentsUpdate listener will handle the state update automatically.
             toast({ title: t('success'), description: "신청 건을 삭제했습니다." });
         } catch (error) {
             toast({ title: t('error'), description: "신청 건 삭제 중 오류가 발생했습니다.", variant: "destructive" });
@@ -2972,16 +2885,15 @@ const AdminPageContent: React.FC<{
                     <TabsTrigger value="student-management">{t('admin.tabs.student_management')}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="bus-registration" className="mt-6">
-                    <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} setBuses={setBuses} setRoutes={setRoutes} />
+                    <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} />
                 </TabsContent>
                  <TabsContent value="teacher-management" className="mt-6">
-                    <TeacherManagementTab teachers={teachers} setTeachers={setTeachers} />
+                    <TeacherManagementTab teachers={teachers} />
                 </TabsContent>
                 <TabsContent value="bus-configuration" className="mt-6">
                      <AdminPageFilter
                         buses={buses}
                         routes={routes}
-                        destinations={destinations}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
                         selectedDate={selectedDate}
@@ -2996,9 +2908,7 @@ const AdminPageContent: React.FC<{
                         buses={buses}
                         routes={routes}
                         destinations={destinations}
-                        setDestinations={setDestinations}
                         suggestedDestinations={suggestedDestinations}
-                        setSuggestedDestinations={setSuggestedDestinations}
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
                         selectedBusId={selectedBusId}
@@ -3008,7 +2918,6 @@ const AdminPageContent: React.FC<{
                     <AdminPageFilter
                         buses={buses}
                         routes={routes}
-                        destinations={destinations}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
                         selectedDate={selectedDate}
@@ -3020,21 +2929,17 @@ const AdminPageContent: React.FC<{
                         days={days}
                         filterConfiguredBusesOnly={true}
                         showRouteStops={true}
+                        destinations={destinations}
                     />
                     <StudentManagementTab 
                         students={students} 
-                        setStudents={setStudents}
                         buses={buses}
                         routes={routes} 
-                        setRoutes={setRoutes}
                         destinations={destinations}
                         selectedBusId={selectedBusId}
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
                         days={days}
-                        setSelectedBusId={setSelectedBusId}
-                        setSelectedDay={setSelectedDay}
-                        setSelectedRouteType={setSelectedRouteType}
                     />
                 </TabsContent>
             </Tabs>
@@ -3045,7 +2950,7 @@ const AdminPageContent: React.FC<{
 const AdminPageFilter: React.FC<{
     buses: Bus[];
     routes: Route[];
-    destinations: Destination[];
+    destinations?: Destination[];
     selectedBusId: string | null;
     setSelectedBusId: (id: string | null) => void;
     selectedDate: string;
@@ -3060,7 +2965,7 @@ const AdminPageFilter: React.FC<{
 }> = ({
     buses,
     routes,
-    destinations,
+    destinations = [],
     selectedBusId,
     setSelectedBusId,
     selectedDate,
@@ -3259,13 +3164,6 @@ export default function AdminPage() {
                 suggestedDestinations={suggestedDestinations}
                 teachers={teachers}
                 pendingStudents={pendingStudents}
-                setBuses={setBuses}
-                setStudents={setStudents}
-                setRoutes={setRoutes}
-                setDestinations={setDestinations}
-                setSuggestedDestinations={setSuggestedDestinations}
-                setTeachers={setTeachers}
-                setPendingStudents={setPendingStudents}
             />
         </MainLayout>
     );

@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -205,14 +204,6 @@ export default function TeacherPage() {
   const { toast } = useToast();
 
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
-  const dayLabels: { [key in DayOfWeek]: string } = useMemo(() =>({
-      Monday: t('day.monday'),
-      Tuesday: t('day.tuesday'),
-      Wednesday: t('day.wednesday'),
-      Thursday: t('day.thursday'),
-      Friday: t('day.friday'),
-      Saturday: t('day.saturday'),
-  }), [t]);
 
   useEffect(() => {
     setIsClient(true);
@@ -274,7 +265,6 @@ export default function TeacherPage() {
                 setSelectedRouteType('Morning');
             }
         } else {
-            // For past or future dates, default to Morning
             setSelectedRouteType('Morning');
         }
     }
@@ -452,7 +442,7 @@ export default function TeacherPage() {
       })
       .catch((error) => {
         console.error("Error updating not-boarding status:", error);
-        toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive"});
+        toast({ title: t('error'), description: t('teacher_page.boarding_error'), variant: "destructive"});
       });
   }, [currentRoute, selectedDate, notBoardingStudentIds, boardedStudentIds, disembarkedStudentIds, completedDestinations, toast, t]);
 
@@ -471,7 +461,6 @@ export default function TeacherPage() {
 
     let newCompletedDestinations = [...completedDestinations];
     
-    // Check if this destination is now complete
     const studentsForDestination = studentsOnCurrentRoute.filter(s => {
         let destId: string | null = null;
         if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
@@ -482,7 +471,7 @@ export default function TeacherPage() {
 
     const disembarkedForDestination = studentsForDestination.filter(s => newDisembarkedIds.includes(s.id));
 
-    if (disembarkedForDestination.length === studentsForDestination.length) {
+    if (disembarkedForDestination.length === studentsForDestination.length && studentsForDestination.length > 0) {
         if (!newCompletedDestinations.includes(destinationId)) {
             newCompletedDestinations.push(destinationId);
         }
@@ -532,7 +521,6 @@ export default function TeacherPage() {
     }
     
     setGroupLeaderRecords(newRecords);
-    // Update the selected student's leader status in the side panel if they are currently selected
     if (selectedStudent && selectedStudent.id === student.id) {
         setSelectedStudent(prev => prev ? {...prev, isGroupLeader: !prev.isGroupLeader} : null);
     }
@@ -588,7 +576,6 @@ export default function TeacherPage() {
         
         try {
            await updateRouteSeating(currentRoute.id, newSeating);
-           setAllRoutes(prev => prev.map(r => r.id === currentRoute.id ? {...r, seating: newSeating} : r));
            toast({ title: t("success"), description: t('teacher_page.swap_success') });
         } catch {
              toast({ title: t("error"), description: t('teacher_page.swap_error'), variant: "destructive" });
@@ -660,7 +647,6 @@ export default function TeacherPage() {
     const operationalBusIds = new Set<string>();
     allRoutes.forEach(route => {
         if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
-            // A bus is considered operational if it has stops configured OR if it has students assigned.
             if (route.stops.length > 0 || route.seating.some(s => s.studentId !== null)) {
                 operationalBusIds.add(route.busId);
             }
@@ -699,7 +685,6 @@ export default function TeacherPage() {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        // Check if date is valid
         if (isNaN(date.getTime())) return '';
         const dayIndex = getDay(date);
         if(isSunday(date)) return '';
@@ -1181,12 +1166,3 @@ export default function TeacherPage() {
     </MainLayout>
   );
 }
-
-
-
-
-
-
-
-
-
