@@ -1,4 +1,3 @@
-
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -120,6 +119,7 @@
     "admin.bus_registration.bus_number": "버스 번호",
     "admin.bus_registration.bus_number_placeholder": "예: 4호차",
     "admin.bus_registration.select_type": "타입 선택",
+    "admin.bus_registration.exclude_assignment": "배정 제외",
     "admin.bus_registration.add.validation_error": "버스 이름과 타입을 모두 입력해주세요.",
     "admin.bus_registration.add.success": "버스가 추가되었습니다.",
     "admin.bus_registration.add.error": "버스를 추가할 수 없습니다.",

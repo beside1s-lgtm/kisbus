@@ -1,4 +1,3 @@
-
 {
     "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -120,6 +119,7 @@
     "admin.bus_registration.bus_number": "Số xe buýt",
     "admin.bus_registration.bus_number_placeholder": "Ví dụ: Xe buýt 04",
     "admin.bus_registration.select_type": "Chọn loại",
+    "admin.bus_registration.exclude_assignment": "Bỏ phân công",
     "admin.bus_registration.add.validation_error": "Vui lòng nhập cả tên và loại xe buýt.",
     "admin.bus_registration.add.success": "Xe buýt đã được thêm.",
     "admin.bus_registration.add.error": "Không thể thêm xe buýt.",
@@ -377,16 +377,16 @@
     "teacher_page.login_prompt": "Cần đăng nhập để xem thông tin giáo viên.",
     "teacher_page.select_bus": "Chọn xe buýt bạn phụ trách",
     "teacher_page.boarding_error": "Xử lý lên xe thất bại",
-    "teacher_page.not_boarding_updated": "Thông tin 'Không đi hôm nay' của học sinh đã được cập nhật.",
+    "teacher_page.not_boarding_updated": "Thông tin 'Hôm nay không đi' của học sinh đã được cập nhật.",
     "teacher_page.swap_cancelled": "Đã hủy đổi chỗ ngồi.",
     "teacher_page.swap_success": "Đã đổi chỗ ngồi cho học sinh.",
     "teacher_page.swap_error": "Không thể đổi chỗ ngồi",
     "teacher_page.seat_selected": "Đã chọn chỗ ngồi",
     "teacher_page.seat_selected_description": "Nhấp chuột phải vào một chỗ ngồi khác để đổi. Nhấp chuột trái vào bất kỳ chỗ ngồi nào để hủy.",
     "teacher_page.search_student_placeholder": "Tìm kiếm theo tên học sinh (tiếng Anh)...",
-    "teacher_page.mark_not_riding_today": "Đánh dấu không đi hôm nay",
-    "teacher_page.not_boarding_confirm.title": "Xác nhận không đi hôm nay",
-    "teacher_page.not_boarding_confirm.description": "Bạn có chắc chắn muốn xử lý học sinh '{{studentName}}' là không đi hôm nay không?",
+    "teacher_page.mark_not_riding_today": "Đánh dấu hôm nay không đi",
+    "teacher_page.not_boarding_confirm.title": "Xác nhận hôm nay không đi",
+    "teacher_page.not_boarding_confirm.description": "Bạn có chắc chắn muốn xử lý học sinh '{{studentName}}' là hôm nay không đi không?",
     "teacher_page.demote_leader": "Hủy bỏ tổ trưởng",
     "teacher_page.promote_leader": "Bổ nhiệm tổ trưởng",
     "teacher_page.select_student_prompt": "Chọn hoặc tìm kiếm học sinh để xem thông tin.",
@@ -400,7 +400,7 @@
     "teacher_page.status": "Tình trạng",
     "teacher_page.status_boarded": "Đã lên xe",
     "teacher_page.status_disembarked": "Đã xuống xe",
-    "teacher_page.status_not_riding_today": "Không đi hôm nay",
+    "teacher_page.status_not_riding_today": "Hôm nay không đi",
     "teacher_page.status_not_boarded": "Chưa lên xe",
     "teacher_page.disembark_management.title": "Quản lý xuống xe",
     "teacher_page.disembark_management.description": "Chọn một điểm đến để xem danh sách học sinh cần xuống xe, và nhấp vào tên để xóa họ khỏi danh sách khi họ xuống xe.",
@@ -418,4 +418,3 @@
     "teacher_page.group_leader_management.delete_confirm.title": "Bạn có chắc chắn muốn xóa tất cả hồ sơ không?",
     "teacher_page.group_leader_management.delete_confirm.description": "Hành động này không thể được hoàn tác. Tất cả hồ sơ bổ nhiệm tổ trưởng trên tuyến đường hiện tại sẽ bị xóa vĩnh viễn."
 }
-  

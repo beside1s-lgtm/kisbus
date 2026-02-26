@@ -1,4 +1,3 @@
-
 import { db } from './firebase';
 import {
   collection,
@@ -93,7 +92,7 @@ function onCollectionUpdate<T>(collectionName: string, callback: (data: T[]) => 
 // Buses
 export const getBuses = () => fetchCollection<Bus>('buses');
 export const onBusesUpdate = (callback: (buses: Bus[]) => void) => onCollectionUpdate<Bus>('buses', callback);
-export const addBus = (bus: NewBus) => addDocument<Bus>('buses', { ...bus, isActive: true });
+export const addBus = (bus: NewBus) => addDocument<Bus>('buses', { ...bus, isActive: true, excludeFromAssignment: false });
 export const updateBus = async (busId: string, data: Partial<Bus>) => {
     const docRef = doc(db, 'buses', busId);
     await updateDoc(docRef, data)
@@ -339,7 +338,7 @@ export const addDestinationsInBatch = async (destinations: NewDestination[]): Pr
     return newDestinations;
 }
 export const deleteDestination = (destinationId: string) => {
-    const docRef = doc(db, 'destinations', destinationId);
+    const docRef = db.doc('destinations/' + destinationId);
     deleteDoc(docRef)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({

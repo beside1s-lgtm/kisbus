@@ -151,6 +151,17 @@ const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes:
         }
     };
 
+    const handleToggleBusExcludeAssignment = async (bus: Bus) => {
+        try {
+            const newExclude = !(bus.excludeFromAssignment ?? false);
+            await updateBus(bus.id, { excludeFromAssignment: newExclude });
+            toast({ title: t('success'), description: `"${bus.name}" 버스 배정 제외 상태가 ${newExclude ? '설정' : '해제'}되었습니다.` });
+        } catch (error) {
+            console.error("Error updating bus assignment status:", error);
+            toast({ title: t('error'), description: "상태 변경 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
+    };
+
     const handleDownloadBusTemplate = () => {
         const headers = "번호,타입";
         const examples = [
@@ -263,6 +274,9 @@ const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes:
         let updatedCount = 0;
 
         const targetBuses = buses.filter(bus => {
+            // Filter out buses that are inactive OR explicitly excluded from assignment
+            if (!(bus.isActive ?? true) || (bus.excludeFromAssignment ?? false)) return false;
+            
             const busRoutes = routesToUpdate.filter(r => r.busId === bus.id);
             return !busRoutes.some(r => (r.teacherIds?.length || 0) > 0);
         });
@@ -411,6 +425,7 @@ const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes:
                     <TableHeader>
                         <TableRow>
                             <TableHead>활성화</TableHead>
+                            <TableHead>배정 제외</TableHead>
                             <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
                             <TableHead>{t('type')}</TableHead>
                             <TableHead>{t('admin.teacher_assignment.title')}</TableHead>
@@ -425,6 +440,13 @@ const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes:
                                         checked={bus.isActive ?? true}
                                         onCheckedChange={() => handleToggleBusActive(bus)}
                                         aria-label="Toggle bus active state"
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Switch
+                                        checked={bus.excludeFromAssignment ?? false}
+                                        onCheckedChange={() => handleToggleBusExcludeAssignment(bus)}
+                                        aria-label="Toggle bus assignment exclude state"
                                     />
                                 </TableCell>
                                 <TableCell>{bus.name}</TableCell>
@@ -919,7 +941,6 @@ const BusConfigurationTab = ({
         dismiss();
         toast({ title: t('success'), description: t('admin.bus_config.suggestions.delete_all.success') });
     } catch (error) {
-        dismiss();
         toast({ title: t('error'), description: t('admin.bus_config.suggestions.delete_all.error'), variant: "destructive" });
     }
   };
@@ -1830,7 +1851,7 @@ const StudentManagementTab = ({
 
                         const swapCandidateStudent = students.find(s => s.id === swapCandidateSeat.studentId);
                         if (swapCandidateStudent && swapCandidateStudent.gender === student1.gender) {
-                            const candidatePairedSeatNum = (swapCandidateSeat.seatNumber % 2 === 0) ? swapCandidateSeat.seatNumber - 1 : swapCandidateSeat.seatNumber + 1;
+                            const candidatePairedSeatNum = (swapCandidateSeat.seatNumber % 2 === 0) ? seat.seatNumber - 1 : seat.seatNumber + 1;
                             const candidatePairedSeat = newSeatingPlan.find(s => s.seatNumber === candidatePairedSeatNum);
                             
                             // Check if the swap would create another mixed-gender pair

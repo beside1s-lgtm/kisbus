@@ -1,5 +1,3 @@
-
-
 export type Student = {
   id: string;
   name: string;
@@ -26,6 +24,7 @@ export type Bus = {
   status?: 'ready' | 'departed';
   departureTime?: string | null;
   isActive?: boolean;
+  excludeFromAssignment?: boolean;
 };
 export type NewBus = Omit<Bus, 'id'>;
 
@@ -87,5 +86,3 @@ export type LostItem = {
     status: 'claimed' | 'unclaimed' | 'acknowledged';
 }
 export type NewLostItem = Omit<LostItem, 'id'>;
-
-
