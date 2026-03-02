@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useRef, useState, useMemo, useEffect } from 'react';
@@ -7,7 +8,7 @@ import type { Teacher, NewTeacher, Bus, Route, DayOfWeek } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Upload, Trash2, UserCog, UserX, Pencil } from 'lucide-react';
+import { Download, Upload, Trash2, UserCog, UserX, Pencil, Users } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,8 @@ import { cn } from '@/lib/utils';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
     return [...buses].sort((a, b) => {
@@ -310,130 +313,160 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     };
 
     return (
-        <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>{t('admin.teacher_management.title')}</CardTitle>
-                    <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex justify-end gap-2 mb-4">
-                        <Button variant="outline" onClick={handleDownloadTemplate}><Download className="mr-2" /> {t('admin.teacher_management.template')}</Button>
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive"><Trash2 className="mr-2" /> {t('delete_all')}</Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>{t('admin.teacher_management.delete_all.confirm_title')}</AlertDialogTitle>
-                                    <AlertDialogDescription>{t('admin.teacher_management.delete_all.confirm_description')}</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleClearAllTeachers}>{t('delete')}</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
-                    </div>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
-                                <TableHead className="text-right">{t('actions')}</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {teachers.map(teacher => (
-                                <TableRow key={teacher.id}>
-                                    <TableCell>{teacher.name}</TableCell>
-                                    <TableCell className="text-right">
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon">
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>교사 정보를 삭제하시겠습니까?</AlertDialogTitle>
-                                                    <AlertDialogDescription>"{teacher.name}" 선생님의 정보가 삭제됩니다.</AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteSingleTeacher(teacher.id)}>{t('delete')}</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-
-            <Separator />
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>{t('admin.teacher_assignment.title')}</CardTitle>
-                    <CardDescription>각 버스 노선에 담당 교사를 배정합니다.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                        <Tabs value={teacherAssignmentType} onValueChange={(v) => setTeacherAssignmentType(v as any)} className="w-auto">
-                          <TabsList className="grid grid-cols-2">
-                            <TabsTrigger value="commute">{t('route_type.commute')}</TabsTrigger>
-                            <TabsTrigger value="afterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
-                          </TabsList>
-                        </Tabs>
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={handleBatchAssignTeachers}><UserCog className="mr-2"/>{t('admin.teacher_assignment.reassign')}</Button>
+        <Card>
+            <CardHeader>
+                <div className="flex items-center gap-2">
+                    <Users className="h-6 w-6 text-primary" />
+                    <CardTitle className="font-headline">{t('admin.teacher_management.title')}</CardTitle>
+                </div>
+                <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+                {/* 교사 명단 섹션 */}
+                <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <h3 className="text-lg font-semibold">교사 명단 관리</h3>
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" onClick={handleDownloadTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.teacher_management.template')}</Button>
+                            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10"><UserX className="mr-2"/>{t('reset')}</Button>
+                                    <Button variant="destructive" size="sm"><Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}</Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle>{t('admin.teacher_assignment.reset.confirm_title')}</AlertDialogTitle>
-                                        <AlertDialogDescription>{t('admin.teacher_assignment.reset.confirm_description')}</AlertDialogDescription>
+                                        <AlertDialogTitle>{t('admin.teacher_management.delete_all.confirm_title')}</AlertDialogTitle>
+                                        <AlertDialogDescription>{t('admin.teacher_management.delete_all.confirm_description')}</AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleUnassignAllTeachers}>{t('confirm')}</AlertDialogAction>
+                                        <AlertDialogAction onClick={handleClearAllTeachers}>{t('delete')}</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
+                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
                         </div>
                     </div>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
-                                <TableHead>{t('type')}</TableHead>
-                                <TableHead>{t('admin.teacher_assignment.title')}</TableHead>
-                                <TableHead className="text-right">{t('actions')}</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {sortBuses(buses).map(bus => (
-                                <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "text-muted-foreground")}>
-                                    <TableCell>{bus.name}</TableCell>
-                                    <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
-                                    <TableCell>{getTeachersForBus(bus.id)}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="icon" onClick={() => handleManualAssignClick(bus)}>
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                    </TableCell>
+                    <div className="border rounded-md">
+                        <ScrollArea className="h-[240px]">
+                            <Table>
+                                <TableHeader className="sticky top-0 bg-card z-10">
+                                    <TableRow>
+                                        <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
+                                        <TableHead className="text-right">{t('actions')}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {teachers.length > 0 ? (
+                                        teachers.map(teacher => (
+                                            <TableRow key={teacher.id}>
+                                                <TableCell className="py-2">{teacher.name}</TableCell>
+                                                <TableCell className="text-right py-2">
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                            </Button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>교사 정보를 삭제하시겠습니까?</AlertDialogTitle>
+                                                                <AlertDialogDescription>"{teacher.name}" 선생님의 정보가 삭제됩니다.</AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDeleteSingleTeacher(teacher.id)}>{t('delete')}</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={2} className="text-center text-muted-foreground py-10">
+                                                등록된 교사가 없습니다.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                    </div>
+                </div>
+
+                <Separator />
+
+                {/* 배정 섹션 */}
+                <div className="space-y-4">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <h3 className="text-lg font-semibold">{t('admin.teacher_assignment.title')}</h3>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                            <Tabs value={teacherAssignmentType} onValueChange={(v) => setTeacherAssignmentType(v as any)} className="w-full sm:w-auto">
+                                <TabsList className="grid grid-cols-2">
+                                    <TabsTrigger value="commute">{t('route_type.commute')}</TabsTrigger>
+                                    <TabsTrigger value="afterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={handleBatchAssignTeachers} className="flex-1 sm:flex-none">
+                                    <UserCog className="mr-2 h-4 w-4"/>{t('admin.teacher_assignment.reassign')}
+                                </Button>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10 flex-1 sm:flex-none">
+                                            <UserX className="mr-2 h-4 w-4"/>{t('reset')}</Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>{t('admin.teacher_assignment.reset.confirm_title')}</AlertDialogTitle>
+                                            <AlertDialogDescription>{t('admin.teacher_assignment.reset.confirm_description')}</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleUnassignAllTeachers}>{t('confirm')}</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
+                                    <TableHead>{t('type')}</TableHead>
+                                    <TableHead>{t('admin.teacher_assignment.title')}</TableHead>
+                                    <TableHead className="text-right">{t('actions')}</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                            </TableHeader>
+                            <TableBody>
+                                {sortBuses(buses).map(bus => (
+                                    <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "text-muted-foreground bg-muted/20")}>
+                                        <TableCell className="font-medium">{bus.name}</TableCell>
+                                        <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-1">
+                                                {getTeachersForBus(bus.id).split(', ').map((name, i) => (
+                                                    name === t('unassigned') ? 
+                                                    <span key={i} className="text-muted-foreground italic text-xs">{name}</span> :
+                                                    <Badge key={i} variant="secondary" className="font-normal text-xs">{name}</Badge>
+                                                ))}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleManualAssignClick(bus)}>
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
+            </CardContent>
 
             {selectedBusForTeacher && (
               <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
@@ -446,6 +479,6 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                 />
               </Dialog>
             )}
-        </div>
+        </Card>
     );
 };
