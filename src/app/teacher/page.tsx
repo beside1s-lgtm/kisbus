@@ -138,12 +138,12 @@ const AllStudentsBoardingStatus = ({
     }
 
     return (
-        <Card className="h-full border-none shadow-none lg:border lg:shadow-sm">
+        <Card className="border-none shadow-none lg:border lg:shadow-sm w-full lg:w-fit lg:min-w-[400px] max-w-full">
             <CardHeader className="px-2 py-3 sm:px-4">
                 <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_buses_view.title')}</CardTitle>
             </CardHeader>
             <CardContent className="px-1 sm:px-2 max-h-[70vh] overflow-y-auto">
-                <Table>
+                <Table className="w-full">
                     <TableHeader>
                         <TableRow>
                             <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
@@ -253,12 +253,12 @@ const AllGroupLeadersStatus = ({
     }, [relevantRoutes, buses, leadersMap, t]);
 
     return (
-        <Card className="h-full border-none shadow-none lg:border lg:shadow-sm">
+        <Card className="border-none shadow-none lg:border lg:shadow-sm w-full lg:w-fit lg:min-w-[400px] max-w-full">
             <CardHeader className="px-2 py-3 sm:px-4">
                 <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
             </CardHeader>
             <CardContent className="px-1 sm:px-2 max-h-[70vh] overflow-y-auto">
-                <Table>
+                <Table className="w-full">
                     <TableHeader>
                         <TableRow>
                             <TableHead className="whitespace-nowrap w-px">{t('bus')}</TableHead>
@@ -1122,7 +1122,7 @@ export default function TeacherPage() {
             </AlertDialogContent>
         </AlertDialog>
         {selectedBusId === 'all' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="flex flex-col lg:flex-row flex-wrap gap-6 items-start justify-start">
                 <AllStudentsBoardingStatus
                     relevantRoutes={relevantRoutesForDay}
                     students={students}
@@ -1208,8 +1208,8 @@ export default function TeacherPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>{t('student.name')}</TableHead>
-                                        <TableHead>{t('teacher_page.status')}</TableHead>
+                                        <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
+                                        <TableHead className="whitespace-nowrap">{t('teacher_page.status')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -1219,8 +1219,8 @@ export default function TeacherPage() {
                                             onClick={() => setLastClickedStudentId(student.id)}
                                             className="cursor-pointer"
                                         >
-                                            <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
-                                            <TableCell>
+                                            <TableCell className="whitespace-nowrap">{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
+                                            <TableCell className="whitespace-nowrap">
                                                 <Badge 
                                                     variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (notBoardingStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
                                                     onClick={(e) => {
@@ -1272,15 +1272,15 @@ export default function TeacherPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>{t('student.name')}</TableHead>
-                                            <TableHead>{t('teacher_page.disembark_management.disembark')}</TableHead>
+                                            <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
+                                            <TableHead className="whitespace-nowrap">{t('teacher_page.disembark_management.disembark')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {studentsToDisembark.map(student => (
                                             <TableRow key={student.id} onClick={() => toggleDisembark(student.id, selectedDestinationId)} className="cursor-pointer">
-                                                <TableCell>{formatStudentName(student)}</TableCell>
-                                                <TableCell>
+                                                <TableCell className="whitespace-nowrap">{formatStudentName(student)}</TableCell>
+                                                <TableCell className="whitespace-nowrap">
                                                     <Button size="sm" variant="ghost">
                                                         <CheckCircle className="h-5 w-5 text-green-600" />
                                                     </Button>
@@ -1307,7 +1307,7 @@ export default function TeacherPage() {
                             {sidePanel}
                         </CardContent>
                     </Card>
-                    <div>
+                    <div className="w-full">
                         <GroupLeaderManager records={groupLeaderRecords.map(r => {
                             const student = students.find(s => s.id === r.studentId);
                             return {
@@ -1316,7 +1316,7 @@ export default function TeacherPage() {
                             };
                         })} setRecords={setGroupLeaderRecords} />
                     </div>
-                    <div>
+                    <div className="w-full">
                         <LostAndFound 
                         lostItems={lostItems}
                         setLostItems={setLostItems}
@@ -1334,8 +1334,8 @@ export default function TeacherPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>{t('student.name')}</TableHead>
-                                            <TableHead>{t('teacher_page.status')}</TableHead>
+                                            <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
+                                            <TableHead className="whitespace-nowrap">{t('teacher_page.status')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -1345,8 +1345,8 @@ export default function TeacherPage() {
                                                 onClick={() => setLastClickedStudentId(student.id)}
                                                 className="cursor-pointer"
                                             >
-                                                <TableCell>{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
-                                                <TableCell>
+                                                <TableCell className="whitespace-nowrap">{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
+                                                <TableCell className="whitespace-nowrap">
                                                     <Badge 
                                                         variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (notBoardingStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
                                                         onClick={(e) => {
@@ -1400,15 +1400,15 @@ export default function TeacherPage() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>{t('student.name')}</TableHead>
-                                                <TableHead>{t('teacher_page.disembark_management.disembark')}</TableHead>
+                                                <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{t('teacher_page.disembark_management.disembark')}</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {studentsToDisembark.map(student => (
                                                 <TableRow key={student.id} onClick={() => toggleDisembark(student.id, selectedDestinationId)} className="cursor-pointer">
-                                                    <TableCell>{formatStudentName(student)}</TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">{formatStudentName(student)}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         <Button size="sm" variant="ghost">
                                                             <CheckCircle className="h-5 w-5 text-green-600" />
                                                         </Button>
