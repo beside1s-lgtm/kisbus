@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -198,7 +199,7 @@ const AllGroupLeadersStatus = ({
                     if (activeLeader) {
                         const days = differenceInDays(new Date(), new Date(activeLeader.startDate)) + 1;
                         const student = students.find(s => s.id === activeLeader.studentId);
-                        const displayName = student ? formatStudentName(student) : activeLeader.name;
+                        const displayName = student ? formatStudentName(student) : (activeLeader.name || "알 수 없는 학생");
                         results[route.id] = { name: displayName, days };
                     } else {
                         results[route.id] = null;
@@ -559,6 +560,33 @@ export default function TeacherPage() {
         saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
     }
   }, [groupLeaderRecords, currentRoute]);
+
+  // Auto-cleanup orphaned active leaders
+  useEffect(() => {
+    if (!currentRoute || !students.length || lastLoadedRouteIdRef.current !== currentRoute.id) return;
+
+    const activeLeaderIndex = groupLeaderRecords.findIndex(r => r.endDate === null);
+    if (activeLeaderIndex === -1) return;
+
+    const activeLeader = groupLeaderRecords[activeLeaderIndex];
+    // Check if the student is still on this route
+    const isStillOnRoute = currentRoute.seating.some(s => s.studentId === activeLeader.studentId);
+    
+    // Also check if the student still exists in the system
+    const studentExists = students.some(s => s.id === activeLeader.studentId);
+
+    if (!isStillOnRoute || !studentExists) {
+        const newRecords = [...groupLeaderRecords];
+        const dateStr = format(new Date(), 'yyyy-MM-dd');
+        newRecords[activeLeaderIndex].endDate = dateStr;
+        newRecords[activeLeaderIndex].days = differenceInDays(new Date(dateStr), new Date(newRecords[activeLeaderIndex].startDate)) + 1;
+        setGroupLeaderRecords(newRecords);
+        toast({
+            title: t('notice'),
+            description: studentExists ? "조장이 버스에서 하차하여 활동이 종료되었습니다." : "조장 학생 정보가 삭제되어 활동이 종료되었습니다.",
+        });
+    }
+  }, [currentRoute, students, groupLeaderRecords, t, toast]);
 
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
@@ -1118,7 +1146,13 @@ export default function TeacherPage() {
                         </CardContent>
                     </Card>
                     <div className="lg:hidden">
-                        <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
+                        <GroupLeaderManager records={groupLeaderRecords.map(r => {
+                            const student = students.find(s => s.id === r.studentId);
+                            return {
+                                ...r,
+                                name: student ? formatStudentName(student) : (r.name || "알 수 없는 학생"),
+                            };
+                        })} setRecords={setGroupLeaderRecords} />
                     </div>
                     <div className="lg:hidden">
                         <LostAndFound 
@@ -1237,7 +1271,13 @@ export default function TeacherPage() {
                         </CardContent>
                     </Card>
                     <div>
-                        <GroupLeaderManager records={groupLeaderRecords.map(r => ({...r, studentId: r.studentId, name: formatStudentName(students.find(s => s.id === r.studentId)!) || r.name, startDate: r.startDate, endDate: r.endDate, days: r.days }))} setRecords={setGroupLeaderRecords} />
+                        <GroupLeaderManager records={groupLeaderRecords.map(r => {
+                            const student = students.find(s => s.id === r.studentId);
+                            return {
+                                ...r,
+                                name: student ? formatStudentName(student) : (r.name || "알 수 없는 학생"),
+                            };
+                        })} setRecords={setGroupLeaderRecords} />
                     </div>
                     <div>
                         <LostAndFound 
