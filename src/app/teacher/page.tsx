@@ -138,11 +138,11 @@ const AllStudentsBoardingStatus = ({
     }
 
     return (
-        <Card>
+        <Card className="h-full">
             <CardHeader>
                 <CardTitle>{t('teacher_page.all_buses_view.title')}</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-h-[70vh] overflow-y-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -166,6 +166,107 @@ const AllStudentsBoardingStatus = ({
                  {allStudentsOnDay.length === 0 && (
                     <div className="text-center text-sm text-muted-foreground py-8">
                        {t('no_students')}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
+
+const AllGroupLeadersStatus = ({
+    relevantRoutes,
+    students,
+    buses,
+    formatStudentName,
+    t
+}: {
+    relevantRoutes: Route[];
+    students: Student[];
+    buses: Bus[];
+    formatStudentName: (student: Student) => string;
+    t: any;
+}) => {
+    const [leadersMap, setLeadersMap] = useState<Record<string, { name: string; days: number } | null>>({});
+
+    useEffect(() => {
+        const fetchAllLeaders = async () => {
+            const results: Record<string, { name: string; days: number } | null> = {};
+            const promises = relevantRoutes.map(async (route) => {
+                try {
+                    const records = await getGroupLeaderRecords(route.id);
+                    const activeLeader = records.find(r => r.endDate === null);
+                    if (activeLeader) {
+                        const days = differenceInDays(new Date(), new Date(activeLeader.startDate)) + 1;
+                        const student = students.find(s => s.id === activeLeader.studentId);
+                        const displayName = student ? formatStudentName(student) : activeLeader.name;
+                        results[route.id] = { name: displayName, days };
+                    } else {
+                        results[route.id] = null;
+                    }
+                } catch (e) {
+                    console.error("Error fetching leader for route", route.id, e);
+                    results[route.id] = null;
+                }
+            });
+            await Promise.all(promises);
+            setLeadersMap(results);
+        };
+
+        if (relevantRoutes.length > 0) {
+            fetchAllLeaders();
+        } else {
+            setLeadersMap({});
+        }
+    }, [relevantRoutes, students, formatStudentName]);
+
+    const sortedBusesWithLeaders = useMemo(() => {
+        const list = relevantRoutes.map(route => {
+            const bus = buses.find(b => b.id === route.busId);
+            const leaderInfo = leadersMap[route.id];
+            return {
+                busName: bus?.name || '?',
+                leaderName: leaderInfo?.name || t('unassigned'),
+                days: leaderInfo?.days || 0
+            };
+        });
+
+        return list.sort((a, b) => {
+            const numA = parseInt(a.busName.replace(/\D/g, ''), 10);
+            const numB = parseInt(b.busName.replace(/\D/g, ''), 10);
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return a.busName.localeCompare(b.busName);
+        });
+    }, [relevantRoutes, buses, leadersMap, t]);
+
+    return (
+        <Card className="h-full">
+            <CardHeader>
+                <CardTitle>{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
+            </CardHeader>
+            <CardContent className="max-h-[70vh] overflow-y-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>{t('bus')}</TableHead>
+                            <TableHead>{t('teacher_page.group_leader_management.name')}</TableHead>
+                            <TableHead>{t('teacher_page.group_leader_management.days')}</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {sortedBusesWithLeaders.map((item, idx) => (
+                            <TableRow key={idx}>
+                                <TableCell className="font-medium">{item.busName}</TableCell>
+                                <TableCell>{item.leaderName}</TableCell>
+                                <TableCell>
+                                    {item.days > 0 ? `${item.days}${t('teacher_page.group_leader_days_suffix')}` : '-'}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                {sortedBusesWithLeaders.length === 0 && (
+                    <div className="text-center text-sm text-muted-foreground py-8">
+                        {t('no_route_info')}
                     </div>
                 )}
             </CardContent>
@@ -956,14 +1057,23 @@ export default function TeacherPage() {
             </AlertDialogContent>
         </AlertDialog>
         {selectedBusId === 'all' ? (
-            <AllStudentsBoardingStatus
-                relevantRoutes={relevantRoutesForDay}
-                students={students}
-                buses={buses}
-                allAttendance={allAttendance}
-                formatStudentName={formatStudentName}
-                t={t}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AllStudentsBoardingStatus
+                    relevantRoutes={relevantRoutesForDay}
+                    students={students}
+                    buses={buses}
+                    allAttendance={allAttendance}
+                    formatStudentName={formatStudentName}
+                    t={t}
+                />
+                <AllGroupLeadersStatus
+                    relevantRoutes={relevantRoutesForDay}
+                    students={students}
+                    buses={buses}
+                    formatStudentName={formatStudentName}
+                    t={t}
+                />
+            </div>
         ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 flex flex-col gap-6 order-last lg:order-first">

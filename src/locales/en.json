@@ -1,4 +1,3 @@
-
 {
     "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
@@ -382,6 +381,8 @@
     "lost_and_found.action.claim": "Claim",
     "teacher_page.all_buses": "All",
     "teacher_page.all_buses_view.title": "Overall Boarding Status",
+    "teacher_page.all_group_leaders_view.title": "Overall Group Leader Status",
+    "teacher_page.group_leader_days_suffix": " days",
     "teacher_page.login_prompt": "Login is required to view teacher information.",
     "teacher_page.select_bus": "Select your assigned bus",
     "teacher_page.boarding_error": "Boarding process failed",
@@ -429,5 +430,3 @@
     "teacher_page.assignments_dialog.title": "Overall Bus Teacher Assignments",
     "teacher_page.assignments_dialog.description": "Assignment status based on the currently selected day and route type."
 }
-
-    

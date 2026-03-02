@@ -1,4 +1,3 @@
-
 {
     "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -382,6 +381,8 @@
     "lost_and_found.action.claim": "Đã trả",
     "teacher_page.all_buses": "Tất cả",
     "teacher_page.all_buses_view.title": "Tình trạng lên xe tổng thể",
+    "teacher_page.all_group_leaders_view.title": "Tình trạng tổ trưởng toàn xe buýt",
+    "teacher_page.group_leader_days_suffix": " ngày",
     "teacher_page.login_prompt": "Cần đăng nhập để xem thông tin giáo viên.",
     "teacher_page.select_bus": "Chọn xe buýt bạn phụ trách",
     "teacher_page.boarding_error": "Xử lý lên xe thất bại",
@@ -429,5 +430,3 @@
     "teacher_page.assignments_dialog.title": "Tình trạng phân công giáo viên toàn xe buýt",
     "teacher_page.assignments_dialog.description": "Tình trạng phân công dựa trên ngày và loại tuyến đường hiện đang được chọn."
 }
-
-    
