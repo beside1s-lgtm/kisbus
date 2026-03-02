@@ -1,3 +1,4 @@
+
 {
     "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -423,5 +424,10 @@
     "teacher_page.group_leader_management.no_leaders": "Không có học sinh nào được bổ nhiệm làm tổ trưởng.",
     "teacher_page.group_leader_management.delete_all_records": "Xóa tất cả hồ sơ",
     "teacher_page.group_leader_management.delete_confirm.title": "Bạn có chắc chắn muốn xóa tất cả hồ sơ không?",
-    "teacher_page.group_leader_management.delete_confirm.description": "Hành động này không thể được hoàn tác. Tất cả hồ sơ bổ nhiệm tổ trưởng trên tuyến đường hiện tại sẽ bị xóa vĩnh viễn."
+    "teacher_page.group_leader_management.delete_confirm.description": "Hành động này không thể được hoàn tác. Tất cả hồ sơ bổ nhiệm tổ trưởng trên tuyến đường hiện tại sẽ bị xóa vĩnh viễn.",
+    "teacher_page.check_assignments_button": "Xác nhận xe phụ trách",
+    "teacher_page.assignments_dialog.title": "Tình trạng phân công giáo viên toàn xe buýt",
+    "teacher_page.assignments_dialog.description": "Tình trạng phân công dựa trên ngày và loại tuyến đường hiện đang được chọn."
 }
+
+    

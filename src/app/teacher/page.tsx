@@ -20,7 +20,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2 } from 'lucide-react';
+import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2, Users } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -35,6 +35,7 @@ import { LostAndFound } from './components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 const getGradeValue = (grade: string): number => {
@@ -170,6 +171,73 @@ const AllStudentsBoardingStatus = ({
                 )}
             </CardContent>
         </Card>
+    );
+};
+
+
+const TeacherAssignmentViewDialog = ({
+    buses,
+    allRoutes,
+    teachers,
+    selectedDay,
+    selectedRouteType,
+    t
+}: {
+    buses: Bus[];
+    allRoutes: Route[];
+    teachers: Teacher[];
+    selectedDay: DayOfWeek;
+    selectedRouteType: RouteType;
+    t: any;
+}) => {
+    const getTeachersForBus = (busId: string) => {
+        const route = allRoutes.find(r => r.busId === busId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
+        if (!route || !route.teacherIds || route.teacherIds.length === 0) return t('unassigned');
+        const names = route.teacherIds
+            .map(id => teachers.find(t => t.id === id)?.name)
+            .filter(Boolean);
+        return names.length > 0 ? names.join(', ') : t('unassigned');
+    };
+
+    return (
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+                <DialogTitle>{t('teacher_page.assignments_dialog.title')}</DialogTitle>
+                <CardDescription>
+                    {t('teacher_page.assignments_dialog.description')}
+                    <br />
+                    {t('day')}: {t(`day.${selectedDay.toLowerCase()}`)} | {t('route')}: {selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`)}
+                </CardDescription>
+            </DialogHeader>
+            <div className="mt-4 border rounded-md">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
+                            <TableHead>{t('type')}</TableHead>
+                            <TableHead>{t('admin.teacher_assignment.title')}</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {sortBuses([...buses]).map(bus => (
+                            <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "opacity-50 bg-muted/20")}>
+                                <TableCell className="font-medium">{bus.name}</TableCell>
+                                <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
+                                <TableCell>
+                                    <div className="flex flex-wrap gap-1">
+                                        {getTeachersForBus(bus.id).split(', ').map((name, i) => (
+                                            name === t('unassigned') ? 
+                                            <span key={i} className="text-muted-foreground italic text-xs">{name}</span> :
+                                            <Badge key={i} variant="secondary" className="font-normal text-xs">{name}</Badge>
+                                        ))}
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </DialogContent>
     );
 };
 
@@ -837,7 +905,28 @@ export default function TeacherPage() {
   }
 
   return (
-    <MainLayout headerContent={headerContent}>
+    <MainLayout 
+        headerContent={headerContent}
+        titleActions={
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8">
+                        <Users className="mr-2 h-4 w-4" />
+                        <span className="hidden sm:inline">{t('teacher_page.check_assignments_button')}</span>
+                        <span className="sm:hidden">{t('confirm')}</span>
+                    </Button>
+                </DialogTrigger>
+                <TeacherAssignmentViewDialog 
+                    buses={buses}
+                    allRoutes={allRoutes}
+                    teachers={teachers}
+                    selectedDay={selectedDay}
+                    selectedRouteType={selectedRouteType}
+                    t={t}
+                />
+            </Dialog>
+        }
+    >
         <AlertDialog
             open={!!studentToConfirm}
             onOpenChange={(open) => !open && setStudentToConfirm(null)}

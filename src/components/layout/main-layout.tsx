@@ -14,9 +14,10 @@ import { LanguageSwitcher } from './language-switcher';
 interface MainLayoutProps {
   children: ReactNode;
   headerContent?: ReactNode;
+  titleActions?: ReactNode;
 }
 
-export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => {
+export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent, titleActions }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, loading: authLoading } = useAuth();
@@ -69,9 +70,12 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent }) => 
                       </Link>
                     </Button>
                   )}
-                  <h1 className="text-lg font-semibold md:text-xl font-headline">
-                      {getPageTitle()}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg font-semibold md:text-xl font-headline">
+                        {getPageTitle()}
+                    </h1>
+                    {titleActions}
+                  </div>
               </div>
               <div className="flex items-center gap-2">
                   <LanguageSwitcher />

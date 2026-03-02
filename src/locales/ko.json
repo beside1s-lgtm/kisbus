@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -423,5 +424,10 @@
     "teacher_page.group_leader_management.no_leaders": "조장으로 임명된 학생이 없습니다.",
     "teacher_page.group_leader_management.delete_all_records": "모든 기록 삭제",
     "teacher_page.group_leader_management.delete_confirm.title": "정말 모든 기록을 삭제하시겠습니까?",
-    "teacher_page.group_leader_management.delete_confirm.description": "이 작업은 되돌릴 수 없습니다. 현재 노선의 모든 조장 임명 기록이 영구적으로 삭제됩니다."
+    "teacher_page.group_leader_management.delete_confirm.description": "이 작업은 되돌릴 수 없습니다. 현재 노선의 모든 조장 임명 기록이 영구적으로 삭제됩니다.",
+    "teacher_page.check_assignments_button": "담당 버스 확인",
+    "teacher_page.assignments_dialog.title": "전체 버스 담당 교사 현황",
+    "teacher_page.assignments_dialog.description": "현재 선택된 요일 및 경로 타입 기준의 배정 현황입니다."
 }
+
+    

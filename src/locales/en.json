@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
@@ -423,5 +424,10 @@
     "teacher_page.group_leader_management.no_leaders": "No students appointed as group leaders.",
     "teacher_page.group_leader_management.delete_all_records": "Delete All Records",
     "teacher_page.group_leader_management.delete_confirm.title": "Are you sure you want to delete all records?",
-    "teacher_page.group_leader_management.delete_confirm.description": "This action cannot be undone. All group leader appointment records for the current route will be permanently deleted."
+    "teacher_page.group_leader_management.delete_confirm.description": "This action cannot be undone. All group leader appointment records for the current route will be permanently deleted.",
+    "teacher_page.check_assignments_button": "Check Assigned Bus",
+    "teacher_page.assignments_dialog.title": "Overall Bus Teacher Assignments",
+    "teacher_page.assignments_dialog.description": "Assignment status based on the currently selected day and route type."
 }
+
+    
