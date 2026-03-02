@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -20,7 +19,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2, Users } from 'lucide-react';
+import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2, Users, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -34,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { LostAndFound } from './components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
 import { Label } from '@/components/ui/label';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
@@ -187,7 +186,9 @@ const AllGroupLeadersStatus = ({
     formatStudentName: (student: Student) => string;
     t: any;
 }) => {
+    const { toast } = useToast();
     const [leadersMap, setLeadersMap] = useState<Record<string, { name: string; days: number } | null>>({});
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     useEffect(() => {
         const fetchAllLeaders = async () => {
@@ -218,13 +219,25 @@ const AllGroupLeadersStatus = ({
         } else {
             setLeadersMap({});
         }
-    }, [relevantRoutes, students, formatStudentName]);
+    }, [relevantRoutes, students, formatStudentName, refreshTrigger]);
+
+    const handleDeleteRecords = async (routeId: string) => {
+        try {
+            await saveGroupLeaderRecords(routeId, []);
+            setRefreshTrigger(prev => prev + 1);
+            toast({ title: t('success'), description: "해당 노선의 조장 기록이 삭제되었습니다." });
+        } catch (e) {
+            console.error("Failed to delete records", e);
+            toast({ title: t('error'), description: "기록 삭제 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
+    };
 
     const sortedBusesWithLeaders = useMemo(() => {
         const list = relevantRoutes.map(route => {
             const bus = buses.find(b => b.id === route.busId);
             const leaderInfo = leadersMap[route.id];
             return {
+                routeId: route.id,
                 busName: bus?.name || '?',
                 leaderName: leaderInfo?.name || t('unassigned'),
                 days: leaderInfo?.days || 0
@@ -251,6 +264,7 @@ const AllGroupLeadersStatus = ({
                             <TableHead>{t('bus')}</TableHead>
                             <TableHead>{t('teacher_page.group_leader_management.name')}</TableHead>
                             <TableHead>{t('teacher_page.group_leader_management.days')}</TableHead>
+                            <TableHead className="text-right">{t('actions')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -260,6 +274,27 @@ const AllGroupLeadersStatus = ({
                                 <TableCell>{item.leaderName}</TableCell>
                                 <TableCell>
                                     {item.days > 0 ? `${item.days}${t('teacher_page.group_leader_days_suffix')}` : '-'}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>{t('teacher_page.group_leader_management.delete_confirm.title')}</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    {t('teacher_page.group_leader_management.delete_confirm.description')}
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteRecords(item.routeId)}>{t('delete')}</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -452,11 +487,26 @@ export default function TeacherPage() {
 
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
 
+  const filteredBuses = useMemo(() => {
+    const operationalBusIds = new Set<string>();
+    allRoutes.forEach(route => {
+        if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
+            if (route.stops.length > 0 || route.seating.some(s => s.studentId !== null)) {
+                operationalBusIds.add(route.busId);
+            }
+        }
+    });
+    return buses.filter(bus => (bus.isActive ?? true) && operationalBusIds.has(bus.id));
+}, [buses, allRoutes, selectedDay, selectedRouteType]);
+
   const relevantRoutesForDay = useMemo(() => {
+    const activeBusIds = new Set(filteredBuses.map(b => b.id));
     return allRoutes.filter(r => 
-        r.dayOfWeek === selectedDay && r.type === selectedRouteType
+        r.dayOfWeek === selectedDay && 
+        r.type === selectedRouteType &&
+        activeBusIds.has(r.busId)
     );
-  }, [allRoutes, selectedDay, selectedRouteType]);
+  }, [allRoutes, selectedDay, selectedRouteType, filteredBuses]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -841,19 +891,6 @@ export default function TeacherPage() {
       }
     }
   };
-
-  const filteredBuses = useMemo(() => {
-    const operationalBusIds = new Set<string>();
-    allRoutes.forEach(route => {
-        if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
-            if (route.stops.length > 0 || route.seating.some(s => s.studentId !== null)) {
-                operationalBusIds.add(route.busId);
-            }
-        }
-    });
-    return buses.filter(bus => operationalBusIds.has(bus.id));
-}, [buses, allRoutes, selectedDay, selectedRouteType]);
-
 
   useEffect(() => {
       if (selectedBusId && selectedBusId !== 'all' && !filteredBuses.some(b => b.id === selectedBusId)) {
