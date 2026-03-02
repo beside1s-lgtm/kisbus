@@ -1,25 +1,162 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
 import { addTeachersInBatch, deleteTeacher, deleteAllTeachers } from '@/lib/firebase-data';
-import type { Teacher, NewTeacher } from '@/lib/types';
+import type { Teacher, NewTeacher, Bus, Route, DayOfWeek } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Upload, Trash2 } from 'lucide-react';
+import { Download, Upload, Trash2, UserCog, UserX, Pencil } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/hooks/use-translation';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
+import { doc, writeBatch } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Separator } from '@/components/ui/separator';
+
+const sortBuses = (buses: Bus[]): Bus[] => {
+    return [...buses].sort((a, b) => {
+      const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+      const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.name.localeCompare(b.name);
+    });
+};
+
+interface TeacherAssignmentDialogProps {
+    targetBus: Bus;
+    allRoutes: Route[];
+    teachers: Teacher[];
+    assignmentType: 'commute' | 'afterSchool';
+    onOpenChange: (open: boolean) => void;
+}
+  
+const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentType, onOpenChange }: TeacherAssignmentDialogProps) => {
+    const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
+    const { toast } = useToast();
+    const { t } = useTranslation();
+    const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
+
+    const relevantRoutes = useMemo(() => {
+        if (assignmentType === 'commute') {
+            return allRoutes.filter(r => r.busId === targetBus.id && weekdays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+        }
+        return allRoutes.filter(r => r.busId === targetBus.id && r.type === 'AfterSchool');
+    }, [allRoutes, targetBus, assignmentType, weekdays]);
+
+    useEffect(() => {
+        if (relevantRoutes.length > 0) {
+            setSelectedTeacherIds(relevantRoutes[0].teacherIds || []);
+        }
+    }, [relevantRoutes]);
+    
+    const assignedToOtherRoutesIds = useMemo(() => {
+        const otherRoutes = allRoutes.filter(r => {
+            if (r.busId === targetBus.id) return false;
+            if (assignmentType === 'commute') {
+                return weekdays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon');
+            }
+            return r.type === 'AfterSchool';
+        });
+
+        const ids = new Set<string>();
+        otherRoutes.forEach(r => {
+            r.teacherIds?.forEach(id => ids.add(id));
+        });
+        return ids;
+    }, [allRoutes, targetBus.id, assignmentType, weekdays]);
+
+    const handleSave = async () => {
+        if (relevantRoutes.length === 0) return;
+        
+        try {
+            const batch = writeBatch(db);
+            relevantRoutes.forEach(route => {
+                const routeRef = doc(db, 'routes', route.id);
+                batch.update(routeRef, { teacherIds: selectedTeacherIds });
+            });
+            await batch.commit();
+            toast({ title: t('success'), description: t('admin.teacher_assignment.change.success') });
+            onOpenChange(false);
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.teacher_assignment.change.error'), variant: "destructive" });
+        }
+    };
+
+    const handleCheckboxChange = (teacherId: string, checked: boolean) => {
+        setSelectedTeacherIds(prev =>
+            checked ? [...prev, teacherId] : prev.filter(id => id !== teacherId)
+        );
+    };
+    
+    const handleReset = () => {
+        setSelectedTeacherIds([]);
+    }
+
+    const sortedTeachers = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
+    
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{t('admin.teacher_assignment.change.title')} - {targetBus.name}</DialogTitle>
+                <CardDescription>
+                    {assignmentType === 'commute' ? "평일 등하교" : "방과후"} 노선에 대한 담당교사를 변경합니다.
+                </CardDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                {sortedTeachers.map(teacher => {
+                    const isAssignedToOtherRoute = assignedToOtherRoutesIds.has(teacher.id);
+                    const isAssignedToCurrentRoute = selectedTeacherIds.includes(teacher.id);
+                    const isDisabled = isAssignedToOtherRoute && !isAssignedToCurrentRoute;
+
+                    return (
+                        <div key={teacher.id} className="flex items-center space-x-2">
+                            <Checkbox
+                                id={`teacher-${teacher.id}`}
+                                checked={selectedTeacherIds.includes(teacher.id)}
+                                onCheckedChange={(checked) => handleCheckboxChange(teacher.id, checked as boolean)}
+                                disabled={isDisabled}
+                            />
+                            <Label htmlFor={`teacher-${teacher.id}`} className={cn(isDisabled && "text-muted-foreground")}>
+                                {teacher.name}
+                                {isDisabled && <span className="text-xs ml-2">{t('admin.teacher_assignment.change.assigned_other')}</span>}
+                            </Label>
+                        </div>
+                    );
+                })}
+            </div>
+            <DialogFooter className="justify-between">
+                <Button variant="destructive" onClick={handleReset}>{t('reset')}</Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
+                    <Button onClick={handleSave}>{t('save')}</Button>
+                </div>
+            </DialogFooter>
+        </DialogContent>
+    );
+};
 
 interface TeacherManagementTabProps {
     teachers: Teacher[];
+    buses: Bus[];
+    routes: Route[];
 }
 
-export const TeacherManagementTab = ({ teachers }: TeacherManagementTabProps) => {
+export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagementTabProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     const { t } = useTranslation();
+    const [teacherAssignmentType, setTeacherAssignmentType] = useState<'commute' | 'afterSchool'>('commute');
+    const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
+    const [selectedBusForTeacher, setSelectedBusForTeacher] = useState<Bus | null>(null);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -88,68 +225,227 @@ export const TeacherManagementTab = ({ teachers }: TeacherManagementTabProps) =>
         }
     };
 
+    const getTeachersForBus = (busId: string) => {
+        const relevantRouteType = teacherAssignmentType === 'commute' ? 'Morning' : 'AfterSchool';
+        const relevantRoute = routes.find(r => r.busId === busId && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
+        if (!relevantRoute || !relevantRoute.teacherIds) return t('unassigned');
+        const teacherNames = relevantRoute.teacherIds
+            .map(id => teachers.find(t => t.id === id)?.name)
+            .filter(Boolean);
+        return teacherNames.length > 0 ? teacherNames.join(', ') : t('unassigned');
+    };
+
+    const handleBatchAssignTeachers = async () => {
+        if (teachers.length === 0) {
+            toast({ title: t('error'), description: t('admin.teacher_assignment.assign.no_teacher_error'), variant: 'destructive' });
+            return;
+        }
+        let routesToUpdate: Route[] = [];
+        let otherRoutes: Route[] = [];
+        let relevantDays: DayOfWeek[];
+        if (teacherAssignmentType === 'commute') {
+            relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+            routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+            otherRoutes = routes.filter(r => !routesToUpdate.includes(r));
+        } else {
+            relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
+            otherRoutes = routes.filter(r => !routesToUpdate.includes(r));
+        }
+        const busyTeacherIds = new Set<string>();
+        otherRoutes.forEach(r => r.teacherIds?.forEach(id => busyTeacherIds.add(id)));
+        const availableTeachers = teachers.filter(t => !busyTeacherIds.has(t.id));
+        const shuffledTeachers = [...availableTeachers].sort(() => Math.random() - 0.5);
+        let teacherIndex = 0;
+        const targetBuses = sortBuses(buses.filter(bus => (bus.isActive ?? true) && !(bus.excludeFromAssignment ?? false)));
+        if (targetBuses.length === 0) return;
+        const totalBuses = targetBuses.length;
+        let extraTeachersCount = Math.max(0, shuffledTeachers.length - totalBuses);
+        const buses45 = targetBuses.filter(b => b.capacity === 45);
+        let assignmentCountFor45 = Math.min(extraTeachersCount, buses45.length);
+        const batch = writeBatch(db);
+        for (const bus of targetBuses) {
+            const assignedIds: string[] = [];
+            if (teacherIndex < shuffledTeachers.length) assignedIds.push(shuffledTeachers[teacherIndex++].id);
+            if (bus.capacity === 45 && assignmentCountFor45 > 0 && teacherIndex < shuffledTeachers.length) {
+                assignedIds.push(shuffledTeachers[teacherIndex++].id);
+                assignmentCountFor45--;
+            }
+            const busRoutesToUpdate = routesToUpdate.filter(r => r.busId === bus.id);
+            busRoutesToUpdate.forEach(route => batch.update(doc(db, 'routes', route.id), { teacherIds: assignedIds }));
+        }
+        try {
+            await batch.commit();
+            if (teacherIndex < totalBuses) {
+                toast({ title: t('notice'), description: `일부 버스에 교사가 배정되지 않았습니다.` });
+            } else {
+                toast({ title: t('success'), description: t('admin.teacher_assignment.assign.success') });
+            }
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.teacher_assignment.assign.error'), variant: 'destructive' });
+        }
+    };
+
+    const handleUnassignAllTeachers = async () => {
+        let routesToClear: Route[] = [];
+        if (teacherAssignmentType === 'commute') {
+            routesToClear = routes.filter(r => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+        } else {
+            routesToClear = routes.filter(r => r.type === 'AfterSchool');
+        }
+        if (routesToClear.length === 0) return;
+        const batch = writeBatch(db);
+        routesToClear.forEach(route => batch.update(doc(db, 'routes', route.id), { teacherIds: [] }));
+        try {
+            await batch.commit();
+            toast({ title: t('success'), description: t('admin.teacher_assignment.reset.success') });
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.teacher_assignment.reset.error'), variant: 'destructive' });
+        }
+    };
+    
+    const handleManualAssignClick = (bus: Bus) => {
+        setSelectedBusForTeacher(bus);
+        setIsTeacherDialogOpen(true);
+    };
+
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{t('admin.teacher_management.title')}</CardTitle>
-                <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex justify-end gap-2 mb-4">
-                    <Button variant="outline" onClick={handleDownloadTemplate}><Download className="mr-2" /> {t('admin.teacher_management.template')}</Button>
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive"><Trash2 className="mr-2" /> {t('delete_all')}</Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>{t('admin.teacher_management.delete_all.confirm_title')}</AlertDialogTitle>
-                                <AlertDialogDescription>{t('admin.teacher_management.delete_all.confirm_description')}</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleClearAllTeachers}>{t('delete')}</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
-                </div>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
-                            <TableHead className="text-right">{t('actions')}</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {teachers.map(teacher => (
-                            <TableRow key={teacher.id}>
-                                <TableCell>{teacher.name}</TableCell>
-                                <TableCell className="text-right">
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon">
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>교사 정보를 삭제하시겠습니까?</AlertDialogTitle>
-                                                <AlertDialogDescription>"{teacher.name}" 선생님의 정보가 삭제됩니다.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteSingleTeacher(teacher.id)}>{t('delete')}</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </TableCell>
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t('admin.teacher_management.title')}</CardTitle>
+                    <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex justify-end gap-2 mb-4">
+                        <Button variant="outline" onClick={handleDownloadTemplate}><Download className="mr-2" /> {t('admin.teacher_management.template')}</Button>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive"><Trash2 className="mr-2" /> {t('delete_all')}</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>{t('admin.teacher_management.delete_all.confirm_title')}</AlertDialogTitle>
+                                    <AlertDialogDescription>{t('admin.teacher_management.delete_all.confirm_description')}</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClearAllTeachers}>{t('delete')}</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+                    </div>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
+                                <TableHead className="text-right">{t('actions')}</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+                        </TableHeader>
+                        <TableBody>
+                            {teachers.map(teacher => (
+                                <TableRow key={teacher.id}>
+                                    <TableCell>{teacher.name}</TableCell>
+                                    <TableCell className="text-right">
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon">
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>교사 정보를 삭제하시겠습니까?</AlertDialogTitle>
+                                                    <AlertDialogDescription>"{teacher.name}" 선생님의 정보가 삭제됩니다.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteSingleTeacher(teacher.id)}>{t('delete')}</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            <Separator />
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t('admin.teacher_assignment.title')}</CardTitle>
+                    <CardDescription>각 버스 노선에 담당 교사를 배정합니다.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                        <Tabs value={teacherAssignmentType} onValueChange={(v) => setTeacherAssignmentType(v as any)} className="w-auto">
+                          <TabsList className="grid grid-cols-2">
+                            <TabsTrigger value="commute">{t('route_type.commute')}</TabsTrigger>
+                            <TabsTrigger value="afterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={handleBatchAssignTeachers}><UserCog className="mr-2"/>{t('admin.teacher_assignment.reassign')}</Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10"><UserX className="mr-2"/>{t('reset')}</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>{t('admin.teacher_assignment.reset.confirm_title')}</AlertDialogTitle>
+                                        <AlertDialogDescription>{t('admin.teacher_assignment.reset.confirm_description')}</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleUnassignAllTeachers}>{t('confirm')}</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    </div>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
+                                <TableHead>{t('type')}</TableHead>
+                                <TableHead>{t('admin.teacher_assignment.title')}</TableHead>
+                                <TableHead className="text-right">{t('actions')}</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {sortBuses(buses).map(bus => (
+                                <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "text-muted-foreground")}>
+                                    <TableCell>{bus.name}</TableCell>
+                                    <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
+                                    <TableCell>{getTeachersForBus(bus.id)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" onClick={() => handleManualAssignClick(bus)}>
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            {selectedBusForTeacher && (
+              <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
+                <TeacherAssignmentDialog 
+                    targetBus={selectedBusForTeacher} 
+                    allRoutes={routes} 
+                    teachers={teachers} 
+                    assignmentType={teacherAssignmentType}
+                    onOpenChange={setIsTeacherDialogOpen} 
+                />
+              </Dialog>
+            )}
+        </div>
     );
 };

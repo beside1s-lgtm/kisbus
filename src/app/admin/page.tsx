@@ -214,10 +214,10 @@ const AdminPageContent: React.FC<{
                     <TabsTrigger value="student-management">{t('admin.tabs.student_management')}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="bus-registration" className="mt-6">
-                    <BusRegistrationTab buses={buses} routes={routes} teachers={teachers} destinations={destinations} />
+                    <BusRegistrationTab buses={buses} routes={routes} destinations={destinations} />
                 </TabsContent>
                  <TabsContent value="teacher-management" className="mt-6">
-                    <TeacherManagementTab teachers={teachers} />
+                    <TeacherManagementTab teachers={teachers} buses={buses} routes={routes} />
                 </TabsContent>
                 <TabsContent value="bus-configuration" className="mt-6">
                      <AdminPageFilter
