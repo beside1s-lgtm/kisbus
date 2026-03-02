@@ -429,6 +429,37 @@ export const deleteTeacher = async (teacherId: string) => {
     });
 };
 
+export const deleteTeachersInBatch = async (teacherIds: string[]) => {
+    const batch = writeBatch(db);
+    
+    // Delete the teacher docs
+    teacherIds.forEach(id => {
+        batch.delete(doc(db, 'teachers', id));
+    });
+    
+    // Remove from all route assignments
+    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    routesSnapshot.forEach(routeDoc => {
+        const routeData = routeDoc.data() as Route;
+        if (routeData.teacherIds) {
+            const newTeacherIds = routeData.teacherIds.filter(id => !teacherIds.includes(id));
+            if (newTeacherIds.length !== routeData.teacherIds.length) {
+                batch.update(routeDoc.ref, { teacherIds: newTeacherIds });
+            }
+        }
+    });
+
+    await batch.commit()
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: `/teachers`,
+            operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+};
+
 export const deleteAllTeachers = async () => {
     const batch = writeBatch(db);
     

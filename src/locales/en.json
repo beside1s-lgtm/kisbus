@@ -144,6 +144,8 @@
     "admin.teacher_management.delete.error": "An error occurred while deleting teacher information.",
     "admin.teacher_management.delete_all.confirm_title": "Do you want to delete all teacher information?",
     "admin.teacher_management.delete_all.confirm_description": "This action cannot be undone. All teacher information and bus assignment information will be deleted.",
+    "admin.teacher_management.delete_selected.confirm_description": "Are you sure you want to delete the selected {{count}} teachers? This action cannot be undone.",
+    "admin.teacher_management.delete_success_count": "{{count}} teachers have been deleted.",
     "admin.bus_config.dest.title": "All Destinations List",
     "admin.bus_config.dest.description": "Manage routes with the buttons.",
     "admin.bus_config.dest.download.button": "Destination List",

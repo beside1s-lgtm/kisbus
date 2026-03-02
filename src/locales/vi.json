@@ -144,6 +144,8 @@
     "admin.teacher_management.delete.error": "Đã xảy ra lỗi khi xóa giáo viên.",
     "admin.teacher_management.delete_all.confirm_title": "Bạn có chắc chắn muốn xóa tất cả thông tin giáo viên không?",
     "admin.teacher_management.delete_all.confirm_description": "Hành động này không thể được hoàn tác. Tất cả hồ sơ giáo viên và phân công xe buýt sẽ bị xóa.",
+    "admin.teacher_management.delete_selected.confirm_description": "Bạn có chắc chắn muốn xóa {{count}} giáo viên đã chọn không? Hành động này không thể hoàn tác.",
+    "admin.teacher_management.delete_success_count": "{{count}} giáo viên đã được xóa.",
     "admin.bus_config.dest.title": "Danh sách tất cả các điểm đến",
     "admin.bus_config.dest.description": "Quản lý tuyến đường bằng các nút.",
     "admin.bus_config.dest.download.button": "Danh sách điểm đến",

@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { addTeachersInBatch, deleteTeacher, deleteAllTeachers, updateBus } from '@/lib/firebase-data';
+import { addTeachersInBatch, deleteTeacher, deleteAllTeachers, updateBus, deleteTeachersInBatch } from '@/lib/firebase-data';
 import type { Teacher, NewTeacher, Bus, Route, DayOfWeek } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -160,6 +160,9 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     const [teacherAssignmentType, setTeacherAssignmentType] = useState<'commute' | 'afterSchool'>('commute');
     const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
     const [selectedBusForTeacher, setSelectedBusForTeacher] = useState<Bus | null>(null);
+    const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
+
+    const sortedTeachersList = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -231,9 +234,43 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     const handleClearAllTeachers = async () => {
         try {
             await deleteAllTeachers();
+            setSelectedTeacherIds(new Set());
             toast({ title: t('success'), description: "모든 교사 정보가 삭제되었습니다." });
         } catch (error) {
             toast({ title: t('error'), description: "교사 정보 삭제 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
+    };
+
+    const handleToggleTeacherSelection = (teacherId: string, checked: boolean) => {
+        setSelectedTeacherIds(prev => {
+            const next = new Set(prev);
+            if (checked) next.add(teacherId);
+            else next.delete(teacherId);
+            return next;
+        });
+    };
+
+    const handleToggleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedTeacherIds(new Set(teachers.map(t => t.id)));
+        } else {
+            setSelectedTeacherIds(new Set());
+        }
+    };
+
+    const handleDeleteSelectedTeachers = async () => {
+        const ids = Array.from(selectedTeacherIds);
+        if (ids.length === 0) return;
+
+        const { dismiss } = toast({ title: t('processing'), description: t('admin.teacher_management.batch.processing') });
+        try {
+            await deleteTeachersInBatch(ids);
+            setSelectedTeacherIds(new Set());
+            dismiss();
+            toast({ title: t('success'), description: t('admin.teacher_management.delete_success_count', { count: ids.length }) });
+        } catch (error) {
+            dismiss();
+            toast({ title: t('error'), description: t('admin.teacher_management.delete.error'), variant: 'destructive' });
         }
     };
 
@@ -350,6 +387,27 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                             <Button variant="outline" size="sm" onClick={handleDownloadTeacherList}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
                             <Button variant="outline" size="sm" onClick={handleDownloadTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.teacher_management.template')}</Button>
                             <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
+                            
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10" disabled={selectedTeacherIds.size === 0}>
+                                        <Trash2 className="mr-2 h-4 w-4" /> {t('delete_selected')}
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>{t('confirm')}</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            {t('admin.teacher_management.delete_selected.confirm_description', { count: selectedTeacherIds.size })}
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDeleteSelectedTeachers}>{t('delete')}</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="destructive" size="sm"><Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}</Button>
@@ -367,6 +425,43 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                             </AlertDialog>
                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
                         </div>
+                    </div>
+
+                    <div className="border rounded-md max-h-[300px] overflow-y-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[50px]">
+                                        <Checkbox 
+                                            checked={selectedTeacherIds.size === teachers.length && teachers.length > 0}
+                                            onCheckedChange={handleToggleSelectAll}
+                                        />
+                                    </TableHead>
+                                    <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedTeachersList.length > 0 ? (
+                                    sortedTeachersList.map(teacher => (
+                                        <TableRow key={teacher.id}>
+                                            <TableCell>
+                                                <Checkbox 
+                                                    checked={selectedTeacherIds.has(teacher.id)}
+                                                    onCheckedChange={(checked) => handleToggleTeacherSelection(teacher.id, checked as boolean)}
+                                                />
+                                            </TableCell>
+                                            <TableCell className="font-medium">{teacher.name}</TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
+                                            등록된 교사가 없습니다.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
                     </div>
                 </div>
 
