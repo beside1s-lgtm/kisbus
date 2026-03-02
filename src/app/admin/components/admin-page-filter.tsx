@@ -1,0 +1,156 @@
+'use client';
+
+import React, { useMemo, useEffect } from 'react';
+import type { Bus, Route, Destination, DayOfWeek, RouteType } from '@/lib/types';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useTranslation } from '@/hooks/use-translation';
+import { getDay, isSunday } from 'date-fns';
+
+interface AdminPageFilterProps {
+    buses: Bus[];
+    routes: Route[];
+    destinations?: Destination[];
+    selectedBusId: string | null;
+    setSelectedBusId: (id: string | null) => void;
+    selectedDate: string;
+    setSelectedDate: (date: string) => void;
+    selectedDay: DayOfWeek;
+    setSelectedDay: (day: DayOfWeek) => void;
+    selectedRouteType: RouteType;
+    setSelectedRouteType: (type: RouteType) => void;
+    days: DayOfWeek[];
+    filterConfiguredBusesOnly?: boolean;
+    showRouteStops?: boolean;
+}
+
+export const AdminPageFilter = ({
+    buses,
+    routes,
+    destinations = [],
+    selectedBusId,
+    setSelectedBusId,
+    selectedDate,
+    setSelectedDate,
+    selectedDay,
+    setSelectedDay,
+    selectedRouteType,
+    setSelectedRouteType,
+    days,
+    filterConfiguredBusesOnly = false,
+    showRouteStops = false,
+}: AdminPageFilterProps) => {
+    const { t } = useTranslation();
+
+    const filteredBuses = useMemo(() => {
+        const activeBuses = buses.filter(bus => bus.isActive ?? true);
+        if (!filterConfiguredBusesOnly) return activeBuses;
+
+        const operationalBusIds = new Set<string>();
+        routes.forEach(route => {
+            if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
+                if (route.stops.length > 0 || route.seating.some(s => s.studentId !== null)) {
+                    operationalBusIds.add(route.busId);
+                }
+            }
+        });
+        return activeBuses.filter(bus => operationalBusIds.has(bus.id));
+    }, [buses, routes, selectedDay, selectedRouteType, filterConfiguredBusesOnly]);
+
+    useEffect(() => {
+        if (filterConfiguredBusesOnly) {
+            if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
+                setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : null);
+            } else if (!selectedBusId && filteredBuses.length > 0) {
+                setSelectedBusId(filteredBuses[0].id);
+            }
+        } else {
+             if (!selectedBusId && buses.length > 0) {
+                 const activeBuses = buses.filter(b => b.isActive ?? true);
+                setSelectedBusId(activeBuses.length > 0 ? activeBuses[0].id : null);
+            }
+        }
+    }, [filteredBuses, selectedBusId, setSelectedBusId, filterConfiguredBusesOnly, buses]);
+
+    const currentRouteStops = useMemo(() => {
+        if (!showRouteStops || !selectedBusId) return null;
+        const route = routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
+        if (!route || route.stops.length === 0) return t('no_route_info');
+
+        const stopNames = route.stops.map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
+        
+        if (selectedRouteType === 'Afternoon') {
+            return [...stopNames].reverse().join(' -> ');
+        }
+        
+        return stopNames.join(' -> ');
+    }, [showRouteStops, selectedBusId, routes, selectedDay, selectedRouteType, destinations, t]);
+    
+    const getDayOfWeekString = (dateString: string) => {
+        if (!dateString) return '';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '';
+            const dayIndex = getDay(date);
+            if(isSunday(date)) return '';
+            return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+        } catch(e) {
+            return '';
+        }
+    };
+
+    return (
+        <Card className="mb-6">
+            <CardContent className="flex flex-wrap items-end gap-4 p-4">
+                <div className="w-full sm:w-auto">
+                    <Label className="text-xs">{t('bus')}</Label>
+                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder={t('select_bus')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {filteredBuses.map((bus) => (
+                                <SelectItem key={bus.id} value={bus.id}>
+                                    {bus.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="w-full sm:w-auto">
+                    <Label className="text-xs">{t('day')}</Label>
+                    <div className="flex items-center rounded-md border border-input bg-background h-10 px-3">
+                        <Input 
+                            type="date" 
+                            value={selectedDate} 
+                            onChange={e => setSelectedDate(e.target.value)}
+                            className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                        <span className="text-sm text-muted-foreground ml-2">{getDayOfWeekString(selectedDate)}</span>
+                    </div>
+                </div>
+                <div className="w-full sm:w-auto">
+                    <Label className="text-xs">{t('route')}</Label>
+                    <Select value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)}>
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
+                            <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
+                            <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                {showRouteStops && currentRouteStops && (
+                     <div className="flex-1 min-w-full sm:min-w-fit">
+                        <Label className="text-xs">{t('route')}</Label>
+                        <p className="text-sm p-2 bg-muted rounded-md truncate">{currentRouteStops}</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+};

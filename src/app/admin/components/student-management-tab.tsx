@@ -1,0 +1,377 @@
+'use client';
+
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Papa from 'papaparse';
+import { 
+    addStudent, updateStudent, deleteStudentsInBatch, updateRouteSeating,
+    copySeatingPlan, unassignStudentFromAllRoutes
+} from '@/lib/firebase-data';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewStudent } from '@/lib/types';
+import { BusSeatMap } from '@/components/bus/bus-seat-map';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Shuffle, UserPlus, RotateCcw, Copy, Bell, Undo2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useTranslation } from '@/hooks/use-translation';
+import { writeBatch, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+// 분리된 패널 임포트
+import { StudentUnassignedPanel } from './student-unassigned-panel';
+import { StudentGlobalSearchPanel } from './student-global-search-panel';
+
+const dayLabels: { [key in DayOfWeek]: string } = {
+    Monday: '월요일', Tuesday: '화요일', Wednesday: '수요일',
+    Thursday: '목요일', Friday: '금요일', Saturday: '토요일',
+};
+
+const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
+    return Array.from({ length: capacity }, (_, i) => ({
+        seatNumber: i + 1,
+        studentId: null,
+    }));
+};
+
+interface StudentManagementTabProps {
+    students: Student[];
+    buses: Bus[];
+    routes: Route[];
+    destinations: Destination[];
+    selectedBusId: string | null;
+    selectedDay: DayOfWeek;
+    selectedRouteType: RouteType;
+    days: DayOfWeek[];
+}
+
+export const StudentManagementTab = ({
+    students, buses, routes, destinations, selectedBusId, selectedDay, selectedRouteType, days,
+}: StudentManagementTabProps) => {
+    const { toast } = useToast();
+    const { t } = useTranslation();
+    const [newStudentForm, setNewStudentForm] = useState<Partial<NewStudent>>({ gender: 'Male' });
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+    const [isCopySeatingDialogOpen, setCopySeatingDialogOpen] = useState(false);
+    const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
+    const [daysToCopyTo, setDaysToCopyTo] = useState<Partial<Record<DayOfWeek, boolean>>>(() => 
+        weekdays.reduce((acc, day) => ({ ...acc, [day]: true }), {})
+    );
+    const [routeTypesToCopyTo, setRouteTypesToCopyTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
+    
+    const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
+    const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
+    
+    const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
+    const [unassignableStudents, setUnassignableStudents] = useState<Student[]>([]);
+
+    const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+    const [globalSearchResults, setGlobalSearchResults] = useState<Student[]>([]);
+    const [selectedGlobalStudent, setSelectedGlobalStudent] = useState<Student | null>(null);
+    
+    const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
+
+    const [previousSeating, setPreviousSeating] = useState<{ seatNumber: number; studentId: string | null }[] | null>(null);
+    const [unassignedView, setUnassignedView] = useState<'current' | 'all'>('current');
+
+    const assignedRoutesForSelectedStudent = useMemo(() => {
+        if (!selectedGlobalStudent) return [];
+        return routes
+            .filter(route => route.seating.some(seat => seat.studentId === selectedGlobalStudent.id))
+            .sort((a, b) => {
+                const busA = buses.find(bus => bus.id === a.busId);
+                const busB = buses.find(bus => bus.id === b.busId);
+                const numA = busA ? parseInt(busA.name.replace(/\D/g, ''), 10) : Infinity;
+                const numB = busB ? parseInt(busB.name.replace(/\D/g, ''), 10) : Infinity;
+                if (numA !== numB) return (!isNaN(numA) ? numA : Infinity) - (!isNaN(numB) ? numB : Infinity);
+                const dayIndexA = dayOrder.indexOf(a.dayOfWeek);
+                const dayIndexB = dayOrder.indexOf(b.dayOfWeek);
+                if (dayIndexA !== dayIndexB) return dayIndexA - dayIndexB;
+                return 0;
+            });
+    }, [selectedGlobalStudent, routes, buses, dayOrder]);
+
+    const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
+    const currentRoute = useMemo(() => routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType), [routes, selectedBusId, selectedDay, selectedRouteType]);
+
+    useEffect(() => {
+        const allValidStopIds = new Set<string>();
+        routes.forEach(r => r.stops.forEach(stopId => allValidStopIds.add(stopId)));
+        setUnassignableStudents(students.filter(student => {
+            const hasMorningError = student.morningDestinationId && !allValidStopIds.has(student.morningDestinationId);
+            const hasAfternoonError = student.afternoonDestinationId && !allValidStopIds.has(student.afternoonDestinationId);
+            let hasAfterSchoolError = false;
+            if (student.afterSchoolDestinations) {
+                for (const day in student.afterSchoolDestinations) {
+                    const destId = student.afterSchoolDestinations[day as DayOfWeek];
+                    if (destId && !allValidStopIds.has(destId)) { hasAfterSchoolError = true; break; }
+                }
+            }
+            return hasMorningError || hasAfternoonError || hasAfterSchoolError;
+        }));
+    }, [students, routes]);
+
+    const unassignProcessingRef = useRef(false);
+    useEffect(() => {
+        if (!routes.length || !students.length || unassignProcessingRef.current) return;
+        const processUnassignment = async () => {
+            unassignProcessingRef.current = true;
+            const batch = writeBatch(db);
+            let updatesMade = false;
+            for (const day of days) {
+                const afterSchoolStudentIds = new Set<string>();
+                routes.filter(r => r.dayOfWeek === day && r.type === 'AfterSchool').forEach(r => {
+                    r.seating.forEach(seat => { if (seat.studentId) afterSchoolStudentIds.add(seat.studentId); });
+                });
+                if (afterSchoolStudentIds.size > 0) {
+                    for (const route of routes.filter(r => r.dayOfWeek === day && r.type === 'Afternoon')) {
+                        let seatingChanged = false;
+                        const newSeating = route.seating.map(seat => {
+                            if (seat.studentId && afterSchoolStudentIds.has(seat.studentId)) { seatingChanged = true; return { ...seat, studentId: null }; }
+                            return seat;
+                        });
+                        if (seatingChanged) { batch.update(doc(db, 'routes', route.id), { seating: newSeating }); updatesMade = true; }
+                    }
+                }
+            }
+            if (updatesMade) { try { await batch.commit(); } catch (e) { console.error(e); } }
+            unassignProcessingRef.current = false;
+        };
+        processUnassignment();
+    }, [routes, students, days]);
+
+    useEffect(() => {
+        if (selectedDay === 'Friday' && selectedRouteType === 'AfterSchool') { setFilteredUnassignedStudents([]); return; }
+        const assignedIds = new Set<string>();
+        routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => r.seating.forEach(s => { if (s.studentId) assignedIds.add(s.studentId); }));
+        let unassigned: Student[];
+        if (unassignedView === 'current') {
+            if (!currentRoute) { setFilteredUnassignedStudents([]); return; }
+            const afterSchoolIds = new Set<string>();
+            if (selectedRouteType === 'Afternoon') routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'AfterSchool').forEach(r => r.seating.forEach(s => { if (s.studentId) afterSchoolIds.add(s.studentId); }));
+            unassigned = students.filter(s => !unassignableStudents.some(u => u.id === s.id) && !assignedIds.has(s.id) && !(selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) && (
+                (selectedRouteType === 'Morning' && s.morningDestinationId && currentRoute.stops.includes(s.morningDestinationId)) ||
+                (selectedRouteType === 'Afternoon' && s.afternoonDestinationId && currentRoute.stops.includes(s.afternoonDestinationId)) ||
+                (selectedRouteType === 'AfterSchool' && s.afterSchoolDestinations?.[selectedDay] && currentRoute.stops.includes(s.afterSchoolDestinations[selectedDay]))
+            ));
+        } else { unassigned = students.filter(s => !assignedIds.has(s.id)); }
+        if (unassignedSearchQuery) unassigned = unassigned.filter(s => s.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase()));
+        setFilteredUnassignedStudents(unassigned.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+    }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, unassignableStudents, unassignedView]);
+
+    useEffect(() => { setSelectedSeat(null); setPreviousSeating(null); }, [currentRoute, unassignedView]);
+
+    const handleToggleSelectAll = useCallback(() => {
+        const allIds = filteredUnassignedStudents.map(s => s.id);
+        setSelectedStudentIds(selectedStudentIds.size === allIds.length && allIds.length > 0 ? new Set() : new Set(allIds));
+    }, [filteredUnassignedStudents, selectedStudentIds]);
+
+    const handleToggleStudentSelection = useCallback((id: string, isChecked: boolean) => {
+        const next = new Set(selectedStudentIds);
+        if (isChecked) next.add(id); else next.delete(id);
+        setSelectedStudentIds(next);
+    }, [selectedStudentIds]);
+
+    const handleDeleteSelectedStudents = useCallback(async () => {
+        const ids = Array.from(selectedStudentIds);
+        try { await deleteStudentsInBatch(ids); setSelectedStudentIds(new Set()); toast({ title: t('success') }); } catch (e) { console.error(e); }
+    }, [selectedStudentIds, t, toast]);
+
+    const handleSeatUpdate = useCallback(async (newSeating: any) => { if (currentRoute) try { await updateRouteSeating(currentRoute.id, newSeating); } catch (e) { console.error(e); } }, [currentRoute]);
+    const handleUnassignStudentFromRoute = useCallback(async (rid: string, sid: string) => {
+        const r = routes.find(x => x.id === rid);
+        if (r) await updateRouteSeating(rid, r.seating.map(s => s.studentId === sid ? { ...s, studentId: null } : s));
+    }, [routes]);
+
+    const handleStudentCardClick = useCallback(async (sid: string) => {
+        if (currentRoute && selectedSeat && !selectedSeat.studentId) {
+            const next = [...currentRoute.seating];
+            const idx = next.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
+            if (idx > -1) { next[idx].studentId = sid; await handleSeatUpdate(next); setSelectedSeat(null); }
+        }
+    }, [currentRoute, selectedSeat, handleSeatUpdate]);
+
+    const handleUnassignedStudentClick = useCallback((s: Student) => setSelectedGlobalStudent(s), []);
+
+    const handleSeatClick = useCallback(async (num: number, sid: string | null) => {
+        if (!currentRoute) return;
+        const next = [...currentRoute.seating];
+        if (selectedSeat) {
+            if (selectedSeat.studentId) {
+                const sIdx = next.findIndex(x => x.seatNumber === selectedSeat.seatNumber);
+                const tIdx = next.findIndex(x => x.seatNumber === num);
+                if (selectedSeat.seatNumber === num) next[sIdx].studentId = null;
+                else { const temp = next[sIdx].studentId; next[sIdx].studentId = next[tIdx].studentId; next[tIdx].studentId = temp; }
+                await handleSeatUpdate(next); setSelectedSeat(null);
+            } else if (!sid) setSelectedSeat({ seatNumber: num, studentId: sid });
+        } else setSelectedSeat({ seatNumber: num, studentId: sid });
+    }, [currentRoute, selectedSeat, handleSeatUpdate]);
+
+    const handleSeatContextMenu = (e: React.MouseEvent) => { e.preventDefault(); setSelectedSeat(null); };
+
+    const handleResetSeating = useCallback(async () => {
+        if (selectedBus && currentRoute) { setPreviousSeating(currentRoute.seating); await handleSeatUpdate(generateInitialSeating(selectedBus.capacity)); }
+    }, [selectedBus, currentRoute, handleSeatUpdate]);
+
+    const handleCopySeating = useCallback(async () => {
+        if (!currentRoute) return;
+        const days = weekdays.filter(d => daysToCopyTo[d]);
+        const types = (['Morning', 'Afternoon'] as const).filter(t => routeTypesToCopyTo[t]);
+        const targets = routes.filter(r => r.busId === currentRoute.busId && days.includes(r.dayOfWeek) && types.includes(r.type as any) && r.id !== currentRoute.id);
+        if (targets.length > 0) { await copySeatingPlan(currentRoute.seating, targets); setCopySeatingDialogOpen(false); }
+    }, [currentRoute, routes, daysToCopyTo, routeTypesToCopyTo, weekdays]);
+
+    const handleToggleAllCopyToDays = useCallback((c: boolean) => setDaysToCopyTo(weekdays.reduce((a, d) => ({ ...a, [d]: c }), {})), [weekdays]);
+
+    const randomizeSeating = useCallback(async () => {
+        if (!selectedBus || !currentRoute) return;
+        setPreviousSeating([...currentRoute.seating]);
+        const getDest = (s: Student) => selectedRouteType === 'Morning' ? s.morningDestinationId : selectedRouteType === 'Afternoon' ? s.afternoonDestinationId : s.afterSchoolDestinations?.[selectedDay];
+        const targets = students.filter(s => { const d = getDest(s); return d && currentRoute.stops.includes(d); });
+        if (targets.length === 0) return;
+        
+        let plan = generateInitialSeating(selectedBus.capacity);
+        const low = targets.filter(s => ['K1', 'K2', 'G1', 'G2'].includes(s.grade.toUpperCase())).sort(() => Math.random() - 0.5);
+        const other = targets.filter(s => !['K1', 'K2', 'G1', 'G2'].includes(s.grade.toUpperCase())).sort(() => Math.random() - 0.5);
+        
+        let seats = plan.map(s => s.seatNumber);
+        let lowSeats = seats.filter(s => s <= 20).sort(() => Math.random() - 0.5);
+        low.forEach(s => { if (lowSeats.length > 0) { const n = lowSeats.pop(); const i = plan.findIndex(x => x.seatNumber === n); plan[i].studentId = s.id; } });
+        let remSeats = plan.filter(x => !x.studentId).map(x => x.seatNumber).sort(() => Math.random() - 0.5);
+        other.forEach(s => { if (remSeats.length > 0) { const n = remSeats.pop(); const i = plan.findIndex(x => x.seatNumber === n); plan[i].studentId = s.id; } });
+
+        await handleSeatUpdate(plan);
+        if (selectedRouteType !== 'AfterSchool') setCopySeatingDialogOpen(true);
+    }, [selectedBus, currentRoute, students, selectedRouteType, selectedDay, handleSeatUpdate]);
+
+    const handleUndoRandomize = useCallback(async () => { if (previousSeating) { await handleSeatUpdate(previousSeating); setPreviousSeating(null); } }, [previousSeating, handleSeatUpdate]);
+
+    const handleDownloadStudentTemplate = () => {};
+    const handleDownloadAllStudents = useCallback(() => {}, []);
+    const handleDownloadUnassignedStudents = useCallback(() => {}, [filteredUnassignedStudents, selectedRouteType, selectedDay, destinations]);
+
+    const handleStudentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {};
+    const handleAddStudent = async () => {};
+    const handleDestinationChange = useCallback(async (sid: string, nid: string | null, type: string, day?: DayOfWeek) => {
+        const s = students.find(x => x.id === sid);
+        if (!s) return;
+        const val = nid === '_NONE_' ? null : nid;
+        let up: any = { applicationStatus: 'pending' };
+        if (type === 'morning') up.morningDestinationId = val;
+        else if (type === 'afternoon') up.afternoonDestinationId = val;
+        else if (type === 'afterSchool' && day) up.afterSchoolDestinations = { ...(s.afterSchoolDestinations || {}), [day]: val };
+        await updateStudent(sid, up);
+        if (selectedGlobalStudent?.id === sid) setSelectedGlobalStudent({ ...s, ...up });
+    }, [students, selectedGlobalStudent]);
+
+    const handleStudentInfoChange = useCallback(async (sid: string, f: string, v: string) => {
+        await updateStudent(sid, { [f]: v });
+        if (selectedGlobalStudent?.id === sid) setSelectedGlobalStudent(s => s ? { ...s, [f]: v } : null);
+    }, [selectedGlobalStudent]);
+
+    const handleUnassignAllFromStudent = useCallback(async () => { if (selectedGlobalStudent) await unassignStudentFromAllRoutes(selectedGlobalStudent.id); }, [selectedGlobalStudent]);
+    const handleDeleteAllStudents = useCallback(async () => {}, [students]);
+    const handleAssignStudentFromSearch = useCallback(async () => {
+        if (selectedGlobalStudent && currentRoute) {
+            const empty = currentRoute.seating.find(s => !s.studentId);
+            if (empty) await handleSeatUpdate(currentRoute.seating.map(s => s.seatNumber === empty.seatNumber ? { ...s, studentId: selectedGlobalStudent.id } : s));
+        }
+    }, [selectedGlobalStudent, currentRoute, handleSeatUpdate]);
+
+    useEffect(() => {
+        if (!globalSearchQuery) { setGlobalSearchResults([]); return; }
+        setGlobalSearchResults(students.filter(s => s.name.toLowerCase().includes(globalSearchQuery.toLowerCase())));
+    }, [globalSearchQuery, students]);
+
+    const handleGlobalStudentClick = (s: Student) => { setSelectedGlobalStudent(s); setGlobalSearchQuery(''); setGlobalSearchResults([]); };
+
+    if (!selectedBusId) return <div className="p-4 text-center">{t('admin.student_management.select_bus_prompt')}</div>;
+    if (!currentRoute) return <div className="p-4 text-center">{t('admin.student_management.no_route_info')}</div>;
+
+    const unassignedTitle = selectedRouteType === 'AfterSchool' ? t('admin.student_management.unassigned.title', { routeType: t('route_type.after_school') }) : t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) });
+
+    return (
+        <div className="space-y-6" onContextMenu={handleSeatContextMenu}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle>{t('admin.student_management.seat.title')}</CardTitle>
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={handleUndoRandomize} disabled={!previousSeating}><Undo2 className="h-4 w-4" /></Button>
+                                <Button variant="outline" size="sm" onClick={randomizeSeating}><Shuffle className="h-4 w-4" /></Button>
+                                <Button variant="outline" size="sm" onClick={handleResetSeating}><RotateCcw className="h-4 w-4" /></Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {selectedBus && (
+                                <BusSeatMap
+                                    bus={selectedBus}
+                                    seating={currentRoute.seating}
+                                    students={students}
+                                    destinations={destinations}
+                                    onSeatClick={handleSeatClick}
+                                    highlightedSeatNumber={selectedSeat?.seatNumber}
+                                    highlightedStudentId={selectedGlobalStudent?.id}
+                                    routeType={selectedRouteType}
+                                    dayOfWeek={selectedDay}
+                                />
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+                <div className="lg:col-span-1 space-y-4">
+                    <StudentUnassignedPanel
+                        filteredUnassignedStudents={filteredUnassignedStudents}
+                        destinations={destinations}
+                        selectedStudentIds={selectedStudentIds}
+                        unassignedSearchQuery={unassignedSearchQuery}
+                        setUnassignedSearchQuery={setUnassignedSearchQuery}
+                        unassignedView={unassignedView}
+                        setUnassignedView={setUnassignedView}
+                        unassignedTitle={unassignedTitle}
+                        selectedRouteType={selectedRouteType}
+                        selectedDay={selectedDay}
+                        handleDownloadUnassignedStudents={handleDownloadUnassignedStudents}
+                        handleToggleSelectAll={handleToggleSelectAll}
+                        handleDeleteSelectedStudents={handleDeleteSelectedStudents}
+                        handleToggleStudentSelection={handleToggleStudentSelection}
+                        handleUnassignedStudentClick={handleUnassignedStudentClick}
+                        handleStudentCardClick={handleStudentCardClick}
+                    />
+                    <StudentGlobalSearchPanel
+                        students={students}
+                        destinations={destinations}
+                        buses={buses}
+                        routes={routes}
+                        selectedRouteType={selectedRouteType}
+                        dayOrder={dayOrder}
+                        selectedGlobalStudent={selectedGlobalStudent}
+                        setSelectedGlobalStudent={setSelectedGlobalStudent}
+                        globalSearchQuery={globalSearchQuery}
+                        setGlobalSearchQuery={setGlobalSearchQuery}
+                        globalSearchResults={globalSearchResults}
+                        handleGlobalStudentClick={handleGlobalStudentClick}
+                        handleDownloadAllStudents={handleDownloadAllStudents}
+                        handleDownloadStudentTemplate={handleDownloadStudentTemplate}
+                        fileInputRef={fileInputRef}
+                        handleStudentFileUpload={handleStudentFileUpload}
+                        handleDeleteAllStudents={handleDeleteAllStudents}
+                        handleUnassignAllFromStudent={handleUnassignAllFromStudent}
+                        handleAssignStudentFromSearch={handleAssignStudentFromSearch}
+                        handleStudentInfoChange={handleStudentInfoChange}
+                        handleDestinationChange={handleDestinationChange}
+                        handleUnassignStudentFromRoute={handleUnassignStudentFromRoute}
+                        assignedRoutesForSelectedStudent={assignedRoutesForSelectedStudent}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
