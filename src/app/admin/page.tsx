@@ -254,18 +254,16 @@ const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes:
             routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
         }
 
-        const fixedTeacherIds = new Set<string>();
-        const routesAlreadyAssigned = routesToUpdate.filter(r => (r.teacherIds?.length || 0) > 0);
-        routesAlreadyAssigned.forEach(r => r.teacherIds?.forEach(id => fixedTeacherIds.add(id)));
+        const alreadyAssignedTeacherIds = new Set<string>();
+        routesToUpdate.forEach(r => r.teacherIds?.forEach(id => alreadyAssignedTeacherIds.add(id)));
 
-        const availableTeachers = teachers.filter(t => !fixedTeacherIds.has(t.id));
+        const availableTeachers = teachers.filter(t => !alreadyAssignedTeacherIds.has(t.id));
         const shuffledTeachers = [...availableTeachers].sort(() => 0.5 - Math.random());
         let teacherIndex = 0;
 
         const getNextTeacher = () => {
-            if (shuffledTeachers.length === 0) return null;
             if (teacherIndex >= shuffledTeachers.length) {
-                teacherIndex = 0;
+                return null;
             }
             return shuffledTeachers[teacherIndex++];
         };
@@ -274,25 +272,25 @@ const BusRegistrationTab = ({ buses, routes, teachers }: { buses: Bus[], routes:
         let updatedCount = 0;
 
         const targetBuses = buses.filter(bus => {
-            // Filter out buses that are inactive OR explicitly excluded from assignment
             if (!(bus.isActive ?? true) || (bus.excludeFromAssignment ?? false)) return false;
-            
             const busRoutes = routesToUpdate.filter(r => r.busId === bus.id);
             return !busRoutes.some(r => (r.teacherIds?.length || 0) > 0);
         });
 
         const assignedBusIds = new Set<string>();
 
+        // 45-seaters first
         const buses45 = targetBuses.filter(b => b.capacity === 45);
         for (const bus of buses45) {
-            if (shuffledTeachers.length < 2) break; 
             const teacher1 = getNextTeacher();
+            if (!teacher1) break;
+            
             const teacher2 = getNextTeacher();
-            if (!teacher1 || !teacher2) break;
+            const teacherIds = teacher2 ? [teacher1.id, teacher2.id] : [teacher1.id];
 
             relevantDays.forEach(day => {
                 routesToUpdate.filter(r => r.busId === bus.id && r.dayOfWeek === day).forEach(route => {
-                    batch.update(doc(db, 'routes', route.id), { teacherIds: [teacher1.id, teacher2.id] });
+                    batch.update(doc(db, 'routes', route.id), { teacherIds });
                 });
             });
             assignedBusIds.add(bus.id);
