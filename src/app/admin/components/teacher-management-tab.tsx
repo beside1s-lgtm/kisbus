@@ -210,13 +210,22 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
         document.body.removeChild(link);
     };
 
-    const handleDeleteSingleTeacher = async (id: string) => {
-        try {
-            await deleteTeacher(id);
-            toast({ title: t('success'), description: t('admin.teacher_management.delete.success') });
-        } catch (error) {
-            toast({ title: t('error'), description: t('admin.teacher_management.delete.error'), variant: 'destructive' });
+    const handleDownloadTeacherList = () => {
+        if (teachers.length === 0) {
+            toast({ title: t('notice'), description: "다운로드할 교사 데이터가 없습니다." });
+            return;
         }
+        const headers = "선생님 이름";
+        const csvRows = teachers.map(t => `"${t.name.replace(/"/g, '""')}"`);
+        const csvContent = "\uFEFF" + headers + "\n" + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `KIS_Teacher_List_${format(new Date(), 'yyyyMMdd')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const handleClearAllTeachers = async () => {
@@ -327,6 +336,7 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <h3 className="text-lg font-semibold">교사 명단 관리</h3>
                         <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" onClick={handleDownloadTeacherList}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
                             <Button variant="outline" size="sm" onClick={handleDownloadTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.teacher_management.template')}</Button>
                             <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
                             <AlertDialog>
@@ -346,52 +356,6 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                             </AlertDialog>
                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
                         </div>
-                    </div>
-                    <div className="border rounded-md">
-                        <ScrollArea className="h-[240px]">
-                            <Table>
-                                <TableHeader className="sticky top-0 bg-card z-10">
-                                    <TableRow>
-                                        <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
-                                        <TableHead className="text-right">{t('actions')}</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {teachers.length > 0 ? (
-                                        teachers.map(teacher => (
-                                            <TableRow key={teacher.id}>
-                                                <TableCell className="py-2">{teacher.name}</TableCell>
-                                                <TableCell className="text-right py-2">
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                                            </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>교사 정보를 삭제하시겠습니까?</AlertDialogTitle>
-                                                                <AlertDialogDescription>"{teacher.name}" 선생님의 정보가 삭제됩니다.</AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                                                <AlertDialogAction onClick={() => handleDeleteSingleTeacher(teacher.id)}>{t('delete')}</AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={2} className="text-center text-muted-foreground py-10">
-                                                등록된 교사가 없습니다.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </ScrollArea>
                     </div>
                 </div>
 
