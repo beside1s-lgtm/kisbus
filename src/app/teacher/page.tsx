@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
     onBusesUpdate,
     onStudentsUpdate,
@@ -268,6 +267,7 @@ export default function TeacherPage() {
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
 
+  const lastLoadedRouteIdRef = useRef<string | null>(null);
 
   const { toast } = useToast();
 
@@ -438,6 +438,7 @@ export default function TeacherPage() {
       const fetchLeaderRecords = async () => {
           try {
               const records = await getGroupLeaderRecords(currentRoute.id);
+              lastLoadedRouteIdRef.current = currentRoute.id;
               setGroupLeaderRecords(records);
           } catch(e) {
               console.error("Failed to fetch leader records", e);
@@ -447,11 +448,12 @@ export default function TeacherPage() {
       fetchLeaderRecords();
     } else {
         setGroupLeaderRecords([]);
+        lastLoadedRouteIdRef.current = null;
     }
   }, [currentRoute]);
   
   useEffect(() => {
-    if (currentRoute) {
+    if (currentRoute && lastLoadedRouteIdRef.current === currentRoute.id) {
         const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
         saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
     }

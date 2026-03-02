@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useMemo } from 'react';
 import { GroupLeaderRecord } from '@/lib/types';
@@ -33,6 +32,10 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
     setRecords([]);
   }
 
+  const handleDeleteRecord = (record: GroupLeaderRecord) => {
+    setRecords(prev => prev.filter(r => r.studentId !== record.studentId || r.startDate !== record.startDate));
+  };
+
   const processedRecords = useMemo(() => {
     const today = new Date();
     return records.map(record => {
@@ -43,8 +46,8 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
       }
       return record;
     }).sort((a, b) => {
-        if (a.endDate === null) return -1;
-        if (b.endDate === null) return 1;
+        if (a.endDate === null && b.endDate !== null) return -1;
+        if (a.endDate !== null && b.endDate === null) return 1;
         return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
     });
   }, [records]);
@@ -68,18 +71,29 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
                 <TableHead>{t('teacher_page.group_leader_management.name')}</TableHead>
                 <TableHead>{t('teacher_page.group_leader_management.start_date')}</TableHead>
                 <TableHead>{t('teacher_page.group_leader_management.end_date')}</TableHead>
-                <TableHead className="text-right">{t('teacher_page.group_leader_management.days')}</TableHead>
+                <TableHead>{t('teacher_page.group_leader_management.days')}</TableHead>
+                <TableHead className="text-right">{t('actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {processedRecords.map((record) => (
                 <TableRow key={record.studentId + record.startDate}>
-                  <TableCell>{record.name}</TableCell>
+                  <TableCell className="font-medium">{record.name}</TableCell>
                   <TableCell>{record.startDate}</TableCell>
                   <TableCell>
                     {record.endDate ? record.endDate : <Badge variant="secondary">{t('teacher_page.group_leader_management.active')}</Badge>}
                   </TableCell>
-                  <TableCell className="text-right">{record.days}</TableCell>
+                  <TableCell>{record.days}</TableCell>
+                  <TableCell className="text-right">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => handleDeleteRecord(record)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
