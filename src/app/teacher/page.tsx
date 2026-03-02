@@ -127,36 +127,36 @@ const AllStudentsBoardingStatus = ({
     const getStatusBadge = (status: 'boarded' | 'notRiding' | 'disembarked' | 'not_boarded') => {
         switch(status) {
             case 'boarded':
-                return <Badge variant="default">{t('teacher_page.status_boarded')}</Badge>;
+                return <Badge variant="default" className="text-[10px] sm:text-xs py-0 h-5 whitespace-nowrap">{t('teacher_page.status_boarded')}</Badge>;
             case 'notRiding':
-                return <Badge variant="destructive">{t('teacher_page.status_not_riding_today')}</Badge>;
+                return <Badge variant="destructive" className="text-[10px] sm:text-xs py-0 h-5 whitespace-nowrap">{t('teacher_page.status_not_riding_today')}</Badge>;
             case 'disembarked':
-                 return <Badge variant="outline">{t('teacher_page.status_disembarked')}</Badge>;
+                 return <Badge variant="outline" className="text-[10px] sm:text-xs py-0 h-5 whitespace-nowrap">{t('teacher_page.status_disembarked')}</Badge>;
             case 'not_boarded':
-                 return <Badge variant="secondary">{t('teacher_page.status_not_boarded')}</Badge>;
+                 return <Badge variant="secondary" className="text-[10px] sm:text-xs py-0 h-5 whitespace-nowrap">{t('teacher_page.status_not_boarded')}</Badge>;
         }
     }
 
     return (
-        <Card className="h-full">
-            <CardHeader>
-                <CardTitle>{t('teacher_page.all_buses_view.title')}</CardTitle>
+        <Card className="h-full border-none shadow-none lg:border lg:shadow-sm">
+            <CardHeader className="px-2 py-3 sm:px-4">
+                <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_buses_view.title')}</CardTitle>
             </CardHeader>
-            <CardContent className="max-h-[70vh] overflow-y-auto">
+            <CardContent className="px-1 sm:px-2 max-h-[70vh] overflow-y-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>{t('student.name')}</TableHead>
-                            <TableHead>{t('bus')}</TableHead>
-                            <TableHead>{t('teacher_page.status')}</TableHead>
+                            <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
+                            <TableHead className="whitespace-nowrap w-px">{t('bus')}</TableHead>
+                            <TableHead className="whitespace-nowrap">{t('teacher_page.status')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {allStudentsOnDay.map(student => (
                             <TableRow key={student.id}>
-                                <TableCell>{formatStudentName(student)}</TableCell>
-                                <TableCell>{student.busName}</TableCell>
-                                <TableCell>
+                                <TableCell className="whitespace-nowrap font-medium text-xs">{formatStudentName(student)}</TableCell>
+                                <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{student.busName}</TableCell>
+                                <TableCell className="whitespace-nowrap">
                                     {getStatusBadge(student.status)}
                                 </TableCell>
                             </TableRow>
@@ -164,7 +164,7 @@ const AllStudentsBoardingStatus = ({
                     </TableBody>
                 </Table>
                  {allStudentsOnDay.length === 0 && (
-                    <div className="text-center text-sm text-muted-foreground py-8">
+                    <div className="text-center text-xs text-muted-foreground py-8">
                        {t('no_students')}
                     </div>
                 )}
@@ -253,33 +253,33 @@ const AllGroupLeadersStatus = ({
     }, [relevantRoutes, buses, leadersMap, t]);
 
     return (
-        <Card className="h-full">
-            <CardHeader>
-                <CardTitle>{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
+        <Card className="h-full border-none shadow-none lg:border lg:shadow-sm">
+            <CardHeader className="px-2 py-3 sm:px-4">
+                <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
             </CardHeader>
-            <CardContent className="max-h-[70vh] overflow-y-auto">
+            <CardContent className="px-1 sm:px-2 max-h-[70vh] overflow-y-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>{t('bus')}</TableHead>
-                            <TableHead>{t('teacher_page.group_leader_management.name')}</TableHead>
-                            <TableHead>{t('teacher_page.group_leader_management.days')}</TableHead>
-                            <TableHead className="text-right">{t('actions')}</TableHead>
+                            <TableHead className="whitespace-nowrap w-px">{t('bus')}</TableHead>
+                            <TableHead className="whitespace-nowrap">{t('teacher_page.group_leader_management.name')}</TableHead>
+                            <TableHead className="whitespace-nowrap w-px">{t('teacher_page.group_leader_management.days')}</TableHead>
+                            <TableHead className="text-right whitespace-nowrap w-px">{t('actions')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {sortedBusesWithLeaders.map((item, idx) => (
                             <TableRow key={idx}>
-                                <TableCell className="font-medium">{item.busName}</TableCell>
-                                <TableCell>{item.leaderName}</TableCell>
-                                <TableCell>
+                                <TableCell className="font-medium whitespace-nowrap text-xs">{item.busName}</TableCell>
+                                <TableCell className="whitespace-nowrap text-xs truncate max-w-[100px] sm:max-w-none">{item.leaderName}</TableCell>
+                                <TableCell className="whitespace-nowrap text-xs">
                                     {item.days > 0 ? `${item.days}${t('teacher_page.group_leader_days_suffix')}` : '-'}
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right whitespace-nowrap">
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-8 sm:w-8">
+                                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 text-destructive" />
                                             </Button>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
@@ -301,7 +301,7 @@ const AllGroupLeadersStatus = ({
                     </TableBody>
                 </Table>
                 {sortedBusesWithLeaders.length === 0 && (
-                    <div className="text-center text-sm text-muted-foreground py-8">
+                    <div className="text-center text-xs text-muted-foreground py-8">
                         {t('no_route_info')}
                     </div>
                 )}
@@ -357,14 +357,14 @@ const TeacherAssignmentViewDialog = ({
                     <TableBody>
                         {sortBuses([...buses]).map(bus => (
                             <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "opacity-50 bg-muted/20")}>
-                                <TableCell className="font-medium">{bus.name}</TableCell>
-                                <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
+                                <TableCell className="font-medium whitespace-nowrap">{bus.name}</TableCell>
+                                <TableCell className="whitespace-nowrap">{t(`bus_type.${bus.type}`)}</TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">
                                         {getTeachersForBus(bus.id).split(', ').map((name, i) => (
                                             name === t('unassigned') ? 
                                             <span key={i} className="text-muted-foreground italic text-xs">{name}</span> :
-                                            <Badge key={i} variant="secondary" className="font-normal text-xs">{name}</Badge>
+                                            <Badge key={i} variant="secondary" className="font-normal text-xs py-0 h-5 whitespace-nowrap">{name}</Badge>
                                         ))}
                                     </div>
                                 </TableCell>
