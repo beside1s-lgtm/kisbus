@@ -1,9 +1,8 @@
-
 'use client';
 
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { addTeachersInBatch, deleteTeacher, deleteAllTeachers } from '@/lib/firebase-data';
+import { addTeachersInBatch, deleteTeacher, deleteAllTeachers, updateBus } from '@/lib/firebase-data';
 import type { Teacher, NewTeacher, Bus, Route, DayOfWeek } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,8 +19,9 @@ import { cn } from '@/lib/utils';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { format } from 'date-fns';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
     return [...buses].sort((a, b) => {
@@ -321,6 +321,17 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
         setIsTeacherDialogOpen(true);
     };
 
+    const handleToggleBusExcludeAssignment = async (bus: Bus) => {
+        try {
+            const newExclude = !(bus.excludeFromAssignment ?? false);
+            await updateBus(bus.id, { excludeFromAssignment: newExclude });
+            toast({ title: t('success'), description: `"${bus.name}" 버스 배정 제외 상태가 ${newExclude ? '설정' : '해제'}되었습니다.` });
+        } catch (error) {
+            console.error("Error updating bus assignment status:", error);
+            toast({ title: t('error'), description: "상태 변경 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -399,6 +410,7 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead>배정 제외</TableHead>
                                     <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
                                     <TableHead>{t('type')}</TableHead>
                                     <TableHead>{t('admin.teacher_assignment.title')}</TableHead>
@@ -408,6 +420,13 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                             <TableBody>
                                 {sortBuses(buses).map(bus => (
                                     <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "text-muted-foreground bg-muted/20")}>
+                                        <TableCell>
+                                            <Switch
+                                                checked={bus.excludeFromAssignment ?? false}
+                                                onCheckedChange={() => handleToggleBusExcludeAssignment(bus)}
+                                                aria-label="Toggle bus assignment exclude state"
+                                            />
+                                        </TableCell>
                                         <TableCell className="font-medium">{bus.name}</TableCell>
                                         <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
                                         <TableCell>

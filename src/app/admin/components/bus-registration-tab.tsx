@@ -111,17 +111,6 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
         }
     };
 
-    const handleToggleBusExcludeAssignment = async (bus: Bus) => {
-        try {
-            const newExclude = !(bus.excludeFromAssignment ?? false);
-            await updateBus(bus.id, { excludeFromAssignment: newExclude });
-            toast({ title: t('success'), description: `"${bus.name}" 버스 배정 제외 상태가 ${newExclude ? '설정' : '해제'}되었습니다.` });
-        } catch (error) {
-            console.error("Error updating bus assignment status:", error);
-            toast({ title: t('error'), description: "상태 변경 중 오류가 발생했습니다.", variant: 'destructive' });
-        }
-    };
-
     const handleDownloadBusTemplate = () => {
         const headers = "번호,타입";
         const examples = [
@@ -184,15 +173,14 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
             toast({ title: t('notice'), description: "다운로드할 버스 데이터가 없습니다." });
             return;
         }
-        const headers = ["버스 번호", "타입", "상태", "배정 제외 여부"];
+        const headers = ["버스 번호", "타입", "상태"];
         const sorted = sortBuses(buses);
         const csvRows = sorted.map(bus => {
             const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
             return [
                 escape(bus.name),
                 escape(t(`bus_type.${bus.type}`)),
-                escape((bus.isActive ?? true) ? '활성' : '비활성'),
-                escape((bus.excludeFromAssignment ?? false) ? '예' : '아니오')
+                escape((bus.isActive ?? true) ? '활성' : '비활성')
             ].join(',');
         });
         const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
@@ -252,7 +240,6 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
                     <TableHeader>
                         <TableRow>
                             <TableHead>활성화</TableHead>
-                            <TableHead>배정 제외</TableHead>
                             <TableHead>{t('admin.bus_registration.bus_number')}</TableHead>
                             <TableHead>{t('type')}</TableHead>
                             <TableHead className="text-right">{t('actions')}</TableHead>
@@ -266,13 +253,6 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
                                         checked={bus.isActive ?? true}
                                         onCheckedChange={() => handleToggleBusActive(bus)}
                                         aria-label="Toggle bus active state"
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <Switch
-                                        checked={bus.excludeFromAssignment ?? false}
-                                        onCheckedChange={() => handleToggleBusExcludeAssignment(bus)}
-                                        aria-label="Toggle bus assignment exclude state"
                                     />
                                 </TableCell>
                                 <TableCell>{bus.name}</TableCell>
