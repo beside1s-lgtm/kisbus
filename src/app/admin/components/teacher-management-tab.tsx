@@ -1,13 +1,14 @@
+
 'use client';
 
-import React, { useRef, useState, useMemo, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import Papa from 'papaparse';
 import { addTeachersInBatch, deleteTeacher, deleteAllTeachers, updateBus, deleteTeachersInBatch } from '@/lib/firebase-data';
 import type { Teacher, NewTeacher, Bus, Route, DayOfWeek } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Upload, Trash2, UserCog, UserX, Pencil, Users } from 'lucide-react';
+import { Download, Upload, Trash2, UserCog, UserX, Pencil, Users, Undo2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -161,8 +162,19 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
     const [selectedBusForTeacher, setSelectedBusForTeacher] = useState<Bus | null>(null);
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
+    const [previousRouteAssignments, setPreviousRouteAssignments] = useState<Record<string, string[]> | null>(null);
 
     const sortedTeachersList = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
+
+    const isBusOperational = useCallback((busId: string) => {
+        let categoryRoutes: Route[] = [];
+        if (teacherAssignmentType === 'commute') {
+            categoryRoutes = routes.filter(r => r.busId === busId && ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+        } else {
+            categoryRoutes = routes.filter(r => r.busId === busId && r.type === 'AfterSchool');
+        }
+        return categoryRoutes.some(r => r.stops.length > 0 || r.seating.some(s => s.studentId !== null));
+    }, [routes, teacherAssignmentType]);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -290,24 +302,41 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             return;
         }
         let routesToUpdate: Route[] = [];
-        let otherRoutes: Route[] = [];
         let relevantDays: DayOfWeek[];
         if (teacherAssignmentType === 'commute') {
             relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
             routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
-            otherRoutes = routes.filter(r => !routesToUpdate.includes(r));
         } else {
             relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
-            otherRoutes = routes.filter(r => !routesToUpdate.includes(r));
         }
+
+        const backup: Record<string, string[]> = {};
+        routesToUpdate.forEach(r => {
+            backup[r.id] = r.teacherIds || [];
+        });
+        setPreviousRouteAssignments(backup);
+
+        const otherRoutes = routes.filter(r => !routesToUpdate.includes(r));
         const busyTeacherIds = new Set<string>();
         otherRoutes.forEach(r => r.teacherIds?.forEach(id => busyTeacherIds.add(id)));
+        
         const availableTeachers = teachers.filter(t => !busyTeacherIds.has(t.id));
         const shuffledTeachers = [...availableTeachers].sort(() => Math.random() - 0.5);
+        
         let teacherIndex = 0;
-        const targetBuses = sortBuses(buses.filter(bus => (bus.isActive ?? true) && !(bus.excludeFromAssignment ?? false)));
-        if (targetBuses.length === 0) return;
+        const targetBuses = sortBuses(buses.filter(bus => {
+            const isActive = bus.isActive ?? true;
+            const isExcluded = bus.excludeFromAssignment ?? false;
+            if (!isActive || isExcluded) return false;
+            return isBusOperational(bus.id);
+        }));
+
+        if (targetBuses.length === 0) {
+            toast({ title: t('notice'), description: t('admin.teacher_assignment.assign.no_operational_buses') });
+            return;
+        }
+
         const totalBuses = targetBuses.length;
         let extraTeachersCount = Math.max(0, shuffledTeachers.length - totalBuses);
         const buses45 = targetBuses.filter(b => b.capacity === 45);
@@ -332,6 +361,21 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             }
         } catch (error) {
             toast({ title: t('error'), description: t('admin.teacher_assignment.assign.error'), variant: 'destructive' });
+        }
+    };
+
+    const handleRestoreAssignments = async () => {
+        if (!previousRouteAssignments) return;
+        const batch = writeBatch(db);
+        Object.entries(previousRouteAssignments).forEach(([routeId, teacherIds]) => {
+            batch.update(doc(db, 'routes', routeId), { teacherIds });
+        });
+        try {
+            await batch.commit();
+            setPreviousRouteAssignments(null);
+            toast({ title: t('success'), description: t('admin.teacher_assignment.undo_success') });
+        } catch (error) {
+            toast({ title: t('error'), description: "복구 중 오류가 발생했습니다.", variant: 'destructive' });
         }
     };
 
@@ -482,6 +526,11 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                                 <Button variant="outline" size="sm" onClick={handleBatchAssignTeachers} className="flex-1 sm:flex-none">
                                     <UserCog className="mr-2 h-4 w-4"/>{t('admin.teacher_assignment.reassign')}
                                 </Button>
+                                {previousRouteAssignments && (
+                                    <Button variant="outline" size="sm" onClick={handleRestoreAssignments} className="flex-1 sm:flex-none text-blue-600 border-blue-200 hover:bg-blue-50">
+                                        <Undo2 className="mr-2 h-4 w-4"/>{t('admin.teacher_assignment.undo')}
+                                    </Button>
+                                )}
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10 flex-1 sm:flex-none">
@@ -513,33 +562,44 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {sortBuses(buses).map(bus => (
-                                    <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "text-muted-foreground bg-muted/20")}>
-                                        <TableCell>
-                                            <Switch
-                                                checked={bus.excludeFromAssignment ?? false}
-                                                onCheckedChange={() => handleToggleBusExcludeAssignment(bus)}
-                                                aria-label="Toggle bus assignment exclude state"
-                                            />
-                                        </TableCell>
-                                        <TableCell className="font-medium">{bus.name}</TableCell>
-                                        <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap gap-1">
-                                                {getTeachersForBus(bus.id).split(', ').map((name, i) => (
-                                                    name === t('unassigned') ? 
-                                                    <span key={i} className="text-muted-foreground italic text-xs">{name}</span> :
-                                                    <Badge key={i} variant="secondary" className="font-normal text-xs">{name}</Badge>
-                                                ))}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleManualAssignClick(bus)}>
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {sortBuses(buses).map(bus => {
+                                    const isOperational = isBusOperational(bus.id);
+                                    return (
+                                        <TableRow key={bus.id} className={cn(
+                                            !(bus.isActive ?? true) && "text-muted-foreground bg-muted/20",
+                                            !isOperational && "opacity-60 bg-yellow-50/30"
+                                        )}>
+                                            <TableCell>
+                                                <Switch
+                                                    checked={bus.excludeFromAssignment ?? false}
+                                                    onCheckedChange={() => handleToggleBusExcludeAssignment(bus)}
+                                                    aria-label="Toggle bus assignment exclude state"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="font-medium whitespace-nowrap">
+                                                {bus.name}
+                                                {!isOperational && (bus.isActive ?? true) && (
+                                                    <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4 border-yellow-300 text-yellow-700 bg-yellow-50">운행없음</Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {getTeachersForBus(bus.id).split(', ').map((name, i) => (
+                                                        name === t('unassigned') ? 
+                                                        <span key={i} className="text-muted-foreground italic text-xs">{name}</span> :
+                                                        <Badge key={i} variant="secondary" className="font-normal text-xs">{name}</Badge>
+                                                    ))}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleManualAssignClick(bus)}>
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     </div>

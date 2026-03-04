@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
@@ -207,9 +208,12 @@
     "admin.teacher_assignment.copy.success": "Teacher assignment information has been copied to weekday commute routes.",
     "admin.teacher_assignment.copy.error": "An error occurred while copying.",
     "admin.teacher_assignment.reassign": "Reassign",
+    "admin.teacher_assignment.undo": "Undo",
+    "admin.teacher_assignment.undo_success": "Restored to previous assignment state.",
     "admin.teacher_assignment.manual_change": "Manual Change",
     "admin.teacher_assignment.assign.no_route_error": "Please select a route first.",
     "admin.teacher_assignment.assign.no_teacher_error": "No teachers are registered. Please register teachers first.",
+    "admin.teacher_assignment.assign.no_operational_buses": "No operational buses to assign.",
     "admin.teacher_assignment.assign.not_enough_teachers": "Not enough teachers to assign. ({{count}} available)",
     "admin.teacher_assignment.assign.success": "Assigned teacher has been set.",
     "admin.teacher_assignment.assign.error": "An error occurred while assigning the teacher.",

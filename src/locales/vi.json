@@ -1,3 +1,4 @@
+
 {
     "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -207,9 +208,12 @@
     "admin.teacher_assignment.copy.success": "Thông tin giáo viên phụ trách đã được sao chép sang các tuyến đi lại trong tuần.",
     "admin.teacher_assignment.copy.error": "Đã xảy ra lỗi khi sao chép.",
     "admin.teacher_assignment.reassign": "Phân công lại",
+    "admin.teacher_assignment.undo": "Hoàn tác",
+    "admin.teacher_assignment.undo_success": "Đã khôi phục về trạng thái phân công trước đó.",
     "admin.teacher_assignment.manual_change": "Thay đổi thủ công",
     "admin.teacher_assignment.assign.no_route_error": "Vui lòng chọn một tuyến đường.",
     "admin.teacher_assignment.assign.no_teacher_error": "Không có giáo viên nào được đăng ký. Vui lòng đăng ký giáo viên trước.",
+    "admin.teacher_assignment.assign.no_operational_buses": "Không có xe buýt hoạt động để phân công.",
     "admin.teacher_assignment.assign.not_enough_teachers": "Không đủ giáo viên để phân công. ({{count}} có sẵn)",
     "admin.teacher_assignment.assign.success": "Giáo viên phụ trách đã được phân công.",
     "admin.teacher_assignment.assign.error": "Đã xảy ra lỗi khi phân công giáo viên.",

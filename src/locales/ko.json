@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -207,9 +208,12 @@
     "admin.teacher_assignment.copy.success": "담당 교사 정보가 평일 등하교 노선에 복사되었습니다.",
     "admin.teacher_assignment.copy.error": "복사 중 오류가 발생했습니다.",
     "admin.teacher_assignment.reassign": "재배정",
+    "admin.teacher_assignment.undo": "되돌리기",
+    "admin.teacher_assignment.undo_success": "이전 배정 상태로 복구되었습니다.",
     "admin.teacher_assignment.manual_change": "수동 변경",
     "admin.teacher_assignment.assign.no_route_error": "노선을 먼저 선택해주세요.",
     "admin.teacher_assignment.assign.no_teacher_error": "등록된 교사가 없습니다. 교사를 먼저 등록해주세요.",
+    "admin.teacher_assignment.assign.no_operational_buses": "배정 대상인 운행 버스가 없습니다.",
     "admin.teacher_assignment.assign.not_enough_teachers": "배정할 교사가 부족합니다. (가능: {{count}}명)",
     "admin.teacher_assignment.assign.success": "담당 교사가 배정되었습니다.",
     "admin.teacher_assignment.assign.error": "교사 배정 중 오류가 발생했습니다.",
