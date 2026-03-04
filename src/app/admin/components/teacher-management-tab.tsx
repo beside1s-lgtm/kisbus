@@ -319,7 +319,17 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
 
         const otherRoutes = routes.filter(r => !routesToUpdate.includes(r));
         const busyTeacherIds = new Set<string>();
+        
+        // 1. Teachers assigned to OTHER categories (e.g. assigning Commute, check AfterSchool assignments)
         otherRoutes.forEach(r => r.teacherIds?.forEach(id => busyTeacherIds.add(id)));
+        
+        // 2. IMPORTANT: Also exclude teachers manually assigned to "Excluded" buses in the CURRENT category
+        const excludedBusIds = new Set(buses.filter(bus => bus.excludeFromAssignment === true).map(bus => bus.id));
+        routesToUpdate.forEach(r => {
+            if (excludedBusIds.has(r.busId)) {
+                r.teacherIds?.forEach(id => busyTeacherIds.add(id));
+            }
+        });
         
         const availableTeachers = teachers.filter(t => !busyTeacherIds.has(t.id));
         const shuffledTeachers = [...availableTeachers].sort(() => Math.random() - 0.5);
