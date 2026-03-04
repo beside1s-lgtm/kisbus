@@ -51,7 +51,8 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
 
     const relevantRoutes = useMemo(() => {
         if (assignmentType === 'commute') {
-            return allRoutes.filter(r => r.busId === targetBus.id && weekdays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+            // User requested: teachers only manage afternoon bus
+            return allRoutes.filter(r => r.busId === targetBus.id && weekdays.includes(r.dayOfWeek) && r.type === 'Afternoon');
         }
         return allRoutes.filter(r => r.busId === targetBus.id && r.type === 'AfterSchool');
     }, [allRoutes, targetBus, assignmentType, weekdays]);
@@ -66,7 +67,7 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
         const otherRoutes = allRoutes.filter(r => {
             if (r.busId === targetBus.id) return false;
             if (assignmentType === 'commute') {
-                return weekdays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon');
+                return weekdays.includes(r.dayOfWeek) && r.type === 'Afternoon';
             }
             return r.type === 'AfterSchool';
         });
@@ -112,7 +113,7 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
             <DialogHeader>
                 <DialogTitle>{t('admin.teacher_assignment.change.title')} - {targetBus.name}</DialogTitle>
                 <CardDescription>
-                    {assignmentType === 'commute' ? "평일 등하교" : "방과후"} 노선에 대한 담당교사를 변경합니다.
+                    {assignmentType === 'commute' ? "평일 하교" : "방과후"} 노선에 대한 담당교사를 변경합니다.
                 </CardDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
@@ -169,7 +170,8 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     const isBusOperational = useCallback((busId: string) => {
         let categoryRoutes: Route[] = [];
         if (teacherAssignmentType === 'commute') {
-            categoryRoutes = routes.filter(r => r.busId === busId && ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+            // User requested: only check Afternoon route for operation
+            categoryRoutes = routes.filter(r => r.busId === busId && ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon');
         } else {
             categoryRoutes = routes.filter(r => r.busId === busId && r.type === 'AfterSchool');
         }
@@ -287,7 +289,7 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     };
 
     const getTeachersForBus = (busId: string) => {
-        const relevantRouteType = teacherAssignmentType === 'commute' ? 'Morning' : 'AfterSchool';
+        const relevantRouteType = teacherAssignmentType === 'commute' ? 'Afternoon' : 'AfterSchool';
         const relevantRoute = routes.find(r => r.busId === busId && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
         if (!relevantRoute || !relevantRoute.teacherIds) return t('unassigned');
         const teacherNames = relevantRoute.teacherIds
@@ -305,7 +307,8 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
         let relevantDays: DayOfWeek[];
         if (teacherAssignmentType === 'commute') {
             relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+            // User requested: teachers only manage afternoon bus
+            routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'Afternoon');
         } else {
             relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
@@ -392,7 +395,8 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     const handleUnassignAllTeachers = async () => {
         let routesToClear: Route[] = [];
         if (teacherAssignmentType === 'commute') {
-            routesToClear = routes.filter(r => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && (r.type === 'Morning' || r.type === 'Afternoon'));
+            // User requested: teachers only manage afternoon bus
+            routesToClear = routes.filter(r => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon');
         } else {
             routesToClear = routes.filter(r => r.type === 'AfterSchool');
         }
