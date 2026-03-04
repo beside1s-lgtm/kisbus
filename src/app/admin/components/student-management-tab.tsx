@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -26,6 +27,16 @@ import { db } from '@/lib/firebase';
 // 분리된 패널 임포트
 import { StudentUnassignedPanel } from './student-unassigned-panel';
 import { StudentGlobalSearchPanel } from './student-global-search-panel';
+
+const getGradeValue = (grade: string): number => {
+  const upperGrade = grade.toUpperCase();
+  if (upperGrade.startsWith('K')) {
+      const num = parseInt(upperGrade.replace('K', ''), 10);
+      return isNaN(num) ? 0 : -100 + num;
+  }
+  const num = parseInt(upperGrade.replace(/\D/g, ''), 10);
+  return isNaN(num) ? 999 : num;
+};
 
 const dayLabels: { [key in DayOfWeek]: string } = {
     Monday: '월요일', Tuesday: '화요일', Wednesday: '수요일',
@@ -232,23 +243,133 @@ export const StudentManagementTab = ({
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
         setPreviousSeating([...currentRoute.seating]);
-        const getDest = (s: Student) => selectedRouteType === 'Morning' ? s.morningDestinationId : selectedRouteType === 'Afternoon' ? s.afternoonDestinationId : s.afterSchoolDestinations?.[selectedDay];
-        const targets = students.filter(s => { const d = getDest(s); return d && currentRoute.stops.includes(d); });
-        if (targets.length === 0) return;
-        
-        let plan = generateInitialSeating(selectedBus.capacity);
-        const low = targets.filter(s => ['K1', 'K2', 'G1', 'G2'].includes(s.grade.toUpperCase())).sort(() => Math.random() - 0.5);
-        const other = targets.filter(s => !['K1', 'K2', 'G1', 'G2'].includes(s.grade.toUpperCase())).sort(() => Math.random() - 0.5);
-        
-        let seats = plan.map(s => s.seatNumber);
-        let lowSeats = seats.filter(s => s <= 20).sort(() => Math.random() - 0.5);
-        low.forEach(s => { if (lowSeats.length > 0) { const n = lowSeats.pop(); const i = plan.findIndex(x => x.seatNumber === n); plan[i].studentId = s.id; } });
-        let remSeats = plan.filter(x => !x.studentId).map(x => x.seatNumber).sort(() => Math.random() - 0.5);
-        other.forEach(s => { if (remSeats.length > 0) { const n = remSeats.pop(); const i = plan.findIndex(x => x.seatNumber === n); plan[i].studentId = s.id; } });
 
-        await handleSeatUpdate(plan);
+        const getDest = (s: Student) => {
+            if (selectedRouteType === 'Morning') return s.morningDestinationId;
+            if (selectedRouteType === 'Afternoon') return s.afternoonDestinationId;
+            return s.afterSchoolDestinations?.[selectedDay] || null;
+        };
+        
+        const targets = students.filter(s => {
+            const d = getDest(s);
+            return d && currentRoute.stops.includes(d);
+        });
+
+        if (targets.length === 0) {
+            toast({ title: t('notice'), description: "배정할 학생이 없습니다." });
+            return;
+        }
+
+        // 1. Sort by grade priority (front priority) and destination order
+        const sorted = [...targets].sort((a, b) => {
+            const g = getGradeValue(a.grade) - getGradeValue(b.grade);
+            if (g !== 0) return g;
+            
+            const d1 = currentRoute.stops.indexOf(getDest(a)!);
+            const d2 = currentRoute.stops.indexOf(getDest(b)!);
+            return d1 - d2;
+        });
+
+        // 2. Identify seat layout details
+        const capacity = selectedBus.capacity;
+        
+        const getSeatLayout = (cap: number) => {
+            const pairs: [number, number][] = []; // [Window, Aisle]
+            const middles: number[] = [];
+            if (cap === 45 || cap === 29) {
+                // 2 - aisle - 2 layout
+                for (let i = 1; i <= cap - 5; i += 4) {
+                    pairs.push([i, i + 1]);     // Left row: [Window, Aisle]
+                    pairs.push([i + 3, i + 2]); // Right row: [Window, Aisle]
+                }
+                if (cap === 45) {
+                    pairs.push([41, 42]);
+                    pairs.push([45, 44]);
+                    middles.push(43); // Back middle seat
+                } else if (cap === 29) {
+                    pairs.push([25, 26]);
+                    pairs.push([29, 28]);
+                    middles.push(27);
+                }
+            } else {
+                // For 16-seater or unknown, treat as simple single seats for now
+                for (let i = 1; i <= cap; i++) middles.push(i);
+            }
+            return { pairs, middles };
+        };
+
+        const { pairs, middles } = getSeatLayout(capacity);
+        
+        // 3. Form blocks (Single or same-gender Pair)
+        // Rule: "자리가 남으면 1명씩 앉기"
+        const maxSingleCapacity = pairs.length + middles.length;
+        const needsPairing = targets.length > maxSingleCapacity;
+        
+        const blocks: { s1: Student; s2?: Student }[] = [];
+        const usedIds = new Set<string>();
+
+        for (let i = 0; i < sorted.length; i++) {
+            if (usedIds.has(sorted[i].id)) continue;
+            const s1 = sorted[i];
+            usedIds.add(s1.id);
+            
+            let s2: Student | undefined = undefined;
+            if (needsPairing) {
+                // Try to find a same-gender partner among remaining students
+                for (let j = i + 1; j < sorted.length; j++) {
+                    if (!usedIds.has(sorted[j].id) && sorted[j].gender === s1.gender) {
+                        s2 = sorted[j];
+                        usedIds.add(s2.id);
+                        break;
+                    }
+                }
+            }
+            blocks.push({ s1, s2 });
+        }
+
+        // 4. Assign blocks to seats
+        let newSeating = generateInitialSeating(capacity);
+        let pairIdx = 0;
+        let midIdx = 0;
+
+        blocks.forEach(block => {
+            if (block.s2 && pairIdx < pairs.length) {
+                // Pair: Both in same row, same gender
+                const seatPair = pairs[pairIdx++];
+                const d1 = currentRoute.stops.indexOf(getDest(block.s1)!);
+                const d2 = currentRoute.stops.indexOf(getDest(block.s2)!);
+                
+                // Rule: "먼저 내리는 사람이 통로쪽" (Aisle = seatPair[1])
+                // seatPair[0] = Window, seatPair[1] = Aisle
+                // Afternoon/AfterSchool: Lower index = earlier off = Aisle
+                // Morning: Lower index = earlier on = Window (First on, sit inside)
+                const shouldSwap = selectedRouteType === 'Morning' ? (d1 > d2) : (d1 < d2);
+                
+                const winStudent = shouldSwap ? block.s2 : block.s1;
+                const aisleStudent = shouldSwap ? block.s1 : block.s2;
+
+                const winIdx = newSeating.findIndex(s => s.seatNumber === seatPair[0]);
+                const aisleIdx = newSeating.findIndex(s => s.seatNumber === seatPair[1]);
+                newSeating[winIdx].studentId = winStudent.id;
+                newSeating[aisleIdx].studentId = aisleStudent.id;
+
+            } else if (pairIdx < pairs.length) {
+                // Single in a pair row: "1명씩 앉을 때는 창가"
+                const seatPair = pairs[pairIdx++];
+                const winIdx = newSeating.findIndex(s => s.seatNumber === seatPair[0]);
+                newSeating[winIdx].studentId = block.s1.id;
+            } else if (midIdx < middles.length) {
+                // Overflow to middle seats (back row)
+                const seatNum = middles[midIdx++];
+                const idx = newSeating.findIndex(s => s.seatNumber === seatNum);
+                newSeating[idx].studentId = block.s1.id;
+            }
+        });
+
+        await handleSeatUpdate(newSeating);
+        toast({ title: t('admin.student_management.seat.random_assign_success') });
         if (selectedRouteType !== 'AfterSchool') setCopySeatingDialogOpen(true);
-    }, [selectedBus, currentRoute, students, selectedRouteType, selectedDay, handleSeatUpdate]);
+    }, [selectedBus, currentRoute, students, selectedRouteType, selectedDay, handleSeatUpdate, toast, t]);
 
     const handleUndoRandomize = useCallback(async () => { if (previousSeating) { await handleSeatUpdate(previousSeating); setPreviousSeating(null); } }, [previousSeating, handleSeatUpdate]);
 
@@ -341,6 +462,8 @@ export const StudentManagementTab = ({
                         handleDownloadUnassignedStudents={handleDownloadUnassignedStudents}
                         handleToggleSelectAll={handleToggleSelectAll}
                         handleDeleteSelectedStudents={handleDeleteSelectedStudents}
+                        handleToggleStudentSelection={handleToggleStudentSelection}
+                        handleUnassignedStudentClick={handleUnassignedStudentClick}
                         handleToggleStudentSelection={handleToggleStudentSelection}
                         handleUnassignedStudentClick={handleUnassignedStudentClick}
                         handleStudentCardClick={handleStudentCardClick}
