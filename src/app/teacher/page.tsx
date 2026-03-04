@@ -7,6 +7,7 @@ import {
     onRoutesUpdate,
     onDestinationsUpdate,
     onTeachersUpdate,
+    onLogsUpdate,
     onLostItemsUpdate,
     getGroupLeaderRecords, 
     saveGroupLeaderRecords,
@@ -36,6 +37,8 @@ import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+
+const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const getGradeValue = (grade: string): number => {
   const upperGrade = grade.toUpperCase();
@@ -405,10 +408,9 @@ export default function TeacherPage() {
   const [isClient, setIsClient] = useState(false);
 
   const lastLoadedRouteIdRef = useRef<string | null>(null);
+  const lastProcessedDateRef = useRef<string | null>(null);
 
   const { toast } = useToast();
-
-  const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
 
   useEffect(() => {
     setIsClient(true);
@@ -448,32 +450,36 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (selectedDate) {
+        const isNewDate = selectedDate !== lastProcessedDateRef.current;
         const targetDate = new Date(selectedDate);
+        
         if (isSunday(targetDate)) {
             setSelectedDay('Monday');
-            return;
+        } else {
+            const dayIndex = getDay(targetDate);
+            setSelectedDay(DAYS[dayIndex - 1]);
         }
 
-        const dayIndex = getDay(targetDate);
-        const currentDay = days[dayIndex - 1];
-        setSelectedDay(currentDay);
+        if (isNewDate) {
+            lastProcessedDateRef.current = selectedDate;
+            
+            if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
+                const now = new Date();
+                const vietnamHour = (now.getUTCHours() + 7) % 24;
 
-        if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
-            const now = new Date();
-            const vietnamHour = (now.getUTCHours() + 7) % 24;
-
-            if (vietnamHour >= 9 && vietnamHour < 15) {
-                setSelectedRouteType('Afternoon');
-            } else if (vietnamHour >= 15 && vietnamHour < 20) {
-                setSelectedRouteType('AfterSchool');
+                if (vietnamHour >= 9 && vietnamHour < 15) {
+                    setSelectedRouteType('Afternoon');
+                } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                    setSelectedRouteType('AfterSchool');
+                } else {
+                    setSelectedRouteType('Morning');
+                }
             } else {
                 setSelectedRouteType('Morning');
             }
-        } else {
-            setSelectedRouteType('Morning');
         }
     }
-  }, [selectedDate, days]);
+  }, [selectedDate]);
 
   
   const currentRoute = useMemo(() => {
@@ -924,7 +930,7 @@ export default function TeacherPage() {
         if (isNaN(date.getTime())) return '';
         const dayIndex = getDay(date);
         if(isSunday(date)) return '';
-        return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
+        return `(${t(`day_short.${DAYS[dayIndex - 1].toLowerCase()}`)})`;
     } catch(e) {
         return '';
     }

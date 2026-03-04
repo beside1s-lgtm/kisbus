@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, 
@@ -28,6 +28,8 @@ import { TeacherManagementTab } from './components/teacher-management-tab';
 import { BusConfigurationTab } from './components/bus-configuration-tab';
 import { StudentManagementTab } from './components/student-management-tab';
 import { AdminPageFilter } from './components/admin-page-filter';
+
+const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
@@ -68,8 +70,10 @@ const AdminPageContent: React.FC<{
     const [activeTab, setActiveTab] = useState('student-management');
     const { toast } = useToast();
     const { t } = useTranslation();
-    const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const [isClient, setIsClient] = useState(false);
+    
+    // 사용자가 수동으로 선택한 값을 보호하기 위해 마지막으로 처리한 날짜를 추적
+    const lastProcessedDateRef = useRef<string | null>(null);
 
     useEffect(() => {
         setIsClient(true);
@@ -83,32 +87,39 @@ const AdminPageContent: React.FC<{
 
     useEffect(() => {
         if (selectedDate) {
+            const isNewDate = selectedDate !== lastProcessedDateRef.current;
             const targetDate = new Date(selectedDate);
+            
+            // 요일은 날짜가 바뀔 때마다 업데이트 (항상 날짜와 동기화되어야 함)
             if (isSunday(targetDate)) {
                 setSelectedDay('Monday');
-                return;
+            } else {
+                const dayIndex = getDay(targetDate);
+                setSelectedDay(DAYS[dayIndex - 1]);
             }
 
-            const dayIndex = getDay(targetDate);
-            const currentDay = days[dayIndex - 1];
-            setSelectedDay(currentDay);
+            // 노선 타입은 날짜가 실제로 변경되었을 때만 기본값으로 설정
+            // 이를 통해 리렌더링 시 사용자의 수동 선택이 유지됨
+            if (isNewDate) {
+                lastProcessedDateRef.current = selectedDate;
+                
+                if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
+                    const now = new Date();
+                    const vietnamHour = (now.getUTCHours() + 7) % 24;
 
-            if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
-                const now = new Date();
-                const vietnamHour = (now.getUTCHours() + 7) % 24;
-
-                if (vietnamHour >= 9 && vietnamHour < 15) {
-                    setSelectedRouteType('Afternoon');
-                } else if (vietnamHour >= 15 && vietnamHour < 20) {
-                    setSelectedRouteType('AfterSchool');
+                    if (vietnamHour >= 9 && vietnamHour < 15) {
+                        setSelectedRouteType('Afternoon');
+                    } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                        setSelectedRouteType('AfterSchool');
+                    } else {
+                        setSelectedRouteType('Morning');
+                    }
                 } else {
                     setSelectedRouteType('Morning');
                 }
-            } else {
-                setSelectedRouteType('Morning');
             }
         }
-    }, [selectedDate, days]);
+    }, [selectedDate]);
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
@@ -231,7 +242,7 @@ const AdminPageContent: React.FC<{
                         setSelectedDay={setSelectedDay}
                         selectedRouteType={selectedRouteType}
                         setSelectedRouteType={setSelectedRouteType}
-                        days={days}
+                        days={DAYS}
                     />
                     <BusConfigurationTab
                         buses={buses}
@@ -255,7 +266,7 @@ const AdminPageContent: React.FC<{
                         setSelectedDay={setSelectedDay}
                         selectedRouteType={selectedRouteType}
                         setSelectedRouteType={setSelectedRouteType}
-                        days={days}
+                        days={DAYS}
                         filterConfiguredBusesOnly={true}
                         showRouteStops={true}
                         destinations={destinations}
@@ -268,7 +279,7 @@ const AdminPageContent: React.FC<{
                         selectedBusId={selectedBusId}
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
-                        days={days}
+                        days={DAYS}
                     />
                 </TabsContent>
             </Tabs>
