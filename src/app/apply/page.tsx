@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect } from 'react';
 import { getStudents, getDestinations, addStudent, addSuggestedDestination, updateStudent } from '@/lib/firebase-data';
@@ -133,7 +132,10 @@ export default function ApplyPage() {
         try {
             if (existingStudent) {
                 await updateStudent(existingStudent.id, updateData);
-                setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } : s));
+                const updatedStudentSnap = (await getStudents()).find(s => s.id === existingStudent.id);
+                if (updatedStudentSnap) {
+                    setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? updatedStudentSnap : s));
+                }
             } else {
                 const newStudentData: NewStudent = {
                     name: name.trim(),
@@ -207,7 +209,10 @@ export default function ApplyPage() {
         try {
             if (existingStudent) {
                 await updateStudent(existingStudent.id, updateData);
-                setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? { ...s, ...updateData } as Student : s));
+                const updatedStudentSnap = (await getStudents()).find(s => s.id === existingStudent.id);
+                if (updatedStudentSnap) {
+                    setAllStudents(prevStudents => prevStudents.map(s => s.id === existingStudent.id ? updatedStudentSnap : s));
+                }
             } else {
                 const newStudentData: NewStudent = {
                     name: name.trim(),
@@ -378,5 +383,3 @@ export default function ApplyPage() {
         </MainLayout>
     );
 }
-
-    

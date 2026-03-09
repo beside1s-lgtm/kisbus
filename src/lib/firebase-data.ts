@@ -36,6 +36,17 @@ import type {
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
+// Helper to sanitize contact numbers: remove hyphens/spaces, take first number if multiple
+const sanitizeContact = (val: any): string | null => {
+    if (typeof val !== 'string') return null;
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    // Split by / or , and take the first part
+    const firstPart = trimmed.split(/[/,]/)[0];
+    // Remove all non-digits
+    const digitsOnly = firstPart.replace(/\D/g, '');
+    return digitsOnly || null;
+};
 
 // Generic function to fetch data from a collection
 async function fetchCollection<T>(collectionName: string, q?: Query): Promise<T[]> {
@@ -142,6 +153,8 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
     );
     const querySnapshot = await getDocs(q);
 
+    const sanitizedContact = sanitizeContact(student.contact);
+
     if (!querySnapshot.empty) {
         // Student exists, update them
         const docRef = querySnapshot.docs[0].ref;
@@ -150,6 +163,7 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 
         const updateData: Partial<Student> = {
             ...student,
+            contact: sanitizedContact
         };
         
         if (student.afterSchoolDestinations) {
@@ -163,9 +177,6 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         }
         if (student.afternoonDestinationId === undefined) {
             updateData.afternoonDestinationId = existingStudentData.afternoonDestinationId;
-        }
-        if (student.contact === undefined) {
-            updateData.contact = existingStudentData.contact;
         }
         
         if (student.suggestedMorningDestination) updateData.morningDestinationId = null;
@@ -186,11 +197,15 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         return { id: docRef.id, ...docSnap.data() } as Student;
     } else {
         // Student doesn't exist, create new
-        const docRef = await addDoc(collection(db, 'students'), student).catch(async (serverError) => {
+        const newStudentWithSanitizedContact = {
+            ...student,
+            contact: sanitizedContact
+        };
+        const docRef = await addDoc(collection(db, 'students'), newStudentWithSanitizedContact).catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
                 path: '/students',
                 operation: 'create',
-                requestResourceData: student,
+                requestResourceData: newStudentWithSanitizedContact,
             } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
             throw serverError;
@@ -234,13 +249,18 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
     if (affectedRouteTypes.length > 0) {
         await unassignStudentFromAllRoutes(studentId, affectedRouteTypes);
     }
+
+    const updatePayload = { ...data };
+    if ('contact' in updatePayload) {
+        updatePayload.contact = sanitizeContact(updatePayload.contact);
+    }
     
-    await updateDoc(studentDocRef, data)
+    await updateDoc(studentDocRef, updatePayload)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: studentDocRef.path,
             operation: 'update',
-            requestResourceData: data,
+            requestResourceData: updatePayload,
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
@@ -250,8 +270,12 @@ export const updateStudentsInBatch = async (students: (Partial<Student> & {id: s
     const batch = writeBatch(db);
     students.forEach(student => {
         const { id, ...data } = student;
+        const updatePayload = { ...data };
+        if ('contact' in updatePayload) {
+            updatePayload.contact = sanitizeContact(updatePayload.contact);
+        }
         const docRef = doc(db, 'students', id);
-        batch.update(docRef, data);
+        batch.update(docRef, updatePayload);
     });
     await batch.commit()
     .catch(async (serverError) => {
