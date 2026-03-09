@@ -7,6 +7,7 @@ import {
     onRoutesUpdate,
     onDestinationsUpdate,
     onTeachersUpdate,
+    onAfterSchoolTeachersUpdate,
     onLogsUpdate,
     onLostItemsUpdate,
     getGroupLeaderRecords, 
@@ -318,6 +319,7 @@ const TeacherAssignmentViewDialog = ({
     buses,
     allRoutes,
     teachers,
+    afterSchoolTeachers,
     selectedDay,
     selectedRouteType,
     t
@@ -325,6 +327,7 @@ const TeacherAssignmentViewDialog = ({
     buses: Bus[];
     allRoutes: Route[];
     teachers: Teacher[];
+    afterSchoolTeachers: Teacher[];
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
     t: any;
@@ -332,8 +335,11 @@ const TeacherAssignmentViewDialog = ({
     const getTeachersForBus = (busId: string) => {
         const route = allRoutes.find(r => r.busId === busId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
         if (!route || !route.teacherIds || route.teacherIds.length === 0) return t('unassigned');
+        
+        const pool = selectedRouteType === 'AfterSchool' ? afterSchoolTeachers : teachers;
+        
         const names = route.teacherIds
-            .map(id => teachers.find(t => t.id === id)?.name)
+            .map(id => pool.find(t => t.id === id)?.name)
             .filter(Boolean);
         return names.length > 0 ? names.join(', ') : t('unassigned');
     };
@@ -388,6 +394,7 @@ export default function TeacherPage() {
   const [allRoutes, setAllRoutes] = useState<Route[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [afterSchoolTeachers, setAfterSchoolTeachers] = useState<Teacher[]>([]);
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
   
   const [selectedBusId, setSelectedBusId] = useState<string>('');
@@ -430,6 +437,7 @@ export default function TeacherPage() {
       onRoutesUpdate(setAllRoutes),
       onDestinationsUpdate(setDestinations),
       onTeachersUpdate(setTeachers),
+      onAfterSchoolTeachersUpdate(setAfterSchoolTeachers),
       onLostItemsUpdate(setLostItems),
     ];
 
@@ -588,8 +596,9 @@ export default function TeacherPage() {
 
     const assignedTeachers = useMemo(() => {
         if (!currentRoute || !currentRoute.teacherIds) return [];
-        return currentRoute.teacherIds.map(id => teachers.find(t => t.id === id)).filter(Boolean) as Teacher[];
-    }, [currentRoute, teachers]);
+        const pool = selectedRouteType === 'AfterSchool' ? afterSchoolTeachers : teachers;
+        return currentRoute.teacherIds.map(id => pool.find(t => t.id === id)).filter(Boolean) as Teacher[];
+    }, [currentRoute, teachers, afterSchoolTeachers, selectedRouteType]);
 
   useEffect(() => {
     if (currentRoute) {
@@ -1107,6 +1116,7 @@ export default function TeacherPage() {
                     buses={buses}
                     allRoutes={allRoutes}
                     teachers={teachers}
+                    afterSchoolTeachers={afterSchoolTeachers}
                     selectedDay={selectedDay}
                     selectedRouteType={selectedRouteType}
                     t={t}
