@@ -303,41 +303,19 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             toast({ title: t('error'), description: t('admin.teacher_assignment.assign.no_teacher_error'), variant: 'destructive' });
             return;
         }
+
+        // 1. Identify which routes we are updating
         let routesToUpdate: Route[] = [];
         let relevantDays: DayOfWeek[];
         if (teacherAssignmentType === 'commute') {
             relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            // User requested: teachers only manage afternoon bus
             routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'Afternoon');
         } else {
             relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
         }
 
-        const backup: Record<string, string[]> = {};
-        routesToUpdate.forEach(r => {
-            backup[r.id] = r.teacherIds || [];
-        });
-        setPreviousRouteAssignments(backup);
-
-        const otherRoutes = routes.filter(r => !routesToUpdate.includes(r));
-        const busyTeacherIds = new Set<string>();
-        
-        // 1. Teachers assigned to OTHER categories (e.g. assigning Commute, check AfterSchool assignments)
-        otherRoutes.forEach(r => r.teacherIds?.forEach(id => busyTeacherIds.add(id)));
-        
-        // 2. IMPORTANT: Also exclude teachers manually assigned to "Excluded" buses in the CURRENT category
-        const excludedBusIds = new Set(buses.filter(bus => bus.excludeFromAssignment === true).map(bus => bus.id));
-        routesToUpdate.forEach(r => {
-            if (excludedBusIds.has(r.busId)) {
-                r.teacherIds?.forEach(id => busyTeacherIds.add(id));
-            }
-        });
-        
-        const availableTeachers = teachers.filter(t => !busyTeacherIds.has(t.id));
-        const shuffledTeachers = [...availableTeachers].sort(() => Math.random() - 0.5);
-        
-        let teacherIndex = 0;
+        // 2. Identify target buses (Active, not excluded, and operational in this category)
         const targetBuses = sortBuses(buses.filter(bus => {
             const isActive = bus.isActive ?? true;
             const isExcluded = bus.excludeFromAssignment ?? false;
@@ -350,29 +328,78 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             return;
         }
 
+        // 3. Identify busy teachers (assigned to OTHER operational assignment types)
+        const busyTeacherIds = new Set<string>();
+        
+        // Category 1: Teachers in the OTHER assignment type (e.g. if updating Commute, check AfterSchool)
+        const otherAssignmentType = teacherAssignmentType === 'commute' ? 'AfterSchool' : 'Afternoon';
+        const otherRoutes = routes.filter(r => r.type === otherAssignmentType);
+        otherRoutes.forEach(r => r.teacherIds?.forEach(id => busyTeacherIds.add(id)));
+
+        // Category 2: Teachers manually assigned to "Excluded" buses in the CURRENT category
+        const excludedBusIds = new Set(buses.filter(bus => bus.excludeFromAssignment === true).map(bus => bus.id));
+        routesToUpdate.forEach(r => {
+            if (excludedBusIds.has(r.busId)) {
+                r.teacherIds?.forEach(id => busyTeacherIds.add(id));
+            }
+        });
+        
+        // 4. Filter and shuffle available teachers
+        const availableTeachers = teachers.filter(t => !busyTeacherIds.has(t.id));
+        const shuffledTeachers = [...availableTeachers].sort(() => Math.random() - 0.5);
+        
+        if (shuffledTeachers.length === 0) {
+            toast({ title: t('error'), description: t('admin.teacher_assignment.assign.not_enough_teachers', { count: 0 }), variant: 'destructive' });
+            return;
+        }
+
+        // 5. Backup current state for Undo
+        const backup: Record<string, string[]> = {};
+        routesToUpdate.forEach(r => {
+            backup[r.id] = r.teacherIds || [];
+        });
+        setPreviousRouteAssignments(backup);
+
+        // 6. Perform assignment logic
+        const batch = writeBatch(db);
+        let teacherIndex = 0;
+        
         const totalBuses = targetBuses.length;
+        if (shuffledTeachers.length < totalBuses) {
+            toast({ title: t('notice'), description: t('admin.teacher_assignment.assign.not_enough_teachers', { count: shuffledTeachers.length }) });
+            // Do not proceed to clear everything if we can't meet minimum requirements
+            return;
+        }
+
         let extraTeachersCount = Math.max(0, shuffledTeachers.length - totalBuses);
         const buses45 = targetBuses.filter(b => b.capacity === 45);
         let assignmentCountFor45 = Math.min(extraTeachersCount, buses45.length);
-        const batch = writeBatch(db);
+
         for (const bus of targetBuses) {
             const assignedIds: string[] = [];
-            if (teacherIndex < shuffledTeachers.length) assignedIds.push(shuffledTeachers[teacherIndex++].id);
+            
+            // First teacher
+            if (teacherIndex < shuffledTeachers.length) {
+                assignedIds.push(shuffledTeachers[teacherIndex++].id);
+            }
+            
+            // Second teacher for 45-seater if available
             if (bus.capacity === 45 && assignmentCountFor45 > 0 && teacherIndex < shuffledTeachers.length) {
                 assignedIds.push(shuffledTeachers[teacherIndex++].id);
                 assignmentCountFor45--;
             }
+
             const busRoutesToUpdate = routesToUpdate.filter(r => r.busId === bus.id);
-            busRoutesToUpdate.forEach(route => batch.update(doc(db, 'routes', route.id), { teacherIds: assignedIds }));
+            busRoutesToUpdate.forEach(route => {
+                batch.update(doc(db, 'routes', route.id), { teacherIds: assignedIds });
+            });
         }
+
         try {
             await batch.commit();
-            if (teacherIndex < totalBuses) {
-                toast({ title: t('notice'), description: `일부 버스에 교사가 배정되지 않았습니다.` });
-            } else {
-                toast({ title: t('success'), description: t('admin.teacher_assignment.assign.success') });
-            }
+            toast({ title: t('success'), description: t('admin.teacher_assignment.assign.success') });
         } catch (error) {
+            console.error("Error during batch assign:", error);
             toast({ title: t('error'), description: t('admin.teacher_assignment.assign.error'), variant: 'destructive' });
         }
     };
