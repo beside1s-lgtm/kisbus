@@ -23,6 +23,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { writeBatch, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
+import { normalizeString } from '@/lib/utils';
 
 // 분리된 패널 임포트
 import { StudentUnassignedPanel } from './student-unassigned-panel';
@@ -165,7 +166,7 @@ export const StudentManagementTab = ({
         if (unassignedView === 'current') {
             if (!currentRoute) { setFilteredUnassignedStudents([]); return; }
             const afterSchoolIds = new Set<string>();
-            if (selectedRouteType === 'Afternoon') routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'AfterSchool').forEach(r => r.seating.forEach(s => { if (s.studentId) afterSchoolIds.add(s.studentId); }));
+            if (selectedRouteType === 'Afternoon') routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'AfterSchool').forEach(r => r.seating.forEach(s => { if (s.studentId) afterSchoolIds.has(s.studentId); }));
             unassigned = students.filter(s => !unassignableStudents.some(u => u.id === s.id) && !assignedIds.has(s.id) && !(selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) && (
                 (selectedRouteType === 'Morning' && s.morningDestinationId && currentRoute.stops.includes(s.morningDestinationId)) ||
                 (selectedRouteType === 'Afternoon' && s.afternoonDestinationId && currentRoute.stops.includes(s.afternoonDestinationId)) ||
@@ -474,33 +475,33 @@ export const StudentManagementTab = ({
                 const newStudents: NewStudent[] = [];
                 const destMap: Record<string, string> = {};
                 destinations.forEach(d => {
-                    destMap[d.name.trim().toLowerCase()] = d.id;
+                    destMap[normalizeString(d.name)] = d.id;
                 });
 
                 results.data.forEach((row: any) => {
-                    const name = (row['이름'] || row['Name'] || row['name'] || '').trim();
-                    const grade = (row['학년'] || row['Grade'] || row['grade'] || '').trim();
-                    const studentClass = (row['반'] || row['Class'] || row['class'] || '').trim();
-                    const rawGender = (row['성별'] || row['Gender'] || row['gender'] || 'Male').trim();
+                    const name = (row['이름'] || row['Name'] || row['name'] || '').toString().trim();
+                    const grade = (row['학년'] || row['Grade'] || row['grade'] || '').toString().trim();
+                    const studentClass = (row['반'] || row['Class'] || row['class'] || '').toString().trim();
+                    const rawGender = (row['성별'] || row['Gender'] || row['gender'] || 'Male').toString().trim();
                     const gender = (rawGender === '여자' || rawGender === 'Female' || rawGender === 'female') ? 'Female' : 'Male';
-                    const contact = (row['연락처'] || row['Contact'] || row['contact'] || '').trim();
+                    const contact = (row['연락처'] || row['Contact'] || row['contact'] || '').toString().trim();
                     
-                    const morningDestName = (row['등교 목적지'] || row['Morning Destination'] || '').trim().toLowerCase();
-                    const afternoonDestName = (row['하교 목적지'] || row['Afternoon Destination'] || '').trim().toLowerCase();
+                    const morningDestKey = normalizeString(row['등교 목적지'] || row['Morning Destination'] || '');
+                    const afternoonDestKey = normalizeString(row['하교 목적지'] || row['Afternoon Destination'] || '');
                     
-                    const afterMonName = (row['방과후(월)'] || '').trim().toLowerCase();
-                    const afterTueName = (row['방과후(화)'] || '').trim().toLowerCase();
-                    const afterWedName = (row['방과후(수)'] || '').trim().toLowerCase();
-                    const afterThuName = (row['방과후(목)'] || '').trim().toLowerCase();
-                    const afterSatName = (row['방과후(토)'] || '').trim().toLowerCase();
+                    const afterMonKey = normalizeString(row['방과후(월)'] || '');
+                    const afterTueKey = normalizeString(row['방과후(화)'] || '');
+                    const afterWedKey = normalizeString(row['방과후(수)'] || '');
+                    const afterThuKey = normalizeString(row['방과후(목)'] || '');
+                    const afterSatKey = normalizeString(row['방과후(토)'] || '');
 
                     if (name && grade && studentClass) {
                         const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
-                        if (afterMonName && destMap[afterMonName]) afterSchoolDestinations['Monday'] = destMap[afterMonName];
-                        if (afterTueName && destMap[afterTueName]) afterSchoolDestinations['Tuesday'] = destMap[afterTueName];
-                        if (afterWedName && destMap[afterWedName]) afterSchoolDestinations['Wednesday'] = destMap[afterWedName];
-                        if (afterThuName && destMap[afterThuName]) afterSchoolDestinations['Thursday'] = destMap[afterThuName];
-                        if (afterSatName && destMap[afterSatName]) afterSchoolDestinations['Saturday'] = destMap[afterSatName];
+                        if (afterMonKey && destMap[afterMonKey]) afterSchoolDestinations['Monday'] = destMap[afterMonKey];
+                        if (afterTueKey && destMap[afterTueKey]) afterSchoolDestinations['Tuesday'] = destMap[afterTueKey];
+                        if (afterWedKey && destMap[afterWedKey]) afterSchoolDestinations['Wednesday'] = destMap[afterWedKey];
+                        if (afterThuKey && destMap[afterThuKey]) afterSchoolDestinations['Thursday'] = destMap[afterThuKey];
+                        if (afterSatKey && destMap[afterSatKey]) afterSchoolDestinations['Saturday'] = destMap[afterSatKey];
 
                         newStudents.push({
                             name,
@@ -508,8 +509,8 @@ export const StudentManagementTab = ({
                             class: studentClass,
                             gender,
                             contact,
-                            morningDestinationId: destMap[morningDestName] || null,
-                            afternoonDestinationId: destMap[afternoonDestName] || null,
+                            morningDestinationId: destMap[morningDestKey] || null,
+                            afternoonDestinationId: destMap[afternoonDestKey] || null,
                             afterSchoolDestinations,
                             applicationStatus: 'reviewed',
                         });

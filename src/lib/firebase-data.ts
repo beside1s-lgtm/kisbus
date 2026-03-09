@@ -35,6 +35,7 @@ import type {
 } from './types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { normalizeString } from './utils';
 
 // Helper to sanitize contact numbers: remove hyphens/spaces, take first number if multiple
 const sanitizeContact = (val: any): string | null => {
@@ -336,14 +337,15 @@ export const addDestinationsInBatch = async (destinations: NewDestination[]): Pr
     const batch = writeBatch(db);
     const newDestinations: Destination[] = [];
     const existingDestsSnapshot = await getDocs(collection(db, 'destinations'));
-    const existingNames = new Set(existingDestsSnapshot.docs.map(doc => doc.data().name.toLowerCase()));
+    const normalizedExisting = new Set(existingDestsSnapshot.docs.map(doc => normalizeString(doc.data().name)));
 
     for (const dest of destinations) {
-        if (!existingNames.has(dest.name.toLowerCase())) {
+        const normName = normalizeString(dest.name);
+        if (normName && !normalizedExisting.has(normName)) {
             const docRef = doc(collection(db, 'destinations'));
             batch.set(docRef, dest);
             newDestinations.push({ id: docRef.id, ...dest });
-            existingNames.add(dest.name.toLowerCase()); // prevent adding duplicates from the same batch
+            normalizedExisting.add(normName); // prevent adding duplicates from the same batch
         }
     }
     
@@ -362,7 +364,7 @@ export const addDestinationsInBatch = async (destinations: NewDestination[]): Pr
     return newDestinations;
 }
 export const deleteDestination = (destinationId: string) => {
-    const docRef = db.doc('destinations/' + destinationId);
+    const docRef = doc(db, 'destinations', destinationId);
     deleteDoc(docRef)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -660,15 +662,14 @@ export const addSuggestedDestination = async (destination: { name: string }) => 
     const trimmedName = destination.name.trim();
     if (!trimmedName) return;
 
-    const mainDestQ = query(collection(db, "destinations"), where("name", "==", trimmedName));
-    const mainDestSnap = await getDocs(mainDestQ);
-    if (!mainDestSnap.empty) return;
+    const currentDests = await getDestinations();
+    const normNewName = normalizeString(trimmedName);
+    if (currentDests.some(d => normalizeString(d.name) === normNewName)) return;
 
-    const suggestedDestQ = query(collection(db, "suggestedDestinations"), where("name", "==", trimmedName));
-    const suggestedDestSnap = await getDocs(suggestedDestQ);
-    if (suggestedDestSnap.empty) {
-        await addDocument<Destination>('suggestedDestinations', { name: trimmedName });
-    }
+    const currentSuggestions = await getSuggestedDestinations();
+    if (currentSuggestions.some(s => normalizeString(s.name) === normNewName)) return;
+
+    await addDocument<Destination>('suggestedDestinations', { name: trimmedName });
 }
 export const approveSuggestedDestination = async (suggestion: Destination) => {
     const batch = writeBatch(db);

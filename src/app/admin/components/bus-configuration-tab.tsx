@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { cn, normalizeString } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -96,7 +96,8 @@ export const BusConfigurationTab = ({
         const trimmedName = newDestinationName.trim();
         if (!trimmedName) return;
 
-        if (destinations.some(d => d.name.toLowerCase() === trimmedName.toLowerCase())) {
+        const normNew = normalizeString(trimmedName);
+        if (destinations.some(d => normalizeString(d.name) === normNew)) {
             toast({ title: t('notice'), description: t('admin.bus_config.dest.add.already_exists'), variant: 'default' });
             return;
         }
@@ -169,10 +170,13 @@ export const BusConfigurationTab = ({
         header: true,
         skipEmptyLines: true,
         complete: async (results) => {
-            const existingNames = new Set(destinations.map(d => d.name.toLowerCase()));
+            const normalizedExisting = new Set(destinations.map(d => normalizeString(d.name)));
             const newDestinationsData: NewDestination[] = results.data.map((row: any) => ({
-                name: (row['목적지 이름'] || row['name'] || '').trim()
-            })).filter(dest => dest.name && !existingNames.has(dest.name.toLowerCase()));
+                name: (row['목적지 이름'] || row['name'] || '').toString().trim()
+            })).filter(dest => {
+                const normName = normalizeString(dest.name);
+                return normName && !normalizedExisting.has(normName);
+            });
 
             if (newDestinationsData.length === 0) {
                 toast({ title: t('notice'), description: t('admin.bus_config.dest.batch.no_new'), variant: "default" });
@@ -199,8 +203,8 @@ export const BusConfigurationTab = ({
   };
   
   const handleApproveSuggestion = async (suggestion: Destination) => {
-    const trimmedName = suggestion.name.trim();
-    if (destinations.some(d => d.name.toLowerCase() === trimmedName.toLowerCase())) {
+    const normName = normalizeString(suggestion.name);
+    if (destinations.some(d => normalizeString(d.name) === normName)) {
         toast({ title: t('notice'), description: t('admin.bus_config.suggestions.already_exists') });
         try {
             await deleteDoc(doc(db, 'suggestedDestinations', suggestion.id));
