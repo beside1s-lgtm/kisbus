@@ -848,9 +848,21 @@ export default function TeacherPage() {
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
     const lowerCaseQuery = searchQuery.toLowerCase();
+    const queryOnlyNumbers = searchQuery.replace(/\D/g, '');
     
     return students
-        .filter(s => formatStudentName(s).toLowerCase().includes(lowerCaseQuery))
+        .filter(s => {
+            const nameMatch = formatStudentName(s).toLowerCase().includes(lowerCaseQuery);
+            if (nameMatch) return true;
+            
+            // 연락처 숫자 매칭 (하이픈/공백 무시)
+            if (queryOnlyNumbers && s.contact) {
+                const contactOnlyNumbers = s.contact.replace(/\D/g, '');
+                if (contactOnlyNumbers.includes(queryOnlyNumbers)) return true;
+            }
+            
+            return false;
+        })
         .map(student => {
             const studentRoute = allRoutes.find(route => 
                 route.seating.some(seat => seat.studentId === student.id)
@@ -1011,6 +1023,7 @@ export default function TeacherPage() {
                                 <p className="text-xs text-muted-foreground">
                                     {student.destinationName}
                                     {student.busName && `, ${student.busName}`}
+                                    {student.contact && `, ${student.contact}`}
                                 </p>
                             </div>
                         ))}
@@ -1442,7 +1455,7 @@ export default function TeacherPage() {
                             <CardContent>
                                 {sidePanel}
                             </CardContent>
-                        </Card>
+                        </div>
                     </div>
                 </div>
             </div>

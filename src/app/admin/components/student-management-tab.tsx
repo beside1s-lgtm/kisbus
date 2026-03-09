@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -173,7 +172,16 @@ export const StudentManagementTab = ({
                 (selectedRouteType === 'AfterSchool' && s.afterSchoolDestinations?.[selectedDay] && currentRoute.stops.includes(s.afterSchoolDestinations[selectedDay]))
             ));
         } else { unassigned = students.filter(s => !assignedIds.has(s.id)); }
-        if (unassignedSearchQuery) unassigned = unassigned.filter(s => s.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase()));
+        
+        if (unassignedSearchQuery) {
+            const lowerQuery = unassignedSearchQuery.toLowerCase();
+            const queryDigits = unassignedSearchQuery.replace(/\D/g, '');
+            unassigned = unassigned.filter(s => {
+                const nameMatch = s.name.toLowerCase().includes(lowerQuery);
+                const contactMatch = queryDigits && s.contact && s.contact.replace(/\D/g, '').includes(queryDigits);
+                return nameMatch || contactMatch;
+            });
+        }
         setFilteredUnassignedStudents(unassigned.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
     }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, unassignableStudents, unassignedView]);
 
@@ -591,7 +599,14 @@ export const StudentManagementTab = ({
 
     useEffect(() => {
         if (!globalSearchQuery) { setGlobalSearchResults([]); return; }
-        setGlobalSearchResults(students.filter(s => s.name.toLowerCase().includes(globalSearchQuery.toLowerCase())));
+        const lowerQuery = globalSearchQuery.toLowerCase();
+        const queryDigits = globalSearchQuery.replace(/\D/g, '');
+        
+        setGlobalSearchResults(students.filter(s => {
+            const nameMatch = s.name.toLowerCase().includes(lowerQuery);
+            const contactMatch = queryDigits && s.contact && s.contact.replace(/\D/g, '').includes(queryDigits);
+            return nameMatch || contactMatch;
+        }));
     }, [globalSearchQuery, students]);
 
     const handleGlobalStudentClick = (s: Student) => { setSelectedGlobalStudent(s); setGlobalSearchQuery(''); setGlobalSearchResults([]); };
@@ -611,7 +626,7 @@ export const StudentManagementTab = ({
                             <div className="flex gap-2">
                                 <Button variant="outline" size="sm" onClick={handleUndoRandomize} disabled={!previousSeating}><Undo2 className="h-4 w-4" /></Button>
                                 <Button variant="outline" size="sm" onClick={randomizeSeating}><Shuffle className="h-4 w-4" /></Button>
-                                <Button variant="outline" size="sm" onClick={handleResetSeating}><RotateCcw className="h-4 w-4" /></Button>
+                                <Button variant="outline" size="sm" onClick={handleResetSeating} disabled={!currentRoute}><RotateCcw className="h-4 w-4" /></Button>
                             </div>
                         </CardHeader>
                         <CardContent>

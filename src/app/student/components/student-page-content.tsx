@@ -1,5 +1,3 @@
-
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onLostItemsUpdate, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
@@ -65,7 +63,7 @@ export function StudentPageContent() {
     if (isClient && !selectedDate) {
         setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
     }
-  }, [isClient]);
+  }, [isClient, selectedDate]);
   
   useEffect(() => {
     setLoading(true);
@@ -260,8 +258,14 @@ export function StudentPageContent() {
         setSearchResults([]);
         return;
     }
-    const lowerCaseQuery = searchQuery.toLowerCase();
-    const results = allStudents.filter(s => s.name.toLowerCase().includes(lowerCaseQuery));
+    const lowerQuery = searchQuery.toLowerCase();
+    const queryDigits = searchQuery.replace(/\D/g, '');
+    
+    const results = allStudents.filter(s => {
+        const nameMatch = s.name.toLowerCase().includes(lowerQuery);
+        const contactMatch = queryDigits && s.contact && s.contact.replace(/\D/g, '').includes(queryDigits);
+        return nameMatch || contactMatch;
+    });
     setSearchResults(results);
   }, [searchQuery, allStudents]);
 
@@ -349,6 +353,7 @@ export function StudentPageContent() {
                                 className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
                                 onClick={() => handleSelectStudentFromSearch(student)}>
                                 {formatStudentName(student)}
+                                {student.contact && <p className="text-xs text-muted-foreground">{student.contact}</p>}
                             </div>
                         ))}
                     </CardContent>
