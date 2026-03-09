@@ -141,7 +141,7 @@ const AllStudentsBoardingStatus = ({
     }
 
     return (
-        <Card className="border-none shadow-none lg:border lg:shadow-sm w-full">
+        <Card className="border-none shadow-none lg:border lg:shadow-sm w-full h-full">
             <CardHeader className="px-2 py-3 sm:px-4">
                 <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_buses_view.title')}</CardTitle>
             </CardHeader>
@@ -256,7 +256,7 @@ const AllGroupLeadersStatus = ({
     }, [relevantRoutes, buses, leadersMap, t]);
 
     return (
-        <Card className="border-none shadow-none lg:border lg:shadow-sm w-full">
+        <Card className="border-none shadow-none lg:border lg:shadow-sm w-full h-full">
             <CardHeader className="px-2 py-3 sm:px-4">
                 <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
             </CardHeader>
@@ -1141,7 +1141,7 @@ export default function TeacherPage() {
             </AlertDialogContent>
         </AlertDialog>
         {selectedBusId === 'all' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full">
                 <AllStudentsBoardingStatus
                     relevantRoutes={relevantRoutesForDay}
                     students={students}
@@ -1455,7 +1455,7 @@ export default function TeacherPage() {
                             <CardContent>
                                 {sidePanel}
                             </CardContent>
-                        </div>
+                        </Card>
                     </div>
                 </div>
             </div>
