@@ -375,10 +375,10 @@ export const StudentManagementTab = ({
     const handleUndoRandomize = useCallback(async () => { if (previousSeating) { await handleSeatUpdate(previousSeating); setPreviousSeating(null); } }, [previousSeating, handleSeatUpdate]);
 
     const handleDownloadStudentTemplate = () => {
-        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지"];
+        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
         const rows = [
-            ["김철수", "G1", "C1", "Male", "010-1234-5678", "강남역", "강남역"],
-            ["이영희", "G2", "C2", "Female", "010-5678-1234", "서초역", "서초역"]
+            ["김철수", "G1", "C1", "Male", "010-1234-5678", "강남역", "강남역", "강남역", "", "서초역", "", "강남역"],
+            ["이영희", "G2", "C2", "Female", "010-5678-1234", "서초역", "서초역", "", "서초역", "", "서초역", ""]
         ];
         const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -396,7 +396,7 @@ export const StudentManagementTab = ({
             toast({ title: t('notice'), description: "다운로드할 학생 데이터가 없습니다." });
             return;
         }
-        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지"];
+        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
         const rows = students.map(s => [
             s.name,
             s.grade,
@@ -404,7 +404,12 @@ export const StudentManagementTab = ({
             s.gender,
             s.contact || "",
             destinations.find(d => d.id === s.morningDestinationId)?.name || "",
-            destinations.find(d => d.id === s.afternoonDestinationId)?.name || ""
+            destinations.find(d => d.id === s.afternoonDestinationId)?.name || "",
+            destinations.find(d => d.id === s.afterSchoolDestinations?.['Monday'])?.name || "",
+            destinations.find(d => d.id === s.afterSchoolDestinations?.['Tuesday'])?.name || "",
+            destinations.find(d => d.id === s.afterSchoolDestinations?.['Wednesday'])?.name || "",
+            destinations.find(d => d.id === s.afterSchoolDestinations?.['Thursday'])?.name || "",
+            destinations.find(d => d.id === s.afterSchoolDestinations?.['Saturday'])?.name || ""
         ]);
         const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -471,10 +476,24 @@ export const StudentManagementTab = ({
                     const rawGender = (row['성별'] || row['Gender'] || row['gender'] || 'Male').trim();
                     const gender = (rawGender === '여자' || rawGender === 'Female' || rawGender === 'female') ? 'Female' : 'Male';
                     const contact = (row['연락처'] || row['Contact'] || row['contact'] || '').trim();
-                    const morningDestName = (row['등교 목적지'] || row['Morning Destination'] || row['morningDestination'] || '').trim().toLowerCase();
-                    const afternoonDestName = (row['하교 목적지'] || row['Afternoon Destination'] || row['afternoonDestination'] || '').trim().toLowerCase();
+                    
+                    const morningDestName = (row['등교 목적지'] || row['Morning Destination'] || '').trim().toLowerCase();
+                    const afternoonDestName = (row['하교 목적지'] || row['Afternoon Destination'] || '').trim().toLowerCase();
+                    
+                    const afterMonName = (row['방과후(월)'] || '').trim().toLowerCase();
+                    const afterTueName = (row['방과후(화)'] || '').trim().toLowerCase();
+                    const afterWedName = (row['방과후(수)'] || '').trim().toLowerCase();
+                    const afterThuName = (row['방과후(목)'] || '').trim().toLowerCase();
+                    const afterSatName = (row['방과후(토)'] || '').trim().toLowerCase();
 
                     if (name && grade && studentClass) {
+                        const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
+                        if (afterMonName && destMap[afterMonName]) afterSchoolDestinations['Monday'] = destMap[afterMonName];
+                        if (afterTueName && destMap[afterTueName]) afterSchoolDestinations['Tuesday'] = destMap[afterTueName];
+                        if (afterWedName && destMap[afterWedName]) afterSchoolDestinations['Wednesday'] = destMap[afterWedName];
+                        if (afterThuName && destMap[afterThuName]) afterSchoolDestinations['Thursday'] = destMap[afterThuName];
+                        if (afterSatName && destMap[afterSatName]) afterSchoolDestinations['Saturday'] = destMap[afterSatName];
+
                         newStudents.push({
                             name,
                             grade,
@@ -483,7 +502,7 @@ export const StudentManagementTab = ({
                             contact,
                             morningDestinationId: destMap[morningDestName] || null,
                             afternoonDestinationId: destMap[afternoonDestName] || null,
-                            afterSchoolDestinations: {},
+                            afterSchoolDestinations,
                             applicationStatus: 'reviewed',
                         });
                     }
