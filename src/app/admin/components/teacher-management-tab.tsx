@@ -6,7 +6,7 @@ import {
     addTeachersInBatch, deleteTeacher, deleteAllTeachers, updateBus, deleteTeachersInBatch,
     addAfterSchoolTeachersInBatch, deleteAfterSchoolTeacher, deleteAfterSchoolTeachersInBatch, deleteAllAfterSchoolTeachers
 } from '@/lib/firebase-data';
-import type { Teacher, NewTeacher, Bus, Route, DayOfWeek } from '@/lib/types';
+import type { Teacher, NewTeacher, Bus, Route, DayOfWeek, Destination } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -131,9 +131,10 @@ interface TeacherManagementTabProps {
     afterSchoolTeachers: Teacher[];
     buses: Bus[];
     routes: Route[];
+    destinations: Destination[];
 }
 
-export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, routes }: TeacherManagementTabProps) => {
+export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, routes, destinations }: TeacherManagementTabProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     const { t } = useTranslation();
@@ -424,18 +425,29 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
 
     const handleDownloadAssignments = useCallback(() => {
         const sorted = sortBuses(buses);
-        const headers = ["버스 번호", "타입", "담당 교사", "상태"];
+        const headers = ["버스 번호", "타입", "담당 교사", "운행 노선", "상태"];
         
         const rows = sorted.map(bus => {
             const isOperational = isBusOperational(bus.id);
             const teachersStr = getTeachersForBus(bus.id);
+            
+            // 노선 정보 추출 (월요일 기준)
+            const relevantRouteType = teacherAssignmentType === 'commute' ? 'Afternoon' : 'AfterSchool';
+            const route = routes.find(r => r.busId === bus.id && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
+            const routePath = (route?.stops || [])
+                .map(id => destinations.find(d => d.id === id)?.name)
+                .filter(Boolean)
+                .join(' -> ');
+
             const statusStr = !(bus.isActive ?? true) ? "비활성" : (bus.excludeFromAssignment ? "배정제외" : (isOperational ? "운행중" : "운행없음"));
             
+            const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
             return [
-                `"${bus.name}"`,
-                `"${t(`bus_type.${bus.type}`)}"`,
-                `"${teachersStr}"`,
-                `"${statusStr}"`
+                escape(bus.name),
+                escape(t(`bus_type.${bus.type}`)),
+                escape(teachersStr),
+                escape(routePath || ""),
+                escape(statusStr)
             ].join(',');
         });
 
@@ -449,7 +461,7 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }, [buses, teacherAssignmentType, isBusOperational, t]);
+    }, [buses, teacherAssignmentType, isBusOperational, t, routes, destinations]);
 
     useEffect(() => {
         setSelectedTeacherIds(new Set());
@@ -466,7 +478,6 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                 <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-                {/* 탭으로 등하교/방과후 전환 */}
                 <div className="flex flex-col gap-4">
                     <Tabs value={teacherAssignmentType} onValueChange={(v) => setTeacherAssignmentType(v as any)} className="w-full">
                         <TabsList className="grid grid-cols-2 max-w-md">
@@ -475,7 +486,6 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                         </TabsList>
                     </Tabs>
 
-                    {/* 교사 명단 섹션 */}
                     <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <h3 className="text-lg font-semibold">
@@ -566,7 +576,6 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
 
                 <Separator />
 
-                {/* 배정 섹션 */}
                 <div className="space-y-4">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <h3 className="text-lg font-semibold">{t('admin.teacher_assignment.title')} (명단 기반)</h3>

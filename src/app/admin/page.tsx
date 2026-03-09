@@ -236,7 +236,7 @@ const AdminPageContent: React.FC<{
                     <BusRegistrationTab buses={buses} routes={routes} destinations={destinations} />
                 </TabsContent>
                  <TabsContent value="teacher-management" className="mt-6">
-                    <TeacherManagementTab teachers={teachers} afterSchoolTeachers={afterSchoolTeachers} buses={buses} routes={routes} />
+                    <TeacherManagementTab teachers={teachers} afterSchoolTeachers={afterSchoolTeachers} buses={buses} routes={routes} destinations={destinations} />
                 </TabsContent>
                 <TabsContent value="bus-configuration" className="mt-6">
                      <AdminPageFilter
