@@ -23,6 +23,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useTranslation } from '@/hooks/use-translation';
 import { writeBatch, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { format } from 'date-fns';
 
 // 분리된 패널 임포트
 import { StudentUnassignedPanel } from './student-unassigned-panel';
@@ -373,12 +374,162 @@ export const StudentManagementTab = ({
 
     const handleUndoRandomize = useCallback(async () => { if (previousSeating) { await handleSeatUpdate(previousSeating); setPreviousSeating(null); } }, [previousSeating, handleSeatUpdate]);
 
-    const handleDownloadStudentTemplate = () => {};
-    const handleDownloadAllStudents = useCallback(() => {}, []);
-    const handleDownloadUnassignedStudents = useCallback(() => {}, [filteredUnassignedStudents, selectedRouteType, selectedDay, destinations]);
+    const handleDownloadStudentTemplate = () => {
+        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지"];
+        const rows = [
+            ["김철수", "G1", "C1", "Male", "010-1234-5678", "강남역", "강남역"],
+            ["이영희", "G2", "C2", "Female", "010-5678-1234", "서초역", "서초역"]
+        ];
+        const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "student_template.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
-    const handleStudentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {};
-    const handleAddStudent = async () => {};
+    const handleDownloadAllStudents = useCallback(() => {
+        if (students.length === 0) {
+            toast({ title: t('notice'), description: "다운로드할 학생 데이터가 없습니다." });
+            return;
+        }
+        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지"];
+        const rows = students.map(s => [
+            s.name,
+            s.grade,
+            s.class,
+            s.gender,
+            s.contact || "",
+            destinations.find(d => d.id === s.morningDestinationId)?.name || "",
+            destinations.find(d => d.id === s.afternoonDestinationId)?.name || ""
+        ]);
+        const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        const dateStr = format(new Date(), 'yyyyMMdd');
+        link.setAttribute("download", `KIS_All_Students_${dateStr}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, [students, destinations, t, toast]);
+
+    const handleDownloadUnassignedStudents = useCallback(() => {
+        if (filteredUnassignedStudents.length === 0) {
+            toast({ title: t('notice'), description: t('admin.student_management.unassigned.no_students_to_download') });
+            return;
+        }
+        const headers = ["이름", "학년", "반", "성별", "연락처", "목적지"];
+        const rows = filteredUnassignedStudents.map(s => {
+            let destId = null;
+            if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
+            else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
+            else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
+            
+            return [
+                s.name,
+                s.grade,
+                s.class,
+                s.gender,
+                s.contact || "",
+                destinations.find(d => d.id === destId)?.name || "미지정"
+            ];
+        });
+        const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Unassigned_Students_${selectedDay}_${selectedRouteType}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, [filteredUnassignedStudents, selectedRouteType, selectedDay, destinations, t, toast]);
+
+    const handleStudentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const newStudents: NewStudent[] = [];
+                const destMap: Record<string, string> = {};
+                destinations.forEach(d => {
+                    destMap[d.name.trim().toLowerCase()] = d.id;
+                });
+
+                results.data.forEach((row: any) => {
+                    const name = (row['이름'] || row['Name'] || row['name'] || '').trim();
+                    const grade = (row['학년'] || row['Grade'] || row['grade'] || '').trim();
+                    const studentClass = (row['반'] || row['Class'] || row['class'] || '').trim();
+                    const rawGender = (row['성별'] || row['Gender'] || row['gender'] || 'Male').trim();
+                    const gender = (rawGender === '여자' || rawGender === 'Female' || rawGender === 'female') ? 'Female' : 'Male';
+                    const contact = (row['연락처'] || row['Contact'] || row['contact'] || '').trim();
+                    const morningDestName = (row['등교 목적지'] || row['Morning Destination'] || row['morningDestination'] || '').trim().toLowerCase();
+                    const afternoonDestName = (row['하교 목적지'] || row['Afternoon Destination'] || row['afternoonDestination'] || '').trim().toLowerCase();
+
+                    if (name && grade && studentClass) {
+                        newStudents.push({
+                            name,
+                            grade,
+                            class: studentClass,
+                            gender,
+                            contact,
+                            morningDestinationId: destMap[morningDestName] || null,
+                            afternoonDestinationId: destMap[afternoonDestName] || null,
+                            afterSchoolDestinations: {},
+                            applicationStatus: 'reviewed',
+                        });
+                    }
+                });
+
+                if (newStudents.length === 0) {
+                    toast({ title: t('error'), description: t('admin.student_management.batch_upload.validation_error'), variant: 'destructive' });
+                    return;
+                }
+
+                const { dismiss } = toast({ title: t('processing'), description: t('admin.student_management.batch_upload.processing') });
+                try {
+                    await Promise.all(newStudents.map(s => addStudent(s)));
+                    dismiss();
+                    toast({ title: t('success'), description: t('admin.student_management.batch_upload.success', { count: newStudents.length }) });
+                } catch (error) {
+                    dismiss();
+                    console.error("Batch upload error:", error);
+                    toast({ title: t('error'), description: t('admin.student_management.batch_upload.error'), variant: 'destructive' });
+                }
+            },
+            error: (error) => {
+                toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
+            }
+        });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleAddStudent = async () => {
+        if (!newStudentForm.name || !newStudentForm.grade || !newStudentForm.class) {
+            toast({ title: t('error'), description: t('admin.student_management.add_student.validation_error'), variant: 'destructive' });
+            return;
+        }
+        try {
+            await addStudent({
+                ...newStudentForm,
+                applicationStatus: 'reviewed',
+                afterSchoolDestinations: newStudentForm.afterSchoolDestinations || {},
+            } as NewStudent);
+            setNewStudentForm({ gender: 'Male' });
+            toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.student_management.add_student.error'), variant: 'destructive' });
+        }
+    };
+
     const handleDestinationChange = useCallback(async (sid: string, nid: string | null, type: string, day?: DayOfWeek) => {
         const s = students.find(x => x.id === sid);
         if (!s) return;
@@ -397,7 +548,21 @@ export const StudentManagementTab = ({
     }, [selectedGlobalStudent]);
 
     const handleUnassignAllFromStudent = useCallback(async () => { if (selectedGlobalStudent) await unassignStudentFromAllRoutes(selectedGlobalStudent.id); }, [selectedGlobalStudent]);
-    const handleDeleteAllStudents = useCallback(async () => {}, [students]);
+    
+    const handleDeleteAllStudents = useCallback(async () => {
+        const ids = students.map(s => s.id);
+        if (ids.length === 0) return;
+        const { dismiss } = toast({ title: t('processing'), description: "전체 학생 명단 삭제 중..." });
+        try {
+            await deleteStudentsInBatch(ids);
+            dismiss();
+            toast({ title: t('success'), description: "전체 학생 명단이 초기화되었습니다." });
+        } catch (error) {
+            dismiss();
+            toast({ title: t('error'), description: "초기화 중 오류가 발생했습니다.", variant: "destructive" });
+        }
+    }, [students, t, toast]);
+
     const handleAssignStudentFromSearch = useCallback(async () => {
         if (selectedGlobalStudent && currentRoute) {
             const empty = currentRoute.seating.find(s => !s.studentId);
@@ -462,8 +627,6 @@ export const StudentManagementTab = ({
                         handleDownloadUnassignedStudents={handleDownloadUnassignedStudents}
                         handleToggleSelectAll={handleToggleSelectAll}
                         handleDeleteSelectedStudents={handleDeleteSelectedStudents}
-                        handleToggleStudentSelection={handleToggleStudentSelection}
-                        handleUnassignedStudentClick={handleUnassignedStudentClick}
                         handleToggleStudentSelection={handleToggleStudentSelection}
                         handleUnassignedStudentClick={handleUnassignedStudentClick}
                         handleStudentCardClick={handleStudentCardClick}
