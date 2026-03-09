@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, 
-    onSuggestedDestinationsUpdate, onTeachersUpdate,
-    getBuses, getStudents, getRoutes, getDestinations, getTeachers,
+    onSuggestedDestinationsUpdate, onTeachersUpdate, onAfterSchoolTeachersUpdate,
+    getBuses, getStudents, getRoutes, getDestinations, getTeachers, getAfterSchoolTeachers,
     updateStudentsInBatch, updateStudent, deleteStudentsInBatch
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, Teacher, DayOfWeek, RouteType } from '@/lib/types';
@@ -53,6 +53,7 @@ const AdminPageContent: React.FC<{
     destinations: Destination[];
     suggestedDestinations: Destination[];
     teachers: Teacher[];
+    afterSchoolTeachers: Teacher[];
     pendingStudents: Student[];
 }> = ({
     buses,
@@ -61,6 +62,7 @@ const AdminPageContent: React.FC<{
     destinations,
     suggestedDestinations,
     teachers,
+    afterSchoolTeachers,
     pendingStudents,
 }) => {
     const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
@@ -228,7 +230,7 @@ const AdminPageContent: React.FC<{
                     <BusRegistrationTab buses={buses} routes={routes} destinations={destinations} />
                 </TabsContent>
                  <TabsContent value="teacher-management" className="mt-6">
-                    <TeacherManagementTab teachers={teachers} buses={buses} routes={routes} />
+                    <TeacherManagementTab teachers={teachers} afterSchoolTeachers={afterSchoolTeachers} buses={buses} routes={routes} />
                 </TabsContent>
                 <TabsContent value="bus-configuration" className="mt-6">
                      <AdminPageFilter
@@ -296,6 +298,7 @@ export default function AdminPage() {
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [afterSchoolTeachers, setAfterSchoolTeachers] = useState<Teacher[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
     const { t } = useTranslation();
@@ -320,6 +323,7 @@ export default function AdminPage() {
             onDestinationsUpdate(data => setDestinations(sortDestinations(data))),
             onSuggestedDestinationsUpdate(setSuggestedDestinations),
             onTeachersUpdate(data => setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
+            onAfterSchoolTeachersUpdate(data => setAfterSchoolTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
         ];
 
         Promise.all([
@@ -328,6 +332,7 @@ export default function AdminPage() {
             getRoutes(),
             getDestinations(),
             getTeachers(),
+            getAfterSchoolTeachers(),
         ]).then(() => {
             setDataLoading(false);
         }).catch(error => {
@@ -359,6 +364,7 @@ export default function AdminPage() {
                 destinations={destinations}
                 suggestedDestinations={suggestedDestinations}
                 teachers={teachers}
+                afterSchoolTeachers={afterSchoolTeachers}
                 pendingStudents={pendingStudents}
             />
         </MainLayout>

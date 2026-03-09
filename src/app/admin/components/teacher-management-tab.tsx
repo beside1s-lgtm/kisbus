@@ -1,9 +1,11 @@
-
 'use client';
 
 import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import Papa from 'papaparse';
-import { addTeachersInBatch, deleteTeacher, deleteAllTeachers, updateBus, deleteTeachersInBatch } from '@/lib/firebase-data';
+import { 
+    addTeachersInBatch, deleteTeacher, deleteAllTeachers, updateBus, deleteTeachersInBatch,
+    addAfterSchoolTeachersInBatch, deleteAfterSchoolTeacher, deleteAfterSchoolTeachersInBatch, deleteAllAfterSchoolTeachers
+} from '@/lib/firebase-data';
 import type { Teacher, NewTeacher, Bus, Route, DayOfWeek } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,7 +53,6 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
 
     const relevantRoutes = useMemo(() => {
         if (assignmentType === 'commute') {
-            // User requested: teachers only manage afternoon bus
             return allRoutes.filter(r => r.busId === targetBus.id && weekdays.includes(r.dayOfWeek) && r.type === 'Afternoon');
         }
         return allRoutes.filter(r => r.busId === targetBus.id && r.type === 'AfterSchool');
@@ -63,22 +64,6 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
         }
     }, [relevantRoutes]);
     
-    const assignedToOtherRoutesIds = useMemo(() => {
-        const otherRoutes = allRoutes.filter(r => {
-            if (r.busId === targetBus.id) return false;
-            if (assignmentType === 'commute') {
-                return weekdays.includes(r.dayOfWeek) && r.type === 'Afternoon';
-            }
-            return r.type === 'AfterSchool';
-        });
-
-        const ids = new Set<string>();
-        otherRoutes.forEach(r => {
-            r.teacherIds?.forEach(id => ids.add(id));
-        });
-        return ids;
-    }, [allRoutes, targetBus.id, assignmentType, weekdays]);
-
     const handleSave = async () => {
         if (relevantRoutes.length === 0) return;
         
@@ -117,26 +102,18 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
                 </CardDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                {sortedTeachers.map(teacher => {
-                    const isAssignedToOtherRoute = assignedToOtherRoutesIds.has(teacher.id);
-                    const isAssignedToCurrentRoute = selectedTeacherIds.includes(teacher.id);
-                    const isDisabled = isAssignedToOtherRoute && !isAssignedToCurrentRoute;
-
-                    return (
-                        <div key={teacher.id} className="flex items-center space-x-2">
-                            <Checkbox
-                                id={`teacher-${teacher.id}`}
-                                checked={selectedTeacherIds.includes(teacher.id)}
-                                onCheckedChange={(checked) => handleCheckboxChange(teacher.id, checked as boolean)}
-                                disabled={isDisabled}
-                            />
-                            <Label htmlFor={`teacher-${teacher.id}`} className={cn(isDisabled && "text-muted-foreground")}>
-                                {teacher.name}
-                                {isDisabled && <span className="text-xs ml-2">{t('admin.teacher_assignment.change.assigned_other')}</span>}
-                            </Label>
-                        </div>
-                    );
-                })}
+                {sortedTeachers.map(teacher => (
+                    <div key={teacher.id} className="flex items-center space-x-2">
+                        <Checkbox
+                            id={`teacher-${teacher.id}`}
+                            checked={selectedTeacherIds.includes(teacher.id)}
+                            onCheckedChange={(checked) => handleCheckboxChange(teacher.id, checked as boolean)}
+                        />
+                        <Label htmlFor={`teacher-${teacher.id}`}>
+                            {teacher.name}
+                        </Label>
+                    </div>
+                ))}
             </div>
             <DialogFooter className="justify-between">
                 <Button variant="destructive" onClick={handleReset}>{t('reset')}</Button>
@@ -151,11 +128,12 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
 
 interface TeacherManagementTabProps {
     teachers: Teacher[];
+    afterSchoolTeachers: Teacher[];
     buses: Bus[];
     routes: Route[];
 }
 
-export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagementTabProps) => {
+export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, routes }: TeacherManagementTabProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     const { t } = useTranslation();
@@ -165,12 +143,12 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
     const [previousRouteAssignments, setPreviousRouteAssignments] = useState<Record<string, string[]> | null>(null);
 
-    const sortedTeachersList = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
+    const currentTeacherPool = teacherAssignmentType === 'commute' ? teachers : afterSchoolTeachers;
+    const sortedTeachersList = useMemo(() => [...currentTeacherPool].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [currentTeacherPool]);
 
     const isBusOperational = useCallback((busId: string) => {
         let categoryRoutes: Route[] = [];
         if (teacherAssignmentType === 'commute') {
-            // User requested: only check Afternoon route for operation
             categoryRoutes = routes.filter(r => r.busId === busId && ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon');
         } else {
             categoryRoutes = routes.filter(r => r.busId === busId && r.type === 'AfterSchool');
@@ -196,7 +174,11 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                 }
                 const { dismiss } = toast({ title: t('processing'), description: t('admin.teacher_management.batch.processing') });
                 try {
-                    await addTeachersInBatch(newTeachersData);
+                    if (teacherAssignmentType === 'commute') {
+                        await addTeachersInBatch(newTeachersData);
+                    } else {
+                        await addAfterSchoolTeachersInBatch(newTeachersData);
+                    }
                     dismiss();
                     toast({ title: t('success'), description: t('admin.teacher_management.batch.success', { count: newTeachersData.length }) });
                 } catch (error) {
@@ -209,9 +191,7 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             }
         });
 
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
+        if (fileInputRef.current) fileInputRef.current.value = "";
     };
     
     const handleDownloadTemplate = () => {
@@ -221,25 +201,25 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "teacher_template.csv");
+        link.setAttribute("download", `teacher_template_${teacherAssignmentType}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
 
     const handleDownloadTeacherList = () => {
-        if (teachers.length === 0) {
+        if (currentTeacherPool.length === 0) {
             toast({ title: t('notice'), description: "다운로드할 교사 데이터가 없습니다." });
             return;
         }
         const headers = "선생님 이름";
-        const csvRows = teachers.map(t => `"${t.name.replace(/"/g, '""')}"`);
+        const csvRows = currentTeacherPool.map(t => `"${t.name.replace(/"/g, '""')}"`);
         const csvContent = "\uFEFF" + headers + "\n" + csvRows.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `KIS_Teacher_List_${format(new Date(), 'yyyyMMdd')}.csv`);
+        link.setAttribute("download", `KIS_Teacher_List_${teacherAssignmentType}_${format(new Date(), 'yyyyMMdd')}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -247,7 +227,11 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
 
     const handleClearAllTeachers = async () => {
         try {
-            await deleteAllTeachers();
+            if (teacherAssignmentType === 'commute') {
+                await deleteAllTeachers();
+            } else {
+                await deleteAllAfterSchoolTeachers();
+            }
             setSelectedTeacherIds(new Set());
             toast({ title: t('success'), description: "모든 교사 정보가 삭제되었습니다." });
         } catch (error) {
@@ -266,7 +250,7 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
 
     const handleToggleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedTeacherIds(new Set(teachers.map(t => t.id)));
+            setSelectedTeacherIds(new Set(currentTeacherPool.map(t => t.id)));
         } else {
             setSelectedTeacherIds(new Set());
         }
@@ -278,7 +262,11 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
 
         const { dismiss } = toast({ title: t('processing'), description: t('admin.teacher_management.batch.processing') });
         try {
-            await deleteTeachersInBatch(ids);
+            if (teacherAssignmentType === 'commute') {
+                await deleteTeachersInBatch(ids);
+            } else {
+                await deleteAfterSchoolTeachersInBatch(ids);
+            }
             setSelectedTeacherIds(new Set());
             dismiss();
             toast({ title: t('success'), description: t('admin.teacher_management.delete_success_count', { count: ids.length }) });
@@ -292,19 +280,19 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
         const relevantRouteType = teacherAssignmentType === 'commute' ? 'Afternoon' : 'AfterSchool';
         const relevantRoute = routes.find(r => r.busId === busId && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
         if (!relevantRoute || !relevantRoute.teacherIds) return t('unassigned');
-        const teacherNames = relevantRoute.teacherIds
-            .map(id => teachers.find(t => t.id === id)?.name)
+        
+        const names = relevantRoute.teacherIds
+            .map(id => currentTeacherPool.find(t => t.id === id)?.name)
             .filter(Boolean);
-        return teacherNames.length > 0 ? teacherNames.join(', ') : t('unassigned');
+        return names.length > 0 ? names.join(', ') : t('unassigned');
     };
 
     const handleBatchAssignTeachers = async () => {
-        if (teachers.length === 0) {
+        if (currentTeacherPool.length === 0) {
             toast({ title: t('error'), description: t('admin.teacher_assignment.assign.no_teacher_error'), variant: 'destructive' });
             return;
         }
 
-        // 1. Identify which routes we are updating
         let routesToUpdate: Route[] = [];
         let relevantDays: DayOfWeek[];
         if (teacherAssignmentType === 'commute') {
@@ -315,7 +303,6 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
         }
 
-        // 2. Identify target buses (Active, not excluded, and operational in this category)
         const targetBuses = sortBuses(buses.filter(bus => {
             const isActive = bus.isActive ?? true;
             const isExcluded = bus.excludeFromAssignment ?? false;
@@ -328,15 +315,7 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             return;
         }
 
-        // 3. Identify busy teachers (assigned to OTHER operational assignment types)
         const busyTeacherIds = new Set<string>();
-        
-        // Category 1: Teachers in the OTHER assignment type (e.g. if updating Commute, check AfterSchool)
-        const otherAssignmentType = teacherAssignmentType === 'commute' ? 'AfterSchool' : 'Afternoon';
-        const otherRoutes = routes.filter(r => r.type === otherAssignmentType);
-        otherRoutes.forEach(r => r.teacherIds?.forEach(id => busyTeacherIds.add(id)));
-
-        // Category 2: Teachers manually assigned to "Excluded" buses in the CURRENT category
         const excludedBusIds = new Set(buses.filter(bus => bus.excludeFromAssignment === true).map(bus => bus.id));
         routesToUpdate.forEach(r => {
             if (excludedBusIds.has(r.busId)) {
@@ -344,8 +323,7 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             }
         });
         
-        // 4. Filter and shuffle available teachers
-        const availableTeachers = teachers.filter(t => !busyTeacherIds.has(t.id));
+        const availableTeachers = currentTeacherPool.filter(t => !busyTeacherIds.has(t.id));
         const shuffledTeachers = [...availableTeachers].sort(() => Math.random() - 0.5);
         
         if (shuffledTeachers.length === 0) {
@@ -353,21 +331,18 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             return;
         }
 
-        // 5. Backup current state for Undo
         const backup: Record<string, string[]> = {};
         routesToUpdate.forEach(r => {
             backup[r.id] = r.teacherIds || [];
         });
         setPreviousRouteAssignments(backup);
 
-        // 6. Perform assignment logic
         const batch = writeBatch(db);
         let teacherIndex = 0;
-        
         const totalBuses = targetBuses.length;
+
         if (shuffledTeachers.length < totalBuses) {
             toast({ title: t('notice'), description: t('admin.teacher_assignment.assign.not_enough_teachers', { count: shuffledTeachers.length }) });
-            // Do not proceed to clear everything if we can't meet minimum requirements
             return;
         }
 
@@ -377,13 +352,9 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
 
         for (const bus of targetBuses) {
             const assignedIds: string[] = [];
-            
-            // First teacher
             if (teacherIndex < shuffledTeachers.length) {
                 assignedIds.push(shuffledTeachers[teacherIndex++].id);
             }
-            
-            // Second teacher for 45-seater if available
             if (bus.capacity === 45 && assignmentCountFor45 > 0 && teacherIndex < shuffledTeachers.length) {
                 assignedIds.push(shuffledTeachers[teacherIndex++].id);
                 assignmentCountFor45--;
@@ -399,7 +370,6 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             await batch.commit();
             toast({ title: t('success'), description: t('admin.teacher_assignment.assign.success') });
         } catch (error) {
-            console.error("Error during batch assign:", error);
             toast({ title: t('error'), description: t('admin.teacher_assignment.assign.error'), variant: 'destructive' });
         }
     };
@@ -422,7 +392,6 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
     const handleUnassignAllTeachers = async () => {
         let routesToClear: Route[] = [];
         if (teacherAssignmentType === 'commute') {
-            // User requested: teachers only manage afternoon bus
             routesToClear = routes.filter(r => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon');
         } else {
             routesToClear = routes.filter(r => r.type === 'AfterSchool');
@@ -449,10 +418,14 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
             await updateBus(bus.id, { excludeFromAssignment: newExclude });
             toast({ title: t('success'), description: `"${bus.name}" 버스 배정 제외 상태가 ${newExclude ? '설정' : '해제'}되었습니다.` });
         } catch (error) {
-            console.error("Error updating bus assignment status:", error);
             toast({ title: t('error'), description: "상태 변경 중 오류가 발생했습니다.", variant: 'destructive' });
         }
     };
+
+    useEffect(() => {
+        setSelectedTeacherIds(new Set());
+        setPreviousRouteAssignments(null);
+    }, [teacherAssignmentType]);
 
     return (
         <Card>
@@ -464,89 +437,101 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                 <CardDescription>{t('admin.teacher_management.description')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-                {/* 교사 명단 섹션 */}
-                <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <h3 className="text-lg font-semibold">교사 명단 관리</h3>
-                        <div className="flex flex-wrap gap-2">
-                            <Button variant="outline" size="sm" onClick={handleDownloadTeacherList}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
-                            <Button variant="outline" size="sm" onClick={handleDownloadTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.teacher_management.template')}</Button>
-                            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
-                            
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10" disabled={selectedTeacherIds.size === 0}>
-                                        <Trash2 className="mr-2 h-4 w-4" /> {t('delete_selected')}
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>{t('confirm')}</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            {t('admin.teacher_management.delete_selected.confirm_description', { count: selectedTeacherIds.size })}
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleDeleteSelectedTeachers}>{t('delete')}</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                {/* 탭으로 등하교/방과후 전환 */}
+                <div className="flex flex-col gap-4">
+                    <Tabs value={teacherAssignmentType} onValueChange={(v) => setTeacherAssignmentType(v as any)} className="w-full">
+                        <TabsList className="grid grid-cols-2 max-w-md">
+                            <TabsTrigger value="commute">{t('route_type.commute')}</TabsTrigger>
+                            <TabsTrigger value="afterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
 
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm"><Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}</Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>{t('admin.teacher_management.delete_all.confirm_title')}</AlertDialogTitle>
-                                        <AlertDialogDescription>{t('admin.teacher_management.delete_all.confirm_description')}</AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleClearAllTeachers}>{t('delete')}</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+                    {/* 교사 명단 섹션 */}
+                    <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <h3 className="text-lg font-semibold">
+                                {teacherAssignmentType === 'commute' ? "등하교 담당 교사 명단" : "방과후 담당 교사 명단"}
+                            </h3>
+                            <div className="flex flex-wrap gap-2">
+                                <Button variant="outline" size="sm" onClick={handleDownloadTeacherList}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
+                                <Button variant="outline" size="sm" onClick={handleDownloadTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.teacher_management.template')}</Button>
+                                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
+                                
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10" disabled={selectedTeacherIds.size === 0}>
+                                            <Trash2 className="mr-2 h-4 w-4" /> {t('delete_selected')}
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>{t('confirm')}</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                {t('admin.teacher_management.delete_selected.confirm_description', { count: selectedTeacherIds.size })}
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleDeleteSelectedTeachers}>{t('delete')}</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm"><Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}</Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>{t('admin.teacher_management.delete_all.confirm_title')}</AlertDialogTitle>
+                                            <AlertDialogDescription>{t('admin.teacher_management.delete_all.confirm_description')}</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleClearAllTeachers}>{t('delete')}</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="border rounded-md max-h-[300px] overflow-y-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[50px]">
-                                        <Checkbox 
-                                            checked={selectedTeacherIds.size === teachers.length && teachers.length > 0}
-                                            onCheckedChange={handleToggleSelectAll}
-                                        />
-                                    </TableHead>
-                                    <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sortedTeachersList.length > 0 ? (
-                                    sortedTeachersList.map(teacher => (
-                                        <TableRow key={teacher.id}>
-                                            <TableCell>
-                                                <Checkbox 
-                                                    checked={selectedTeacherIds.has(teacher.id)}
-                                                    onCheckedChange={(checked) => handleToggleTeacherSelection(teacher.id, checked as boolean)}
-                                                />
-                                            </TableCell>
-                                            <TableCell className="font-medium">{teacher.name}</TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
+                        <div className="border rounded-md max-h-[300px] overflow-y-auto bg-background">
+                            <Table>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
-                                            등록된 교사가 없습니다.
-                                        </TableCell>
+                                        <TableHead className="w-[50px]">
+                                            <Checkbox 
+                                                checked={selectedTeacherIds.size === currentTeacherPool.length && currentTeacherPool.length > 0}
+                                                onCheckedChange={handleToggleSelectAll}
+                                            />
+                                        </TableHead>
+                                        <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
                                     </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {sortedTeachersList.length > 0 ? (
+                                        sortedTeachersList.map(teacher => (
+                                            <TableRow key={teacher.id}>
+                                                <TableCell>
+                                                    <Checkbox 
+                                                        checked={selectedTeacherIds.has(teacher.id)}
+                                                        onCheckedChange={(checked) => handleToggleTeacherSelection(teacher.id, checked as boolean)}
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="font-medium">{teacher.name}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
+                                                등록된 교사가 없습니다.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </div>
                 </div>
 
@@ -555,40 +540,32 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                 {/* 배정 섹션 */}
                 <div className="space-y-4">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <h3 className="text-lg font-semibold">{t('admin.teacher_assignment.title')}</h3>
-                        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-                            <Tabs value={teacherAssignmentType} onValueChange={(v) => setTeacherAssignmentType(v as any)} className="w-full sm:w-auto">
-                                <TabsList className="grid grid-cols-2">
-                                    <TabsTrigger value="commute">{t('route_type.commute')}</TabsTrigger>
-                                    <TabsTrigger value="afterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
-                                </TabsList>
-                            </Tabs>
-                            <div className="flex gap-2">
-                                <Button variant="outline" size="sm" onClick={handleBatchAssignTeachers} className="flex-1 sm:flex-none">
-                                    <UserCog className="mr-2 h-4 w-4"/>{t('admin.teacher_assignment.reassign')}
+                        <h3 className="text-lg font-semibold">{t('admin.teacher_assignment.title')} (명단 기반)</h3>
+                        <div className="flex gap-2 w-full md:w-auto">
+                            <Button variant="outline" size="sm" onClick={handleBatchAssignTeachers} className="flex-1 sm:flex-none">
+                                <UserCog className="mr-2 h-4 w-4"/>{t('admin.teacher_assignment.reassign')}
+                            </Button>
+                            {previousRouteAssignments && (
+                                <Button variant="outline" size="sm" onClick={handleRestoreAssignments} className="flex-1 sm:flex-none text-blue-600 border-blue-200 hover:bg-blue-50">
+                                    <Undo2 className="mr-2 h-4 w-4"/>{t('admin.teacher_assignment.undo')}
                                 </Button>
-                                {previousRouteAssignments && (
-                                    <Button variant="outline" size="sm" onClick={handleRestoreAssignments} className="flex-1 sm:flex-none text-blue-600 border-blue-200 hover:bg-blue-50">
-                                        <Undo2 className="mr-2 h-4 w-4"/>{t('admin.teacher_assignment.undo')}
-                                    </Button>
-                                )}
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10 flex-1 sm:flex-none">
-                                            <UserX className="mr-2 h-4 w-4"/>{t('reset')}</Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>{t('admin.teacher_assignment.reset.confirm_title')}</AlertDialogTitle>
-                                            <AlertDialogDescription>{t('admin.teacher_assignment.reset.confirm_description')}</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleUnassignAllTeachers}>{t('confirm')}</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </div>
+                            )}
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10 flex-1 sm:flex-none">
+                                        <UserX className="mr-2 h-4 w-4"/>{t('reset')}</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>{t('admin.teacher_assignment.reset.confirm_title')}</AlertDialogTitle>
+                                        <AlertDialogDescription>{t('admin.teacher_assignment.reset.confirm_description')}</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleUnassignAllTeachers}>{t('confirm')}</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                     </div>
                     <div className="border rounded-md">
@@ -652,7 +629,7 @@ export const TeacherManagementTab = ({ teachers, buses, routes }: TeacherManagem
                 <TeacherAssignmentDialog 
                     targetBus={selectedBusForTeacher} 
                     allRoutes={routes} 
-                    teachers={teachers} 
+                    teachers={currentTeacherPool} 
                     assignmentType={teacherAssignmentType}
                     onOpenChange={setIsTeacherDialogOpen} 
                 />

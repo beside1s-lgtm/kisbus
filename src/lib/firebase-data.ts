@@ -75,7 +75,6 @@ async function addDocument<T extends {id: string}>(collectionName: string, data:
             requestResourceData: data,
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
-        // Re-throw the original error to allow the caller to handle it if needed
         throw serverError;
     });
   return { id: docRef.id, ...data } as T;
@@ -96,7 +95,6 @@ function onCollectionUpdate<T>(collectionName: string, callback: (data: T[]) => 
             operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        // We don't rethrow here as it's a listener
     });
     return unsubscribe;
 }
@@ -119,7 +117,6 @@ export const updateBus = async (busId: string, data: Partial<Bus>) => {
     });
 }
 export const deleteBus = async (busId: string) => {
-    // Also delete associated routes
     const q = query(collection(db, "routes"), where("busId", "==", busId));
     const querySnapshot = await getDocs(q);
 
@@ -134,7 +131,7 @@ export const deleteBus = async (busId: string) => {
     await batch.commit()
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: `/buses/${busId}`, // Or a more general path if batch fails
+            path: `/buses/${busId}`,
             operation: 'delete',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
@@ -157,7 +154,6 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
     const sanitizedContact = sanitizeContact(student.contact);
 
     if (!querySnapshot.empty) {
-        // Student exists, update them
         const docRef = querySnapshot.docs[0].ref;
         const existingStudentDoc = await getDoc(docRef);
         const existingStudentData = existingStudentDoc.data() as Student;
@@ -197,7 +193,6 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         const docSnap = await getDoc(docRef);
         return { id: docRef.id, ...docSnap.data() } as Student;
     } else {
-        // Student doesn't exist, create new
         const newStudentWithSanitizedContact = {
             ...student,
             contact: sanitizedContact
@@ -319,7 +314,7 @@ export const deleteStudentsInBatch = async (studentIds: string[]) => {
     await batch.commit()
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: `/`, // Represents batch write
+            path: `/`,
             operation: 'write',
             requestResourceData: { deletedStudentIds: studentIds }
         } satisfies SecurityRuleContext);
@@ -345,7 +340,7 @@ export const addDestinationsInBatch = async (destinations: NewDestination[]): Pr
             const docRef = doc(collection(db, 'destinations'));
             batch.set(docRef, dest);
             newDestinations.push({ id: docRef.id, ...dest });
-            normalizedExisting.add(normName); // prevent adding duplicates from the same batch
+            normalizedExisting.add(normName);
         }
     }
     
@@ -389,7 +384,7 @@ export const deleteAllDestinations = async () => {
     await batch.commit()
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: `/`, // Batch write affects multiple paths
+            path: `/`,
             operation: 'write',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
@@ -397,7 +392,7 @@ export const deleteAllDestinations = async () => {
     });
 };
 
-// Teachers
+// Teachers (Commute)
 export const getTeachers = () => fetchCollection<Teacher>('teachers');
 export const onTeachersUpdate = (callback: (teachers: Teacher[]) => void) => onCollectionUpdate<Teacher>('teachers', callback);
 export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teacher[]> => {
@@ -430,20 +425,14 @@ export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teache
 
 export const deleteTeacher = async (teacherId: string) => {
     const batch = writeBatch(db);
-    
-    // Delete the teacher doc
     batch.delete(doc(db, 'teachers', teacherId));
-    
-    // Remove from all route assignments
-    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'Afternoon')));
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
         if (routeData.teacherIds && routeData.teacherIds.includes(teacherId)) {
-            const newTeacherIds = routeData.teacherIds.filter(id => id !== teacherId);
-            batch.update(routeDoc.ref, { teacherIds: newTeacherIds });
+            batch.update(routeDoc.ref, { teacherIds: routeData.teacherIds.filter(id => id !== teacherId) });
         }
     });
-
     await batch.commit()
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -457,24 +446,15 @@ export const deleteTeacher = async (teacherId: string) => {
 
 export const deleteTeachersInBatch = async (teacherIds: string[]) => {
     const batch = writeBatch(db);
-    
-    // Delete the teacher docs
-    teacherIds.forEach(id => {
-        batch.delete(doc(db, 'teachers', id));
-    });
-    
-    // Remove from all route assignments
-    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    teacherIds.forEach(id => batch.delete(doc(db, 'teachers', id)));
+    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'Afternoon')));
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
         if (routeData.teacherIds) {
-            const newTeacherIds = routeData.teacherIds.filter(id => !teacherIds.includes(id));
-            if (newTeacherIds.length !== routeData.teacherIds.length) {
-                batch.update(routeDoc.ref, { teacherIds: newTeacherIds });
-            }
+            const newIds = routeData.teacherIds.filter(id => !teacherIds.includes(id));
+            if (newIds.length !== routeData.teacherIds.length) batch.update(routeDoc.ref, { teacherIds: newIds });
         }
     });
-
     await batch.commit()
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -488,19 +468,105 @@ export const deleteTeachersInBatch = async (teacherIds: string[]) => {
 
 export const deleteAllTeachers = async () => {
     const batch = writeBatch(db);
-    
     const teachersSnapshot = await getDocs(collection(db, 'teachers'));
     teachersSnapshot.forEach(doc => batch.delete(doc.ref));
-    
-    const routesSnapshot = await getDocs(collection(db, 'routes'));
-    routesSnapshot.forEach(doc => {
-        batch.update(doc.ref, { teacherIds: [] });
-    });
-
+    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'Afternoon')));
+    routesSnapshot.forEach(doc => batch.update(doc.ref, { teacherIds: [] }));
     await batch.commit()
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: `/teachers`,
+            operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+};
+
+// After School Teachers
+export const getAfterSchoolTeachers = () => fetchCollection<Teacher>('afterSchoolTeachers');
+export const onAfterSchoolTeachersUpdate = (callback: (teachers: Teacher[]) => void) => onCollectionUpdate<Teacher>('afterSchoolTeachers', callback);
+export const addAfterSchoolTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teacher[]> => {
+    const batch = writeBatch(db);
+    const newTeachers: Teacher[] = [];
+    const q = query(collection(db, 'afterSchoolTeachers'));
+    const existingDocs = await getDocs(q);
+    const existingNames = new Set(existingDocs.docs.map(d => d.data().name));
+
+    for (const teacher of teachers) {
+        if (!existingNames.has(teacher.name)) {
+            const docRef = doc(collection(db, 'afterSchoolTeachers'));
+            batch.set(docRef, teacher);
+            newTeachers.push({ id: docRef.id, ...teacher });
+            existingNames.add(teacher.name);
+        }
+    }
+    await batch.commit()
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: `/afterSchoolTeachers`,
+            operation: 'create',
+            requestResourceData: newTeachers,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+    return newTeachers;
+};
+
+export const deleteAfterSchoolTeacher = async (teacherId: string) => {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'afterSchoolTeachers', teacherId));
+    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'AfterSchool')));
+    routesSnapshot.forEach(routeDoc => {
+        const routeData = routeDoc.data() as Route;
+        if (routeData.teacherIds && routeData.teacherIds.includes(teacherId)) {
+            batch.update(routeDoc.ref, { teacherIds: routeData.teacherIds.filter(id => id !== teacherId) });
+        }
+    });
+    await batch.commit()
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: `/afterSchoolTeachers/${teacherId}`,
+            operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+};
+
+export const deleteAfterSchoolTeachersInBatch = async (teacherIds: string[]) => {
+    const batch = writeBatch(db);
+    teacherIds.forEach(id => batch.delete(doc(db, 'afterSchoolTeachers', id)));
+    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'AfterSchool')));
+    routesSnapshot.forEach(routeDoc => {
+        const routeData = routeDoc.data() as Route;
+        if (routeData.teacherIds) {
+            const newIds = routeData.teacherIds.filter(id => !teacherIds.includes(id));
+            if (newIds.length !== routeData.teacherIds.length) batch.update(routeDoc.ref, { teacherIds: newIds });
+        }
+    });
+    await batch.commit()
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: `/afterSchoolTeachers`,
+            operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+};
+
+export const deleteAllAfterSchoolTeachers = async () => {
+    const batch = writeBatch(db);
+    const teachersSnapshot = await getDocs(collection(db, 'afterSchoolTeachers'));
+    teachersSnapshot.forEach(doc => batch.delete(doc.ref));
+    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'AfterSchool')));
+    routesSnapshot.forEach(doc => batch.update(doc.ref, { teacherIds: [] }));
+    await batch.commit()
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: `/afterSchoolTeachers`,
             operation: 'delete',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
@@ -679,7 +745,7 @@ export const approveSuggestedDestination = async (suggestion: Destination) => {
     await batch.commit()
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: `/`, // Batch write
+            path: `/`,
             operation: 'write',
             requestResourceData: { approvedSuggestion: suggestion }
         } satisfies SecurityRuleContext);
@@ -713,7 +779,6 @@ export const unassignStudentFromAllRoutes = async (studentId: string, routeTypes
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
         
-        // If routeTypes are specified, only check routes of those types
         if (routeTypes && !routeTypes.includes(routeData.type)) {
             return;
         }
