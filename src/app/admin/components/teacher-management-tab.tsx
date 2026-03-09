@@ -422,6 +422,35 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
         }
     };
 
+    const handleDownloadAssignments = useCallback(() => {
+        const sorted = sortBuses(buses);
+        const headers = ["버스 번호", "타입", "담당 교사", "상태"];
+        
+        const rows = sorted.map(bus => {
+            const isOperational = isBusOperational(bus.id);
+            const teachersStr = getTeachersForBus(bus.id);
+            const statusStr = !(bus.isActive ?? true) ? "비활성" : (bus.excludeFromAssignment ? "배정제외" : (isOperational ? "운행중" : "운행없음"));
+            
+            return [
+                `"${bus.name}"`,
+                `"${t(`bus_type.${bus.type}`)}"`,
+                `"${teachersStr}"`,
+                `"${statusStr}"`
+            ].join(',');
+        });
+
+        const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const categoryName = teacherAssignmentType === 'commute' ? "하교" : "방과후";
+        link.setAttribute("href", url);
+        link.setAttribute("download", `KIS_Bus_Teacher_Assignments_${categoryName}_${format(new Date(), 'yyyyMMdd')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, [buses, teacherAssignmentType, isBusOperational, t]);
+
     useEffect(() => {
         setSelectedTeacherIds(new Set());
         setPreviousRouteAssignments(null);
@@ -541,7 +570,10 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                 <div className="space-y-4">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <h3 className="text-lg font-semibold">{t('admin.teacher_assignment.title')} (명단 기반)</h3>
-                        <div className="flex gap-2 w-full md:w-auto">
+                        <div className="flex gap-2 w-full md:w-auto flex-wrap">
+                            <Button variant="outline" size="sm" onClick={handleDownloadAssignments} className="flex-1 sm:flex-none">
+                                <Download className="mr-2 h-4 w-4"/> 배정 현황 다운로드
+                            </Button>
                             <Button variant="outline" size="sm" onClick={handleBatchAssignTeachers} className="flex-1 sm:flex-none">
                                 <UserCog className="mr-2 h-4 w-4"/>{t('admin.teacher_assignment.reassign')}
                             </Button>

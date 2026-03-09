@@ -91,6 +91,7 @@ const AdminPageContent: React.FC<{
         if (selectedDate) {
             const isNewDate = selectedDate !== lastProcessedDateRef.current;
             const targetDate = new Date(selectedDate);
+            const isSat = getDay(targetDate) === 6;
             
             // 요일은 날짜가 바뀔 때마다 업데이트 (항상 날짜와 동기화되어야 함)
             if (isSunday(targetDate)) {
@@ -109,15 +110,20 @@ const AdminPageContent: React.FC<{
                     const now = new Date();
                     const vietnamHour = (now.getUTCHours() + 7) % 24;
 
-                    if (vietnamHour >= 9 && vietnamHour < 15) {
-                        setSelectedRouteType('Afternoon');
-                    } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                    if (isSat) {
+                        // 토요일은 방과후만 있음 (11:30~12:00)
                         setSelectedRouteType('AfterSchool');
                     } else {
-                        setSelectedRouteType('Morning');
+                        if (vietnamHour >= 9 && vietnamHour < 15) {
+                            setSelectedRouteType('Afternoon');
+                        } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                            setSelectedRouteType('AfterSchool');
+                        } else {
+                            setSelectedRouteType('Morning');
+                        }
                     }
                 } else {
-                    setSelectedRouteType('Morning');
+                    setSelectedRouteType(isSat ? 'AfterSchool' : 'Morning');
                 }
             }
         }

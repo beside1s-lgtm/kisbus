@@ -460,6 +460,7 @@ export default function TeacherPage() {
     if (selectedDate) {
         const isNewDate = selectedDate !== lastProcessedDateRef.current;
         const targetDate = new Date(selectedDate);
+        const isSat = getDay(targetDate) === 6;
         
         if (isSunday(targetDate)) {
             setSelectedDay('Monday');
@@ -475,15 +476,19 @@ export default function TeacherPage() {
                 const now = new Date();
                 const vietnamHour = (now.getUTCHours() + 7) % 24;
 
-                if (vietnamHour >= 9 && vietnamHour < 15) {
-                    setSelectedRouteType('Afternoon');
-                } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                if (isSat) {
                     setSelectedRouteType('AfterSchool');
                 } else {
-                    setSelectedRouteType('Morning');
+                    if (vietnamHour >= 9 && vietnamHour < 15) {
+                        setSelectedRouteType('Afternoon');
+                    } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                        setSelectedRouteType('AfterSchool');
+                    } else {
+                        setSelectedRouteType('Morning');
+                    }
                 }
             } else {
-                setSelectedRouteType('Morning');
+                setSelectedRouteType(isSat ? 'AfterSchool' : 'Morning');
             }
         }
     }
