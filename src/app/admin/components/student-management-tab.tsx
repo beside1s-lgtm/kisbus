@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -166,7 +167,7 @@ export const StudentManagementTab = ({
         if (unassignedView === 'current') {
             if (!currentRoute) { setFilteredUnassignedStudents([]); return; }
             const afterSchoolIds = new Set<string>();
-            if (selectedRouteType === 'Afternoon') routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'AfterSchool').forEach(r => r.seating.forEach(s => { if (s.studentId) afterSchoolIds.has(s.studentId); }));
+            if (selectedRouteType === 'Afternoon') routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => r.seating.forEach(s => { if (s.studentId) afterSchoolIds.has(s.studentId); }));
             unassigned = students.filter(s => !unassignableStudents.some(u => u.id === s.id) && !assignedIds.has(s.id) && !(selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) && (
                 (selectedRouteType === 'Morning' && s.morningDestinationId && currentRoute.stops.includes(s.morningDestinationId)) ||
                 (selectedRouteType === 'Afternoon' && s.afternoonDestinationId && currentRoute.stops.includes(s.afternoonDestinationId)) ||
@@ -369,9 +370,9 @@ export const StudentManagementTab = ({
                 }
             } else {
                 // For 16-seater
-                // Priority: 2 to 16, then 1 (front passenger next to driver)
-                for (let i = 2; i <= cap; i++) middles.push(i);
-                middles.push(1);
+                // Priority: 4 to 16, then 1, 2, 3 (front seats next to/near driver)
+                for (let i = 4; i <= cap; i++) middles.push(i);
+                middles.push(1, 2, 3);
             }
             return { pairs, middles };
         };
