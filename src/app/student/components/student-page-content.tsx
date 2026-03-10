@@ -6,7 +6,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MainLayout } from '@/components/layout/main-layout';
-import { format, getDay, isSaturday, isSunday, formatDistanceToNow } from 'date-fns';
+import { format, getDay, isSunday, formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -97,14 +97,14 @@ export function StudentPageContent() {
         setAssignedRoutes(studentRoutes);
 
         const targetDate = new Date(selectedDate);
+        let dayOfWeek: DayOfWeek;
+        
         if (isSunday(targetDate)) {
-             setViewingDay(null);
-             setViewingRouteType(null);
-             return;
+             dayOfWeek = 'Monday';
+        } else {
+            const dayIndex = getDay(targetDate); 
+            dayOfWeek = days[dayIndex - 1];
         }
-
-        const dayIndex = getDay(targetDate); 
-        const dayOfWeek = days[dayIndex - 1];
 
         const routesForDay = studentRoutes
           .filter(r => r.dayOfWeek === dayOfWeek)
@@ -113,20 +113,30 @@ export function StudentPageContent() {
         if (routesForDay.length > 0) {
             setViewingDay(dayOfWeek);
             
-            if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
-                const now = new Date();
-                const vietnamHour = (now.getUTCHours() + 7) % 24;
-                
-                if (vietnamHour >= 9 && vietnamHour < 15) {
-                    setViewingRouteType('Afternoon');
-                } else if (vietnamHour >= 15 && vietnamHour < 20) {
-                    setViewingRouteType('AfterSchool');
-                } else {
-                    setViewingRouteType('Morning');
-                }
+            // Auto-detect best route type based on time
+            const now = new Date();
+            const vietnamHour = (now.getUTCHours() + 7) % 24;
+            
+            let preferredType: RouteType;
+            if (vietnamHour >= 9 && vietnamHour < 15) {
+                preferredType = 'Afternoon';
+            } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                preferredType = 'AfterSchool';
             } else {
-                setViewingRouteType(routesForDay[0].type); 
+                preferredType = 'Morning';
             }
+
+            const matchedRoute = routesForDay.find(r => r.type === preferredType);
+            if (matchedRoute) {
+                setViewingRouteType(matchedRoute.type);
+            } else {
+                // If preferred slot not available, pick the first available for that day
+                setViewingRouteType(routesForDay[0].type);
+            }
+        } else if (studentRoutes.length > 0) {
+            // No routes today, default to their first route of the week
+            setViewingDay(studentRoutes[0].dayOfWeek);
+            setViewingRouteType(studentRoutes[0].type);
         } else {
             setViewingDay(null);
             setViewingRouteType(null);
@@ -161,7 +171,9 @@ export function StudentPageContent() {
         return;
     };
 
-    const targetDayOfWeek = days[getDay(new Date(selectedDate)) - 1];
+    const targetDate = new Date(selectedDate);
+    const dayIndex = isSunday(targetDate) ? 1 : getDay(targetDate);
+    const targetDayOfWeek = days[dayIndex - 1];
 
     if (studentRoute.dayOfWeek === targetDayOfWeek) {
       unsubscribe = onAttendanceUpdate(studentRoute.id, selectedDate, (attendance) => {
@@ -397,7 +409,7 @@ export function StudentPageContent() {
                       {selectedStudent ? (
                       <AlertTitle className="flex items-center gap-4">
                           <span>
-                              {t('teacher_page.status')}: {selectedBus?.name || t('unassigned')}
+                              {t('teacher_page.status')}: {selectedBus ? `${selectedBus.name} (${getRouteTypeLabel(viewingRouteType!)})` : t('unassigned')}
                           </span>
                           {studentStatus && (
                               <span className={cn("font-bold", studentStatus.color)}>{studentStatus.text}</span>
@@ -449,7 +461,7 @@ export function StudentPageContent() {
                           <Alert className="max-w-md text-center">
                               <AlertTitle>{selectedStudent ? t('no_route_info') : t('student_page.select_student_prompt')}</AlertTitle>
                               <AlertDescription>
-                                  {selectedStudent ? '선택한 날짜에 해당하는 학생의 노선 정보가 없습니다.' : t('student_page.select_student_description')}
+                                  {selectedStudent ? '선택한 조건에 해당하는 자녀의 노선 배정 정보가 없습니다. 관리자에게 문의하거나 신청 내역을 확인해 주세요.' : t('student_page.select_student_description')}
                               </AlertDescription>
                           </Alert>
                       </div>
