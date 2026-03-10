@@ -1,7 +1,7 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import Papa from 'papaparse';
 import { 
     addStudent, updateStudent, deleteStudentsInBatch, updateRouteSeating,
     copySeatingPlan, unassignStudentFromAllRoutes
@@ -146,17 +146,20 @@ export const StudentManagementTab = ({
 
             // 목적지가 설정되어 있는데, 현재 운영 중인 어떤 노선 정류장에도 포함되어 있지 않은 경우에만 표시
             if (destId && !validStopIds.has(destId)) {
+                const destName = destinations.find(d => d.id === destId)?.name || '알 수 없음';
+                const baseReason = errorKey === 'admin.student_management.unassignable.error_after_school' 
+                    ? t(errorKey, { day: t(`day_short.${selectedDay.toLowerCase()}`) })
+                    : t(errorKey);
+
                 unassignables.push({ 
                     ...student, 
-                    errorReason: errorKey === 'admin.student_management.unassignable.error_after_school' 
-                        ? t(errorKey, { day: t(`day_short.${selectedDay.toLowerCase()}`) })
-                        : t(errorKey)
+                    errorReason: `${baseReason} (${destName})`
                 });
             }
         });
 
         setUnassignableStudents(unassignables);
-    }, [students, routes, selectedDay, selectedRouteType, t]);
+    }, [students, routes, selectedDay, selectedRouteType, destinations, t]);
 
     // 방과후 학생들의 하교 버스 좌석 자동 해제 로직
     const unassignProcessingRef = useRef(false);
@@ -706,7 +709,12 @@ export const StudentManagementTab = ({
                             <AlertDescription>
                                 <div className="mt-2 space-y-1">
                                     {unassignableStudents.map(student => (
-                                        <div key={student.id} className="text-xs flex justify-between items-center border-b border-destructive/20 pb-1">
+                                        <div 
+                                            key={student.id} 
+                                            className="text-xs flex justify-between items-center border-b border-destructive/20 pb-1 cursor-pointer hover:bg-destructive/10 transition-colors"
+                                            onClick={() => setSelectedGlobalStudent(student)}
+                                            title="클릭하여 학생 정보 수정"
+                                        >
                                             <span>{student.name} ({student.grade} {student.class})</span>
                                             <span className="font-semibold">{student.errorReason}</span>
                                         </div>
