@@ -4,10 +4,8 @@ import React, { useMemo, useEffect } from 'react';
 import type { Bus, Route, Destination, DayOfWeek, RouteType } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTranslation } from '@/hooks/use-translation';
-import { getDay, isSunday } from 'date-fns';
 
 interface AdminPageFilterProps {
     buses: Bus[];
@@ -15,8 +13,6 @@ interface AdminPageFilterProps {
     destinations?: Destination[];
     selectedBusId: string | null;
     setSelectedBusId: (id: string | null) => void;
-    selectedDate: string;
-    setSelectedDate: (date: string) => void;
     selectedDay: DayOfWeek;
     setSelectedDay: (day: DayOfWeek) => void;
     selectedRouteType: RouteType;
@@ -32,8 +28,6 @@ export const AdminPageFilter = ({
     destinations = [],
     selectedBusId,
     setSelectedBusId,
-    selectedDate,
-    setSelectedDate,
     selectedDay,
     setSelectedDay,
     selectedRouteType,
@@ -88,19 +82,6 @@ export const AdminPageFilter = ({
         return stopNames.join(' -> ');
     }, [showRouteStops, selectedBusId, routes, selectedDay, selectedRouteType, destinations, t]);
     
-    const getDayOfWeekString = (dateString: string) => {
-        if (!dateString) return '';
-        try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return '';
-            const dayIndex = getDay(date);
-            if(isSunday(date)) return '';
-            return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
-        } catch(e) {
-            return '';
-        }
-    };
-
     return (
         <Card className="mb-6">
             <CardContent className="flex flex-wrap items-end gap-4 p-4">
@@ -121,15 +102,18 @@ export const AdminPageFilter = ({
                 </div>
                 <div className="w-full sm:w-auto">
                     <Label className="text-xs">{t('day')}</Label>
-                    <div className="flex items-center rounded-md border border-input bg-background h-10 px-3">
-                        <Input 
-                            type="date" 
-                            value={selectedDate} 
-                            onChange={e => setSelectedDate(e.target.value)}
-                            className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                        />
-                        <span className="text-sm text-muted-foreground ml-2">{getDayOfWeekString(selectedDate)}</span>
-                    </div>
+                    <Select value={selectedDay} onValueChange={(v) => setSelectedDay(v as DayOfWeek)}>
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder={t('select_day')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {days.map((day) => (
+                                <SelectItem key={day} value={day}>
+                                    {t(`day.${day.toLowerCase()}`)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="w-full sm:w-auto">
                     <Label className="text-xs">{t('route')}</Label>

@@ -20,7 +20,6 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/use-auth';
 import { useTranslation } from '@/hooks/use-translation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { getDay, isSunday, format } from 'date-fns';
 
 // 분리한 컴포넌트 임포트
 import { BusRegistrationTab } from './components/bus-registration-tab';
@@ -66,7 +65,6 @@ const AdminPageContent: React.FC<{
     pendingStudents,
 }) => {
     const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
-    const [selectedDate, setSelectedDate] = useState<string>('');
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
@@ -74,60 +72,34 @@ const AdminPageContent: React.FC<{
     const { t } = useTranslation();
     const [isClient, setIsClient] = useState(false);
     
-    // 사용자가 수동으로 선택한 값을 보호하기 위해 마지막으로 처리한 날짜를 추적
-    const lastProcessedDateRef = useRef<string | null>(null);
-
     useEffect(() => {
         setIsClient(true);
-    }, []);
-
-    useEffect(() => {
-        if (isClient && !selectedDate) {
-            setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
+        
+        // Initialize day and route type based on today
+        const now = new Date();
+        const dayIndex = now.getDay(); // 0 (Sun) to 6 (Sat)
+        
+        if (dayIndex === 0) { // Sunday -> Default to Monday
+            setSelectedDay('Monday');
+        } else {
+            setSelectedDay(DAYS[dayIndex - 1]);
         }
-    }, [isClient, selectedDate]);
 
-    useEffect(() => {
-        if (selectedDate) {
-            const isNewDate = selectedDate !== lastProcessedDateRef.current;
-            const targetDate = new Date(selectedDate);
-            const isSat = getDay(targetDate) === 6;
-            
-            // 요일은 날짜가 바뀔 때마다 업데이트 (항상 날짜와 동기화되어야 함)
-            if (isSunday(targetDate)) {
-                setSelectedDay('Monday');
+        const isSat = dayIndex === 6;
+        const vietnamHour = (now.getUTCHours() + 7) % 24;
+
+        if (isSat) {
+            setSelectedRouteType('AfterSchool');
+        } else {
+            if (vietnamHour >= 9 && vietnamHour < 15) {
+                setSelectedRouteType('Afternoon');
+            } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                setSelectedRouteType('AfterSchool');
             } else {
-                const dayIndex = getDay(targetDate);
-                setSelectedDay(DAYS[dayIndex - 1]);
-            }
-
-            // 노선 타입은 날짜가 실제로 변경되었을 때만 기본값으로 설정
-            // 이를 통해 리렌더링 시 사용자의 수동 선택이 유지됨
-            if (isNewDate) {
-                lastProcessedDateRef.current = selectedDate;
-                
-                if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
-                    const now = new Date();
-                    const vietnamHour = (now.getUTCHours() + 7) % 24;
-
-                    if (isSat) {
-                        // 토요일은 방과후만 있음 (11:30~12:00)
-                        setSelectedRouteType('AfterSchool');
-                    } else {
-                        if (vietnamHour >= 9 && vietnamHour < 15) {
-                            setSelectedRouteType('Afternoon');
-                        } else if (vietnamHour >= 15 && vietnamHour < 20) {
-                            setSelectedRouteType('AfterSchool');
-                        } else {
-                            setSelectedRouteType('Morning');
-                        }
-                    }
-                } else {
-                    setSelectedRouteType(isSat ? 'AfterSchool' : 'Morning');
-                }
+                setSelectedRouteType('Morning');
             }
         }
-    }, [selectedDate]);
+    }, []);
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
@@ -244,8 +216,6 @@ const AdminPageContent: React.FC<{
                         routes={routes}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
-                        selectedDate={selectedDate}
-                        setSelectedDate={setSelectedDate}
                         selectedDay={selectedDay}
                         setSelectedDay={setSelectedDay}
                         selectedRouteType={selectedRouteType}
@@ -268,8 +238,6 @@ const AdminPageContent: React.FC<{
                         routes={routes}
                         selectedBusId={selectedBusId}
                         setSelectedBusId={setSelectedBusId}
-                        selectedDate={selectedDate}
-                        setSelectedDate={setSelectedDate}
                         selectedDay={selectedDay}
                         setSelectedDay={setSelectedDay}
                         selectedRouteType={selectedRouteType}
