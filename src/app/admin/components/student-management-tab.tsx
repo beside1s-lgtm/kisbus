@@ -110,35 +110,53 @@ export const StudentManagementTab = ({
     useEffect(() => {
         if (!routes.length || !students.length) return;
 
-        const allValidStopIdsByRoute = new Map<string, Set<string>>();
-        routes.forEach(r => {
-            const key = `${r.dayOfWeek}_${r.type}`;
-            if (!allValidStopIdsByRoute.has(key)) allValidStopIdsByRoute.set(key, new Set());
-            r.stops.forEach(s => allValidStopIdsByRoute.get(key)!.add(s));
+        // 1. 현재 설정(요일/타입)에서 이미 배정된 학생 ID 집합
+        const allAssignedIds = new Set<string>();
+        routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
+            r.seating.forEach(s => {
+                if (s.studentId) allAssignedIds.add(s.studentId);
+            });
+        });
+
+        // 2. 현재 설정(요일/타입)에서 운영 중인 모든 정류장 ID 집합
+        const validStopIds = new Set<string>();
+        routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
+            r.stops.forEach(s => validStopIds.add(s));
         });
 
         const unassignables: (Student & { errorReason: string })[] = [];
 
         students.forEach(student => {
-            const mKey = `Monday_Morning`; // 평일 노선은 월요일 기준 정류장 집합 사용 (KIS 정책상 주간 정류장 동일 가정)
-            const aKey = `Monday_Afternoon`;
-            const sKey = `${selectedDay}_AfterSchool`;
+            // 이미 배정된 학생은 제외
+            if (allAssignedIds.has(student.id)) return;
 
-            const mStops = allValidStopIdsByRoute.get(mKey);
-            const aStops = allValidStopIdsByRoute.get(aKey);
-            const sStops = allValidStopIdsByRoute.get(sKey);
+            let destId: string | null = null;
+            let errorKey = '';
 
-            if (student.morningDestinationId && mStops && !mStops.has(student.morningDestinationId)) {
-                unassignables.push({ ...student, errorReason: t('admin.student_management.unassignable.error_morning') });
-            } else if (student.afternoonDestinationId && aStops && !aStops.has(student.afternoonDestinationId)) {
-                unassignables.push({ ...student, errorReason: t('admin.student_management.unassignable.error_afternoon') });
-            } else if (student.afterSchoolDestinations?.[selectedDay] && sStops && !sStops.has(student.afterSchoolDestinations[selectedDay]!)) {
-                unassignables.push({ ...student, errorReason: t('admin.student_management.unassignable.error_after_school', { day: t(`day_short.${selectedDay.toLowerCase()}`) }) });
+            if (selectedRouteType === 'Morning') {
+                destId = student.morningDestinationId;
+                errorKey = 'admin.student_management.unassignable.error_morning';
+            } else if (selectedRouteType === 'Afternoon') {
+                destId = student.afternoonDestinationId;
+                errorKey = 'admin.student_management.unassignable.error_afternoon';
+            } else if (selectedRouteType === 'AfterSchool') {
+                destId = student.afterSchoolDestinations?.[selectedDay] || null;
+                errorKey = 'admin.student_management.unassignable.error_after_school';
+            }
+
+            // 목적지가 설정되어 있는데, 현재 운영 중인 어떤 노선 정류장에도 포함되어 있지 않은 경우에만 표시
+            if (destId && !validStopIds.has(destId)) {
+                unassignables.push({ 
+                    ...student, 
+                    errorReason: errorKey === 'admin.student_management.unassignable.error_after_school' 
+                        ? t(errorKey, { day: t(`day_short.${selectedDay.toLowerCase()}`) })
+                        : t(errorKey)
+                });
             }
         });
 
         setUnassignableStudents(unassignables);
-    }, [students, routes, selectedDay, t]);
+    }, [students, routes, selectedDay, selectedRouteType, t]);
 
     // 방과후 학생들의 하교 버스 좌석 자동 해제 로직
     const unassignProcessingRef = useRef(false);
@@ -407,7 +425,7 @@ export const StudentManagementTab = ({
                 }
             }
         } else if (capacity === 16) {
-            // 16인승: 4-16번 중 창가 느낌인 좌측/우측 끝 우선 (여기선 단순화하여 4-16 우선)
+            // 16인승: 4-16번 중 창가 느낌인 좌측/우측 끝 우선
             for (let i = 4; i <= 16; i++) windowSeats.push(i);
             aisleSeats.push(1, 2, 3);
         }
@@ -510,7 +528,7 @@ export const StudentManagementTab = ({
 
     const handleDownloadUnassignedStudents = useCallback(() => {
         if (filteredUnassignedStudents.length === 0) {
-            toast({ title: t('notice'), description: t('admin.student_management.unassigned.no_students_to_download') });
+            toast({ title: t('notice'), description: t('admin.student_management.unassigned.download_list') });
             return;
         }
         const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "목적지", "형제/자매"];
