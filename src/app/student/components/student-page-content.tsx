@@ -282,19 +282,6 @@ export function StudentPageContent() {
       return t(`route_type.${routeType.toLowerCase()}`);
   }
   
-  const getDayOfWeekString = (dateString: string) => {
-    if (!dateString) return '';
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return '';
-        const dayIndex = getDay(date);
-        if(isSunday(date)) return '';
-        return `(${t(`day_short.${days[dayIndex - 1].toLowerCase()}`)})`;
-    } catch(e) {
-        return '';
-    }
-  };
-
   const getStudentDestination = useCallback((student: Student) => {
     if (!viewingDay || !viewingRouteType) return { id: null, name: null };
     
@@ -371,7 +358,6 @@ export function StudentPageContent() {
                         onChange={(e) => setSelectedDate(e.target.value)}
                         className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
-                    <span className="text-sm text-muted-foreground ml-2">{getDayOfWeekString(selectedDate)}</span>
                 </div>
             </div>
         )}

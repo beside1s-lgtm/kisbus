@@ -950,19 +950,6 @@ export default function TeacherPage() {
     );
   }, [selectedDestinationId, studentsOnCurrentRoute, boardedStudentIds, disembarkedStudentIds, selectedRouteType, selectedDay]);
 
-  const getDayOfWeekString = (dateString: string) => {
-    if (!dateString) return '';
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return '';
-        const dayIndex = getDay(date);
-        if(isSunday(date)) return '';
-        return `(${t(`day_short.${DAYS[dayIndex - 1].toLowerCase()}`)})`;
-    } catch(e) {
-        return '';
-    }
-  };
-  
   const handleToggleDeparture = async () => {
     if (!selectedBus) return;
     if (selectedBus.status === 'departed') {
@@ -999,7 +986,6 @@ export default function TeacherPage() {
                     onChange={e => setSelectedDate(e.target.value)}
                     className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
-                <span className="text-sm text-muted-foreground ml-2">{getDayOfWeekString(selectedDate)}</span>
             </div>
         </div>
         <div className="flex-1 min-w-[180px]">
