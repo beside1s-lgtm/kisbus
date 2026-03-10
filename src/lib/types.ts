@@ -12,6 +12,7 @@ export type Student = {
   suggestedAfternoonDestination?: string | null;
   suggestedAfterSchoolDestinations?: Partial<Record<DayOfWeek, string | null>>;
   applicationStatus?: 'pending' | 'reviewed';
+  siblingGroupId?: string | null;
 };
 export type NewStudent = Omit<Student, 'id'>;
 

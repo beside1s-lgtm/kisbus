@@ -1,11 +1,10 @@
-
 'use client';
 import React from 'react';
 import { Student, Destination, RouteType, DayOfWeek } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
-import { Armchair } from 'lucide-react';
+import { Armchair, Users } from 'lucide-react';
 
 interface StudentCardProps {
   student: Student;
@@ -68,7 +67,14 @@ export const StudentCard: React.FC<StudentCardProps> = ({
         onClick={(e) => e.stopPropagation()} // Prevent card click when checkbox is clicked
       />
       <div className="flex-1 truncate">
-        <span className="text-sm font-medium">{formatStudentName(student)}</span>
+        <div className="flex items-center gap-1">
+            <span className="text-sm font-medium">{formatStudentName(student)}</span>
+            {student.siblingGroupId && (
+                <span className="flex items-center gap-0.5 text-[10px] font-bold text-primary bg-primary/10 px-1 rounded border border-primary/20" title="형제/자매">
+                    <Users className="w-2.5 h-2.5" /> O
+                </span>
+            )}
+        </div>
         <p className="text-xs text-muted-foreground">{studentDestinationName}</p>
       </div>
       <Button

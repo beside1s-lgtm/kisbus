@@ -118,7 +118,7 @@ export default function ApplyPage() {
         );
     }
     
-    const processStudentApplication = async (studentData: {name: string, grade: string, studentClass: string, gender: 'Male'|'Female', contact: string}, appData: Partial<Student>) => {
+    const processStudentApplication = async (studentData: {name: string, grade: string, studentClass: string, gender: 'Male'|'Female', contact: string, siblingGroupId?: string | null}, appData: Partial<Student>) => {
         const existingStudent = findStudentInList(studentData.name, studentData.grade, studentData.studentClass);
         
         if (existingStudent) {
@@ -129,7 +129,8 @@ export default function ApplyPage() {
                 class: studentData.studentClass.trim(),
                 gender: studentData.gender,
                 contact: studentData.contact.trim(),
-                applicationStatus: 'pending' as const
+                applicationStatus: 'pending' as const,
+                siblingGroupId: studentData.siblingGroupId || existingStudent.siblingGroupId
             };
             await updateStudent(existingStudent.id, updatePayload);
             return existingStudent.id;
@@ -146,6 +147,7 @@ export default function ApplyPage() {
                 suggestedMorningDestination: appData.suggestedMorningDestination || null,
                 suggestedAfternoonDestination: appData.suggestedAfternoonDestination || null,
                 applicationStatus: 'pending',
+                siblingGroupId: studentData.siblingGroupId || null
             };
             const added = await addStudent(newStudentPayload);
             return added.id;
@@ -172,6 +174,8 @@ export default function ApplyPage() {
             suggestedAfternoonDestination: useCustomAfternoonDest ? customAfternoonDestName.trim() : null,
         };
 
+        const siblingGroupId = hasSiblings ? `group_${Date.now()}` : null;
+
         try {
             // Handle custom suggestions first if any
             if (useCustomMorningDest && customMorningDestName.trim()) {
@@ -182,12 +186,12 @@ export default function ApplyPage() {
             }
 
             // Process Main Student
-            await processStudentApplication({ name, grade, studentClass, gender, contact }, baseAppData);
+            await processStudentApplication({ name, grade, studentClass, gender, contact, siblingGroupId }, baseAppData);
 
             // Process Siblings
             if (hasSiblings) {
                 for (const sib of siblings) {
-                    await processStudentApplication({ ...sib, contact: contact }, baseAppData);
+                    await processStudentApplication({ ...sib, contact: contact, siblingGroupId }, baseAppData);
                 }
             }
 
@@ -231,15 +235,18 @@ export default function ApplyPage() {
         for (const day of daysOfWeek) {
             finalAfterSchoolDestinations[day] = afterSchoolDays[day] ? commuteDestinationId : null;
         }
+
+        const siblingGroupId = hasSiblings ? (mainExisting?.siblingGroupId || `group_${Date.now()}`) : null;
     
         try {
             // Process Main Student
-            await processStudentApplication({ name, grade, studentClass, gender, contact }, { afterSchoolDestinations: finalAfterSchoolDestinations });
+            await processStudentApplication({ name, grade, studentClass, gender, contact, siblingGroupId }, { afterSchoolDestinations: finalAfterSchoolDestinations });
 
             // Process Siblings
             if (hasSiblings) {
                 for (const sib of siblings) {
-                    await processStudentApplication({ ...sib, contact: contact }, { afterSchoolDestinations: finalAfterSchoolDestinations });
+                    const sibExisting = findStudentInList(sib.name, sib.grade, sib.studentClass);
+                    await processStudentApplication({ ...sib, contact: contact, siblingGroupId: siblingGroupId || sibExisting?.siblingGroupId }, { afterSchoolDestinations: finalAfterSchoolDestinations });
                 }
             }
 

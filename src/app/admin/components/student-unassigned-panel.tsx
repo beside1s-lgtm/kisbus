@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, Download, Trash2 } from 'lucide-react';
+import { Search, Download, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,8 @@ export const StudentUnassignedPanel = ({
 }: StudentUnassignedPanelProps) => {
     const { t } = useTranslation();
 
+    const siblingCount = filteredUnassignedStudents.filter(s => !!s.siblingGroupId).length;
+
     return (
         <Card>
             <CardHeader>
@@ -51,8 +53,15 @@ export const StudentUnassignedPanel = ({
                         </TabsList>
                     </Tabs>
                 </div>
-                <CardDescription>
-                    {unassignedView === 'current' ? '현재 노선에 맞는 학생들입니다.' : '아직 배정되지 않은 모든 학생들입니다.'}
+                <CardDescription className="flex items-center justify-between">
+                    <span>
+                        {unassignedView === 'current' ? '현재 노선에 맞는 학생들입니다.' : '아직 배정되지 않은 모든 학생들입니다.'}
+                    </span>
+                    {siblingCount > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-primary">
+                            <Users className="w-3 h-3" /> 형제/자매: {siblingCount}명
+                        </span>
+                    )}
                 </CardDescription>
             </CardHeader>
             <Separator />

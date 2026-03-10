@@ -307,17 +307,46 @@ export const StudentManagementTab = ({
             return;
         }
 
-        // 1. Sort by grade priority (front priority) and destination order
-        const sorted = [...targets].sort((a, b) => {
-            const g = getGradeValue(a.grade) - getGradeValue(b.grade);
-            if (g !== 0) return g;
-            
-            const d1 = currentRoute.stops.indexOf(getDest(a)!);
-            const d2 = currentRoute.stops.indexOf(getDest(b)!);
-            return d1 - d2;
+        // 1. Group targets: Group by siblingGroupId if present
+        const siblingGroups: Record<string, Student[]> = {};
+        const individualStudents: Student[] = [];
+
+        targets.forEach(s => {
+            if (s.siblingGroupId) {
+                if (!siblingGroups[s.siblingGroupId]) siblingGroups[s.siblingGroupId] = [];
+                siblingGroups[s.siblingGroupId].push(s);
+            } else {
+                individualStudents.push(s);
+            }
         });
 
-        // 2. Identify seat layout details
+        // 2. Form blocks: Priority to sibling groups
+        const blocks: { students: Student[] }[] = [];
+        
+        // Add sibling groups as blocks first
+        Object.values(siblingGroups).forEach(group => {
+            // Sort group by grade for internal seating order
+            group.sort((a, b) => getGradeValue(a.grade) - getGradeValue(b.grade));
+            blocks.push({ students: group });
+        });
+
+        // Add individuals as blocks of 1
+        individualStudents.forEach(s => {
+            blocks.push({ students: [s] });
+        });
+
+        // Sort blocks by the highest grade in the group and then destination order
+        blocks.sort((a, b) => {
+            const gA = Math.min(...a.students.map(s => getGradeValue(s.grade)));
+            const gB = Math.min(...b.students.map(s => getGradeValue(s.grade)));
+            if (gA !== gB) return gA - gB;
+
+            const dA = Math.min(...a.students.map(s => currentRoute.stops.indexOf(getDest(s)!)));
+            const dB = Math.min(...b.students.map(s => currentRoute.stops.indexOf(getDest(s)!)));
+            return dA - dB;
+        });
+
+        // 3. Identify seat layout details
         const capacity = selectedBus.capacity;
         
         const getSeatLayout = (cap: number) => {
@@ -339,7 +368,7 @@ export const StudentManagementTab = ({
                     middles.push(27);
                 }
             } else {
-                // For 16-seater or unknown, treat as simple single seats for now
+                // For 16-seater
                 for (let i = 1; i <= cap; i++) middles.push(i);
             }
             return { pairs, middles };
@@ -347,69 +376,43 @@ export const StudentManagementTab = ({
 
         const { pairs, middles } = getSeatLayout(capacity);
         
-        // 3. Form blocks (Single or same-gender Pair)
-        // Rule: "자리가 남으면 1명씩 앉기"
-        const maxSingleCapacity = pairs.length + middles.length;
-        const needsPairing = targets.length > maxSingleCapacity;
-        
-        const blocks: { s1: Student; s2?: Student }[] = [];
-        const usedIds = new Set<string>();
-
-        for (let i = 0; i < sorted.length; i++) {
-            if (usedIds.has(sorted[i].id)) continue;
-            const s1 = sorted[i];
-            usedIds.add(s1.id);
-            
-            let s2: Student | undefined = undefined;
-            if (needsPairing) {
-                // Try to find a same-gender partner among remaining students
-                for (let j = i + 1; j < sorted.length; j++) {
-                    if (!usedIds.has(sorted[j].id) && sorted[j].gender === s1.gender) {
-                        s2 = sorted[j];
-                        usedIds.add(s2.id);
-                        break;
-                    }
-                }
-            }
-            blocks.push({ s1, s2 });
-        }
-
         // 4. Assign blocks to seats
         let newSeating = generateInitialSeating(capacity);
         let pairIdx = 0;
         let midIdx = 0;
 
         blocks.forEach(block => {
-            if (block.s2 && pairIdx < pairs.length) {
-                // Pair: Both in same row, same gender
-                const seatPair = pairs[pairIdx++];
-                const d1 = currentRoute.stops.indexOf(getDest(block.s1)!);
-                const d2 = currentRoute.stops.indexOf(getDest(block.s2)!);
-                
-                // Rule: "먼저 내리는 사람이 통로쪽" (Aisle = seatPair[1])
-                // seatPair[0] = Window, seatPair[1] = Aisle
-                // Afternoon/AfterSchool: Lower index = earlier off = Aisle
-                // Morning: Lower index = earlier on = Window (First on, sit inside)
-                const shouldSwap = selectedRouteType === 'Morning' ? (d1 > d2) : (d1 < d2);
-                
-                const winStudent = shouldSwap ? block.s2 : block.s1;
-                const aisleStudent = shouldSwap ? block.s1 : block.s2;
+            const group = block.students;
+            
+            for (let i = 0; i < group.length; i++) {
+                const s = group[i];
+                const nextS = group[i + 1];
 
-                const winIdx = newSeating.findIndex(s => s.seatNumber === seatPair[0]);
-                const aisleIdx = newSeating.findIndex(s => s.seatNumber === seatPair[1]);
-                newSeating[winIdx].studentId = winStudent.id;
-                newSeating[aisleIdx].studentId = aisleStudent.id;
+                // If we have a pair available and two students in the group (or same gender pairing logic if needed)
+                if (nextS && pairIdx < pairs.length) {
+                    const seatPair = pairs[pairIdx++];
+                    const d1 = currentRoute.stops.indexOf(getDest(s)!);
+                    const d2 = currentRoute.stops.indexOf(getDest(nextS)!);
+                    
+                    const shouldSwap = selectedRouteType === 'Morning' ? (d1 > d2) : (d1 < d2);
+                    const winStudent = shouldSwap ? nextS : s;
+                    const aisleStudent = shouldSwap ? s : nextS;
 
-            } else if (pairIdx < pairs.length) {
-                // Single in a pair row: "1명씩 앉을 때는 창가"
-                const seatPair = pairs[pairIdx++];
-                const winIdx = newSeating.findIndex(s => s.seatNumber === seatPair[0]);
-                newSeating[winIdx].studentId = block.s1.id;
-            } else if (midIdx < middles.length) {
-                // Overflow to middle seats (back row)
-                const seatNum = middles[midIdx++];
-                const idx = newSeating.findIndex(s => s.seatNumber === seatNum);
-                newSeating[idx].studentId = block.s1.id;
+                    const winIdx = newSeating.findIndex(x => x.seatNumber === seatPair[0]);
+                    const aisleIdx = newSeating.findIndex(x => x.seatNumber === seatPair[1]);
+                    newSeating[winIdx].studentId = winStudent.id;
+                    newSeating[aisleIdx].studentId = aisleStudent.id;
+                    
+                    i++; // Skip next student as they are paired
+                } else if (pairIdx < pairs.length) {
+                    const seatPair = pairs[pairIdx++];
+                    const winIdx = newSeating.findIndex(x => x.seatNumber === seatPair[0]);
+                    newSeating[winIdx].studentId = s.id;
+                } else if (midIdx < middles.length) {
+                    const seatNum = middles[midIdx++];
+                    const idx = newSeating.findIndex(x => x.seatNumber === seatNum);
+                    newSeating[idx].studentId = s.id;
+                }
             }
         });
 
@@ -440,7 +443,7 @@ export const StudentManagementTab = ({
             toast({ title: t('notice'), description: "다운로드할 학생 데이터가 없습니다." });
             return;
         }
-        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
+        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)", "형제/자매"];
         const rows = students.map(s => {
             const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
             return [
@@ -455,7 +458,8 @@ export const StudentManagementTab = ({
                 escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Tuesday'])?.name || ""),
                 escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Wednesday'])?.name || ""),
                 escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Thursday'])?.name || ""),
-                escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Saturday'])?.name || "")
+                escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Saturday'])?.name || ""),
+                escape(s.siblingGroupId ? "O" : "")
             ];
         });
         const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.map(r => r.join(',')).join('\n');
@@ -474,7 +478,7 @@ export const StudentManagementTab = ({
             toast({ title: t('notice'), description: t('admin.student_management.unassigned.no_students_to_download') });
             return;
         }
-        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "목적지"];
+        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "목적지", "형제/자매"];
         const rows = filteredUnassignedStudents.map(s => {
             let destId = null;
             if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
@@ -488,7 +492,8 @@ export const StudentManagementTab = ({
                 escape(s.class),
                 escape(s.gender),
                 escape(s.contact || ""),
-                escape(destinations.find(d => d.id === destId)?.name || "미지정")
+                escape(destinations.find(d => d.id === destId)?.name || "미지정"),
+                escape(s.siblingGroupId ? "O" : "")
             ];
         });
         const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.map(r => r.join(',')).join('\n');
