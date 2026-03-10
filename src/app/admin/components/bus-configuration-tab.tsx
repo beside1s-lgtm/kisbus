@@ -503,7 +503,7 @@ export const BusConfigurationTab = ({
                      <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline" disabled={!currentRoute}>
-                                <開Copy className="mr-2" /> {t('admin.bus_config.route.copy.button')}
+                                <Copy className="mr-2" /> {t('admin.bus_config.route.copy.button')}
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
