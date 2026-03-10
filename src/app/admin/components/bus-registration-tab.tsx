@@ -5,9 +5,9 @@ import Papa from 'papaparse';
 import { addBus, deleteBus, updateBus, addRoute } from '@/lib/firebase-data';
 import type { Bus, NewBus, DayOfWeek, RouteType, Destination, Route } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Upload, Trash2, PlusCircle, Download } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Upload, Trash2, PlusCircle, Download, Pencil } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -45,6 +45,12 @@ const generateInitialSeating = (capacity: number): { seatNumber: number; student
 export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrationTabProps) => {
     const [newBusName, setNewBusName] = useState('');
     const [newBusType, setNewBusType] = useState<'16-seater' | '29-seater' | '45-seater'>('45-seater');
+    
+    // States for editing bus
+    const [editingBus, setEditingBus] = useState<Bus | null>(null);
+    const [editBusName, setEditBusName] = useState('');
+    const [editBusType, setEditBusType] = useState<'16-seater' | '29-seater' | '45-seater'>('45-seater');
+
     const { toast } = useToast();
     const { t } = useTranslation();
     const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -87,6 +93,32 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
             toast({ title: t('success'), description: t('admin.bus_registration.add.success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.bus_registration.add.error'), variant: 'destructive' });
+        }
+    };
+
+    const handleEditClick = (bus: Bus) => {
+        setEditingBus(bus);
+        setEditBusName(bus.name);
+        setEditBusType(bus.type);
+    };
+
+    const handleUpdateBus = async () => {
+        if (!editingBus || !editBusName || !editBusType) {
+            toast({ title: t('error'), description: "버스 이름과 타입을 모두 입력해주세요.", variant: 'destructive' });
+            return;
+        }
+        const capacityMap = { '16-seater': 16, '29-seater': 29, '45-seater': 45 } as const;
+        const updateData: Partial<Bus> = {
+            name: editBusName,
+            type: editBusType,
+            capacity: capacityMap[editBusType]
+        };
+        try {
+            await updateBus(editingBus.id, updateData);
+            setEditingBus(null);
+            toast({ title: t('success'), description: "버스 정보가 수정되었습니다." });
+        } catch (error) {
+            toast({ title: t('error'), description: "버스 수정 중 오류가 발생했습니다.", variant: 'destructive' });
         }
     };
     
@@ -233,6 +265,37 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
                         </DialogContent>
                     </Dialog>
                 </div>
+
+                {/* Edit Bus Dialog */}
+                <Dialog open={!!editingBus} onOpenChange={(open) => !open && setEditingBus(null)}>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>버스 정보 수정</DialogTitle></DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="edit-bus-name" className="text-right">{t('admin.bus_registration.bus_number')}</Label>
+                                <Input id="edit-bus-name" className="col-span-3" value={editBusName} onChange={e => setEditBusName(e.target.value)} />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="edit-bus-type" className="text-right">{t('type')}</Label>
+                                <Select onValueChange={(v) => setEditBusType(v as any)} value={editBusType}>
+                                    <SelectTrigger className="col-span-3">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="16-seater">{t('bus_type.16')}</SelectItem>
+                                        <SelectItem value="29-seater">{t('bus_type.29')}</SelectItem>
+                                        <SelectItem value="45-seater">{t('bus_type.45')}</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setEditingBus(null)}>{t('cancel')}</Button>
+                            <Button onClick={handleUpdateBus}>{t('save')}</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -255,25 +318,30 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
                                 <TableCell>{bus.name}</TableCell>
                                 <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
                                 <TableCell className="text-right">
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon">
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>{t('admin.bus_registration.delete.confirm_title')}</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    {t('admin.bus_registration.delete.confirm_description')}
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteBus(bus.id)}>{t('delete')}</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
+                                    <div className="flex justify-end gap-1">
+                                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(bus)}>
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon">
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>{t('admin.bus_registration.delete.confirm_title')}</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        {t('admin.bus_registration.delete.confirm_description')}
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteBus(bus.id)}>{t('delete')}</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ))}

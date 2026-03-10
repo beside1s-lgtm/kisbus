@@ -113,6 +113,18 @@ export const updateBus = async (busId: string, data: Partial<Bus>) => {
     const updateData = { ...data };
     if (updateData.name) updateData.name = sanitizeDataForSystem(updateData.name);
     
+    // Check if capacity is changing to sync routes
+    let capacityChanged = false;
+    let newCapacity = 0;
+    if (data.capacity !== undefined) {
+        const busSnap = await getDoc(docRef);
+        if (busSnap.exists()) {
+            const oldCapacity = busSnap.data().capacity;
+            capacityChanged = data.capacity !== oldCapacity;
+            newCapacity = data.capacity;
+        }
+    }
+
     await updateDoc(docRef, updateData)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -123,6 +135,31 @@ export const updateBus = async (busId: string, data: Partial<Bus>) => {
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
+
+    // If capacity changed, update all associated routes' seating array
+    if (capacityChanged && newCapacity > 0) {
+        const q = query(collection(db, "routes"), where("busId", "==", busId));
+        const routesSnapshot = await getDocs(q);
+        const batch = writeBatch(db);
+        
+        routesSnapshot.forEach((routeDoc) => {
+            const routeData = routeDoc.data() as Route;
+            let newSeating = [...(routeData.seating || [])];
+            
+            if (newSeating.length > newCapacity) {
+                // Truncate
+                newSeating = newSeating.slice(0, newCapacity);
+            } else if (newSeating.length < newCapacity) {
+                // Expand
+                for (let i = newSeating.length + 1; i <= newCapacity; i++) {
+                    newSeating.push({ seatNumber: i, studentId: null });
+                }
+            }
+            batch.update(routeDoc.ref, { seating: newSeating });
+        });
+        
+        await batch.commit().catch(e => console.error("Failed to sync route seating on bus update", e));
+    }
 }
 export const deleteBus = async (busId: string) => {
     const q = query(collection(db, "routes"), where("busId", "==", busId));
