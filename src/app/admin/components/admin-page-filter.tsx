@@ -45,7 +45,9 @@ export const AdminPageFilter = ({
         const operationalBusIds = new Set<string>();
         routes.forEach(route => {
             if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
-                if (route.stops.length > 0 || route.seating.some(s => s.studentId !== null)) {
+                // For administrative filtering (Student Management), 
+                // a bus is candidate if it has at least one stop defined.
+                if ((route.stops?.length ?? 0) > 0) {
                     operationalBusIds.add(route.busId);
                 }
             }

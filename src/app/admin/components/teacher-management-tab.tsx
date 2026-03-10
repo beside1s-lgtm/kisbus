@@ -154,7 +154,8 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
         } else {
             categoryRoutes = routes.filter(r => r.busId === busId && r.type === 'AfterSchool');
         }
-        return categoryRoutes.some(r => r.stops.length > 0 || r.seating.some(s => s.studentId !== null));
+        // A bus is only "operational" for teacher assignment if it has both stops AND students assigned.
+        return categoryRoutes.some(r => (r.stops?.length ?? 0) > 0 && r.seating.some(s => s.studentId !== null));
     }, [routes, teacherAssignmentType]);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

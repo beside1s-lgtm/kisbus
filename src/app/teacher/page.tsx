@@ -510,7 +510,8 @@ export default function TeacherPage() {
     const operationalBusIds = new Set<string>();
     allRoutes.forEach(route => {
         if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
-            if (route.stops.length > 0 || route.seating.some(s => s.studentId !== null)) {
+            // A bus is considered operational for teachers if it has both stops AND students.
+            if ((route.stops?.length ?? 0) > 0 && route.seating.some(s => s.studentId !== null)) {
                 operationalBusIds.add(route.busId);
             }
         }

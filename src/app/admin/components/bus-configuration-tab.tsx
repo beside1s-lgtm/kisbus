@@ -5,7 +5,7 @@ import Papa from 'papaparse';
 import { 
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
     updateRouteStops, clearAllSuggestedDestinations, deleteAllDestinations, copyRoutePlan,
-    deleteSuggestedDestination
+    deleteSuggestedDestination, updateRoute
 } from '@/lib/firebase-data';
 import type { Bus, Route, Destination, DayOfWeek, RouteType, NewDestination } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -309,7 +309,9 @@ export const BusConfigurationTab = ({
     const handleClearRoute = useCallback(async () => {
         if (!currentRoute) return;
         try {
-            await updateRouteStops(currentRoute.id, []);
+            // Also clear seating when clearing stops to ensure data consistency
+            const emptySeating = currentRoute.seating.map(s => ({ ...s, studentId: null }));
+            await updateRoute(currentRoute.id, { stops: [], seating: emptySeating });
             toast({ title: t('success'), description: t('admin.bus_config.route.clear.success') });
         } catch (error) {
             toast({ title: t('error'), description: t('error'), variant: 'destructive' });
