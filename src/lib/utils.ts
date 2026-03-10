@@ -21,6 +21,7 @@ export function removeVietnameseTones(str: string): string {
 /**
  * Sanitizes strings for system storage and CSV compatibility.
  * Removes Vietnamese accents and replaces commas with hyphens.
+ * This ensures consistency in the database and prevents CSV structure breaking.
  */
 export function sanitizeDataForSystem(str: any): string {
   if (str === null || str === undefined) return '';
@@ -34,11 +35,17 @@ export function sanitizeDataForSystem(str: any): string {
 }
 
 /**
- * Normalizes a string by removing accents, whitespace, and converting to lowercase.
- * Used for robust matching of names, destinations, etc.
+ * Normalizes a string for robust comparison/matching.
+ * Removes accents, treats commas and hyphens as the same, 
+ * removes all whitespace, and converts to lowercase.
  */
 export function normalizeString(s: any): string {
   if (s === null || s === undefined) return '';
-  const accentFree = removeVietnameseTones(s.toString());
-  return accentFree.replace(/\s+/g, '').toLowerCase();
+  let val = s.toString();
+  // 1. Remove Vietnamese accents
+  val = removeVietnameseTones(val);
+  // 2. Treat commas and hyphens as identical for matching purposes
+  val = val.replace(/,/g, '-');
+  // 3. Remove all whitespace and convert to lowercase
+  return val.replace(/\s+/g, '').toLowerCase();
 }

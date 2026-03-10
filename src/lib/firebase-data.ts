@@ -157,6 +157,7 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
     const sanitizedClass = sanitizeDataForSystem(student.class);
     const sanitizedContact = sanitizeContact(student.contact);
 
+    // Try to find existing student by sanitized identifiers
     const q = query(collection(db, "students"), 
         where("name", "==", sanitizedName),
         where("grade", "==", sanitizedGrade),
@@ -166,8 +167,7 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 
     if (!querySnapshot.empty) {
         const docRef = querySnapshot.docs[0].ref;
-        const existingStudentDoc = await getDoc(docRef);
-        const existingStudentData = existingStudentDoc.data() as Student;
+        const existingStudentData = querySnapshot.docs[0].data() as Student;
 
         const updateData: Partial<Student> = {
             ...student,
@@ -179,17 +179,8 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         
         if (student.afterSchoolDestinations) {
            updateData.afterSchoolDestinations = student.afterSchoolDestinations;
-        } else {
-           updateData.afterSchoolDestinations = existingStudentData.afterSchoolDestinations;
         }
 
-        if (student.morningDestinationId === undefined) {
-            updateData.morningDestinationId = existingStudentData.morningDestinationId;
-        }
-        if (student.afternoonDestinationId === undefined) {
-            updateData.afternoonDestinationId = existingStudentData.afternoonDestinationId;
-        }
-        
         if (student.suggestedMorningDestination) updateData.suggestedMorningDestination = sanitizeDataForSystem(student.suggestedMorningDestination);
         if (student.suggestedAfternoonDestination) updateData.suggestedAfternoonDestination = sanitizeDataForSystem(student.suggestedAfternoonDestination);
 
@@ -204,8 +195,7 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
                 throw serverError;
             });
         
-        const docSnap = await getDoc(docRef);
-        return { id: docRef.id, ...docSnap.data() } as Student;
+        return { id: docRef.id, ...existingStudentData, ...updateData } as Student;
     } else {
         const newStudentData = {
             ...student,
@@ -225,8 +215,7 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
             errorEmitter.emit('permission-error', permissionError);
             throw serverError;
         });
-        const newStudentDoc = await getDoc(docRef);
-        return { id: docRef.id, ...newStudentDoc.data() } as Student;
+        return { id: docRef.id, ...newStudentData } as Student;
     }
 };
 
