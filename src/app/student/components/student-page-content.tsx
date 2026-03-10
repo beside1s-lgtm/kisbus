@@ -9,7 +9,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { format, getDay, isSunday, formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
 import { Search, Info, CheckCircle, XCircle } from 'lucide-react';
@@ -80,6 +80,19 @@ export function StudentPageContent() {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
   }, []);
+
+  // 기기에 저장된 학생 정보 불러오기
+  useEffect(() => {
+    if (isClient && allStudents.length > 0 && !selectedStudent) {
+        const savedStudentId = localStorage.getItem('lastCheckedStudentId');
+        if (savedStudentId) {
+            const student = allStudents.find(s => s.id === savedStudentId);
+            if (student) {
+                setSelectedStudent(student);
+            }
+        }
+    }
+  }, [isClient, allStudents, selectedStudent]);
 
 
   const formatStudentName = (student: Student | null) => {
@@ -250,7 +263,7 @@ export function StudentPageContent() {
     });
   }, [selectedDate, toast, findRoutesForStudent, allStudents, boardedStudentIds, t, viewingDay, viewingRouteType]);
 
- const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
+  const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
       if (!studentId || !selectedStudent || studentId !== selectedStudent.id) return;
       
       if (boardedStudentIds.includes(studentId)) {
@@ -285,6 +298,10 @@ export function StudentPageContent() {
       setSelectedStudent(student);
       setSearchQuery('');
       setSearchResults([]);
+      // 기기에 정보 저장
+      if (typeof window !== 'undefined') {
+          localStorage.setItem('lastCheckedStudentId', student.id);
+      }
   };
 
   const getRouteTypeLabel = (routeType: RouteType) => {
