@@ -242,11 +242,48 @@ export const StudentManagementTab = ({
 
     const handleCopySeating = useCallback(async () => {
         if (!currentRoute) return;
-        const days = weekdays.filter(d => daysToCopyTo[d]);
-        const types = (['Morning', 'Afternoon'] as const).filter(t => routeTypesToCopyTo[t]);
-        const targets = routes.filter(r => r.busId === currentRoute.busId && days.includes(r.dayOfWeek) && types.includes(r.type as any) && r.id !== currentRoute.id);
-        if (targets.length > 0) { await copySeatingPlan(currentRoute.seating, targets); setCopySeatingDialogOpen(false); }
-    }, [currentRoute, routes, daysToCopyTo, routeTypesToCopyTo, weekdays]);
+        
+        let targetRoutes: Route[] = [];
+        const selectedDays = weekdays.filter(day => daysToCopyTo[day]);
+
+        if (selectedRouteType === 'AfterSchool') {
+            if (selectedDays.length === 0) {
+                toast({ title: t('notice'), description: t('admin.student_management.seat.copy.no_selection_error') });
+                return;
+            }
+            targetRoutes = routes.filter(r => 
+                r.busId === currentRoute.busId && 
+                selectedDays.includes(r.dayOfWeek) && 
+                r.type === 'AfterSchool' && 
+                r.id !== currentRoute.id
+            );
+        } else {
+            const selectedTypes = (['Morning', 'Afternoon'] as const).filter(t => routeTypesToCopyTo[t]);
+            if (selectedDays.length === 0 || selectedTypes.length === 0) {
+                toast({ title: t('notice'), description: t('admin.student_management.seat.copy.no_selection_error') });
+                return;
+            }
+            targetRoutes = routes.filter(r => 
+                r.busId === currentRoute.busId && 
+                selectedDays.includes(r.dayOfWeek) && 
+                selectedTypes.includes(r.type as any) && 
+                r.id !== currentRoute.id
+            );
+        }
+
+        if (targetRoutes.length === 0) {
+            toast({ title: t('notice'), description: t('admin.student_management.seat.copy.no_target_error') });
+            return;
+        }
+
+        try {
+            await copySeatingPlan(currentRoute.seating, targetRoutes);
+            toast({ title: t('success'), description: t('admin.student_management.seat.copy.success') });
+            setCopySeatingDialogOpen(false);
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.student_management.seat.copy.error'), variant: 'destructive' });
+        }
+    }, [currentRoute, routes, daysToCopyTo, routeTypesToCopyTo, weekdays, selectedRouteType, toast, t]);
 
     const handleToggleAllCopyToDays = useCallback((c: boolean) => setDaysToCopyTo(weekdays.reduce((a, d) => ({ ...a, [d]: c }), {})), [weekdays]);
 
@@ -625,6 +662,70 @@ export const StudentManagementTab = ({
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>{t('admin.student_management.seat.title')}</CardTitle>
                             <div className="flex gap-2">
+                                <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm" disabled={!currentRoute}>
+                                            <Copy className="h-4 w-4 mr-2" /> {t('admin.student_management.seat.copy.button')}
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>{t('admin.student_management.seat.copy.title')}</DialogTitle>
+                                            <CardDescription>{t('admin.student_management.seat.copy.description')}</CardDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <div>
+                                                <Label>{t('admin.student_management.seat.copy.select_days')}</Label>
+                                                <div className="flex items-center space-x-2 mt-2">
+                                                    <Checkbox 
+                                                        id="copy-all-days" 
+                                                        checked={weekdays.every(d => daysToCopyTo[d])} 
+                                                        onCheckedChange={handleToggleAllCopyToDays} 
+                                                    />
+                                                    <Label htmlFor="copy-all-days">{t('select_all')}</Label>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2 mt-2">
+                                                    {weekdays.map(day => (
+                                                        <div key={day} className="flex items-center space-x-2">
+                                                            <Checkbox 
+                                                                id={`copy-day-${day}`} 
+                                                                checked={!!daysToCopyTo[day]} 
+                                                                onCheckedChange={(c) => setDaysToCopyTo(p => ({ ...p, [day]: c as boolean }))} 
+                                                            />
+                                                            <Label htmlFor={`copy-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {selectedRouteType !== 'AfterSchool' && (
+                                                <div>
+                                                    <Label>{t('admin.student_management.seat.copy.select_route_types')}</Label>
+                                                    <div className="flex space-x-4 mt-2">
+                                                        <div className="flex items-center space-x-2">
+                                                            <Checkbox 
+                                                                id="copy-type-morning" 
+                                                                checked={!!routeTypesToCopyTo.Morning} 
+                                                                onCheckedChange={(c) => setRouteTypesToCopyTo(p => ({ ...p, Morning: c as boolean }))} 
+                                                            />
+                                                            <Label htmlFor="copy-type-morning">{t('route_type.morning')}</Label>
+                                                        </div>
+                                                        <div className="flex items-center space-x-2">
+                                                            <Checkbox 
+                                                                id="copy-type-afternoon" 
+                                                                checked={!!routeTypesToCopyTo.Afternoon} 
+                                                                onCheckedChange={(c) => setRouteTypesToCopyTo(p => ({ ...p, Afternoon: c as boolean }))} 
+                                                            />
+                                                            <Label htmlFor="copy-type-afternoon">{t('route_type.afternoon')}</Label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <DialogFooter>
+                                            <Button onClick={handleCopySeating} className="w-full">{t('copy')}</Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
                                 <Button variant="outline" size="sm" onClick={handleUndoRandomize} disabled={!previousSeating}><Undo2 className="h-4 w-4" /></Button>
                                 <Button variant="outline" size="sm" onClick={randomizeSeating}><Shuffle className="h-4 w-4" /></Button>
                                 <Button variant="outline" size="sm" onClick={handleResetSeating} disabled={!currentRoute}><RotateCcw className="h-4 w-4" /></Button>
