@@ -87,6 +87,14 @@ export const StudentManagementTab = ({
     const [previousSeating, setPreviousSeating] = useState<{ seatNumber: number; studentId: string | null }[] | null>(null);
     const [unassignedView, setUnassignedView] = useState<'current' | 'all'>('current');
 
+    // 개별 학생 추가 상태
+    const [isAddStudentDialogOpen, setAddStudentDialogOpen] = useState(false);
+    const [newStudentName, setNewStudentName] = useState('');
+    const [newStudentGrade, setNewStudentGrade] = useState('');
+    const [newStudentClass, setNewStudentClass] = useState('');
+    const [newStudentGender, setNewStudentGender] = useState<'Male' | 'Female'>('Male');
+    const [newStudentContact, setNewStudentContact] = useState('');
+
     const assignedRoutesForSelectedStudent = useMemo(() => {
         if (!selectedGlobalStudent) return [];
         return routes
@@ -381,6 +389,35 @@ export const StudentManagementTab = ({
     }, [currentRoute, routes, daysToCopyTo, routeTypesToCopyTo, weekdays, selectedRouteType, toast, t]);
 
     const handleToggleAllCopyToDays = useCallback((c: boolean) => setDaysToCopyTo(weekdays.reduce((a, d) => ({ ...a, [d]: c }), {})), [weekdays]);
+
+    const handleManualAddStudent = async () => {
+        if (!newStudentName || !newStudentGrade || !newStudentClass) {
+            toast({ title: t('error'), description: t('admin.student_management.add_student.validation_error'), variant: 'destructive' });
+            return;
+        }
+        try {
+            await addStudent({
+                name: newStudentName,
+                grade: newStudentGrade,
+                class: newStudentClass,
+                gender: newStudentGender,
+                contact: newStudentContact,
+                morningDestinationId: null,
+                afternoonDestinationId: null,
+                afterSchoolDestinations: {},
+                applicationStatus: 'reviewed'
+            });
+            setAddStudentDialogOpen(false);
+            setNewStudentName('');
+            setNewStudentGrade('');
+            setNewStudentClass('');
+            setNewStudentContact('');
+            toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
+        } catch (error) {
+            console.error("Error adding student manually:", error);
+            toast({ title: t('error'), description: t('admin.student_management.add_student.error'), variant: 'destructive' });
+        }
+    };
 
     // 랜덤 배정 로직 (쾌적함 고려 버전)
     const randomizeSeating = useCallback(async () => {
@@ -794,6 +831,52 @@ export const StudentManagementTab = ({
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <CardTitle>{t('admin.student_management.seat.title')}</CardTitle>
                                 <div className="flex gap-2">
+                                    <Dialog open={isAddStudentDialogOpen} onOpenChange={setAddStudentDialogOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" size="sm">
+                                                <UserPlus className="h-4 w-4 mr-2" /> {t('admin.student_management.add_student.button')}
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>{t('admin.student_management.add_student.title')}</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="grid gap-4 py-4">
+                                                <div className="grid grid-cols-4 items-center gap-4">
+                                                    <Label htmlFor="add-student-name" className="text-right">{t('student.name')}</Label>
+                                                    <Input id="add-student-name" className="col-span-3" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} />
+                                                </div>
+                                                <div className="grid grid-cols-4 items-center gap-4">
+                                                    <Label htmlFor="add-student-grade" className="text-right">{t('student.grade')}</Label>
+                                                    <Input id="add-student-grade" className="col-span-3" value={newStudentGrade} onChange={e => setNewStudentGrade(e.target.value)} placeholder="예: G1" />
+                                                </div>
+                                                <div className="grid grid-cols-4 items-center gap-4">
+                                                    <Label htmlFor="add-student-class" className="text-right">{t('student.class')}</Label>
+                                                    <Input id="add-student-class" className="col-span-3" value={newStudentClass} onChange={e => setNewStudentClass(e.target.value)} placeholder="예: C1" />
+                                                </div>
+                                                <div className="grid grid-cols-4 items-center gap-4">
+                                                    <Label htmlFor="add-student-gender" className="text-right">{t('student.gender')}</Label>
+                                                    <Select onValueChange={(v) => setNewStudentGender(v as any)} value={newStudentGender}>
+                                                        <SelectTrigger className="col-span-3">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="Male">{t('student.male')}</SelectItem>
+                                                            <SelectItem value="Female">{t('student.female')}</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="grid grid-cols-4 items-center gap-4">
+                                                    <Label htmlFor="add-student-contact" className="text-right">{t('student.contact')}</Label>
+                                                    <Input id="add-student-contact" className="col-span-3" value={newStudentContact} onChange={e => setNewStudentContact(e.target.value)} />
+                                                </div>
+                                            </div>
+                                            <DialogFooter>
+                                                <Button variant="outline" onClick={() => setAddStudentDialogOpen(false)}>{t('cancel')}</Button>
+                                                <Button onClick={handleManualAddStudent}>{t('add')}</Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
                                     <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
                                         <DialogTrigger asChild>
                                             <Button variant="outline" size="sm" disabled={!currentRoute}>
