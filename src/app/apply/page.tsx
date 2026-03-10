@@ -22,7 +22,6 @@ interface SiblingEntry {
     grade: string;
     studentClass: string;
     gender: 'Male' | 'Female';
-    contact: string;
 }
 
 export default function ApplyPage() {
@@ -78,7 +77,7 @@ export default function ApplyPage() {
     const destinationOptions = destinations.map(d => ({ value: d.id, label: d.name }));
 
     const handleAddSibling = () => {
-        setSiblings([...siblings, { name: '', grade: '', studentClass: '', gender: 'Male', contact: '' }]);
+        setSiblings([...siblings, { name: '', grade: '', studentClass: '', gender: 'Male' }]);
     };
 
     const handleRemoveSibling = (index: number) => {
@@ -87,7 +86,7 @@ export default function ApplyPage() {
 
     const updateSibling = (index: number, field: keyof SiblingEntry, value: string) => {
         const newSiblings = [...siblings];
-        newSiblings[index] = { ...newSiblings[index], [field]: value };
+        newSiblings[index] = { ...newSiblings[index], [field]: value } as SiblingEntry;
         setSiblings(newSiblings);
     };
 
@@ -188,7 +187,7 @@ export default function ApplyPage() {
             // Process Siblings
             if (hasSiblings) {
                 for (const sib of siblings) {
-                    await processStudentApplication(sib, baseAppData);
+                    await processStudentApplication({ ...sib, contact: contact }, baseAppData);
                 }
             }
 
@@ -240,7 +239,7 @@ export default function ApplyPage() {
             // Process Siblings
             if (hasSiblings) {
                 for (const sib of siblings) {
-                    await processStudentApplication(sib, { afterSchoolDestinations: finalAfterSchoolDestinations });
+                    await processStudentApplication({ ...sib, contact: contact }, { afterSchoolDestinations: finalAfterSchoolDestinations });
                 }
             }
 
@@ -342,13 +341,9 @@ export default function ApplyPage() {
                                             <Users className="h-4 w-4 text-primary" />
                                             <span className="text-sm font-bold text-primary">{t('apply.siblings.entry_title', { index: index + 1 })}</span>
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className="space-y-2 sm:col-span-2">
                                             <Label>{t('student.name')}</Label>
                                             <Input value={sib.name} onChange={e => updateSibling(index, 'name', e.target.value)} placeholder={t('student.name_placeholder')} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>{t('student.contact')}</Label>
-                                            <Input value={sib.contact} onChange={e => updateSibling(index, 'contact', e.target.value)} placeholder={t('student.contact_placeholder')} />
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 sm:col-span-2">
                                             <div className="space-y-2">
