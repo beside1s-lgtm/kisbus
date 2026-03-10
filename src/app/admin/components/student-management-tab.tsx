@@ -396,14 +396,14 @@ export const StudentManagementTab = ({
                 if (r === rows - 1) { // 마지막 줄
                     if (capacity === 45) {
                         windowSeats.push(41, 45);
-                        aisles.push(42, 43, 44);
+                        aisleSeats.push(42, 43, 44);
                     } else {
                         windowSeats.push(25, 29);
-                        aisles.push(26, 27, 28);
+                        aisleSeats.push(26, 27, 28);
                     }
                 } else {
                     windowSeats.push(base + 1, base + 4);
-                    aisles.push(base + 2, base + 3);
+                    aisleSeats.push(base + 2, base + 3);
                 }
             }
         } else if (capacity === 16) {
