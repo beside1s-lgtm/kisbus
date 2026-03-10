@@ -15,7 +15,7 @@ interface StudentGlobalSearchPanelProps {
     students: Student[];
     destinations: Destination[];
     buses: Bus[];
-    routes: Route[]; // 추가됨
+    routes: Route[];
     selectedRouteType: RouteType;
     dayOrder: DayOfWeek[];
     selectedGlobalStudent: Student | null;
@@ -26,12 +26,12 @@ interface StudentGlobalSearchPanelProps {
     handleGlobalStudentClick: (student: Student) => void;
     handleDownloadAllStudents: () => void;
     handleDownloadStudentTemplate: () => void;
-    fileInputRef: React.RefObject<HTMLInputElement | null>; // 타입을 null 허용으로 유지
+    fileInputRef: React.RefObject<HTMLInputElement | null>;
     handleStudentFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     handleDeleteAllStudents: () => void;
     handleUnassignAllFromStudent: () => void;
     handleAssignStudentFromSearch: () => void;
-    handleStudentInfoChange: (id: string, field: 'gender'|'contact', val: string) => void;
+    handleStudentInfoChange: (id: string, field: 'name'|'gender'|'contact', val: string) => void;
     handleDestinationChange: (id: string, val: string|null, type: 'morning'|'afternoon'|'afterSchool', day?: DayOfWeek) => void;
     handleUnassignStudentFromRoute: (routeId: string, studentId: string) => void;
     assignedRoutesForSelectedStudent: Route[];
@@ -132,6 +132,17 @@ export const StudentGlobalSearchPanel = ({
                             <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>{t('close')}</Button>
                         </div>
                         <Button size="sm" className="w-full" onClick={handleAssignStudentFromSearch}>이 버스에 배정</Button>
+                        
+                        <div className="space-y-2">
+                            <Label>{t('student.name')}</Label>
+                            <Input
+                                value={selectedGlobalStudent.name || ''}
+                                onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, name: e.target.value} : null)}
+                                onBlur={(e) => handleStudentInfoChange(selectedGlobalStudent.id, 'name', e.target.value)}
+                                placeholder={t('student.name_placeholder')}
+                            />
+                        </div>
+
                         <div className="space-y-2">
                             <Label>{t('student.contact')}</Label>
                             <Input
