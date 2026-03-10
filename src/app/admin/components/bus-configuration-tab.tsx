@@ -414,12 +414,12 @@ export const BusConfigurationTab = ({
                             <div className="flex items-start gap-2">
                                 <BusIcon className="h-4 w-4 text-primary mt-0.5" />
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-primary flex items-center gap-1">
+                                    <div className="text-xs font-semibold text-primary flex items-center gap-1">
                                         운행 중인 버스 확인
                                         <Badge variant="outline" className="text-[10px] py-0 h-4 border-primary/30 text-primary">
                                             {t(`day_short.${selectedDay.toLowerCase()}`)} {selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`)}
                                         </Badge>
-                                    </p>
+                                    </div>
                                     <div className="flex flex-wrap gap-1.5 mt-1">
                                         {busesUsingDestination.length > 0 ? (
                                             busesUsingDestination.map((busName, idx) => (
@@ -503,7 +503,7 @@ export const BusConfigurationTab = ({
                      <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline" disabled={!currentRoute}>
-                                <Copy className="mr-2" /> {t('admin.bus_config.route.copy.button')}
+                                <開Copy className="mr-2" /> {t('admin.bus_config.route.copy.button')}
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
