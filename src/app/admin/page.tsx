@@ -11,7 +11,7 @@ import {
 import type { Bus, Student, Route, Destination, Teacher, DayOfWeek, RouteType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Trash2, Check, Bell, ChevronDown } from 'lucide-react';
+import { Trash2, Check, Bell, ChevronDown, UserCog } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useToast } from '@/hooks/use-toast';
@@ -68,6 +68,7 @@ const AdminPageContent: React.FC<{
     const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
     const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
     const [activeTab, setActiveTab] = useState('student-management');
+    const [selectedGlobalStudent, setSelectedGlobalStudent] = useState<Student | null>(null);
     const { toast } = useToast();
     const { t } = useTranslation();
     const [isClient, setIsClient] = useState(false);
@@ -168,12 +169,18 @@ const AdminPageContent: React.FC<{
                                         <div>
                                             <p className="font-semibold">{student.name} ({student.grade} {student.class})</p>
                                             <div className="text-xs text-muted-foreground mt-1 space-y-1">
-                                                <p>등교: {getDestinationName(student.morningDestinationId) || student.suggestedMorningDestination || "변경 없음"}</p>
-                                                <p>하교: {getDestinationName(student.afternoonDestinationId) || student.suggestedAfternoonDestination || "변경 없음"}</p>
+                                                <p>등교: {getDestinationName(student.morningDestinationId) || <span className="font-bold text-amber-600">{student.suggestedMorningDestination} (신규 요청)</span> || "변경 없음"}</p>
+                                                <p>하교: {getDestinationName(student.afternoonDestinationId) || <span className="font-bold text-amber-600">{student.suggestedAfternoonDestination} (신규 요청)</span> || "변경 없음"}</p>
                                                 <p>방과후: {Object.entries(student.afterSchoolDestinations || {}).filter(([, destId]) => destId).map(([day, destId]) => `${t(`day_short.${day.toLowerCase()}`)}: ${getDestinationName(destId)}`).join(', ') || "변경 없음"}</p>
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
+                                            <Button size="sm" variant="secondary" onClick={() => {
+                                                setActiveTab('student-management');
+                                                setSelectedGlobalStudent(student);
+                                            }}>
+                                                <UserCog className="mr-1 h-3 w-3" /> 관리
+                                            </Button>
                                             <Button size="sm" variant="outline" onClick={() => handleAcknowledgeSingle(student.id)}>
                                                 <Check className="mr-1 h-3 w-3" /> 확인
                                             </Button>
@@ -263,6 +270,8 @@ const AdminPageContent: React.FC<{
                         selectedDay={selectedDay}
                         selectedRouteType={selectedRouteType}
                         days={DAYS}
+                        selectedGlobalStudent={selectedGlobalStudent}
+                        setSelectedGlobalStudent={setSelectedGlobalStudent}
                     />
                 </TabsContent>
             </Tabs>

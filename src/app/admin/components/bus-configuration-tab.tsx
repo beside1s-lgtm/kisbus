@@ -4,12 +4,13 @@ import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import Papa from 'papaparse';
 import { 
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
-    updateRouteStops, clearAllSuggestedDestinations, deleteAllDestinations, copyRoutePlan
+    updateRouteStops, clearAllSuggestedDestinations, deleteAllDestinations, copyRoutePlan,
+    deleteSuggestedDestination
 } from '@/lib/firebase-data';
 import type { Bus, Route, Destination, DayOfWeek, RouteType, NewDestination } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Upload, Trash2, PlusCircle, Download, X, Search, Copy, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Bus as BusIcon, Info } from 'lucide-react';
+import { Upload, Trash2, PlusCircle, Download, X, Search, Copy, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Bus as BusIcon, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -222,7 +223,7 @@ export const BusConfigurationTab = ({
     if (destinations.some(d => normalizeString(d.name) === normName)) {
         toast({ title: t('notice'), description: t('admin.bus_config.suggestions.already_exists') });
         try {
-            await deleteDoc(doc(db, 'suggestedDestinations', suggestion.id));
+            await deleteSuggestedDestination(suggestion.id);
         } catch (error) {
              toast({ title: t('error'), description: t('admin.bus_config.suggestions.delete_error'), variant: 'destructive'});
         }
@@ -234,6 +235,15 @@ export const BusConfigurationTab = ({
         toast({ title: t('success'), description: t('admin.bus_config.suggestions.approve_success')});
     } catch (error) {
         toast({ title: t('error'), description: t('admin.bus_config.suggestions.approve_error'), variant: 'destructive'});
+    }
+  };
+
+  const handleRejectSuggestion = async (id: string) => {
+    try {
+        await deleteSuggestedDestination(id);
+        toast({ title: t('success'), description: "신청을 거절했습니다." });
+    } catch (error) {
+        toast({ title: t('error'), description: "거절 처리 중 오류가 발생했습니다.", variant: 'destructive'});
     }
   };
 
@@ -355,6 +365,69 @@ export const BusConfigurationTab = ({
 
   return (
     <div className="space-y-6">
+        {suggestedDestinations.length > 0 && (
+            <Card className="border-amber-300 bg-amber-50 dark:bg-amber-900/20">
+                <CardHeader>
+                <CardTitle className="text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                    <PlusCircle className="h-5 w-5" /> {t('admin.bus_config.suggestions.title')}
+                </CardTitle>
+                <CardDescription className="text-amber-700/80 dark:text-amber-400/80">
+                    {t('admin.bus_config.suggestions.description')}
+                </CardDescription>
+                </CardHeader>
+                <CardContent>
+                <div className="flex flex-wrap gap-3">
+                    {suggestedDestinations.map(suggestion => (
+                    <div key={suggestion.id} className="flex items-center bg-white dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-full pl-3 pr-1 py-1 gap-2 shadow-sm">
+                        <span className="text-sm font-medium text-amber-900 dark:text-amber-100">{suggestion.name}</span>
+                        <div className="flex gap-1">
+                            <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-6 w-6 rounded-full hover:bg-green-100 hover:text-green-700" 
+                                onClick={() => handleApproveSuggestion(suggestion)}
+                                title="승인"
+                            >
+                                <Check className="h-3 w-3" />
+                            </Button>
+                            <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive" 
+                                onClick={() => handleRejectSuggestion(suggestion.id)}
+                                title="거절"
+                            >
+                                <X className="h-3 w-3" />
+                            </Button>
+                        </div>
+                    </div>
+                    ))}
+                </div>
+                </CardContent>
+                    <CardFooter>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-amber-700 dark:text-amber-400 hover:bg-amber-100">
+                                <Trash2 className="mr-2 h-4 w-4" /> 모든 요청 삭제
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>{t('admin.bus_config.suggestions.delete_all.confirm_title')}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t('admin.bus_config.suggestions.delete_all.confirm_description')}
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleClearAllSuggestions}>{t('delete')}</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </CardFooter>
+            </Card>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
             <Card>
                 <CardHeader>
@@ -611,51 +684,6 @@ export const BusConfigurationTab = ({
                 </CardContent>
             </Card>
         </div>
-        {suggestedDestinations.length > 0 && (
-            <Card>
-                <CardHeader>
-                <CardTitle>{t('admin.bus_config.suggestions.title')}</CardTitle>
-                <CardDescription>
-                    {t('admin.bus_config.suggestions.description')}
-                </CardDescription>
-                </CardHeader>
-                <CardContent>
-                <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[50px] bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700">
-                    {suggestedDestinations.map(suggestion => (
-                    <Badge 
-                        key={suggestion.id}
-                        variant="outline" 
-                        onClick={() => handleApproveSuggestion(suggestion)}
-                        className="cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800"
-                    >
-                        {suggestion.name}
-                    </Badge>
-                    ))}
-                </div>
-                </CardContent>
-                    <CardFooter>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" className="w-full">
-                                <Trash2 className="mr-2 h-4 w-4" /> {t('delete_all')}
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>{t('admin.bus_config.suggestions.delete_all.confirm_title')}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {t('admin.bus_config.suggestions.delete_all.confirm_description')}
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleClearAllSuggestions}>{t('delete')}</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </CardFooter>
-            </Card>
-        )}
     </div>
   );
 };

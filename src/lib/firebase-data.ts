@@ -767,6 +767,17 @@ export const approveSuggestedDestination = async (suggestion: Destination) => {
         throw serverError;
     });
 }
+export const deleteSuggestedDestination = (id: string) => {
+    const docRef = doc(db, 'suggestedDestinations', id);
+    return deleteDoc(docRef).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+}
 export const clearAllSuggestedDestinations = async () => {
     const suggestionsCollection = collection(db, 'suggestedDestinations');
     const snapshot = await getDocs(suggestionsCollection);

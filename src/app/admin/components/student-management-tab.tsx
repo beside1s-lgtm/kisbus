@@ -54,10 +54,13 @@ interface StudentManagementTabProps {
     selectedDay: DayOfWeek;
     selectedRouteType: RouteType;
     days: DayOfWeek[];
+    selectedGlobalStudent: Student | null;
+    setSelectedGlobalStudent: React.Dispatch<React.SetStateAction<Student | null>>;
 }
 
 export const StudentManagementTab = ({
     students, buses, routes, destinations, selectedBusId, selectedDay, selectedRouteType, days,
+    selectedGlobalStudent, setSelectedGlobalStudent
 }: StudentManagementTabProps) => {
     const { toast } = useToast();
     const { t } = useTranslation();
@@ -78,7 +81,6 @@ export const StudentManagementTab = ({
 
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [globalSearchResults, setGlobalSearchResults] = useState<Student[]>([]);
-    const [selectedGlobalStudent, setSelectedGlobalStudent] = useState<Student | null>(null);
     
     const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
 
@@ -288,7 +290,7 @@ export const StudentManagementTab = ({
         }
     }, [currentRoute, selectedSeat, handleSeatUpdate]);
 
-    const handleUnassignedStudentClick = useCallback((s: Student) => setSelectedGlobalStudent(s), []);
+    const handleUnassignedStudentClick = useCallback((s: Student) => setSelectedGlobalStudent(s), [setSelectedGlobalStudent]);
 
     const handleSeatClick = useCallback(async (num: number, sid: string | null) => {
         if (!currentRoute) return;
@@ -460,7 +462,7 @@ export const StudentManagementTab = ({
                 }
             }
         } else if (capacity === 16) {
-            // 16인승: 4-16번 중 창가 느낌인 좌측/우측 끝 우선
+            // 16인승: 4~16번 우선 (운전석 쪽 1~3번 제외)
             for (let i = 4; i <= 16; i++) windowSeats.push(i);
             aisleSeats.push(1, 2, 3);
         }
@@ -681,12 +683,12 @@ export const StudentManagementTab = ({
         else if (type === 'afterSchool' && day) up.afterSchoolDestinations = { ...(s.afterSchoolDestinations || {}), [day]: val };
         await updateStudent(sid, up);
         if (selectedGlobalStudent?.id === sid) setSelectedGlobalStudent({ ...s, ...up });
-    }, [students, selectedGlobalStudent]);
+    }, [students, selectedGlobalStudent, setSelectedGlobalStudent]);
 
     const handleStudentInfoChange = useCallback(async (sid: string, f: string, v: string) => {
         await updateStudent(sid, { [f]: v });
         if (selectedGlobalStudent?.id === sid) setSelectedGlobalStudent(s => s ? { ...s, [f]: v } : null);
-    }, [selectedGlobalStudent]);
+    }, [selectedGlobalStudent, setSelectedGlobalStudent]);
 
     const handleUnassignAllFromStudent = useCallback(async () => { if (selectedGlobalStudent) await unassignStudentFromAllRoutes(selectedGlobalStudent.id); }, [selectedGlobalStudent]);
     
