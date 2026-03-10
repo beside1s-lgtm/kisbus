@@ -1,6 +1,7 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onLostItemsUpdate, getAttendance, updateAttendance, onAttendanceUpdate } from '@/lib/firebase-data';
+import { onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onLostItemsUpdate, onAttendanceUpdate } from '@/lib/firebase-data';
 import type { Bus, Student, Route, DayOfWeek, RouteType, Destination, LostItem, AttendanceRecord } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -38,7 +39,6 @@ export function StudentPageContent() {
   
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Student[]>([]);
   const [isClient, setIsClient] = useState(false);
@@ -54,11 +54,7 @@ export function StudentPageContent() {
     setIsClient(true);
   }, []);
   
-  useEffect(() => {
-    if (isClient && !selectedDate) {
-        setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
-    }
-  }, [isClient, selectedDate]);
+  const selectedDate = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   
   useEffect(() => {
     setLoading(true);
@@ -252,23 +248,24 @@ export function StudentPageContent() {
   const studentStatus = useMemo(() => {
     if (!selectedStudent || !selectedBus) return null;
 
-    const studentDest = getStudentDestination(selectedStudent);
-
     if (disembarkedStudentIds.includes(selectedStudent.id)) {
-        return { text: t('teacher_page.status_disembarked'), color: 'text-gray-500' };
+        return { text: t('student_page.status.arrived'), color: 'text-gray-500' };
     }
-    if (studentDest.id && completedDestinations.includes(studentDest.id)) {
-        return { text: t('student_page.status.destination_complete', { destination: studentDest.name }), color: 'text-blue-500' };
-    }
-    if (selectedBus.status === 'departed') {
-        return { text: t('student_page.status.en_route'), color: 'text-green-600' };
-    }
-    if (selectedBus.status === 'ready' || !selectedBus.status) {
-        return { text: t('student_page.status.ready'), color: 'text-yellow-600' };
+    
+    if (notBoardingStudentIds.includes(selectedStudent.id)) {
+        return { text: t('teacher_page.status_not_riding_today'), color: 'text-destructive' };
     }
 
-    return null;
-  }, [selectedStudent, selectedBus, completedDestinations, disembarkedStudentIds, getStudentDestination, t]);
+    if (selectedBus.status === 'departed') {
+        return { text: t('student_page.status.departed'), color: 'text-blue-600' };
+    }
+
+    if (boardedStudentIds.includes(selectedStudent.id)) {
+        return { text: t('student_page.status.ready_boarded'), color: 'text-green-600' };
+    }
+
+    return { text: t('student_page.status.ready_not_boarded'), color: 'text-yellow-600' };
+  }, [selectedStudent, selectedBus, disembarkedStudentIds, notBoardingStudentIds, boardedStudentIds, t]);
   
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-4">

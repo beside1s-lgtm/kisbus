@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
@@ -191,6 +192,7 @@
     "admin.bus_config.route.clear.confirm_title": "Clear Route Stops",
     "admin.bus_config.route.clear.confirm_description": "Are you sure you want to delete all stops from the current route?",
     "admin.bus_config.route.clear.success": "All route stops have been cleared.",
+    "admin.bus_config.route.clear.success": "All route stops have been cleared.",
     "admin.bus_config.suggestions.title": "New Destination Requests",
     "admin.bus_config.suggestions.description": "These are new destinations suggested by students. Click to add them to the main destination list.",
     "admin.bus_config.suggestions.already_exists": "This destination is already registered. Removing from the suggestion list.",
@@ -362,6 +364,10 @@
     "student_page.status.ready": "Preparing for Departure",
     "student_page.status.en_route": "En Route to Destination",
     "student_page.status.destination_complete": "Disembarked at {{destination}}",
+    "student_page.status.ready_not_boarded": "Preparing (Not Boarded)",
+    "student_page.status.ready_boarded": "Preparing (Boarded)",
+    "student_page.status.departed": "Departed",
+    "student_page.status.arrived": "Arrived (Disembarked)",
     "lost_and_found.title": "Lost and Found",
     "lost_and_found.description": "This is a list of items found on the bus.",
     "lost_and_found.add_button": "Add Lost Item",

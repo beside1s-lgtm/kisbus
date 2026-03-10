@@ -1,3 +1,4 @@
+
 {
     "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -358,6 +359,10 @@
     "student_page.status.ready": "Đang chuẩn bị khởi hành",
     "student_page.status.en_route": "Đang di chuyển đến điểm đến",
     "student_page.status.destination_complete": "Đã xuống xe tại {{destination}}",
+    "student_page.status.ready_not_boarded": "Đang chuẩn bị (Chưa lên xe)",
+    "student_page.status.ready_boarded": "Đang chuẩn bị (Đã lên xe)",
+    "student_page.status.departed": "Đã khởi hành",
+    "student_page.status.arrived": "Đã đến (Xuống xe)",
     "lost_and_found.title": "Tình trạng đồ thất lạc",
     "lost_and_found.description": "Đây là danh sách đồ thất lạc được tìm thấy trên xe buýt.",
     "lost_and_found.add_button": "Thêm đồ thất lạc",
