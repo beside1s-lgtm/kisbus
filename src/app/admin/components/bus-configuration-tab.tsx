@@ -88,7 +88,6 @@ export const BusConfigurationTab = ({
     );
   }, [destinations, destinationSearchQuery]);
 
-  // 검색 또는 선택된 목적지가 포함된 버스 목록 계산
   const busesUsingDestination = useMemo(() => {
     const targetDestId = selectedAllDestId;
     if (!targetDestId) return [];
@@ -307,6 +306,16 @@ export const BusConfigurationTab = ({
         setSelectedRouteStopId(null);
     }, [currentRoute, selectedRouteStopId]);
 
+    const handleClearRoute = useCallback(async () => {
+        if (!currentRoute) return;
+        try {
+            await updateRouteStops(currentRoute.id, []);
+            toast({ title: t('success'), description: t('admin.bus_config.route.clear.success') });
+        } catch (error) {
+            toast({ title: t('error'), description: t('error'), variant: 'destructive' });
+        }
+    }, [currentRoute, t, toast]);
+
  const handleCopyRoute = useCallback(async () => {
       if (!currentRoute) {
           toast({ title: t('error'), description: t('admin.bus_config.route.copy.no_source_error'), variant: "destructive" });
@@ -481,7 +490,6 @@ export const BusConfigurationTab = ({
                         />
                     </div>
 
-                    {/* 선택된 목적지가 포함된 버스 표시 섹션 */}
                     {selectedAllDestId && (
                         <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-md animate-in fade-in slide-in-from-top-1">
                             <div className="flex items-start gap-2">
@@ -573,75 +581,97 @@ export const BusConfigurationTab = ({
                             {t('admin.bus_config.route.description')}
                         </CardDescription>
                     </div>
-                     <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" disabled={!currentRoute}>
-                                <Copy className="mr-2" /> {t('admin.bus_config.route.copy.button')}
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                             <DialogHeader>
-                                <DialogTitle>{t('admin.bus_config.route.copy.title')}</DialogTitle>
-                                <CardDescription>
-                                    {selectedRouteType === 'AfterSchool'
-                                        ? t('admin.bus_config.route.copy.description_after_school')
-                                        : t('admin.bus_config.route.copy.description_commute')
-                                    }
-                                </CardDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                                <div>
-                                    <Label>{t('admin.bus_config.route.copy.select_days')}</Label>
-                                    <div className="flex items-center space-x-2 mt-2">
-                                        <Checkbox
-                                            id="copy-route-all-days"
-                                            checked={allDays.every(day => daysToCopyRouteTo[day])}
-                                            onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
-                                        />
-                                        <Label htmlFor="copy-route-all-days">{t('select_all')}</Label>
+                    <div className="flex gap-2">
+                        <Dialog open={isCopyRouteDialogOpen} onOpenChange={setCopyRouteDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" disabled={!currentRoute}>
+                                    <Copy className="mr-2" /> {t('admin.bus_config.route.copy.button')}
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>{t('admin.bus_config.route.copy.title')}</DialogTitle>
+                                    <CardDescription>
+                                        {selectedRouteType === 'AfterSchool'
+                                            ? t('admin.bus_config.route.copy.description_after_school')
+                                            : t('admin.bus_config.route.copy.description_commute')
+                                        }
+                                    </CardDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div>
+                                        <Label>{t('admin.bus_config.route.copy.select_days')}</Label>
+                                        <div className="flex items-center space-x-2 mt-2">
+                                            <Checkbox
+                                                id="copy-route-all-days"
+                                                checked={allDays.every(day => daysToCopyRouteTo[day])}
+                                                onCheckedChange={(checked) => handleToggleAllCopyToDays(checked as boolean)}
+                                            />
+                                            <Label htmlFor="copy-route-all-days">{t('select_all')}</Label>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 mt-2">
+                                            {allDays.map(day => (
+                                                <div key={`route-day-${day}`} className="flex items-center space-x-2">
+                                                    <Checkbox
+                                                        id={`copy-route-day-${day}`}
+                                                        checked={!!daysToCopyRouteTo[day]}
+                                                        onCheckedChange={(checked) => setDaysToCopyRouteTo(prev => ({ ...prev, [day]: checked }))}
+                                                    />
+                                                    <Label htmlFor={`copy-route-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-2 mt-2">
-                                        {allDays.map(day => (
-                                            <div key={`route-day-${day}`} className="flex items-center space-x-2">
+                                    {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
+                                    <div>
+                                        <Label>{t('admin.bus_config.route.copy.select_route_types')}</Label>
+                                        <div className="flex items-center space-x-4 mt-2">
+                                            <div className="flex items-center space-x-2">
                                                 <Checkbox
-                                                    id={`copy-route-day-${day}`}
-                                                    checked={!!daysToCopyRouteTo[day]}
-                                                    onCheckedChange={(checked) => setDaysToCopyRouteTo(prev => ({ ...prev, [day]: checked }))}
+                                                    id="copy-route-type-morning"
+                                                    checked={!!routeTypesToCopyRouteTo.Morning}
+                                                    onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Morning: checked as boolean }))}
                                                 />
-                                                <Label htmlFor={`copy-route-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label>
+                                                <Label htmlFor="copy-route-type-morning">{t('route_type.morning')}</Label>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                {(selectedRouteType === 'Morning' || selectedRouteType === 'Afternoon') && (
-                                <div>
-                                    <Label>{t('admin.bus_config.route.copy.select_route_types')}</Label>
-                                    <div className="flex items-center space-x-4 mt-2">
-                                        <div className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id="copy-route-type-morning"
-                                                checked={!!routeTypesToCopyRouteTo.Morning}
-                                                onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Morning: checked as boolean }))}
-                                            />
-                                            <Label htmlFor="copy-route-type-morning">{t('route_type.morning')}</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id="copy-route-type-afternoon"
-                                                checked={!!routeTypesToCopyRouteTo.Afternoon}
-                                                onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Afternoon: checked as boolean }))}
-                                            />
-                                            <Label htmlFor="copy-route-type-afternoon">{t('route_type.afternoon')}</Label>
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id="copy-route-type-afternoon"
+                                                    checked={!!routeTypesToCopyRouteTo.Afternoon}
+                                                    onCheckedChange={(checked) => setRouteTypesToCopyRouteTo(prev => ({ ...prev, Afternoon: checked as boolean }))}
+                                                />
+                                                <Label htmlFor="copy-route-type-afternoon">{t('route_type.afternoon')}</Label>
+                                            </div>
                                         </div>
                                     </div>
+                                    )}
                                 </div>
-                                )}
-                            </div>
-                            <DialogFooter>
-                                <Button onClick={handleCopyRoute} className="w-full">{t('copy')}</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                <DialogFooter>
+                                    <Button onClick={handleCopyRoute} className="w-full">{t('copy')}</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline" disabled={!currentRoute || (currentRoute.stops || []).length === 0} className="text-destructive border-destructive hover:bg-destructive/10">
+                                    <Trash2 className="mr-2 h-4 w-4" /> {t('admin.bus_config.route.clear.button')}
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>{t('admin.bus_config.route.clear.confirm_title')}</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        {t('admin.bus_config.route.clear.confirm_description')}
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClearRoute}>{t('confirm')}</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {selectedBus && currentRoute ? (
