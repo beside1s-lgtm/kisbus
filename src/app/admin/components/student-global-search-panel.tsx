@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Search, Download, Upload, Trash2, UserX, Users, UserPlus, X } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Download, Upload, Trash2, UserX, Users, UserPlus, X, Pencil, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -51,6 +51,12 @@ export const StudentGlobalSearchPanel = ({
 }: StudentGlobalSearchPanelProps) => {
     const { t } = useTranslation();
     const [siblingSearchQuery, setSiblingSearchQuery] = useState('');
+    const [isEditingName, setIsEditingName] = useState(false);
+
+    // Reset editing state when student changes
+    useEffect(() => {
+        setIsEditingName(false);
+    }, [selectedGlobalStudent?.id]);
 
     const siblingSearchResults = useMemo(() => {
         if (!siblingSearchQuery || !selectedGlobalStudent) return [];
@@ -88,6 +94,13 @@ export const StudentGlobalSearchPanel = ({
              await updateStudent(selectedGlobalStudent!.id, { siblingGroupId: null });
              setSelectedGlobalStudent(prev => prev ? { ...prev, siblingGroupId: null } : null);
         }
+    };
+
+    const toggleNameEdit = () => {
+        if (isEditingName && selectedGlobalStudent) {
+            handleStudentInfoChange(selectedGlobalStudent.id, 'name', selectedGlobalStudent.name);
+        }
+        setIsEditingName(!isEditingName);
     };
 
     return (
@@ -184,12 +197,23 @@ export const StudentGlobalSearchPanel = ({
                         
                         <div className="space-y-2">
                             <Label className="text-xs">{t('student.name')}</Label>
-                            <Input
-                                value={selectedGlobalStudent.name || ''}
-                                onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, name: e.target.value} : null)}
-                                onBlur={(e) => handleStudentInfoChange(selectedGlobalStudent.id, 'name', e.target.value)}
-                                placeholder={t('student.name_placeholder')}
-                            />
+                            <div className="flex gap-2">
+                                <Input
+                                    value={selectedGlobalStudent.name || ''}
+                                    onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, name: e.target.value} : null)}
+                                    placeholder={t('student.name_placeholder')}
+                                    disabled={!isEditingName}
+                                    className={cn(!isEditingName && "bg-muted cursor-not-allowed")}
+                                />
+                                <Button 
+                                    size="icon" 
+                                    variant={isEditingName ? "default" : "outline"} 
+                                    onClick={toggleNameEdit}
+                                    title={isEditingName ? "저장" : "수정"}
+                                >
+                                    {isEditingName ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="space-y-2">
