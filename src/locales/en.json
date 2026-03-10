@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
@@ -18,7 +19,6 @@
     "logout.success": "Logout successful",
     "logout.success.description": "Redirecting to the home screen.",
     "logout.error": "Logout failed",
-    "logout.error.description": "Please try again.",
     "logout.error.description": "Please try again.",
     "loading.auth": "Verifying authentication information...",
     "loading.data": "Loading data...",
@@ -83,7 +83,7 @@
     "bus_type.16": "16-seater",
     "bus_type.29": "29-seater",
     "bus_type.45": "45-seater",
-    "student.name": "Student Name",
+    "student.name": "English Name",
     "student.name_placeholder": "e.g., Minjun Kim",
     "student.contact": "Vietnam Phone Number",
     "student.contact_placeholder": "e.g., 01012345678",

@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -82,8 +83,8 @@
     "bus_type.16": "16인승",
     "bus_type.29": "29인승",
     "bus_type.45": "45인승",
-    "student.name": "학생 이름",
-    "student.name_placeholder": "예: 김민준",
+    "student.name": "영문 이름",
+    "student.name_placeholder": "예: Minjun Kim",
     "student.contact": "베트남 전화번호",
     "student.contact_placeholder": "예: 01012345678",
     "student.grade": "학년",

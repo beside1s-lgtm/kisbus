@@ -1,3 +1,4 @@
+
 {
     "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -82,8 +83,8 @@
     "bus_type.16": "16 chỗ",
     "bus_type.29": "29 chỗ",
     "bus_type.45": "45 chỗ",
-    "student.name": "Tên học sinh",
-    "student.name_placeholder": "Ví dụ: Kim Min-jun",
+    "student.name": "Tên tiếng Anh",
+    "student.name_placeholder": "Ví dụ: Minjun Kim",
     "student.contact": "Số điện thoại Việt Nam",
     "student.contact_placeholder": "Ví dụ: 01012345678",
     "student.grade": "Khối",
@@ -179,9 +180,8 @@
     "admin.bus_config.route.copy.select_days": "Chọn ngày để sao chép",
     "admin.bus_config.route.copy.select_route_types": "Loại tuyến đường để sao chép",
     "admin.bus_config.route.copy.no_source_error": "Không tìm thấy tuyến đường gốc để sao chép.",
-    "admin.bus_config.route.copy.no_selection_commute": "Vui lòng chọn ít nhất một ngày và loại tuyến đường (sáng/chiều) để sao chép.",
-    "admin.bus_config.route.copy.no_selection_after_school": "Vui lòng chọn ít nhất một ngày để sao chép.",
-    "admin.bus_config.route.copy.no_target_routes": "Không có tuyến đường đích để sao chép.",
+    "admin.bus_config.route.copy.no_selection_error": "Vui lòng chọn ít nhất một ngày và loại tuyến đường (sáng/chiều) để sao chép.",
+    "admin.bus_config.route.copy.no_target_error": "Không có tuyến đường đích để sao chép.",
     "admin.bus_config.route.copy.success": "Đã sao chép cấu hình tuyến đường hiện tại vào các tuyến đường của ngày đã chọn.",
     "admin.bus_config.route.copy.error": "Đã xảy ra lỗi khi sao chép cấu hình tuyến đường.",
     "admin.bus_config.route.add_stop_error": "Điểm đến đã được thêm vào tuyến đường.",
