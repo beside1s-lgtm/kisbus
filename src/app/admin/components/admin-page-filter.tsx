@@ -55,21 +55,20 @@ export const AdminPageFilter = ({
 
     useEffect(() => {
         if (filterConfiguredBusesOnly) {
-            if (selectedBusId && !filteredBuses.some(b => b.id === selectedBusId)) {
-                setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : null);
+            if (selectedBusId && selectedBusId !== 'all' && !filteredBuses.some(b => b.id === selectedBusId)) {
+                setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : 'all');
             } else if (!selectedBusId && filteredBuses.length > 0) {
-                setSelectedBusId(filteredBuses[0].id);
+                setSelectedBusId('all');
             }
         } else {
              if (!selectedBusId && buses.length > 0) {
-                 const activeBuses = buses.filter(b => b.isActive ?? true);
-                setSelectedBusId(activeBuses.length > 0 ? activeBuses[0].id : null);
+                setSelectedBusId('all');
             }
         }
     }, [filteredBuses, selectedBusId, setSelectedBusId, filterConfiguredBusesOnly, buses]);
 
     const currentRouteStops = useMemo(() => {
-        if (!showRouteStops || !selectedBusId) return null;
+        if (!showRouteStops || !selectedBusId || selectedBusId === 'all') return null;
         const route = routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
         if (!route || route.stops.length === 0) return t('no_route_info');
 
@@ -87,11 +86,12 @@ export const AdminPageFilter = ({
             <CardContent className="flex flex-wrap items-end gap-4 p-4">
                 <div className="w-full sm:w-auto">
                     <Label className="text-xs">{t('bus')}</Label>
-                    <Select value={selectedBusId || ''} onValueChange={setSelectedBusId}>
+                    <Select value={selectedBusId || 'all'} onValueChange={setSelectedBusId}>
                         <SelectTrigger className="w-full sm:w-[180px]">
                             <SelectValue placeholder={t('select_bus')} />
                         </SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="all">전체 (All)</SelectItem>
                             {filteredBuses.map((bus) => (
                                 <SelectItem key={bus.id} value={bus.id}>
                                     {bus.name}

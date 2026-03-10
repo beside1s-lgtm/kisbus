@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -10,7 +9,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewStudent
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Shuffle, UserPlus, RotateCcw, Copy, Bell, Undo2, AlertCircle } from 'lucide-react';
+import { Shuffle, UserPlus, RotateCcw, Copy, Bell, Undo2, AlertCircle, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -204,7 +203,7 @@ export const StudentManagementTab = ({
         let unassigned: Student[];
         
         if (unassignedView === 'current') {
-            if (!currentRoute) { setFilteredUnassignedStudents([]); return; }
+            if (!currentRoute && selectedBusId !== 'all') { setFilteredUnassignedStudents([]); return; }
             
             // 해당 요일에 방과후를 가는 학생들은 하교 명단에서 제외
             const afterSchoolIds = new Set<string>();
@@ -212,6 +211,16 @@ export const StudentManagementTab = ({
                 routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'AfterSchool').forEach(r => {
                     r.seating.forEach(s => { if (s.studentId) afterSchoolIds.add(s.studentId); });
                 });
+            }
+
+            // '현재 노선' 뷰에서 필터링 대상 정류장 ID들
+            const targetStopIds = new Set<string>();
+            if (selectedBusId === 'all') {
+                routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
+                    r.stops.forEach(s => targetStopIds.add(s));
+                });
+            } else if (currentRoute) {
+                currentRoute.stops.forEach(s => targetStopIds.add(s));
             }
 
             unassigned = students.filter(s => {
@@ -222,13 +231,13 @@ export const StudentManagementTab = ({
                 // 3. 하교 시간인데 방과후 신청함
                 if (selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) return false;
                 
-                // 4. 이 버스의 정류장에 목적지가 포함되는지 확인
+                // 4. 이 버스(들)의 정류장에 목적지가 포함되는지 확인
                 let destId: string | null = null;
                 if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
                 else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
                 else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
                 
-                return destId && currentRoute.stops.includes(destId);
+                return destId && targetStopIds.has(destId);
             });
         } else {
             // 전체 뷰: 현재 설정(요일/타입)에서 어떤 버스에도 배정되지 않은 모든 학생
@@ -245,9 +254,9 @@ export const StudentManagementTab = ({
             });
         }
         setFilteredUnassignedStudents(unassigned.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-    }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, unassignableStudents, unassignedView]);
+    }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, unassignableStudents, unassignedView, selectedBusId]);
 
-    useEffect(() => { setSelectedSeat(null); setPreviousSeating(null); }, [currentRoute, unassignedView]);
+    useEffect(() => { setSelectedSeat(null); setPreviousSeating(null); }, [currentRoute, unassignedView, selectedBusId]);
 
     const handleToggleSelectAll = useCallback(() => {
         const allIds = filteredUnassignedStudents.map(s => s.id);
@@ -300,6 +309,29 @@ export const StudentManagementTab = ({
     const handleResetSeating = useCallback(async () => {
         if (selectedBus && currentRoute) { setPreviousSeating(currentRoute.seating); await handleSeatUpdate(generateInitialSeating(selectedBus.capacity)); }
     }, [selectedBus, currentRoute, handleSeatUpdate]);
+
+    const handleResetAllSeating = useCallback(async () => {
+        const relevantRoutes = routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType);
+        if (relevantRoutes.length === 0) return;
+
+        const { dismiss } = toast({ title: t('processing'), description: "전체 좌석 정보 초기화 중..." });
+        try {
+            const batch = writeBatch(db);
+            relevantRoutes.forEach(route => {
+                const bus = buses.find(b => b.id === route.busId);
+                if (bus) {
+                    const initialSeating = generateInitialSeating(bus.capacity);
+                    batch.update(doc(db, 'routes', route.id), { seating: initialSeating });
+                }
+            });
+            await batch.commit();
+            dismiss();
+            toast({ title: t('success'), description: "선택한 요일/시간대의 모든 버스 좌석이 초기화되었습니다." });
+        } catch (error) {
+            dismiss();
+            toast({ title: t('error'), description: "초기화 중 오류가 발생했습니다.", variant: "destructive" });
+        }
+    }, [routes, selectedDay, selectedRouteType, buses, toast, t]);
 
     const handleCopySeating = useCallback(async () => {
         if (!currentRoute) return;
@@ -694,7 +726,6 @@ export const StudentManagementTab = ({
     const handleGlobalStudentClick = (s: Student) => { setSelectedGlobalStudent(s); setGlobalSearchQuery(''); setGlobalSearchResults([]); };
 
     if (!selectedBusId) return <div className="p-4 text-center">{t('admin.student_management.select_bus_prompt')}</div>;
-    if (!currentRoute) return <div className="p-4 text-center">{t('admin.student_management.no_route_info')}</div>;
 
     const unassignedTitle = selectedRouteType === 'AfterSchool' ? t('admin.student_management.unassigned.title', { routeType: t('route_type.after_school') }) : t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) });
 
@@ -723,95 +754,130 @@ export const StudentManagementTab = ({
                             </AlertDescription>
                         </Alert>
                     )}
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>{t('admin.student_management.seat.title')}</CardTitle>
-                            <div className="flex gap-2">
-                                <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline" size="sm" disabled={!currentRoute}>
-                                            <Copy className="h-4 w-4 mr-2" /> {t('admin.student_management.seat.copy.button')}
+                    {selectedBusId === 'all' ? (
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>전체 버스 관리 - {t(`day.${selectedDay.toLowerCase()}`)} {selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`)}</CardTitle>
+                                    <CardDescription>선택한 시간대의 모든 버스 좌석을 한꺼번에 관리합니다.</CardDescription>
+                                </div>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive">
+                                            <RotateCcw className="mr-2 h-4 w-4" /> 전체 좌석 초기화
                                         </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                        <DialogHeader>
-                                            <DialogTitle>{t('admin.student_management.seat.copy.title')}</DialogTitle>
-                                            <CardDescription>{t('admin.student_management.seat.copy.description')}</CardDescription>
-                                        </DialogHeader>
-                                        <div className="space-y-4 py-4">
-                                            <div>
-                                                <Label>{t('admin.student_management.seat.copy.select_days')}</Label>
-                                                <div className="flex items-center space-x-2 mt-2">
-                                                    <Checkbox 
-                                                        id="copy-all-days" 
-                                                        checked={weekdays.every(d => daysToCopyTo[d])} 
-                                                        onCheckedChange={handleToggleAllCopyToDays} 
-                                                    />
-                                                    <Label htmlFor="copy-all-days">{t('select_all')}</Label>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-2 mt-2">
-                                                    {weekdays.map(day => (
-                                                        <div key={day} className="flex items-center space-x-2">
-                                                            <Checkbox 
-                                                                id={`copy-day-${day}`} 
-                                                                checked={!!daysToCopyTo[day]} 
-                                                                onCheckedChange={(c) => setDaysToCopyTo(p => ({ ...p, [day]: c as boolean }))} 
-                                                            />
-                                                            <Label htmlFor={`copy-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            {selectedRouteType !== 'AfterSchool' && (
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>정말 모든 버스 좌석을 초기화하시겠습니까?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                {t(`day.${selectedDay.toLowerCase()}`)} {selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`)} 시간대의 모든 버스 배정 내역이 영구적으로 삭제됩니다.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleResetAllSeating}>{t('reset')}</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                                <Users className="h-12 w-12 mb-4 opacity-20" />
+                                <p>전체 버스 모드에서는 좌석 배정 일괄 초기화 및 학생 검색/관리가 가능합니다.</p>
+                                <p className="text-sm">개별 버스의 좌석을 배정하려면 상단 필터에서 특정 버스를 선택해주세요.</p>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle>{t('admin.student_management.seat.title')}</CardTitle>
+                                <div className="flex gap-2">
+                                    <Dialog open={isCopySeatingDialogOpen} onOpenChange={setCopySeatingDialogOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" size="sm" disabled={!currentRoute}>
+                                                <Copy className="h-4 w-4 mr-2" /> {t('admin.student_management.seat.copy.button')}
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>{t('admin.student_management.seat.copy.title')}</DialogTitle>
+                                                <CardDescription>{t('admin.student_management.seat.copy.description')}</CardDescription>
+                                            </DialogHeader>
+                                            <div className="space-y-4 py-4">
                                                 <div>
-                                                    <Label>{t('admin.student_management.seat.copy.select_route_types')}</Label>
-                                                    <div className="flex space-x-4 mt-2">
-                                                        <div className="flex items-center space-x-2">
-                                                            <Checkbox 
-                                                                id="copy-type-morning" 
-                                                                checked={!!routeTypesToCopyTo.Morning} 
-                                                                onCheckedChange={(c) => setRouteTypesToCopyTo(p => ({ ...p, Morning: c as boolean }))} 
-                                                            />
-                                                            <Label htmlFor="copy-type-morning">{t('route_type.morning')}</Label>
-                                                        </div>
-                                                        <div className="flex items-center space-x-2">
-                                                            <Checkbox 
-                                                                id="copy-type-afternoon" 
-                                                                checked={!!routeTypesToCopyTo.Afternoon} 
-                                                                onCheckedChange={(c) => setRouteTypesToCopyTo(p => ({ ...p, Afternoon: c as boolean }))} 
-                                                            />
-                                                            <Label htmlFor="copy-type-afternoon">{t('route_type.afternoon')}</Label>
-                                                        </div>
+                                                    <Label>{t('admin.student_management.seat.copy.select_days')}</Label>
+                                                    <div className="flex items-center space-x-2 mt-2">
+                                                        <Checkbox 
+                                                            id="copy-all-days" 
+                                                            checked={weekdays.every(d => daysToCopyTo[d])} 
+                                                            onCheckedChange={handleToggleAllCopyToDays} 
+                                                        />
+                                                        <Label htmlFor="copy-all-days">{t('select_all')}</Label>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2 mt-2">
+                                                        {weekdays.map(day => (
+                                                            <div key={day} className="flex items-center space-x-2">
+                                                                <Checkbox 
+                                                                    id={`copy-day-${day}`} 
+                                                                    checked={!!daysToCopyTo[day]} 
+                                                                    onCheckedChange={(c) => setDaysToCopyTo(p => ({ ...p, [day]: c as boolean }))} 
+                                                                />
+                                                                <Label htmlFor={`copy-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                        <DialogFooter>
-                                            <Button onClick={handleCopySeating} className="w-full">{t('copy')}</Button>
-                                        </DialogFooter>
-                                    </DialogContent>
-                                </Dialog>
-                                <Button variant="outline" size="sm" onClick={handleUndoRandomize} disabled={!previousSeating}><Undo2 className="h-4 w-4" /></Button>
-                                <Button variant="outline" size="sm" onClick={randomizeSeating}><Shuffle className="h-4 w-4" /></Button>
-                                <Button variant="outline" size="sm" onClick={handleResetSeating} disabled={!currentRoute}><RotateCcw className="h-4 w-4" /></Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {selectedBus && (
-                                <BusSeatMap
-                                    bus={selectedBus}
-                                    seating={currentRoute.seating}
-                                    students={students}
-                                    destinations={destinations}
-                                    onSeatClick={handleSeatClick}
-                                    highlightedSeatNumber={selectedSeat?.seatNumber}
-                                    highlightedStudentId={selectedGlobalStudent?.id}
-                                    routeType={selectedRouteType}
-                                    dayOfWeek={selectedDay}
-                                />
-                            )}
-                        </CardContent>
-                    </Card>
+                                                {selectedRouteType !== 'AfterSchool' && (
+                                                    <div>
+                                                        <Label>{t('admin.student_management.seat.copy.select_route_types')}</Label>
+                                                        <div className="flex space-x-4 mt-2">
+                                                            <div className="flex items-center space-x-2">
+                                                                <Checkbox 
+                                                                    id="copy-type-morning" 
+                                                                    checked={!!routeTypesToCopyTo.Morning} 
+                                                                    onCheckedChange={(c) => setRouteTypesToCopyTo(p => ({ ...p, Morning: c as boolean }))} 
+                                                                />
+                                                                <Label htmlFor="copy-type-morning">{t('route_type.morning')}</Label>
+                                                            </div>
+                                                            <div className="flex items-center space-x-2">
+                                                                <Checkbox 
+                                                                    id="copy-type-afternoon" 
+                                                                    checked={!!routeTypesToCopyTo.Afternoon} 
+                                                                    onCheckedChange={(c) => setRouteTypesToCopyTo(p => ({ ...p, Afternoon: c as boolean }))} 
+                                                                />
+                                                                <Label htmlFor="copy-type-afternoon">{t('route_type.afternoon')}</Label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <DialogFooter>
+                                                <Button onClick={handleCopySeating} className="w-full">{t('copy')}</Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                    <Button variant="outline" size="sm" onClick={handleUndoRandomize} disabled={!previousSeating}><Undo2 className="h-4 w-4" /></Button>
+                                    <Button variant="outline" size="sm" onClick={randomizeSeating}><Shuffle className="h-4 w-4" /></Button>
+                                    <Button variant="outline" size="sm" onClick={handleResetSeating} disabled={!currentRoute}><RotateCcw className="h-4 w-4" /></Button>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                {selectedBus && currentRoute && (
+                                    <BusSeatMap
+                                        bus={selectedBus}
+                                        seating={currentRoute.seating}
+                                        students={students}
+                                        destinations={destinations}
+                                        onSeatClick={handleSeatClick}
+                                        highlightedSeatNumber={selectedSeat?.seatNumber}
+                                        highlightedStudentId={selectedGlobalStudent?.id}
+                                        routeType={selectedRouteType}
+                                        dayOfWeek={selectedDay}
+                                    />
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
                 <div className="lg:col-span-1 space-y-4">
                     <StudentUnassignedPanel
