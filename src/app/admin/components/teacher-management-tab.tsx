@@ -441,7 +441,7 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
 
             const statusStr = !(bus.isActive ?? true) ? "비활성" : (bus.excludeFromAssignment ? "배정제외" : (isOperational ? "운행중" : "운행없음"));
             
-            const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
+            const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
             return [
                 escape(bus.name),
                 escape(t(`bus_type.${bus.type}`)),

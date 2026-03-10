@@ -405,7 +405,7 @@ export const StudentManagementTab = ({
         }
         const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
         const rows = students.map(s => {
-            const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
+            const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
             return [
                 escape(s.name),
                 escape(s.grade),
@@ -444,7 +444,7 @@ export const StudentManagementTab = ({
             else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
             else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
             
-            const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
+            const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
             return [
                 escape(s.name),
                 escape(s.grade),
