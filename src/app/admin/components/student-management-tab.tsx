@@ -210,11 +210,21 @@ export const StudentManagementTab = ({
     useEffect(() => {
         if (selectedDay === 'Friday' && selectedRouteType === 'AfterSchool') { setFilteredUnassignedStudents([]); return; }
         
+        const getStudentDestId = (s: Student) => {
+            if (selectedRouteType === 'Morning') return s.morningDestinationId;
+            if (selectedRouteType === 'Afternoon') return s.afternoonDestinationId;
+            if (selectedRouteType === 'AfterSchool') return s.afterSchoolDestinations?.[selectedDay] || null;
+            return null;
+        };
+
         // 현재 요일/타입에 이미 배정된 모든 학생 ID (모든 버스 합산)
         const allAssignedIdsOnCurrentConfig = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
             r.seating.forEach(s => { if (s.studentId) allAssignedIdsOnCurrentConfig.add(s.studentId); });
         });
+
+        // 목적지가 설정된 학생들만 후보로 (신청하지 않은 학생은 미배정 목록에서 제외)
+        const applicants = students.filter(s => !!getStudentDestId(s));
 
         let unassigned: Student[];
         
@@ -239,7 +249,7 @@ export const StudentManagementTab = ({
                 currentRoute.stops.forEach(s => targetStopIds.add(s));
             }
 
-            unassigned = students.filter(s => {
+            unassigned = applicants.filter(s => {
                 // 1. 이미 배정됨
                 if (allAssignedIdsOnCurrentConfig.has(s.id)) return false;
                 // 2. 목적지 오류 학생
@@ -248,16 +258,12 @@ export const StudentManagementTab = ({
                 if (selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) return false;
                 
                 // 4. 이 버스(들)의 정류장에 목적지가 포함되는지 확인
-                let destId: string | null = null;
-                if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
-                else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
-                else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
-                
+                const destId = getStudentDestId(s);
                 return destId && targetStopIds.has(destId);
             });
         } else {
-            // 전체 뷰: 현재 설정(요일/타입)에서 어떤 버스에도 배정되지 않은 모든 학생
-            unassigned = students.filter(s => !allAssignedIdsOnCurrentConfig.has(s.id));
+            // 전체 뷰: 목적지가 설정되어 있고(신청자), 현재 설정(요일/타입)에서 어떤 버스에도 배정되지 않은 모든 학생
+            unassigned = applicants.filter(s => !allAssignedIdsOnCurrentConfig.has(s.id));
         }
         
         if (unassignedSearchQuery) {
