@@ -12,7 +12,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import type { Student, Destination, Bus, Route, DayOfWeek, RouteType } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { normalizeString } from '@/lib/utils';
+import { cn, normalizeString } from '@/lib/utils';
 import { updateStudent } from '@/lib/firebase-data';
 
 interface StudentGlobalSearchPanelProps {
