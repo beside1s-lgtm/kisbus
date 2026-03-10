@@ -347,20 +347,6 @@ export function StudentPageContent() {
                 </Card>
             )}
         </div>
-        {selectedStudent && (
-            <div className="w-full sm:w-auto">
-                <Label htmlFor="not-boarding-date" className="text-xs">{t('student_page.not_boarding_date_label')}</Label>
-                 <div className="flex items-center rounded-md border border-input bg-background h-10 px-3">
-                    <Input
-                        id="not-boarding-date"
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                </div>
-            </div>
-        )}
     </div>
   );
 
