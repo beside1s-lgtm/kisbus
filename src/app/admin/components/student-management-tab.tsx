@@ -369,7 +369,9 @@ export const StudentManagementTab = ({
                 }
             } else {
                 // For 16-seater
-                for (let i = 1; i <= cap; i++) middles.push(i);
+                // Priority: 2 to 16, then 1 (front passenger next to driver)
+                for (let i = 2; i <= cap; i++) middles.push(i);
+                middles.push(1);
             }
             return { pairs, middles };
         };
