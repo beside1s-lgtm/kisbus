@@ -1,4 +1,3 @@
-
 {
     "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
@@ -347,8 +346,8 @@
     "apply.siblings.add_button": "Add Sibling",
     "select_or_search_destination": "Select or search for a destination...",
     "student_page.title": "Student Boarding Check",
-    "student_page.description": "You can mark 'Not Riding Today' by clicking on your child's seat. Boarded is green, Not Riding is blue, and your child's seat is highlighted.",
-    "student_page.description.student_selected": "You can mark 'Not Riding Today' by clicking on your child's seat. Boarded is green, Not Riding is blue, and your child's seat is highlighted.",
+    "student_page.description": "You can check your child's assigned seat and real-time boarding status.",
+    "student_page.description.student_selected": "You can check your child's assigned seat and real-time boarding status.",
     "student_page.description.no_student": "Search for a student's name to check their boarding information.",
     "student_page.select_student_prompt": "Please select a student",
     "student_page.select_student_description": "Please search for and select a student's name from the search bar above.",

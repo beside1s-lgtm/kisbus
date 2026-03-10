@@ -7,17 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MainLayout } from '@/components/layout/main-layout';
 import { format, getDay, isSunday } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle 
-} from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
 import { Search } from 'lucide-react';
@@ -50,8 +39,6 @@ export function StudentPageContent() {
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState('');
-  const { toast } = useToast();
-  const [studentToConfirm, setStudentToConfirm] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Student[]>([]);
   const [isClient, setIsClient] = useState(false);
@@ -212,75 +199,9 @@ export function StudentPageContent() {
   const disembarkedStudentIds = useMemo(() => attendance?.disembarked || [], [attendance]);
   const completedDestinations = useMemo(() => attendance?.completedDestinations || [], [attendance]);
 
-  const findRoutesForStudent = useCallback(async (student: Student, day: DayOfWeek, routeType: RouteType): Promise<Route[]> => {
-    let destId: string | null = null;
-    if (routeType === 'Morning') destId = student.morningDestinationId;
-    else if (routeType === 'Afternoon') destId = student.afternoonDestinationId;
-    else if (routeType === 'AfterSchool') destId = student.afterSchoolDestinations?.[day] || null;
-
-    if (!destId) return [];
-    
-    return allRoutes.filter(r =>
-      r.stops.includes(destId!) &&
-      r.dayOfWeek === day &&
-      r.type === routeType
-    );
-  }, [allRoutes]);
-
-  const toggleNotBoarding = useCallback(async (studentId: string) => {
-    const student = allStudents.find(s => s.id === studentId);
-    if (!student || !viewingDay || !viewingRouteType) return;
-
-    if (boardedStudentIds.includes(studentId)) {
-        toast({ title: t('notice'), description: t('student_page.already_boarded_error'), variant: 'default' });
-        return;
-    }
-    
-    const studentRoutes = await findRoutesForStudent(student, viewingDay, viewingRouteType);
-    if (studentRoutes.length === 0) {
-      toast({ title: t('notice'), description: t('student_page.no_route_info_error'), variant: 'destructive'});
-      return;
-    }
-    
-    studentRoutes.forEach(async (route) => {
-      const attendance = await getAttendance(route.id, selectedDate);
-      const currentBoarded = attendance?.boarded || [];
-      const currentNotBoarding = attendance?.notBoarding || [];
-      
-      const isNotBoarding = currentNotBoarding.includes(student.id);
-
-      const newNotBoardingIds = isNotBoarding
-        ? currentNotBoarding.filter(id => id !== student.id)
-        : [...currentNotBoarding, student.id];
-
-      const newBoardedIds = isNotBoarding 
-        ? currentBoarded
-        : currentBoarded.filter(id => id !== student.id);
-
-      try {
-        await updateAttendance(route.id, selectedDate, { notBoarding: newNotBoardingIds, boarded: newBoardedIds });
-        toast({ title: t('success'), description: t('student_page.not_boarding_update_success', { studentName: formatStudentName(student) })});
-      } catch (error) {
-        console.error("Error updating not-boarding status:", error);
-        toast({ title: t('error'), description: t('student_page.not_boarding_update_error', { routeId: route.id }), variant: "destructive"});
-      }
-    });
-  }, [selectedDate, toast, findRoutesForStudent, allStudents, boardedStudentIds, t, viewingDay, viewingRouteType]);
-
   const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
-      if (!studentId || !selectedStudent || studentId !== selectedStudent.id) return;
-      
-      if (boardedStudentIds.includes(studentId)) {
-        toast({ title: t('notice'), description: t('student_page.already_boarded_error'), variant: 'default' });
-        return;
-      }
-
-      if (notBoardingStudentIds.includes(studentId)) {
-          toggleNotBoarding(studentId);
-      } else {
-          setStudentToConfirm(selectedStudent);
-      }
-  }, [toggleNotBoarding, selectedStudent, notBoardingStudentIds, boardedStudentIds, toast, t]);
+      // Parent interaction disabled as requested.
+  }, []);
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
@@ -391,32 +312,6 @@ export function StudentPageContent() {
           </div>
         ) : (
           <div className="space-y-6">
-              <AlertDialog
-                  open={!!studentToConfirm}
-                  onOpenChange={(open) => !open && setStudentToConfirm(null)}
-              >
-                  <AlertDialogContent>
-                      <AlertDialogHeader>
-                          <AlertDialogTitle>{t('student_page.not_boarding_confirm_title')}</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            {t('student_page.not_boarding_confirm_description', { studentName: studentToConfirm?.name })}
-                          </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                          <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                          <AlertDialogAction
-                              onClick={() => {
-                                  if (studentToConfirm) {
-                                      toggleNotBoarding(studentToConfirm.id);
-                                  }
-                                  setStudentToConfirm(null);
-                              }}
-                          >
-                              {t('confirm')}
-                          </AlertDialogAction>
-                      </AlertDialogFooter>
-                  </AlertDialogContent>
-              </AlertDialog>
               <Card>
               <CardHeader>
                   <CardTitle className="font-headline">{t('student_page.title')}</CardTitle>

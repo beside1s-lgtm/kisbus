@@ -1,4 +1,3 @@
-
 {
     "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -343,8 +342,8 @@
     "apply.siblings.add_button": "Add Sibling",
     "select_or_search_destination": "Chọn hoặc tìm kiếm điểm đến...",
     "student_page.title": "Tình hình lên xe của học sinh",
-    "student_page.description": "Bạn có thể đánh dấu 'Không đi hôm nay' bằng cách nhấp vào ghế của con bạn. Hoàn tất lên xe có màu xanh lá cây, không đi xe có màu xanh lam và ghế của con bạn được viền.",
-    "student_page.description.student_selected": "Bạn có thể đánh dấu 'Không đi hôm nay' bằng cách nhấp vào ghế của con bạn. Hoàn tất lên xe có màu xanh lá cây, không đi xe có màu xanh lam và ghế của con bạn được viền.",
+    "student_page.description": "Bạn có thể xem chỗ ngồi và tình trạng lên xe của con bạn.",
+    "student_page.description.student_selected": "Bạn có thể xem chỗ ngồi và tình trạng lên xe của con bạn.",
     "student_page.description.no_student": "Tìm kiếm tên học sinh để kiểm tra thông tin lên xe.",
     "student_page.select_student_prompt": "Vui lòng chọn một học sinh",
     "student_page.select_student_description": "Vui lòng tìm kiếm và chọn một tên học sinh từ thanh tìm kiếm ở trên.",
