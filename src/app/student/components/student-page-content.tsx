@@ -6,13 +6,21 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MainLayout } from '@/components/layout/main-layout';
-import { format, getDay, isSunday, formatDistanceToNow } from 'date-fns';
-import { ko } from 'date-fns/locale';
+import { format, getDay, isSunday } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/dialog';
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from '@/components/ui/alert-dialog';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
-import { Search, Info, CheckCircle, XCircle } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -30,7 +38,7 @@ const sortBuses = (buses: Bus[]): Bus[] => {
 };
 
 export function StudentPageContent() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [buses, setBuses] = useState<Bus[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -81,7 +89,6 @@ export function StudentPageContent() {
     };
   }, []);
 
-  // 기기에 저장된 학생 정보 불러오기
   useEffect(() => {
     if (isClient && allStudents.length > 0 && !selectedStudent) {
         const savedStudentId = localStorage.getItem('lastCheckedStudentId');
@@ -126,7 +133,6 @@ export function StudentPageContent() {
         if (routesForDay.length > 0) {
             setViewingDay(dayOfWeek);
             
-            // Auto-detect best route type based on time
             const now = new Date();
             const vietnamHour = (now.getUTCHours() + 7) % 24;
             
@@ -143,11 +149,9 @@ export function StudentPageContent() {
             if (matchedRoute) {
                 setViewingRouteType(matchedRoute.type);
             } else {
-                // If preferred slot not available, pick the first available for that day
                 setViewingRouteType(routesForDay[0].type);
             }
         } else if (studentRoutes.length > 0) {
-            // No routes today, default to their first route of the week
             setViewingDay(studentRoutes[0].dayOfWeek);
             setViewingRouteType(studentRoutes[0].type);
         } else {
@@ -298,7 +302,6 @@ export function StudentPageContent() {
       setSelectedStudent(student);
       setSearchQuery('');
       setSearchResults([]);
-      // 기기에 정보 저장
       if (typeof window !== 'undefined') {
           localStorage.setItem('lastCheckedStudentId', student.id);
       }
