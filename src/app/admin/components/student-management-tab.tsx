@@ -115,6 +115,12 @@ export const StudentManagementTab = ({
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
     const currentRoute = useMemo(() => routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType), [routes, selectedBusId, selectedDay, selectedRouteType]);
 
+    // Calculate assigned students count for the current route
+    const assignedStudentsCount = useMemo(() => {
+        if (!currentRoute) return 0;
+        return currentRoute.seating.filter(s => !!s.studentId).length;
+    }, [currentRoute]);
+
     // 목적지 오류로 배정 불가능한 학생 필터링
     useEffect(() => {
         if (!routes.length || !students.length) return;
@@ -829,7 +835,14 @@ export const StudentManagementTab = ({
                     ) : (
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle>{t('admin.student_management.seat.title')}</CardTitle>
+                                <CardTitle>
+                                    {t('admin.student_management.seat.title')}
+                                    {currentRoute && (
+                                        <span className="text-sm font-normal text-muted-foreground ml-2">
+                                            ({assignedStudentsCount}명)
+                                        </span>
+                                    )}
+                                </CardTitle>
                                 <div className="flex gap-2">
                                     <Dialog open={isAddStudentDialogOpen} onOpenChange={setAddStudentDialogOpen}>
                                         <DialogTrigger asChild>
