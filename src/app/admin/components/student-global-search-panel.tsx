@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Search, Download, Upload, Trash2, UserX } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Search, Download, Upload, Trash2, UserX, Users, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useTranslation } from '@/hooks/use-translation';
 import type { Student, Destination, Bus, Route, DayOfWeek, RouteType } from '@/lib/types';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { normalizeString } from '@/lib/utils';
+import { updateStudent } from '@/lib/firebase-data';
 
 interface StudentGlobalSearchPanelProps {
     students: Student[];
@@ -38,7 +42,7 @@ interface StudentGlobalSearchPanelProps {
 }
 
 export const StudentGlobalSearchPanel = ({
-    destinations, buses, routes, selectedRouteType, dayOrder, selectedGlobalStudent, setSelectedGlobalStudent,
+    students, destinations, buses, routes, selectedRouteType, dayOrder, selectedGlobalStudent, setSelectedGlobalStudent,
     globalSearchQuery, setGlobalSearchQuery, globalSearchResults, handleGlobalStudentClick,
     handleDownloadAllStudents, handleDownloadStudentTemplate, fileInputRef, handleStudentFileUpload,
     handleDeleteAllStudents, handleUnassignAllFromStudent, handleAssignStudentFromSearch,
@@ -46,6 +50,45 @@ export const StudentGlobalSearchPanel = ({
     assignedRoutesForSelectedStudent
 }: StudentGlobalSearchPanelProps) => {
     const { t } = useTranslation();
+    const [siblingSearchQuery, setSiblingSearchQuery] = useState('');
+
+    const siblingSearchResults = useMemo(() => {
+        if (!siblingSearchQuery || !selectedGlobalStudent) return [];
+        const lowerQuery = normalizeString(siblingSearchQuery);
+        return students.filter(s => 
+            s.id !== selectedGlobalStudent.id && 
+            normalizeString(s.name).includes(lowerQuery)
+        ).slice(0, 5);
+    }, [siblingSearchQuery, students, selectedGlobalStudent]);
+
+    const currentSiblings = useMemo(() => {
+        if (!selectedGlobalStudent || !selectedGlobalStudent.siblingGroupId) return [];
+        return students.filter(s => 
+            s.siblingGroupId === selectedGlobalStudent.siblingGroupId && 
+            s.id !== selectedGlobalStudent.id
+        );
+    }, [selectedGlobalStudent, students]);
+
+    const handleAddSibling = async (sibling: Student) => {
+        if (!selectedGlobalStudent) return;
+        
+        const newGroupId = selectedGlobalStudent.siblingGroupId || `group_${Date.now()}`;
+        
+        await updateStudent(selectedGlobalStudent.id, { siblingGroupId: newGroupId });
+        await updateStudent(sibling.id, { siblingGroupId: newGroupId });
+        
+        setSelectedGlobalStudent(prev => prev ? { ...prev, siblingGroupId: newGroupId } : null);
+        setSiblingSearchQuery('');
+    };
+
+    const handleRemoveSibling = async (siblingId: string) => {
+        await updateStudent(siblingId, { siblingGroupId: null });
+        // If no more siblings in group, optionally clear selected student's group ID too
+        if (currentSiblings.length === 1) {
+             await updateStudent(selectedGlobalStudent!.id, { siblingGroupId: null });
+             setSelectedGlobalStudent(prev => prev ? { ...prev, siblingGroupId: null } : null);
+        }
+    };
 
     return (
         <Card>
@@ -64,13 +107,14 @@ export const StudentGlobalSearchPanel = ({
                         onChange={(e) => setGlobalSearchQuery(e.target.value)}
                     />
                     {globalSearchResults.length > 0 && (
-                        <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
+                        <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto shadow-lg">
                             <CardContent className="p-2">
                                 {globalSearchResults.map(student => (
                                     <div key={student.id} 
-                                        className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
+                                        className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer flex justify-between items-center"
                                         onClick={() => handleGlobalStudentClick(student)}>
-                                        {student.name} ({student.grade} {student.class})
+                                        <span>{student.name} ({student.grade} {student.class})</span>
+                                        {student.siblingGroupId && <Users className="w-3 h-3 text-primary" />}
                                     </div>
                                 ))}
                             </CardContent>
@@ -107,12 +151,16 @@ export const StudentGlobalSearchPanel = ({
                 {selectedGlobalStudent && (
                     <div className="space-y-4 p-4 border rounded-md">
                         <div className="flex justify-between items-start">
-                            <div>
-                                <h4 className="font-semibold">{selectedGlobalStudent.name} ({selectedGlobalStudent.grade} {selectedGlobalStudent.class})</h4>
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                    <h4 className="font-semibold">{selectedGlobalStudent.name}</h4>
+                                    {selectedGlobalStudent.siblingGroupId && <Badge variant="secondary" className="text-[10px] py-0 h-4"><Users className="w-2 h-2 mr-1"/>가족</Badge>}
+                                </div>
+                                <p className="text-xs text-muted-foreground">{selectedGlobalStudent.grade} {selectedGlobalStudent.class}</p>
                                  <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                         <Button variant="link" size="sm" className="p-0 h-auto text-destructive">
-                                            <UserX className="mr-1"/>{t('admin.student_management.search.unassign_all_button')}
+                                         <Button variant="link" size="sm" className="p-0 h-auto text-destructive justify-start">
+                                            <UserX className="mr-1 w-3 h-3"/>{t('admin.student_management.search.unassign_all_button')}
                                         </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -129,12 +177,13 @@ export const StudentGlobalSearchPanel = ({
                                     </AlertDialogContent>
                                 </AlertDialog>
                             </div>
-                            <Button variant="outline" size="sm" onClick={() => setSelectedGlobalStudent(null)}>{t('close')}</Button>
+                            <Button variant="ghost" size="icon" onClick={() => setSelectedGlobalStudent(null)}><X className="w-4 h-4"/></Button>
                         </div>
+                        
                         <Button size="sm" className="w-full" onClick={handleAssignStudentFromSearch}>이 버스에 배정</Button>
                         
                         <div className="space-y-2">
-                            <Label>{t('student.name')}</Label>
+                            <Label className="text-xs">{t('student.name')}</Label>
                             <Input
                                 value={selectedGlobalStudent.name || ''}
                                 onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, name: e.target.value} : null)}
@@ -144,7 +193,7 @@ export const StudentGlobalSearchPanel = ({
                         </div>
 
                         <div className="space-y-2">
-                            <Label>{t('student.contact')}</Label>
+                            <Label className="text-xs">{t('student.contact')}</Label>
                             <Input
                                 value={selectedGlobalStudent.contact || ''}
                                 onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, contact: e.target.value} : null)}
@@ -153,7 +202,7 @@ export const StudentGlobalSearchPanel = ({
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>{t('student.gender')}</Label>
+                            <Label className="text-xs">{t('student.gender')}</Label>
                             <Select 
                                 value={selectedGlobalStudent.gender} 
                                 onValueChange={(v) => handleStudentInfoChange(selectedGlobalStudent.id, 'gender', v)}
@@ -165,8 +214,51 @@ export const StudentGlobalSearchPanel = ({
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        <Separator className="my-2" />
+                        
                         <div className="space-y-2">
-                            <Label>{t('student.morning_destination')}</Label>
+                            <Label className="text-xs flex items-center gap-1"><Users className="w-3 h-3"/>형제/자매 관리</Label>
+                            <div className="space-y-1">
+                                {currentSiblings.map(sib => (
+                                    <div key={sib.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-xs">
+                                        <span>{sib.name} ({sib.grade} {sib.class})</span>
+                                        <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => handleRemoveSibling(sib.id)}>
+                                            <X className="w-3 h-3" />
+                                        </Button>
+                                    </div>
+                                ))}
+                                <div className="relative mt-2">
+                                    <Search className="absolute left-2 top-2 h-3 w-3 text-muted-foreground" />
+                                    <Input
+                                        size="sm"
+                                        placeholder="연결할 형제 검색..."
+                                        className="pl-7 h-8 text-xs"
+                                        value={siblingSearchQuery}
+                                        onChange={(e) => setSiblingSearchQuery(e.target.value)}
+                                    />
+                                    {siblingSearchResults.length > 0 && (
+                                        <Card className="absolute z-20 w-full mt-1 shadow-lg">
+                                            <CardContent className="p-1">
+                                                {siblingSearchResults.map(s => (
+                                                    <div key={s.id} 
+                                                        className="p-2 text-xs hover:bg-accent rounded-md cursor-pointer flex justify-between items-center"
+                                                        onClick={() => handleAddSibling(s)}>
+                                                        <span>{s.name} ({s.grade} {s.class})</span>
+                                                        <UserPlus className="w-3 h-3 text-primary" />
+                                                    </div>
+                                                ))}
+                                            </CardContent>
+                                        </Card>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <Separator className="my-2" />
+
+                        <div className="space-y-2">
+                            <Label className="text-xs">{t('student.morning_destination')}</Label>
                             <Select 
                                 value={selectedGlobalStudent.morningDestinationId || '_NONE_'} 
                                 onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
@@ -179,7 +271,7 @@ export const StudentGlobalSearchPanel = ({
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>{t('student.afternoon_destination')}</Label>
+                            <Label className="text-xs">{t('student.afternoon_destination')}</Label>
                             <Select 
                                 value={selectedGlobalStudent.afternoonDestinationId || '_NONE_'} 
                                 onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
@@ -193,27 +285,28 @@ export const StudentGlobalSearchPanel = ({
                         </div>
                         
                         <div className="space-y-3">
-                            <Label>{t('student.after_school_destination')}</Label>
-                            {dayOrder.map(day => (
-                                <div key={day} className="space-y-1">
-                                     <Label className="text-xs text-muted-foreground">{t(`day_short.${day.toLowerCase()}`)}</Label>
-                                     <Select 
-                                        value={selectedGlobalStudent.afterSchoolDestinations?.[day] || '_NONE_'} 
-                                        onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', day)}
-                                        disabled={day === 'Friday' && selectedRouteType === 'AfterSchool' && !selectedGlobalStudent.afterSchoolDestinations?.['Friday']}
-                                    >
-                                        <SelectTrigger><SelectValue placeholder={t('no_destination')} /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value='_NONE_'>{t('no_selection')}</SelectItem>
-                                            {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            ))}
+                            <Label className="text-xs">{t('student.after_school_destination')}</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {dayOrder.map(day => (
+                                    <div key={day} className="space-y-1">
+                                        <Label className="text-[10px] text-muted-foreground">{t(`day_short.${day.toLowerCase()}`)}</Label>
+                                        <Select 
+                                            value={selectedGlobalStudent.afterSchoolDestinations?.[day] || '_NONE_'} 
+                                            onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', day)}
+                                        >
+                                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value='_NONE_'>-</SelectItem>
+                                                {destinations.map(d => <SelectItem key={d.id} value={d.id} className="text-xs">{d.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                          <div>
-                            <Label>{t('admin.student_management.search.assigned_routes')}</Label>
+                            <Label className="text-xs">{t('admin.student_management.search.assigned_routes')}</Label>
                             <div className="space-y-2 mt-1 border rounded-md p-2 max-h-40 overflow-y-auto">
                                 {assignedRoutesForSelectedStudent.length > 0 ? (
                                     assignedRoutesForSelectedStudent.map(route => {
@@ -221,15 +314,15 @@ export const StudentGlobalSearchPanel = ({
                                         const routeTypeName = route.type === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${route.type.toLowerCase()}`);
                                         return (
                                             <div key={route.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                                                <p className="text-sm">{busName} - {t(`day.${route.dayOfWeek.toLowerCase()}`)} {routeTypeName}</p>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleUnassignStudentFromRoute(route.id, selectedGlobalStudent.id)}>
-                                                    <UserX className="h-4 w-4" />
+                                                <p className="text-[10px]">{busName} - {t(`day_short.${route.dayOfWeek.toLowerCase()}`)} {routeTypeName}</p>
+                                                <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => handleUnassignStudentFromRoute(route.id, selectedGlobalStudent.id)}>
+                                                    <UserX className="h-3 h-3" />
                                                 </Button>
                                             </div>
                                         )
                                     })
                                 ) : (
-                                    <p className="text-sm text-muted-foreground p-2">{t('admin.student_management.search.no_assigned_routes')}</p>
+                                    <p className="text-[10px] text-muted-foreground p-2">{t('admin.student_management.search.no_assigned_routes')}</p>
                                 )}
                             </div>
                         </div>

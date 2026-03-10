@@ -524,8 +524,8 @@ export const StudentManagementTab = ({
                     const name = (row['이름'] || row['Name'] || row['name'] || '').toString().trim();
                     const grade = (row['학년'] || row['Grade'] || row['grade'] || '').toString().trim();
                     const studentClass = (row['반'] || row['Class'] || row['class'] || '').toString().trim();
-                    const rawGender = (row['성별'] || row['Gender'] || row['gender'] || 'Male').toString().trim();
-                    const gender = (rawGender === '여자' || rawGender === 'Female' || rawGender === 'female') ? 'Female' : 'Male';
+                    const rawGender = (row['성별'] || row['Gender'] || row['gender'] || '').toString().trim();
+                    const gender = (rawGender === '여자' || rawGender === 'Female' || rawGender === 'female') ? 'Female' : (rawGender ? 'Male' : undefined);
                     const contact = (row['베트남 전화번호'] || row['연락처'] || row['Contact'] || row['contact'] || '').toString().trim();
                     
                     const morningDestKey = normalizeString(row['등교 목적지'] || row['Morning Destination'] || '');
@@ -538,24 +538,27 @@ export const StudentManagementTab = ({
                     const afterSatKey = normalizeString(row['방과후(토)'] || '');
 
                     if (name && grade && studentClass) {
-                        const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
-                        if (afterMonKey && destMap[afterMonKey]) afterSchoolDestinations['Monday'] = destMap[afterMonKey];
-                        if (afterTueKey && destMap[afterTueKey]) afterSchoolDestinations['Tuesday'] = destMap[afterTueKey];
-                        if (afterWedKey && destMap[afterWedKey]) afterSchoolDestinations['Wednesday'] = destMap[afterWedKey];
-                        if (afterThuKey && destMap[afterThuKey]) afterSchoolDestinations['Thursday'] = destMap[afterThuKey];
-                        if (afterSatKey && destMap[afterSatKey]) afterSchoolDestinations['Saturday'] = destMap[afterSatKey];
+                        const studentUpdate: any = { name, grade, class: studentClass };
+                        
+                        if (gender) studentUpdate.gender = gender;
+                        if (contact) studentUpdate.contact = contact;
+                        
+                        // ONLY assign destination if the column was actually present and non-empty in CSV
+                        // This prevents overwriting existing destinations with null when columns are missing
+                        if (morningDestKey) studentUpdate.morningDestinationId = destMap[morningDestKey] || null;
+                        if (afternoonDestKey) studentUpdate.afternoonDestinationId = destMap[afternoonDestKey] || null;
 
-                        newStudents.push({
-                            name,
-                            grade,
-                            class: studentClass,
-                            gender,
-                            contact,
-                            morningDestinationId: destMap[morningDestKey] || null,
-                            afternoonDestinationId: destMap[afternoonDestKey] || null,
-                            afterSchoolDestinations,
-                            applicationStatus: 'reviewed',
-                        });
+                        const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
+                        let hasAfterSchoolInCsv = false;
+                        if (afterMonKey) { afterSchoolDestinations['Monday'] = destMap[afterMonKey] || null; hasAfterSchoolInCsv = true; }
+                        if (afterTueKey) { afterSchoolDestinations['Tuesday'] = destMap[afterTueKey] || null; hasAfterSchoolInCsv = true; }
+                        if (afterWedKey) { afterSchoolDestinations['Wednesday'] = destMap[afterWedKey] || null; hasAfterSchoolInCsv = true; }
+                        if (afterThuKey) { afterSchoolDestinations['Thursday'] = destMap[afterThuKey] || null; hasAfterSchoolInCsv = true; }
+                        if (afterSatKey) { afterSchoolDestinations['Saturday'] = destMap[afterSatKey] || null; hasAfterSchoolInCsv = true; }
+                        
+                        if (hasAfterSchoolInCsv) studentUpdate.afterSchoolDestinations = afterSchoolDestinations;
+
+                        newStudents.push(studentUpdate as NewStudent);
                     }
                 });
 

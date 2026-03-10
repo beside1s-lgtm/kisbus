@@ -169,32 +169,22 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         const docRef = querySnapshot.docs[0].ref;
         const existingStudentData = querySnapshot.docs[0].data() as Student;
 
-        const updateData: Partial<Student> = {
-            ...student,
-            name: sanitizedName,
-            grade: sanitizedGrade,
-            class: sanitizedClass,
-            contact: sanitizedContact
-        };
-        
-        if (student.afterSchoolDestinations) {
-           updateData.afterSchoolDestinations = student.afterSchoolDestinations;
-        }
+        // Smart merge: Only include fields that are actually provided in the input
+        const updateData: Partial<Student> = {};
+        if (student.name) updateData.name = sanitizedName;
+        if (student.grade) updateData.grade = sanitizedGrade;
+        if (student.class) updateData.class = sanitizedClass;
+        if (student.gender) updateData.gender = student.gender;
+        if (student.contact !== undefined) updateData.contact = sanitizedContact;
+        if (student.morningDestinationId !== undefined) updateData.morningDestinationId = student.morningDestinationId;
+        if (student.afternoonDestinationId !== undefined) updateData.afternoonDestinationId = student.afternoonDestinationId;
+        if (student.afterSchoolDestinations !== undefined) updateData.afterSchoolDestinations = student.afterSchoolDestinations;
+        if (student.applicationStatus) updateData.applicationStatus = student.applicationStatus;
+        if (student.siblingGroupId !== undefined) updateData.siblingGroupId = student.siblingGroupId;
+        if (student.suggestedMorningDestination !== undefined) updateData.suggestedMorningDestination = student.suggestedMorningDestination ? sanitizeDataForSystem(student.suggestedMorningDestination) : null;
+        if (student.suggestedAfternoonDestination !== undefined) updateData.suggestedAfternoonDestination = student.suggestedAfternoonDestination ? sanitizeDataForSystem(student.suggestedAfternoonDestination) : null;
 
-        if (student.suggestedMorningDestination) updateData.suggestedMorningDestination = sanitizeDataForSystem(student.suggestedMorningDestination);
-        if (student.suggestedAfternoonDestination) updateData.suggestedAfternoonDestination = sanitizeDataForSystem(student.suggestedAfternoonDestination);
-
-        await updateDoc(docRef, updateData)
-            .catch(async (serverError) => {
-                const permissionError = new FirestorePermissionError({
-                    path: docRef.path,
-                    operation: 'update',
-                    requestResourceData: updateData,
-                } satisfies SecurityRuleContext);
-                errorEmitter.emit('permission-error', permissionError);
-                throw serverError;
-            });
-        
+        await updateStudent(docRef.id, updateData);
         return { id: docRef.id, ...existingStudentData, ...updateData } as Student;
     } else {
         const newStudentData = {
@@ -228,26 +218,29 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
     
     let affectedRouteTypes: RouteType[] = [];
 
-    if ('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) {
+    // ONLY unassign if the destination actually changes to a different NON-NULL value or NULL
+    if ('morningDestinationId' in data && data.morningDestinationId !== undefined && data.morningDestinationId !== oldData.morningDestinationId) {
         affectedRouteTypes.push('Morning');
     }
-    if ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
+    if ('afternoonDestinationId' in data && data.afternoonDestinationId !== undefined && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
         affectedRouteTypes.push('Afternoon');
     }
     
-    const oldAfterSchoolDests = oldData.afterSchoolDestinations || {};
-    const newAfterSchoolDests = ('afterSchoolDestinations' in data && data.afterSchoolDestinations) ? data.afterSchoolDestinations : oldAfterSchoolDests;
-    const allAfterSchoolDays = new Set([...Object.keys(oldAfterSchoolDests), ...Object.keys(newAfterSchoolDests)]);
+    if ('afterSchoolDestinations' in data && data.afterSchoolDestinations !== undefined) {
+        const oldAfterSchoolDests = oldData.afterSchoolDestinations || {};
+        const newAfterSchoolDests = data.afterSchoolDestinations || {};
+        const allAfterSchoolDays = new Set([...Object.keys(oldAfterSchoolDests), ...Object.keys(newAfterSchoolDests)]);
 
-    let afterSchoolChanged = false;
-    for (const day of allAfterSchoolDays) {
-        if (oldAfterSchoolDests[day as DayOfWeek] !== newAfterSchoolDests[day as DayOfWeek]) {
-            afterSchoolChanged = true;
-            break;
+        let afterSchoolChanged = false;
+        for (const day of allAfterSchoolDays) {
+            if (oldAfterSchoolDests[day as DayOfWeek] !== newAfterSchoolDests[day as DayOfWeek]) {
+                afterSchoolChanged = true;
+                break;
+            }
         }
-    }
-    if (afterSchoolChanged) {
-        affectedRouteTypes.push('AfterSchool');
+        if (afterSchoolChanged) {
+            affectedRouteTypes.push('AfterSchool');
+        }
     }
     
     if (affectedRouteTypes.length > 0) {
@@ -478,7 +471,7 @@ export const deleteTeachersInBatch = async (teacherIds: string[]) => {
         const permissionError = new FirestorePermissionError({
             path: `/teachers`,
             operation: 'delete',
-        } satisfies SecurityRuleContext);
+            } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
