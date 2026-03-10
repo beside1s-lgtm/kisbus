@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 
+const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 const sortBuses = (buses: Bus[]): Bus[] => {
   return buses.sort((a, b) => {
     const numA = parseInt(a.name.replace(/\D/g, ''), 10);
@@ -46,6 +48,7 @@ export function StudentPageContent() {
   const [assignedRoutes, setAssignedRoutes] = useState<Route[]>([]);
   const [viewingDay, setViewingDay] = useState<DayOfWeek | null>(null);
   const [viewingRouteType, setViewingRouteType] = useState<RouteType | null>(null);
+  const [selectedDate, setSelectedDate] = useState('');
 
   const days: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
   const routeTypeOrder: RouteType[] = useMemo(() => ['Morning', 'Afternoon', 'AfterSchool'], []);
@@ -53,8 +56,6 @@ export function StudentPageContent() {
   useEffect(() => {
     setIsClient(true);
   }, []);
-  
-  const selectedDate = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   
   useEffect(() => {
     setLoading(true);
@@ -93,61 +94,56 @@ export function StudentPageContent() {
   }
 
    useEffect(() => {
-    if (selectedStudent && allRoutes.length > 0 && selectedDate) {
+    if (selectedStudent && allRoutes.length > 0) {
         const studentRoutes = allRoutes.filter(route => 
             route.seating.some(seat => seat.studentId === selectedStudent.id)
         );
         setAssignedRoutes(studentRoutes);
 
-        const targetDate = new Date(selectedDate);
-        let dayOfWeek: DayOfWeek;
-        
-        if (isSunday(targetDate)) {
-             dayOfWeek = 'Monday';
+        // Advanced Auto-matching logic based on Vietnam UTC+7 time
+        const now = new Date();
+        const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
+        const h = vTime.getHours();
+        const d = vTime.getDay();
+
+        let tDate = new Date(vTime);
+        let tType: RouteType = 'Morning';
+
+        // 19:00 threshold for weekdays, 14:00 for Sat
+        if (d >= 1 && d <= 5) {
+            if (h < 9) tType = 'Morning';
+            else if (h < 16) tType = 'Afternoon';
+            else if (h < 19) tType = 'AfterSchool';
+            else {
+                tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
+                tType = 'Morning';
+            }
+        } else if (d === 6) {
+            if (h >= 11 && h < 14) tType = 'AfterSchool';
+            else if (h < 11) tType = 'AfterSchool';
+            else {
+                tDate.setDate(tDate.getDate() + 2);
+                tType = 'Morning';
+            }
         } else {
-            const dayIndex = getDay(targetDate); 
-            dayOfWeek = days[dayIndex - 1];
+            tDate.setDate(tDate.getDate() + 1);
+            tType = 'Morning';
         }
 
-        const routesForDay = studentRoutes
-          .filter(r => r.dayOfWeek === dayOfWeek)
-          .sort((a,b) => routeTypeOrder.indexOf(a.type) - routeTypeOrder.indexOf(b.type));
+        const tDay = DAYS[(tDate.getDay() + 6) % 7];
+        const dateStr = format(tDate, 'yyyy-MM-dd');
 
-        if (routesForDay.length > 0) {
-            setViewingDay(dayOfWeek);
-            
-            const now = new Date();
-            const vietnamHour = (now.getUTCHours() + 7) % 24;
-            
-            let preferredType: RouteType;
-            if (vietnamHour >= 9 && vietnamHour < 15) {
-                preferredType = 'Afternoon';
-            } else if (vietnamHour >= 15 && vietnamHour < 20) {
-                preferredType = 'AfterSchool';
-            } else {
-                preferredType = 'Morning';
-            }
-
-            const matchedRoute = routesForDay.find(r => r.type === preferredType);
-            if (matchedRoute) {
-                setViewingRouteType(matchedRoute.type);
-            } else {
-                setViewingRouteType(routesForDay[0].type);
-            }
-        } else if (studentRoutes.length > 0) {
-            setViewingDay(studentRoutes[0].dayOfWeek);
-            setViewingRouteType(studentRoutes[0].type);
-        } else {
-            setViewingDay(null);
-            setViewingRouteType(null);
-        }
+        setSelectedDate(dateStr);
+        setViewingDay(tDay);
+        setViewingRouteType(tType);
 
     } else {
         setAssignedRoutes([]);
         setViewingDay(null);
         setViewingRouteType(null);
+        setSelectedDate('');
     }
-}, [selectedStudent, allRoutes, selectedDate, days, routeTypeOrder]);
+}, [selectedStudent, allRoutes]);
 
   
   const studentRoute = useMemo(() => {
@@ -171,32 +167,23 @@ export function StudentPageContent() {
         return;
     };
 
-    const targetDate = new Date(selectedDate);
-    const dayIndex = isSunday(targetDate) ? 1 : getDay(targetDate);
-    const targetDayOfWeek = days[dayIndex - 1];
-
-    if (studentRoute.dayOfWeek === targetDayOfWeek) {
-      unsubscribe = onAttendanceUpdate(studentRoute.id, selectedDate, (attendance) => {
+    unsubscribe = onAttendanceUpdate(studentRoute.id, selectedDate, (attendance) => {
         setAttendance(attendance);
-      });
-    } else {
-        setAttendance(null);
-    }
+    });
     
     return () => {
       if (unsubscribe) {
         unsubscribe();
       }
     };
-  }, [studentRoute, selectedDate, days]);
+  }, [studentRoute, selectedDate]);
 
   const boardedStudentIds = useMemo(() => attendance?.boarded || [], [attendance]);
   const notBoardingStudentIds = useMemo(() => attendance?.notBoarding || [], [attendance]);
   const disembarkedStudentIds = useMemo(() => attendance?.disembarked || [], [attendance]);
-  const completedDestinations = useMemo(() => attendance?.completedDestinations || [], [attendance]);
 
   const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
-      // Parent interaction disabled as requested.
+      // interaction disabled for parent page
   }, []);
 
   useEffect(() => {
@@ -231,20 +218,6 @@ export function StudentPageContent() {
       return t(`route_type.${routeType.toLowerCase()}`);
   }
   
-  const getStudentDestination = useCallback((student: Student) => {
-    if (!viewingDay || !viewingRouteType) return { id: null, name: null };
-    
-    let destId: string | null = null;
-    if (viewingRouteType === 'Morning') destId = student.morningDestinationId;
-    else if (viewingRouteType === 'Afternoon') destId = student.afternoonDestinationId;
-    else if (viewingRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[viewingDay] || null;
-
-    if (!destId) return { id: null, name: null };
-    
-    const destination = destinations.find(d => d.id === destId);
-    return { id: destId, name: destination?.name || null };
-  }, [viewingDay, viewingRouteType, destinations]);
-
   const studentStatus = useMemo(() => {
     if (!selectedStudent || !selectedBus) return null;
 

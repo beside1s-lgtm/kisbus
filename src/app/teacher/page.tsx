@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -425,7 +426,23 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (isClient && !selectedDate) {
-        setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
+        // Initial Operational Config (Vietnam UTC+7)
+        const now = new Date();
+        const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
+        const h = vTime.getHours();
+        const d = vTime.getDay();
+        let tDate = new Date(vTime);
+
+        // Thresholds: 19:00 for weekdays, 14:00 for Sat
+        if (d >= 1 && d <= 5) {
+            if (h >= 19) tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
+        } else if (d === 6) {
+            if (h >= 14) tDate.setDate(tDate.getDate() + 2);
+        } else {
+            tDate.setDate(tDate.getDate() + 1);
+        }
+        
+        setSelectedDate(format(tDate, 'yyyy-MM-dd'));
     }
   }, [isClient, selectedDate]);
 
@@ -461,6 +478,7 @@ export default function TeacherPage() {
         const isNewDate = selectedDate !== lastProcessedDateRef.current;
         const targetDate = new Date(selectedDate);
         const isSat = getDay(targetDate) === 6;
+        const isToday = format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
         
         if (isSunday(targetDate)) {
             setSelectedDay('Monday');
@@ -472,16 +490,20 @@ export default function TeacherPage() {
         if (isNewDate) {
             lastProcessedDateRef.current = selectedDate;
             
-            if (format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
+            if (isToday) {
                 const now = new Date();
                 const vietnamHour = (now.getUTCHours() + 7) % 24;
 
                 if (isSat) {
-                    setSelectedRouteType('AfterSchool');
+                    if (vietnamHour >= 11 && vietnamHour < 14) {
+                        setSelectedRouteType('AfterSchool');
+                    } else {
+                        setSelectedRouteType('AfterSchool');
+                    }
                 } else {
-                    if (vietnamHour >= 9 && vietnamHour < 15) {
+                    if (vietnamHour >= 9 && vietnamHour < 16) {
                         setSelectedRouteType('Afternoon');
-                    } else if (vietnamHour >= 15 && vietnamHour < 20) {
+                    } else if (vietnamHour >= 16 && vietnamHour < 19) {
                         setSelectedRouteType('AfterSchool');
                     } else {
                         setSelectedRouteType('Morning');
@@ -797,28 +819,41 @@ export default function TeacherPage() {
   };
   
     const handleSeatClick = (seatNumber: number, studentId: string | null) => {
-      if (!studentId) {
+      if (!studentId || !currentRoute) {
         setLastClickedStudentId(null);
         setSelectedStudent(null);
         return;
       }
       
-      if (!currentRoute) return;
-  
       const isBoarded = boardedStudentIds.includes(studentId);
-      const newBoardedIds = isBoarded
-          ? boardedStudentIds.filter(id => id !== studentId)
-          : [...boardedStudentIds, studentId];
-      
-      const newNotBoardingIds = notBoardingStudentIds.filter(id => id !== studentId);
+      const isDisembarked = disembarkedStudentIds.includes(studentId);
+
+      let newBoarded = [...boardedStudentIds];
+      let newDisembarked = [...disembarkedStudentIds];
+      let newNotBoarding = notBoardingStudentIds.filter(id => id !== studentId);
+
+      // Transition: Unprocessed -> Boarded -> Disembarked -> Unprocessed
+      if (isDisembarked) {
+          newDisembarked = newDisembarked.filter(id => id !== studentId);
+      } else if (isBoarded) {
+          newBoarded = newBoarded.filter(id => id !== studentId);
+          newDisembarked.push(studentId);
+      } else {
+          newBoarded.push(studentId);
+      }
   
-      updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, notBoarding: newNotBoardingIds, disembarked: disembarkedStudentIds, completedDestinations })
-          .then(() => {
-              setLastClickedStudentId(studentId);
-          })
-          .catch(() => {
-              toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive" });
-          });
+      updateAttendance(currentRoute.id, selectedDate, { 
+          boarded: newBoarded, 
+          notBoarding: newNotBoarding, 
+          disembarked: newDisembarked, 
+          completedDestinations 
+      })
+      .then(() => {
+          setLastClickedStudentId(studentId);
+      })
+      .catch(() => {
+          toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive" });
+      });
     };
     
   const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {

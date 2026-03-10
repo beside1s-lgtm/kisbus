@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -20,6 +21,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/use-auth';
 import { useTranslation } from '@/hooks/use-translation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { format } from 'date-fns';
 
 // 분리한 컴포넌트 임포트
 import { BusRegistrationTab } from './components/bus-registration-tab';
@@ -76,30 +78,40 @@ const AdminPageContent: React.FC<{
     useEffect(() => {
         setIsClient(true);
         
-        // Initialize day and route type based on today
+        // Initialize day and route type based on specific time rules (Vietnam UTC+7)
         const now = new Date();
-        const dayIndex = now.getDay(); // 0 (Sun) to 6 (Sat)
-        
-        if (dayIndex === 0) { // Sunday -> Default to Monday
-            setSelectedDay('Monday');
-        } else {
-            setSelectedDay(DAYS[dayIndex - 1]);
-        }
+        const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
+        const h = vTime.getHours();
+        const d = vTime.getDay(); // 0:Sun, 1:Mon... 6:Sat
 
-        const isSat = dayIndex === 6;
-        const vietnamHour = (now.getUTCHours() + 7) % 24;
+        let tDate = new Date(vTime);
+        let tType: RouteType = 'Morning';
 
-        if (isSat) {
-            setSelectedRouteType('AfterSchool');
-        } else {
-            if (vietnamHour >= 9 && vietnamHour < 15) {
-                setSelectedRouteType('Afternoon');
-            } else if (vietnamHour >= 15 && vietnamHour < 20) {
-                setSelectedRouteType('AfterSchool');
-            } else {
-                setSelectedRouteType('Morning');
+        // User Rules:
+        // Weekdays: 9-16 Afternoon, 16-19 AfterSchool, 19-NextDay 9 Morning
+        // Saturday: 11-14 AfterSchool, 14-Next (Mon) Morning
+        if (d >= 1 && d <= 5) {
+            if (h < 9) tType = 'Morning';
+            else if (h < 16) tType = 'Afternoon';
+            else if (h < 19) tType = 'AfterSchool';
+            else {
+                tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
+                tType = 'Morning';
             }
+        } else if (d === 6) {
+            if (h >= 11 && h < 14) tType = 'AfterSchool';
+            else if (h < 11) tType = 'AfterSchool';
+            else {
+                tDate.setDate(tDate.getDate() + 2);
+                tType = 'Morning';
+            }
+        } else {
+            tDate.setDate(tDate.getDate() + 1);
+            tType = 'Morning';
         }
+
+        setSelectedDay(DAYS[(tDate.getDay() + 6) % 7]);
+        setSelectedRouteType(tType);
     }, []);
 
     // Force AfterSchool on Saturday if route type is manually changed or day is changed
