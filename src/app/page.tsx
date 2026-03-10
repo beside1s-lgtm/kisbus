@@ -1,14 +1,13 @@
 
 'use client';
 
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ArrowRight, UserCog, User, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { MainLayout } from "@/components/layout/main-layout";
 import { useTranslation } from "@/hooks/use-translation";
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import dynamic from 'next/dynamic';
 
 interface RoleCardProps {
   href: string;
@@ -38,11 +37,14 @@ function RoleCard({ href, icon: Icon, title, description }: RoleCardProps) {
   );
 }
 
-function HomeComponent() {
+export default function HomePage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    
     if (typeof window !== 'undefined') {
       const isParent = sessionStorage.getItem('isParent');
       if (isParent) {
@@ -58,6 +60,10 @@ function HomeComponent() {
       sessionStorage.removeItem('isParent');
     }
   }, []);
+
+  if (!mounted) {
+    return null; // Prevent hydration mismatch
+  }
 
   return (
     <MainLayout>
@@ -91,5 +97,3 @@ function HomeComponent() {
     </MainLayout>
   );
 }
-
-export default dynamic(() => Promise.resolve(HomeComponent), { ssr: false });
