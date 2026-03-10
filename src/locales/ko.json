@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -269,6 +270,9 @@
     "admin.student_management.unassignable.title": "목적지 오류로 배정 불가",
     "admin.student_management.unassignable.description": "설정한 목적지가 현재 어떤 버스 노선에도 포함되어 있지 않아 다음 학생들을 배정할 수 없습니다. 목적지를 수정해주세요.",
     "admin.student_management.unassignable.error_reason": "오류 사유",
+    "admin.student_management.unassignable.error_morning": "등교 목적지가 노선에 없음",
+    "admin.student_management.unassignable.error_afternoon": "하교 목적지가 노선에 없음",
+    "admin.student_management.unassignable.error_after_school": "{{day}} 방과후 목적지가 노선에 없음",
     "admin.student_management.unassigned.title": "미배정 학생 ({{routeType}})",
     "admin.student_management.unassigned.description": "학생을 클릭하여 정보를 보거나, 좌석 배정 버튼을 눌러 선택한 빈 좌석에 배정하세요.",
     "admin.student_management.unassigned.search_placeholder": "학생 이름 또는 목적지로 검색...",

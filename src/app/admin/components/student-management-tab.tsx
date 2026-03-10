@@ -11,7 +11,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewStudent
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Shuffle, UserPlus, RotateCcw, Copy, Bell, Undo2 } from 'lucide-react';
+import { Shuffle, UserPlus, RotateCcw, Copy, Bell, Undo2, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,11 +40,6 @@ const getGradeValue = (grade: string): number => {
   return isNaN(num) ? 999 : num;
 };
 
-const dayLabels: { [key in DayOfWeek]: string } = {
-    Monday: '월요일', Tuesday: '화요일', Wednesday: '수요일',
-    Thursday: '목요일', Friday: '금요일', Saturday: '토요일',
-};
-
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
     return Array.from({ length: capacity }, (_, i) => ({
         seatNumber: i + 1,
@@ -68,7 +63,6 @@ export const StudentManagementTab = ({
 }: StudentManagementTabProps) => {
     const { toast } = useToast();
     const { t } = useTranslation();
-    const [newStudentForm, setNewStudentForm] = useState<Partial<NewStudent>>({ gender: 'Male' });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
     const [isCopySeatingDialogOpen, setCopySeatingDialogOpen] = useState(false);
@@ -82,7 +76,7 @@ export const StudentManagementTab = ({
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
     
     const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
-    const [unassignableStudents, setUnassignableStudents] = useState<Student[]>([]);
+    const [unassignableStudents, setUnassignableStudents] = useState<(Student & { errorReason: string })[]>([]);
 
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [globalSearchResults, setGlobalSearchResults] = useState<Student[]>([]);
@@ -113,23 +107,41 @@ export const StudentManagementTab = ({
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
     const currentRoute = useMemo(() => routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType), [routes, selectedBusId, selectedDay, selectedRouteType]);
 
+    // 목적지 오류로 배정 불가능한 학생 필터링
     useEffect(() => {
-        const allValidStopIds = new Set<string>();
-        routes.forEach(r => r.stops.forEach(stopId => allValidStopIds.add(stopId)));
-        setUnassignableStudents(students.filter(student => {
-            const hasMorningError = student.morningDestinationId && !allValidStopIds.has(student.morningDestinationId);
-            const hasAfternoonError = student.afternoonDestinationId && !allValidStopIds.has(student.afternoonDestinationId);
-            let hasAfterSchoolError = false;
-            if (student.afterSchoolDestinations) {
-                for (const day in student.afterSchoolDestinations) {
-                    const destId = student.afterSchoolDestinations[day as DayOfWeek];
-                    if (destId && !allValidStopIds.has(destId)) { hasAfterSchoolError = true; break; }
-                }
-            }
-            return hasMorningError || hasAfternoonError || hasAfterSchoolError;
-        }));
-    }, [students, routes]);
+        if (!routes.length || !students.length) return;
 
+        const allValidStopIdsByRoute = new Map<string, Set<string>>();
+        routes.forEach(r => {
+            const key = `${r.dayOfWeek}_${r.type}`;
+            if (!allValidStopIdsByRoute.has(key)) allValidStopIdsByRoute.set(key, new Set());
+            r.stops.forEach(s => allValidStopIdsByRoute.get(key)!.add(s));
+        });
+
+        const unassignables: (Student & { errorReason: string })[] = [];
+
+        students.forEach(student => {
+            const mKey = `Monday_Morning`; // 평일 노선은 월요일 기준 정류장 집합 사용 (KIS 정책상 주간 정류장 동일 가정)
+            const aKey = `Monday_Afternoon`;
+            const sKey = `${selectedDay}_AfterSchool`;
+
+            const mStops = allValidStopIdsByRoute.get(mKey);
+            const aStops = allValidStopIdsByRoute.get(aKey);
+            const sStops = allValidStopIdsByRoute.get(sKey);
+
+            if (student.morningDestinationId && mStops && !mStops.has(student.morningDestinationId)) {
+                unassignables.push({ ...student, errorReason: t('admin.student_management.unassignable.error_morning') });
+            } else if (student.afternoonDestinationId && aStops && !aStops.has(student.afternoonDestinationId)) {
+                unassignables.push({ ...student, errorReason: t('admin.student_management.unassignable.error_afternoon') });
+            } else if (student.afterSchoolDestinations?.[selectedDay] && sStops && !sStops.has(student.afterSchoolDestinations[selectedDay]!)) {
+                unassignables.push({ ...student, errorReason: t('admin.student_management.unassignable.error_after_school', { day: t(`day_short.${selectedDay.toLowerCase()}`) }) });
+            }
+        });
+
+        setUnassignableStudents(unassignables);
+    }, [students, routes, selectedDay, t]);
+
+    // 방과후 학생들의 하교 버스 좌석 자동 해제 로직
     const unassignProcessingRef = useRef(false);
     useEffect(() => {
         if (!routes.length || !students.length || unassignProcessingRef.current) return;
@@ -159,21 +171,49 @@ export const StudentManagementTab = ({
         processUnassignment();
     }, [routes, students, days]);
 
+    // 미배정 학생 목록 필터링
     useEffect(() => {
         if (selectedDay === 'Friday' && selectedRouteType === 'AfterSchool') { setFilteredUnassignedStudents([]); return; }
-        const assignedIds = new Set<string>();
-        routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => r.seating.forEach(s => { if (s.studentId) assignedIds.add(s.studentId); }));
+        
+        // 현재 요일/타입에 이미 배정된 모든 학생 ID (모든 버스 합산)
+        const allAssignedIdsOnCurrentConfig = new Set<string>();
+        routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
+            r.seating.forEach(s => { if (s.studentId) allAssignedIdsOnCurrentConfig.add(s.studentId); });
+        });
+
         let unassigned: Student[];
+        
         if (unassignedView === 'current') {
             if (!currentRoute) { setFilteredUnassignedStudents([]); return; }
+            
+            // 해당 요일에 방과후를 가는 학생들은 하교 명단에서 제외
             const afterSchoolIds = new Set<string>();
-            if (selectedRouteType === 'Afternoon') routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => r.seating.forEach(s => { if (s.studentId) afterSchoolIds.has(s.studentId); }));
-            unassigned = students.filter(s => !unassignableStudents.some(u => u.id === s.id) && !assignedIds.has(s.id) && !(selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) && (
-                (selectedRouteType === 'Morning' && s.morningDestinationId && currentRoute.stops.includes(s.morningDestinationId)) ||
-                (selectedRouteType === 'Afternoon' && s.afternoonDestinationId && currentRoute.stops.includes(s.afternoonDestinationId)) ||
-                (selectedRouteType === 'AfterSchool' && s.afterSchoolDestinations?.[selectedDay] && currentRoute.stops.includes(s.afterSchoolDestinations[selectedDay]))
-            ));
-        } else { unassigned = students.filter(s => !assignedIds.has(s.id)); }
+            if (selectedRouteType === 'Afternoon') {
+                routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'AfterSchool').forEach(r => {
+                    r.seating.forEach(s => { if (s.studentId) afterSchoolIds.add(s.studentId); });
+                });
+            }
+
+            unassigned = students.filter(s => {
+                // 1. 이미 배정됨
+                if (allAssignedIdsOnCurrentConfig.has(s.id)) return false;
+                // 2. 목적지 오류 학생
+                if (unassignableStudents.some(u => u.id === s.id)) return false;
+                // 3. 하교 시간인데 방과후 신청함
+                if (selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) return false;
+                
+                // 4. 이 버스의 정류장에 목적지가 포함되는지 확인
+                let destId: string | null = null;
+                if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
+                else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
+                else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
+                
+                return destId && currentRoute.stops.includes(destId);
+            });
+        } else {
+            // 전체 뷰: 현재 설정(요일/타입)에서 어떤 버스에도 배정되지 않은 모든 학생
+            unassigned = students.filter(s => !allAssignedIdsOnCurrentConfig.has(s.id));
+        }
         
         if (unassignedSearchQuery) {
             const lowerQuery = normalizeString(unassignedSearchQuery);
@@ -288,6 +328,7 @@ export const StudentManagementTab = ({
 
     const handleToggleAllCopyToDays = useCallback((c: boolean) => setDaysToCopyTo(weekdays.reduce((a, d) => ({ ...a, [d]: c }), {})), [weekdays]);
 
+    // 랜덤 배정 로직 (버그 수정판)
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
         setPreviousSeating([...currentRoute.seating]);
@@ -298,9 +339,16 @@ export const StudentManagementTab = ({
             return s.afterSchoolDestinations?.[selectedDay] || null;
         };
         
+        // 이 버스에 이미 배정된 학생들을 포함한 전체 배정 가능 목록 필터링
+        // (다른 버스에 배정된 학생은 제외)
+        const alreadyAssignedOnOtherBuses = new Set<string>();
+        routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType && r.id !== currentRoute.id).forEach(r => {
+            r.seating.forEach(s => { if (s.studentId) alreadyAssignedOnOtherBuses.add(s.studentId); });
+        });
+
         const targets = students.filter(s => {
             const d = getDest(s);
-            return d && currentRoute.stops.includes(d);
+            return d && currentRoute.stops.includes(d) && !alreadyAssignedOnOtherBuses.has(s.id);
         });
 
         if (targets.length === 0) {
@@ -308,7 +356,7 @@ export const StudentManagementTab = ({
             return;
         }
 
-        // 1. Group targets: Group by siblingGroupId if present
+        // 1. 그룹화: SiblingGroupId 기준
         const siblingGroups: Record<string, Student[]> = {};
         const individualStudents: Student[] = [];
 
@@ -321,108 +369,61 @@ export const StudentManagementTab = ({
             }
         });
 
-        // 2. Form blocks: Priority to sibling groups
-        const blocks: { students: Student[] }[] = [];
-        
-        // Add sibling groups as blocks first
+        // 2. 블록 형성: 가족 그룹 우선
+        const blocks: Student[][] = [];
         Object.values(siblingGroups).forEach(group => {
-            // Sort group by grade for internal seating order
             group.sort((a, b) => getGradeValue(a.grade) - getGradeValue(b.grade));
-            blocks.push({ students: group });
+            blocks.push(group);
         });
+        individualStudents.forEach(s => blocks.push([s]));
 
-        // Add individuals as blocks of 1
-        individualStudents.forEach(s => {
-            blocks.push({ students: [s] });
-        });
-
-        // Sort blocks by the highest grade in the group and then destination order
+        // 블록 정렬: 학년 및 목적지 순서 기준
         blocks.sort((a, b) => {
-            const gA = Math.min(...a.students.map(s => getGradeValue(s.grade)));
-            const gB = Math.min(...b.students.map(s => getGradeValue(s.grade)));
+            const gA = Math.min(...a.map(s => getGradeValue(s.grade)));
+            const gB = Math.min(...b.map(s => getGradeValue(s.grade)));
             if (gA !== gB) return gA - gB;
-
-            const dA = Math.min(...a.students.map(s => currentRoute.stops.indexOf(getDest(s)!)));
-            const dB = Math.min(...b.students.map(s => currentRoute.stops.indexOf(getDest(s)!)));
+            const dA = Math.min(...a.map(s => currentRoute.stops.indexOf(getDest(s)!)));
+            const dB = Math.min(...b.map(s => currentRoute.stops.indexOf(getDest(s)!)));
             return dA - dB;
         });
 
-        // 3. Identify seat layout details
+        // 3. 레이아웃 기반 가용 좌석 리스트 생성
         const capacity = selectedBus.capacity;
+        const seatOrder: number[] = [];
         
-        const getSeatLayout = (cap: number) => {
-            const pairs: [number, number][] = []; // [Window, Aisle]
-            const middles: number[] = [];
-            if (cap === 45 || cap === 29) {
-                // 2 - aisle - 2 layout
-                for (let i = 1; i <= cap - 5; i += 4) {
-                    pairs.push([i, i + 1]);     // Left row: [Window, Aisle]
-                    pairs.push([i + 3, i + 2]); // Right row: [Window, Aisle]
-                }
-                if (cap === 45) {
-                    pairs.push([41, 42]);
-                    pairs.push([45, 44]);
-                    middles.push(43); // Back middle seat
-                } else if (cap === 29) {
-                    pairs.push([25, 26]);
-                    pairs.push([29, 28]);
-                    middles.push(27);
-                }
-            } else {
-                // For 16-seater
-                // Priority: 4 to 16, then 1, 2, 3 (front seats next to/near driver)
-                for (let i = 4; i <= cap; i++) middles.push(i);
-                middles.push(1, 2, 3);
+        if (capacity === 45 || capacity === 29) {
+            // 2-aisle-2 레이아웃: 줄 단위로 페어(창가, 통로)를 완전하게 채우도록 정렬
+            const rows = capacity === 45 ? 11 : 7;
+            for (let r = 0; r < rows; r++) {
+                const base = r * 4;
+                seatOrder.push(base + 1, base + 2); // 왼쪽 페어
+                seatOrder.push(base + 4, base + 3); // 오른쪽 페어
             }
-            return { pairs, middles };
-        };
+            // 마지막 줄 처리
+            if (capacity === 45) seatOrder.push(41, 42, 45, 44, 43);
+            else if (capacity === 29) seatOrder.push(25, 26, 29, 28, 27);
+        } else if (capacity === 16) {
+            // 16인승: 4번부터 순차적으로 채우고, 1-3번은 마지막에
+            for (let i = 4; i <= 16; i++) seatOrder.push(i);
+            seatOrder.push(1, 2, 3);
+        }
 
-        const { pairs, middles } = getSeatLayout(capacity);
-        
-        // 4. Assign blocks to seats
+        // 4. 배정 실행
         let newSeating = generateInitialSeating(capacity);
-        let pairIdx = 0;
-        let midIdx = 0;
-
-        blocks.forEach(block => {
-            const group = block.students;
-            
-            for (let i = 0; i < group.length; i++) {
-                const s = group[i];
-                const nextS = group[i + 1];
-
-                // If we have a pair available and two students in the group (or same gender pairing logic if needed)
-                if (nextS && pairIdx < pairs.length) {
-                    const seatPair = pairs[pairIdx++];
-                    const d1 = currentRoute.stops.indexOf(getDest(s)!);
-                    const d2 = currentRoute.stops.indexOf(getDest(nextS)!);
-                    
-                    const shouldSwap = selectedRouteType === 'Morning' ? (d1 > d2) : (d1 < d2);
-                    const winStudent = shouldSwap ? nextS : s;
-                    const aisleStudent = shouldSwap ? s : nextS;
-
-                    const winIdx = newSeating.findIndex(x => x.seatNumber === seatPair[0]);
-                    const aisleIdx = newSeating.findIndex(x => x.seatNumber === seatPair[1]);
-                    newSeating[winIdx].studentId = winStudent.id;
-                    newSeating[aisleIdx].studentId = aisleStudent.id;
-                    
-                    i++; // Skip next student as they are paired
-                } else if (pairIdx < pairs.length) {
-                    const seatPair = pairs[pairIdx++];
-                    const winIdx = newSeating.findIndex(x => x.seatNumber === seatPair[0]);
-                    newSeating[winIdx].studentId = s.id;
-                } else if (midIdx < middles.length) {
-                    const seatNum = middles[midIdx++];
-                    const idx = newSeating.findIndex(x => x.seatNumber === seatNum);
-                    newSeating[idx].studentId = s.id;
-                }
+        const flatStudents = blocks.flat();
+        
+        flatStudents.forEach((student, index) => {
+            if (index < seatOrder.length) {
+                const seatNum = seatOrder[index];
+                const seatIdx = newSeating.findIndex(x => x.seatNumber === seatNum);
+                if (seatIdx > -1) newSeating[seatIdx].studentId = student.id;
             }
         });
 
         await handleSeatUpdate(newSeating);
         toast({ title: t('admin.student_management.seat.random_assign_success') });
         if (selectedRouteType !== 'AfterSchool') setCopySeatingDialogOpen(true);
-    }, [selectedBus, currentRoute, students, selectedRouteType, selectedDay, handleSeatUpdate, toast, t]);
+    }, [selectedBus, currentRoute, students, routes, selectedRouteType, selectedDay, handleSeatUpdate, toast, t]);
 
     const handleUndoRandomize = useCallback(async () => { if (previousSeating) { await handleSeatUpdate(previousSeating); setPreviousSeating(null); } }, [previousSeating, handleSeatUpdate]);
 
@@ -546,8 +547,6 @@ export const StudentManagementTab = ({
                         if (gender) studentUpdate.gender = gender;
                         if (contact) studentUpdate.contact = contact;
                         
-                        // ONLY assign destination if the column was actually present and non-empty in CSV
-                        // This prevents overwriting existing destinations with null when columns are missing
                         if (morningDestKey) studentUpdate.morningDestinationId = destMap[morningDestKey] || null;
                         if (afternoonDestKey) studentUpdate.afternoonDestinationId = destMap[afternoonDestKey] || null;
 
@@ -586,24 +585,6 @@ export const StudentManagementTab = ({
             }
         });
         if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
-    const handleAddStudent = async () => {
-        if (!newStudentForm.name || !newStudentForm.grade || !newStudentForm.class) {
-            toast({ title: t('error'), description: t('admin.student_management.add_student.validation_error'), variant: 'destructive' });
-            return;
-        }
-        try {
-            await addStudent({
-                ...newStudentForm,
-                applicationStatus: 'reviewed',
-                afterSchoolDestinations: newStudentForm.afterSchoolDestinations || {},
-            } as NewStudent);
-            setNewStudentForm({ gender: 'Male' });
-            toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
-        } catch (error) {
-            toast({ title: t('error'), description: t('admin.student_management.add_student.error'), variant: 'destructive' });
-        }
     };
 
     const handleDestinationChange = useCallback(async (sid: string, nid: string | null, type: string, day?: DayOfWeek) => {
@@ -669,6 +650,22 @@ export const StudentManagementTab = ({
         <div className="space-y-6" onContextMenu={handleSeatContextMenu}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
+                    {unassignableStudents.length > 0 && (
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>{t('admin.student_management.unassignable.title')}</AlertTitle>
+                            <AlertDescription>
+                                <div className="mt-2 space-y-1">
+                                    {unassignableStudents.map(student => (
+                                        <div key={student.id} className="text-xs flex justify-between items-center border-b border-destructive/20 pb-1">
+                                            <span>{student.name} ({student.grade} {student.class})</span>
+                                            <span className="font-semibold">{student.errorReason}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </AlertDescription>
+                        </Alert>
+                    )}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>{t('admin.student_management.seat.title')}</CardTitle>
