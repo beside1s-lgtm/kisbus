@@ -138,7 +138,7 @@ export const StudentGlobalSearchPanel = ({
                                 value={selectedGlobalStudent.contact || ''}
                                 onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, contact: e.target.value} : null)}
                                 onBlur={(e) => handleStudentInfoChange(selectedGlobalStudent.id, 'contact', e.target.value)}
-                                placeholder="연락처 입력"
+                                placeholder="베트남 전화번호 입력"
                             />
                         </div>
                         <div className="space-y-2">
@@ -185,7 +185,7 @@ export const StudentGlobalSearchPanel = ({
                             <Label>{t('student.after_school_destination')}</Label>
                             {dayOrder.map(day => (
                                 <div key={day} className="space-y-1">
-                                     <Label className="text-xs text-muted-foreground">{t(`day.${day.toLowerCase()}`)}</Label>
+                                     <Label className="text-xs text-muted-foreground">{t(`day_short.${day.toLowerCase()}`)}</Label>
                                      <Select 
                                         value={selectedGlobalStudent.afterSchoolDestinations?.[day] || '_NONE_'} 
                                         onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afterSchool', day)}

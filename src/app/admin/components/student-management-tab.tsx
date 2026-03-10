@@ -421,7 +421,7 @@ export const StudentManagementTab = ({
     const handleUndoRandomize = useCallback(async () => { if (previousSeating) { await handleSeatUpdate(previousSeating); setPreviousSeating(null); } }, [previousSeating, handleSeatUpdate]);
 
     const handleDownloadStudentTemplate = () => {
-        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
+        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
         const rows = [
             ["Kim-Chulsu", "G1", "C1", "Male", "01012345678", "Gangnam-yeok", "Gangnam-yeok", "Gangnam-yeok", "", "Seocho-yeok", "", "Gangnam-yeok"]
         ];
@@ -440,7 +440,7 @@ export const StudentManagementTab = ({
             toast({ title: t('notice'), description: "다운로드할 학생 데이터가 없습니다." });
             return;
         }
-        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
+        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
         const rows = students.map(s => {
             const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
             return [
@@ -474,7 +474,7 @@ export const StudentManagementTab = ({
             toast({ title: t('notice'), description: t('admin.student_management.unassigned.no_students_to_download') });
             return;
         }
-        const headers = ["이름", "학년", "반", "성별", "연락처", "목적지"];
+        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "목적지"];
         const rows = filteredUnassignedStudents.map(s => {
             let destId = null;
             if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
@@ -521,7 +521,7 @@ export const StudentManagementTab = ({
                     const studentClass = (row['반'] || row['Class'] || row['class'] || '').toString().trim();
                     const rawGender = (row['성별'] || row['Gender'] || row['gender'] || 'Male').toString().trim();
                     const gender = (rawGender === '여자' || rawGender === 'Female' || rawGender === 'female') ? 'Female' : 'Male';
-                    const contact = (row['연락처'] || row['Contact'] || row['contact'] || '').toString().trim();
+                    const contact = (row['베트남 전화번호'] || row['연락처'] || row['Contact'] || row['contact'] || '').toString().trim();
                     
                     const morningDestKey = normalizeString(row['등교 목적지'] || row['Morning Destination'] || '');
                     const afternoonDestKey = normalizeString(row['하교 목적지'] || row['Afternoon Destination'] || '');
