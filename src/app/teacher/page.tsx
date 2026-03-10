@@ -1004,9 +1004,13 @@ export default function TeacherPage() {
         <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
             <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
-                    <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
+                <TabsList className={cn("grid w-full", selectedDay === 'Saturday' ? "grid-cols-1" : "grid-cols-3")}>
+                    {selectedDay !== 'Saturday' && (
+                        <>
+                            <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
+                            <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
+                        </>
+                    )}
                     <TabsTrigger value="AfterSchool" disabled={loading}>{t(`route_type.AfterSchool`)}</TabsTrigger>
                 </TabsList>
             </Tabs>

@@ -101,6 +101,13 @@ const AdminPageContent: React.FC<{
         }
     }, []);
 
+    // Force AfterSchool on Saturday if route type is manually changed or day is changed
+    useEffect(() => {
+        if (selectedDay === 'Saturday' && selectedRouteType !== 'AfterSchool') {
+            setSelectedRouteType('AfterSchool');
+        }
+    }, [selectedDay, selectedRouteType]);
+
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
         if (pendingStudentIds.length === 0) return;

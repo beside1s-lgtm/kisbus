@@ -122,8 +122,12 @@ export const AdminPageFilter = ({
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
-                            <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
+                            {selectedDay !== 'Saturday' && (
+                                <>
+                                    <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
+                                    <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
+                                </>
+                            )}
                             <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>
                         </SelectContent>
                     </Select>
