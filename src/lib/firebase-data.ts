@@ -35,7 +35,7 @@ import type {
 } from './types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
-import { normalizeString } from './utils';
+import { normalizeString, sanitizeDataForSystem } from './utils';
 
 // Helper to sanitize contact numbers: remove hyphens/spaces, take first number if multiple
 const sanitizeContact = (val: any): string | null => {
@@ -102,15 +102,23 @@ function onCollectionUpdate<T>(collectionName: string, callback: (data: T[]) => 
 // Buses
 export const getBuses = () => fetchCollection<Bus>('buses');
 export const onBusesUpdate = (callback: (buses: Bus[]) => void) => onCollectionUpdate<Bus>('buses', callback);
-export const addBus = (bus: NewBus) => addDocument<Bus>('buses', { ...bus, isActive: true, excludeFromAssignment: false });
+export const addBus = (bus: NewBus) => addDocument<Bus>('buses', { 
+    ...bus, 
+    name: sanitizeDataForSystem(bus.name),
+    isActive: true, 
+    excludeFromAssignment: false 
+});
 export const updateBus = async (busId: string, data: Partial<Bus>) => {
     const docRef = doc(db, 'buses', busId);
-    await updateDoc(docRef, data)
+    const updateData = { ...data };
+    if (updateData.name) updateData.name = sanitizeDataForSystem(updateData.name);
+    
+    await updateDoc(docRef, updateData)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: docRef.path,
             operation: 'update',
-            requestResourceData: data,
+            requestResourceData: updateData,
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
@@ -144,14 +152,17 @@ export const getStudents = () => fetchCollection<Student>('students');
 export const onStudentsUpdate = (callback: (students: Student[]) => void) => onCollectionUpdate<Student>('students', callback);
 
 export const addStudent = async (student: NewStudent): Promise<Student> => {
+    const sanitizedName = sanitizeDataForSystem(student.name);
+    const sanitizedGrade = sanitizeDataForSystem(student.grade);
+    const sanitizedClass = sanitizeDataForSystem(student.class);
+    const sanitizedContact = sanitizeContact(student.contact);
+
     const q = query(collection(db, "students"), 
-        where("name", "==", student.name),
-        where("grade", "==", student.grade),
-        where("class", "==", student.class)
+        where("name", "==", sanitizedName),
+        where("grade", "==", sanitizedGrade),
+        where("class", "==", sanitizedClass)
     );
     const querySnapshot = await getDocs(q);
-
-    const sanitizedContact = sanitizeContact(student.contact);
 
     if (!querySnapshot.empty) {
         const docRef = querySnapshot.docs[0].ref;
@@ -160,6 +171,9 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
 
         const updateData: Partial<Student> = {
             ...student,
+            name: sanitizedName,
+            grade: sanitizedGrade,
+            class: sanitizedClass,
             contact: sanitizedContact
         };
         
@@ -176,8 +190,8 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
             updateData.afternoonDestinationId = existingStudentData.afternoonDestinationId;
         }
         
-        if (student.suggestedMorningDestination) updateData.morningDestinationId = null;
-        if (student.suggestedAfternoonDestination) updateData.afternoonDestinationId = null;
+        if (student.suggestedMorningDestination) updateData.suggestedMorningDestination = sanitizeDataForSystem(student.suggestedMorningDestination);
+        if (student.suggestedAfternoonDestination) updateData.suggestedAfternoonDestination = sanitizeDataForSystem(student.suggestedAfternoonDestination);
 
         await updateDoc(docRef, updateData)
             .catch(async (serverError) => {
@@ -193,15 +207,20 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         const docSnap = await getDoc(docRef);
         return { id: docRef.id, ...docSnap.data() } as Student;
     } else {
-        const newStudentWithSanitizedContact = {
+        const newStudentData = {
             ...student,
-            contact: sanitizedContact
+            name: sanitizedName,
+            grade: sanitizedGrade,
+            class: sanitizedClass,
+            contact: sanitizedContact,
+            suggestedMorningDestination: student.suggestedMorningDestination ? sanitizeDataForSystem(student.suggestedMorningDestination) : null,
+            suggestedAfternoonDestination: student.suggestedAfternoonDestination ? sanitizeDataForSystem(student.suggestedAfternoonDestination) : null,
         };
-        const docRef = await addDoc(collection(db, 'students'), newStudentWithSanitizedContact).catch(async (serverError) => {
+        const docRef = await addDoc(collection(db, 'students'), newStudentData).catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
                 path: '/students',
                 operation: 'create',
-                requestResourceData: newStudentWithSanitizedContact,
+                requestResourceData: newStudentData,
             } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
             throw serverError;
@@ -246,10 +265,13 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
         await unassignStudentFromAllRoutes(studentId, affectedRouteTypes);
     }
 
-    const updatePayload = { ...data };
-    if ('contact' in updatePayload) {
-        updatePayload.contact = sanitizeContact(updatePayload.contact);
-    }
+    const updatePayload: any = { ...data };
+    if (updatePayload.name) updatePayload.name = sanitizeDataForSystem(updatePayload.name);
+    if (updatePayload.grade) updatePayload.grade = sanitizeDataForSystem(updatePayload.grade);
+    if (updatePayload.class) updatePayload.class = sanitizeDataForSystem(updatePayload.class);
+    if (updatePayload.contact) updatePayload.contact = sanitizeContact(updatePayload.contact);
+    if (updatePayload.suggestedMorningDestination) updatePayload.suggestedMorningDestination = sanitizeDataForSystem(updatePayload.suggestedMorningDestination);
+    if (updatePayload.suggestedAfternoonDestination) updatePayload.suggestedAfternoonDestination = sanitizeDataForSystem(updatePayload.suggestedAfternoonDestination);
     
     await updateDoc(studentDocRef, updatePayload)
     .catch(async (serverError) => {
@@ -266,10 +288,11 @@ export const updateStudentsInBatch = async (students: (Partial<Student> & {id: s
     const batch = writeBatch(db);
     students.forEach(student => {
         const { id, ...data } = student;
-        const updatePayload = { ...data };
-        if ('contact' in updatePayload) {
-            updatePayload.contact = sanitizeContact(updatePayload.contact);
-        }
+        const updatePayload: any = { ...data };
+        if (updatePayload.name) updatePayload.name = sanitizeDataForSystem(updatePayload.name);
+        if (updatePayload.grade) updatePayload.grade = sanitizeDataForSystem(updatePayload.grade);
+        if (updatePayload.class) updatePayload.class = sanitizeDataForSystem(updatePayload.class);
+        if (updatePayload.contact) updatePayload.contact = sanitizeContact(updatePayload.contact);
         const docRef = doc(db, 'students', id);
         batch.update(docRef, updatePayload);
     });
@@ -327,7 +350,10 @@ export const deleteStudentsInBatch = async (studentIds: string[]) => {
 // Destinations
 export const getDestinations = () => fetchCollection<Destination>('destinations');
 export const onDestinationsUpdate = (callback: (destinations: Destination[]) => void) => onCollectionUpdate<Destination>('destinations', callback);
-export const addDestination = (destination: NewDestination) => addDocument<Destination>('destinations', destination);
+export const addDestination = (destination: NewDestination) => addDocument<Destination>('destinations', {
+    ...destination,
+    name: sanitizeDataForSystem(destination.name)
+});
 export const addDestinationsInBatch = async (destinations: NewDestination[]): Promise<Destination[]> => {
     const batch = writeBatch(db);
     const newDestinations: Destination[] = [];
@@ -335,11 +361,12 @@ export const addDestinationsInBatch = async (destinations: NewDestination[]): Pr
     const normalizedExisting = new Set(existingDestsSnapshot.docs.map(doc => normalizeString(doc.data().name)));
 
     for (const dest of destinations) {
-        const normName = normalizeString(dest.name);
+        const sanitizedName = sanitizeDataForSystem(dest.name);
+        const normName = normalizeString(sanitizedName);
         if (normName && !normalizedExisting.has(normName)) {
             const docRef = doc(collection(db, 'destinations'));
-            batch.set(docRef, dest);
-            newDestinations.push({ id: docRef.id, ...dest });
+            batch.set(docRef, { name: sanitizedName });
+            newDestinations.push({ id: docRef.id, name: sanitizedName });
             normalizedExisting.add(normName);
         }
     }
@@ -400,14 +427,16 @@ export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teache
     const newTeachers: Teacher[] = [];
     const q = query(collection(db, 'teachers'));
     const existingDocs = await getDocs(q);
-    const existingNames = new Set(existingDocs.docs.map(d => d.data().name));
+    const existingNames = new Set(existingDocs.docs.map(d => normalizeString(d.data().name)));
 
     for (const teacher of teachers) {
-        if (!existingNames.has(teacher.name)) {
+        const sanitizedName = sanitizeDataForSystem(teacher.name);
+        const normName = normalizeString(sanitizedName);
+        if (!existingNames.has(normName)) {
             const docRef = doc(collection(db, 'teachers'));
-            batch.set(docRef, teacher);
-            newTeachers.push({ id: docRef.id, ...teacher });
-            existingNames.add(teacher.name);
+            batch.set(docRef, { name: sanitizedName });
+            newTeachers.push({ id: docRef.id, name: sanitizedName });
+            existingNames.add(normName);
         }
     }
     await batch.commit()
@@ -491,14 +520,16 @@ export const addAfterSchoolTeachersInBatch = async (teachers: NewTeacher[]): Pro
     const newTeachers: Teacher[] = [];
     const q = query(collection(db, 'afterSchoolTeachers'));
     const existingDocs = await getDocs(q);
-    const existingNames = new Set(existingDocs.docs.map(d => d.data().name));
+    const existingNames = new Set(existingDocs.docs.map(d => normalizeString(d.data().name)));
 
     for (const teacher of teachers) {
-        if (!existingNames.has(teacher.name)) {
+        const sanitizedName = sanitizeDataForSystem(teacher.name);
+        const normName = normalizeString(sanitizedName);
+        if (!existingNames.has(normName)) {
             const docRef = doc(collection(db, 'afterSchoolTeachers'));
-            batch.set(docRef, teacher);
-            newTeachers.push({ id: docRef.id, ...teacher });
-            existingNames.add(teacher.name);
+            batch.set(docRef, { name: sanitizedName });
+            newTeachers.push({ id: docRef.id, name: sanitizedName });
+            existingNames.add(normName);
         }
     }
     await batch.commit()
@@ -725,22 +756,23 @@ export const saveGroupLeaderRecords = async (routeId: string, records: GroupLead
 export const getSuggestedDestinations = () => fetchCollection<Destination>('suggestedDestinations');
 export const onSuggestedDestinationsUpdate = (callback: (destinations: Destination[]) => void) => onCollectionUpdate<Destination>('suggestedDestinations', callback);
 export const addSuggestedDestination = async (destination: { name: string }) => {
-    const trimmedName = destination.name.trim();
-    if (!trimmedName) return;
+    const sanitizedName = sanitizeDataForSystem(destination.name);
+    if (!sanitizedName) return;
 
     const currentDests = await getDestinations();
-    const normNewName = normalizeString(trimmedName);
+    const normNewName = normalizeString(sanitizedName);
     if (currentDests.some(d => normalizeString(d.name) === normNewName)) return;
 
     const currentSuggestions = await getSuggestedDestinations();
     if (currentSuggestions.some(s => normalizeString(s.name) === normNewName)) return;
 
-    await addDocument<Destination>('suggestedDestinations', { name: trimmedName });
+    await addDocument<Destination>('suggestedDestinations', { name: sanitizedName });
 }
 export const approveSuggestedDestination = async (suggestion: Destination) => {
     const batch = writeBatch(db);
     const newDestRef = doc(collection(db, 'destinations'));
-    batch.set(newDestRef, { name: suggestion.name });
+    const sanitizedName = sanitizeDataForSystem(suggestion.name);
+    batch.set(newDestRef, { name: sanitizedName });
     batch.delete(doc(db, 'suggestedDestinations', suggestion.id));
     await batch.commit()
     .catch(async (serverError) => {
@@ -862,10 +894,16 @@ export const onAttendanceUpdate = (routeId: string, date: string, callback: (rec
 // --- Lost & Found ---
 export const getLostItems = () => fetchCollection<LostItem>('lostItems');
 export const onLostItemsUpdate = (callback: (items: LostItem[]) => void) => onCollectionUpdate<LostItem>('lostItems', callback);
-export const addLostItem = (item: NewLostItem) => addDocument<LostItem>('lostItems', item);
+export const addLostItem = (item: NewLostItem) => addDocument<LostItem>('lostItems', {
+    ...item,
+    itemType: item.itemType ? sanitizeDataForSystem(item.itemType) : null
+});
 export const updateLostItem = (itemId: string, data: Partial<LostItem>) => {
     const docRef = doc(db, 'lostItems', itemId);
-    updateDoc(docRef, data)
+    const updateData = { ...data };
+    if (updateData.itemType) updateData.itemType = sanitizeDataForSystem(updateData.itemType);
+    
+    updateDoc(docRef, updateData)
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: docRef.path,

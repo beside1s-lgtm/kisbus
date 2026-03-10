@@ -83,7 +83,7 @@ export const BusConfigurationTab = ({
         return destinations;
     }
     return destinations.filter(dest => 
-        dest.name.toLowerCase().includes(destinationSearchQuery.toLowerCase())
+        normalizeString(dest.name).includes(normalizeString(destinationSearchQuery))
     );
   }, [destinations, destinationSearchQuery]);
 
@@ -134,13 +134,13 @@ export const BusConfigurationTab = ({
   
   const handleDownloadDestinationTemplate = () => {
     const headers = "목적지 이름";
-    const example = "강남역";
-    const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    const example = "Gangnam-yeok";
+    const csvContent = "\uFEFF" + headers + "\n" + example;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.body.appendChild(document.createElement("a"));
+    link.setAttribute("href", url);
     link.setAttribute("download", "destination_template.csv");
-    document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
@@ -150,14 +150,14 @@ export const BusConfigurationTab = ({
             toast({ title: t('notice'), description: t('admin.bus_config.dest.download.no_data') });
             return;
         }
-        const headers = "목적지 이름";
-        const csvData = destinations.map(d => d.name).join('\n');
-        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + csvData;
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        const headers = ["목적지 이름"];
+        const csvRows = destinations.map(d => `"${d.name.replace(/"/g, '""')}"`);
+        const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.body.appendChild(document.createElement("a"));
+        link.setAttribute("href", url);
         link.setAttribute("download", `destination_list.csv`);
-        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     }, [destinations, toast, t]);

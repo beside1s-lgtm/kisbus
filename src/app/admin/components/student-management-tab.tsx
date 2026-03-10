@@ -175,11 +175,11 @@ export const StudentManagementTab = ({
         } else { unassigned = students.filter(s => !assignedIds.has(s.id)); }
         
         if (unassignedSearchQuery) {
-            const lowerQuery = unassignedSearchQuery.toLowerCase();
+            const lowerQuery = normalizeString(unassignedSearchQuery);
             const queryDigits = unassignedSearchQuery.replace(/\D/g, '');
             unassigned = unassigned.filter(s => {
-                const nameMatch = s.name.toLowerCase().includes(lowerQuery);
-                const contactMatch = queryDigits && s.contact && s.contact.replace(/\D/g, '').includes(queryDigits);
+                const nameMatch = normalizeString(s.name).includes(lowerQuery);
+                const contactMatch = queryDigits && s.contact && s.contact.includes(queryDigits);
                 return nameMatch || contactMatch;
             });
         }
@@ -386,16 +386,14 @@ export const StudentManagementTab = ({
     const handleDownloadStudentTemplate = () => {
         const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
         const rows = [
-            ["김철수", "G1", "C1", "Male", "010-1234-5678", "강남역", "강남역", "강남역", "", "서초역", "", "강남역"],
-            ["이영희", "G2", "C2", "Female", "010-5678-1234", "서초역", "서초역", "", "서초역", "", "서초역", ""]
+            ["Kim-Chulsu", "G1", "C1", "Male", "01012345678", "Gangnam-yeok", "Gangnam-yeok", "Gangnam-yeok", "", "Seocho-yeok", "", "Gangnam-yeok"]
         ];
         const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        const link = document.body.appendChild(document.createElement("a"));
         link.setAttribute("href", url);
         link.setAttribute("download", "student_template.csv");
-        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
@@ -406,28 +404,30 @@ export const StudentManagementTab = ({
             return;
         }
         const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
-        const rows = students.map(s => [
-            s.name,
-            s.grade,
-            s.class,
-            s.gender,
-            s.contact || "",
-            destinations.find(d => d.id === s.morningDestinationId)?.name || "",
-            destinations.find(d => d.id === s.afternoonDestinationId)?.name || "",
-            destinations.find(d => d.id === s.afterSchoolDestinations?.['Monday'])?.name || "",
-            destinations.find(d => d.id === s.afterSchoolDestinations?.['Tuesday'])?.name || "",
-            destinations.find(d => d.id === s.afterSchoolDestinations?.['Wednesday'])?.name || "",
-            destinations.find(d => d.id === s.afterSchoolDestinations?.['Thursday'])?.name || "",
-            destinations.find(d => d.id === s.afterSchoolDestinations?.['Saturday'])?.name || ""
-        ]);
-        const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+        const rows = students.map(s => {
+            const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
+            return [
+                escape(s.name),
+                escape(s.grade),
+                escape(s.class),
+                escape(s.gender),
+                escape(s.contact || ""),
+                escape(destinations.find(d => d.id === s.morningDestinationId)?.name || ""),
+                escape(destinations.find(d => d.id === s.afternoonDestinationId)?.name || ""),
+                escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Monday'])?.name || ""),
+                escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Tuesday'])?.name || ""),
+                escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Wednesday'])?.name || ""),
+                escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Thursday'])?.name || ""),
+                escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Saturday'])?.name || "")
+            ];
+        });
+        const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.map(r => r.join(',')).join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        const link = document.body.appendChild(document.createElement("a"));
         link.setAttribute("href", url);
         const dateStr = format(new Date(), 'yyyyMMdd');
         link.setAttribute("download", `KIS_All_Students_${dateStr}.csv`);
-        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     }, [students, destinations, t, toast]);
@@ -444,22 +444,22 @@ export const StudentManagementTab = ({
             else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
             else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
             
+            const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
             return [
-                s.name,
-                s.grade,
-                s.class,
-                s.gender,
-                s.contact || "",
-                destinations.find(d => d.id === destId)?.name || "미지정"
+                escape(s.name),
+                escape(s.grade),
+                escape(s.class),
+                escape(s.gender),
+                escape(s.contact || ""),
+                escape(destinations.find(d => d.id === destId)?.name || "미지정")
             ];
         });
-        const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+        const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.map(r => r.join(',')).join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        const link = document.body.appendChild(document.createElement("a"));
         link.setAttribute("href", url);
         link.setAttribute("download", `Unassigned_Students_${selectedDay}_${selectedRouteType}.csv`);
-        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     }, [filteredUnassignedStudents, selectedRouteType, selectedDay, destinations, t, toast]);
@@ -600,12 +600,12 @@ export const StudentManagementTab = ({
 
     useEffect(() => {
         if (!globalSearchQuery) { setGlobalSearchResults([]); return; }
-        const lowerQuery = globalSearchQuery.toLowerCase();
+        const lowerQuery = normalizeString(globalSearchQuery);
         const queryDigits = globalSearchQuery.replace(/\D/g, '');
         
         setGlobalSearchResults(students.filter(s => {
-            const nameMatch = s.name.toLowerCase().includes(lowerQuery);
-            const contactMatch = queryDigits && s.contact && s.contact.replace(/\D/g, '').includes(queryDigits);
+            const nameMatch = normalizeString(s.name).includes(lowerQuery);
+            const contactMatch = queryDigits && s.contact && s.contact.includes(queryDigits);
             return nameMatch || contactMatch;
         }));
     }, [globalSearchQuery, students]);

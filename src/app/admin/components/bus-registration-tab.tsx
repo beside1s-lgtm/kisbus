@@ -114,17 +114,16 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
     const handleDownloadBusTemplate = () => {
         const headers = "번호,타입";
         const examples = [
-            "Bus 10,45-seater",
-            "Bus 11,29-seater",
-            "Bus 12,16-seater",
-            "# 타입은 16-seater, 29-seater, 45-seater 중 하나를 입력해야 합니다."
+            "Bus-10,45-seater",
+            "Bus-11,29-seater",
+            "Bus-12,16-seater"
         ];
-        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + examples.join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        const csvContent = "\uFEFF" + headers + "\n" + examples.join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.body.appendChild(document.createElement("a"));
+        link.setAttribute("href", url);
         link.setAttribute("download", "bus_template.csv");
-        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
@@ -186,11 +185,9 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
         const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        const fileName = `KIS_Bus_Metadata_List.csv`;
+        const link = document.body.appendChild(document.createElement("a"));
         link.setAttribute("href", url);
-        link.setAttribute("download", fileName);
-        document.body.appendChild(link);
+        link.setAttribute("download", `KIS_Bus_Metadata_List.csv`);
         link.click();
         document.body.removeChild(link);
     };

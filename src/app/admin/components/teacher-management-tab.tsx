@@ -192,18 +192,20 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
             }
         });
 
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
     };
     
     const handleDownloadTemplate = () => {
         const headers = "선생님 이름";
-        const example = "홍길동";
-        const csvContent = "data:text/csv;charset=utf-8," + "\uFEFF" + headers + "\n" + example;
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        const example = "Hong-Gildong";
+        const csvContent = "\uFEFF" + headers + "\n" + example;
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.body.appendChild(document.createElement("a"));
+        link.setAttribute("href", url);
         link.setAttribute("download", `teacher_template_${teacherAssignmentType}.csv`);
-        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
@@ -213,15 +215,14 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
             toast({ title: t('notice'), description: "다운로드할 교사 데이터가 없습니다." });
             return;
         }
-        const headers = "선생님 이름";
+        const headers = ["선생님 이름"];
         const csvRows = currentTeacherPool.map(t => `"${t.name.replace(/"/g, '""')}"`);
-        const csvContent = "\uFEFF" + headers + "\n" + csvRows.join('\n');
+        const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        const link = document.body.appendChild(document.createElement("a"));
         link.setAttribute("href", url);
         link.setAttribute("download", `KIS_Teacher_List_${teacherAssignmentType}_${format(new Date(), 'yyyyMMdd')}.csv`);
-        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
@@ -431,7 +432,6 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
             const isOperational = isBusOperational(bus.id);
             const teachersStr = getTeachersForBus(bus.id);
             
-            // 노선 정보 추출 (월요일 기준)
             const relevantRouteType = teacherAssignmentType === 'commute' ? 'Afternoon' : 'AfterSchool';
             const route = routes.find(r => r.busId === bus.id && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
             const routePath = (route?.stops || [])
@@ -454,11 +454,10 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
         const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        const link = document.body.appendChild(document.createElement("a"));
         const categoryName = teacherAssignmentType === 'commute' ? "하교" : "방과후";
         link.setAttribute("href", url);
         link.setAttribute("download", `KIS_Bus_Teacher_Assignments_${categoryName}_${format(new Date(), 'yyyyMMdd')}.csv`);
-        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     }, [buses, teacherAssignmentType, isBusOperational, t, routes, destinations]);
