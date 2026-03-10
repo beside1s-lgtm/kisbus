@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -328,7 +327,7 @@ export const StudentManagementTab = ({
 
     const handleToggleAllCopyToDays = useCallback((c: boolean) => setDaysToCopyTo(weekdays.reduce((a, d) => ({ ...a, [d]: c }), {})), [weekdays]);
 
-    // 랜덤 배정 로직 (버그 수정판)
+    // 랜덤 배정 로직 (쾌적함 고려 버전)
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
         setPreviousSeating([...currentRoute.seating]);
@@ -339,8 +338,7 @@ export const StudentManagementTab = ({
             return s.afterSchoolDestinations?.[selectedDay] || null;
         };
         
-        // 이 버스에 이미 배정된 학생들을 포함한 전체 배정 가능 목록 필터링
-        // (다른 버스에 배정된 학생은 제외)
+        // 배정 가능 학생 필터링
         const alreadyAssignedOnOtherBuses = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType && r.id !== currentRoute.id).forEach(r => {
             r.seating.forEach(s => { if (s.studentId) alreadyAssignedOnOtherBuses.add(s.studentId); });
@@ -356,7 +354,7 @@ export const StudentManagementTab = ({
             return;
         }
 
-        // 1. 그룹화: SiblingGroupId 기준
+        // 1. 그룹화 (가족/개인)
         const siblingGroups: Record<string, Student[]> = {};
         const individualStudents: Student[] = [];
 
@@ -369,7 +367,6 @@ export const StudentManagementTab = ({
             }
         });
 
-        // 2. 블록 형성: 가족 그룹 우선
         const blocks: Student[][] = [];
         Object.values(siblingGroups).forEach(group => {
             group.sort((a, b) => getGradeValue(a.grade) - getGradeValue(b.grade));
@@ -377,7 +374,7 @@ export const StudentManagementTab = ({
         });
         individualStudents.forEach(s => blocks.push([s]));
 
-        // 블록 정렬: 학년 및 목적지 순서 기준
+        // 블록 정렬
         blocks.sort((a, b) => {
             const gA = Math.min(...a.map(s => getGradeValue(s.grade)));
             const gB = Math.min(...b.map(s => getGradeValue(s.grade)));
@@ -387,25 +384,59 @@ export const StudentManagementTab = ({
             return dA - dB;
         });
 
-        // 3. 레이아웃 기반 가용 좌석 리스트 생성
+        // 2. 쾌적함 기반 시트 오더 생성
         const capacity = selectedBus.capacity;
-        const seatOrder: number[] = [];
+        const windowSeats: number[] = [];
+        const aisleSeats: number[] = [];
         
         if (capacity === 45 || capacity === 29) {
-            // 2-aisle-2 레이아웃: 줄 단위로 페어(창가, 통로)를 완전하게 채우도록 정렬
             const rows = capacity === 45 ? 11 : 7;
             for (let r = 0; r < rows; r++) {
                 const base = r * 4;
-                seatOrder.push(base + 1, base + 2); // 왼쪽 페어
-                seatOrder.push(base + 4, base + 3); // 오른쪽 페어
+                if (r === rows - 1) { // 마지막 줄
+                    if (capacity === 45) {
+                        windowSeats.push(41, 45);
+                        aisles.push(42, 43, 44);
+                    } else {
+                        windowSeats.push(25, 29);
+                        aisles.push(26, 27, 28);
+                    }
+                } else {
+                    windowSeats.push(base + 1, base + 4);
+                    aisles.push(base + 2, base + 3);
+                }
             }
-            // 마지막 줄 처리
-            if (capacity === 45) seatOrder.push(41, 42, 45, 44, 43);
-            else if (capacity === 29) seatOrder.push(25, 26, 29, 28, 27);
         } else if (capacity === 16) {
-            // 16인승: 4번부터 순차적으로 채우고, 1-3번은 마지막에
-            for (let i = 4; i <= 16; i++) seatOrder.push(i);
-            seatOrder.push(1, 2, 3);
+            // 16인승: 4-16번 중 창가 느낌인 좌측/우측 끝 우선 (여기선 단순화하여 4-16 우선)
+            for (let i = 4; i <= 16; i++) windowSeats.push(i);
+            aisleSeats.push(1, 2, 3);
+        }
+
+        // 3. 배정 전략 결정
+        // 학생 수가 전체 좌석의 절반 이하이면 최대한 창가만 채움
+        const totalToAssign = blocks.flat().length;
+        const useComfortStrategy = totalToAssign <= windowSeats.length;
+
+        let seatOrder: number[] = [];
+        if (useComfortStrategy) {
+            // 쾌적 모드: 창가 먼저 쫙 채우고, 넘치면 통로
+            seatOrder = [...windowSeats, ...aisleSeats];
+        } else {
+            // 밀집 모드: 기존처럼 줄 단위로 페어(창가+통로)를 채움 (가족 인접성 유리)
+            if (capacity === 45 || capacity === 29) {
+                const rows = capacity === 45 ? 11 : 7;
+                for (let r = 0; r < rows; r++) {
+                    const base = r * 4;
+                    if (r === rows - 1) {
+                        if (capacity === 45) seatOrder.push(41, 42, 45, 44, 43);
+                        else seatOrder.push(25, 26, 29, 28, 27);
+                    } else {
+                        seatOrder.push(base + 1, base + 2, base + 4, base + 3);
+                    }
+                }
+            } else {
+                seatOrder = [...windowSeats, ...aisleSeats];
+            }
         }
 
         // 4. 배정 실행

@@ -9,7 +9,7 @@ import {
 import type { Bus, Route, Destination, DayOfWeek, RouteType, NewDestination } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Upload, Trash2, PlusCircle, Download, X, Search, Copy, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { Upload, Trash2, PlusCircle, Download, X, Search, Copy, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Bus as BusIcon, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,6 +86,21 @@ export const BusConfigurationTab = ({
         normalizeString(dest.name).includes(normalizeString(destinationSearchQuery))
     );
   }, [destinations, destinationSearchQuery]);
+
+  // 검색 또는 선택된 목적지가 포함된 버스 목록 계산
+  const busesUsingDestination = useMemo(() => {
+    const targetDestId = selectedAllDestId;
+    if (!targetDestId) return [];
+
+    return routes
+        .filter(r => 
+            r.dayOfWeek === selectedDay && 
+            r.type === selectedRouteType && 
+            r.stops.includes(targetDestId)
+        )
+        .map(r => buses.find(b => b.id === r.busId)?.name)
+        .filter(Boolean) as string[];
+  }, [selectedAllDestId, routes, selectedDay, selectedRouteType, buses]);
 
   const getStopsForCurrentRoute = useCallback(() => {
     if (!currentRoute) return [];
@@ -350,9 +365,9 @@ export const BusConfigurationTab = ({
                 </CardHeader>
                 <CardContent>
                     <div className="flex justify-end gap-2 mb-4 flex-wrap">
-                        <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2" /> {t('admin.bus_config.dest.template')}</Button>
-                        <Button variant="outline" onClick={handleDownloadDestinationList}><Download className="mr-2" /> {t('admin.bus_config.dest.download.button')}</Button>
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
+                        <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.bus_config.dest.template')}</Button>
+                        <Button variant="outline" onClick={handleDownloadDestinationList}><Download className="mr-2 h-4 w-4" /> {t('admin.bus_config.dest.download.button')}</Button>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
                         <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
                     </div>
                      <div className="flex justify-end gap-2 mb-4">
@@ -392,6 +407,35 @@ export const BusConfigurationTab = ({
                             onChange={(e) => setDestinationSearchQuery(e.target.value)}
                         />
                     </div>
+
+                    {/* 선택된 목적지가 포함된 버스 표시 섹션 */}
+                    {selectedAllDestId && (
+                        <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-md animate-in fade-in slide-in-from-top-1">
+                            <div className="flex items-start gap-2">
+                                <BusIcon className="h-4 w-4 text-primary mt-0.5" />
+                                <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-primary flex items-center gap-1">
+                                        운행 중인 버스 확인
+                                        <Badge variant="outline" className="text-[10px] py-0 h-4 border-primary/30 text-primary">
+                                            {t(`day_short.${selectedDay.toLowerCase()}`)} {selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`)}
+                                        </Badge>
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5 mt-1">
+                                        {busesUsingDestination.length > 0 ? (
+                                            busesUsingDestination.map((busName, idx) => (
+                                                <Badge key={idx} variant="secondary" className="text-[10px] font-medium bg-white border">
+                                                    {busName}
+                                                </Badge>
+                                            ))
+                                        ) : (
+                                            <p className="text-[10px] text-muted-foreground italic">이 시간대에 해당 목적지를 운행하는 버스가 없습니다.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex flex-col gap-2 p-2 border rounded-md min-h-[300px] max-h-[40vh] overflow-y-auto bg-muted/50">
                         {filteredDestinations.map((dest) => (
                             <div
