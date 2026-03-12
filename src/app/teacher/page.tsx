@@ -98,8 +98,16 @@ const ClassListDownloadDialog = ({
             return;
         }
 
+        const isSaturday = selectedDay === 'Saturday';
+        
+        // CSV Headers
         const headers = ["이름", "학년", "반", "버스", "목적지"];
+        if (!isSaturday) {
+            headers.push(t('day_short.monday'), t('day_short.tuesday'), t('day_short.wednesday'), t('day_short.thursday'), t('day_short.friday'));
+        }
+
         const rows = filteredStudents.map(student => {
+            // Find current bus/dest for the selected time
             const route = allRoutes.find(r => 
                 r.dayOfWeek === selectedDay && 
                 r.type === selectedRouteType && 
@@ -109,7 +117,7 @@ const ClassListDownloadDialog = ({
             const busName = bus ? bus.name : t('unassigned');
             
             let destId: string | null = null;
-            if (selectedDay === 'Saturday') {
+            if (isSaturday) {
                 if (selectedRouteType === 'Morning') destId = student.satMorningDestinationId;
                 else destId = student.satAfternoonDestinationId;
             } else {
@@ -120,20 +128,39 @@ const ClassListDownloadDialog = ({
             const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
 
             const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
-            return [
+            const studentRow = [
                 escape(student.name),
                 escape(student.grade),
                 escape(student.class),
                 escape(busName),
                 escape(destinationName)
             ];
+
+            // Add Mon-Fri boarding status if not Saturday
+            if (!isSaturday) {
+                const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                weekdays.forEach(day => {
+                    const isAssignedOnDay = allRoutes.some(r => 
+                        r.dayOfWeek === day && 
+                        r.type === selectedRouteType && 
+                        r.seating.some(seat => seat.studentId === student.id)
+                    );
+                    studentRow.push(isAssignedOnDay ? 'O' : 'X');
+                });
+            }
+
+            return studentRow;
         });
 
         const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.map(r => r.join(',')).join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.body.appendChild(document.createElement("a"));
-        const fileName = `KIS_Class_Bus_List_${grade}_${studentClass}_${selectedDay}_${selectedRouteType}.csv`;
+        
+        const typeStr = selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`);
+        const prefix = isSaturday ? "KIS_KoreanSchool" : "KIS_Class";
+        const fileName = `${prefix}_Bus_List_${grade}_${studentClass}_${typeStr}_${format(new Date(), 'yyyyMMdd')}.csv`;
+        
         link.setAttribute("href", url);
         link.setAttribute("download", fileName);
         link.click();
@@ -145,9 +172,11 @@ const ClassListDownloadDialog = ({
     return (
         <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-                <DialogTitle>{t('teacher_page.download_class_list_dialog.title')}</DialogTitle>
+                <DialogTitle>{selectedDay === 'Saturday' ? "토요한글학교 학급 명단" : t('teacher_page.download_class_list_dialog.title')}</DialogTitle>
                 <CardDescription>
-                    {t('teacher_page.download_class_list_dialog.description')}
+                    {selectedDay === 'Saturday' 
+                        ? "토요한글학교 학년과 반을 입력하여 해당 학생들의 버스 정보를 다운로드합니다." 
+                        : t('teacher_page.download_class_list_dialog.description')}
                 </CardDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -1631,7 +1660,7 @@ export default function TeacherPage() {
                             <CardContent>
                                 {sidePanel}
                             </CardContent>
-                        </Card>
+                        </div>
                     </div>
                 </div>
             </div>
