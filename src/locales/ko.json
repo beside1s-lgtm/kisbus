@@ -1,4 +1,3 @@
-
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -273,6 +272,10 @@
     "admin.student_management.batch_upload.processing": "학생 정보를 일괄 처리하는 중...",
     "admin.student_management.batch_upload.success": "Information for {{count}} students has been added/updated.",
     "admin.student_management.batch_upload.error": "일괄 처리 중 오류가 발생했습니다.",
+    "admin.student_management.after_school_batch.title": "방과후 학생 명단 일괄 업로드",
+    "admin.student_management.after_school_batch.description": "방과후 수업을 듣는 학생들의 명단을 업로드합니다. 해당 요일의 하교 좌석에서 자동으로 제외됩니다.",
+    "admin.student_management.after_school_batch.template": "방과후 템플릿",
+    "admin.student_management.after_school_batch.success": "{{count}}명의 학생이 방과후 학생으로 등록되었습니다.",
     "admin.student_management.unassignable.title": "목적지 오류로 배정 불가",
     "admin.student_management.unassignable.description": "설정한 목적지가 현재 어떤 버스 노선에도 포함되어 있지 않아 다음 학생들을 배정할 수 없습니다. 목적지를 수정해주세요.",
     "admin.student_management.unassignable.error_reason": "오류 사유",

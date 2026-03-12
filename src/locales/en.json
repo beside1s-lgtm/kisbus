@@ -1,4 +1,3 @@
-
 {
     "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
@@ -273,6 +272,10 @@
     "admin.student_management.batch_upload.processing": "Batch processing student information...",
     "admin.student_management.batch_upload.success": "Information for {{count}} students has been added/updated.",
     "admin.student_management.batch_upload.error": "An error occurred during batch processing.",
+    "admin.student_management.after_school_batch.title": "After-School Student Bulk Upload",
+    "admin.student_management.after_school_batch.description": "Upload the list of students attending after-school classes. They will be automatically removed from the afternoon bus seats for that day.",
+    "admin.student_management.after_school_batch.template": "After-School Template",
+    "admin.student_management.after_school_batch.success": "{{count}} students have been registered as after-school students.",
     "admin.student_management.unassignable.title": "Cannot Assign Due to Destination Error",
     "admin.student_management.unassignable.description": "The following students cannot be assigned because their set destination is not currently on any bus route. Please correct their destination.",
     "admin.student_management.unassignable.error_reason": "Reason for error",

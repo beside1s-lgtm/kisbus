@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Papa from 'papaparse';
 import { 
     addStudent, updateStudent, deleteStudentsInBatch, updateRouteSeating,
-    copySeatingPlan, unassignStudentFromAllRoutes
+    copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewStudent } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Shuffle, UserPlus, RotateCcw, Copy, Bell, Undo2, AlertCircle, Users } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Shuffle, UserPlus, RotateCcw, Copy, Bell, Undo2, AlertCircle, Users, Upload, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,6 +66,7 @@ export const StudentManagementTab = ({
     const { toast } = useToast();
     const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const afterSchoolFileInputRef = useRef<HTMLInputElement>(null);
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
     const [isCopySeatingDialogOpen, setCopySeatingDialogOpen] = useState(false);
     const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
@@ -194,15 +196,29 @@ export const StudentManagementTab = ({
             let updatesMade = false;
             for (const day of days) {
                 if (day === 'Saturday') continue;
-                const afterSchoolStudentIds = new Set<string>();
+                
+                // 1. 방과후 버스에 이미 좌석이 배정된 학생들
+                const assignedAfterSchoolStudentIds = new Set<string>();
                 routes.filter(r => r.dayOfWeek === day && r.type === 'AfterSchool').forEach(r => {
-                    r.seating.forEach(seat => { if (seat.studentId) afterSchoolStudentIds.add(seat.studentId); });
+                    r.seating.forEach(seat => { if (seat.studentId) assignedAfterSchoolStudentIds.add(seat.studentId); });
                 });
-                if (afterSchoolStudentIds.size > 0) {
+
+                // 2. 방과후 목적지가 설정된 모든 학생들 (업로드 등을 통해 방과후로 지정된 학생 포함)
+                const allAfterSchoolStudentIds = new Set<string>();
+                students.forEach(s => {
+                    if (s.afterSchoolDestinations?.[day as DayOfWeek]) {
+                        allAfterSchoolStudentIds.add(s.id);
+                    }
+                });
+
+                // 통합된 방과후 학생 집합
+                const targetStudentIds = new Set([...Array.from(assignedAfterSchoolStudentIds), ...Array.from(allAfterSchoolStudentIds)]);
+
+                if (targetStudentIds.size > 0) {
                     for (const route of routes.filter(r => r.dayOfWeek === day && r.type === 'Afternoon')) {
                         let seatingChanged = false;
                         const newSeating = route.seating.map(seat => {
-                            if (seat.studentId && afterSchoolStudentIds.has(seat.studentId)) { seatingChanged = true; return { ...seat, studentId: null }; }
+                            if (seat.studentId && targetStudentIds.has(seat.studentId)) { seatingChanged = true; return { ...seat, studentId: null }; }
                             return seat;
                         });
                         if (seatingChanged) { batch.update(doc(db, 'routes', route.id), { seating: newSeating }); updatesMade = true; }
@@ -245,8 +261,9 @@ export const StudentManagementTab = ({
             
             const afterSchoolIds = new Set<string>();
             if (selectedDay !== 'Saturday' && selectedRouteType === 'Afternoon') {
-                routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'AfterSchool').forEach(r => {
-                    r.seating.forEach(s => { if (s.studentId) afterSchoolIds.add(s.studentId); });
+                // 하교 뷰에서는 방과후 학생들을 제외
+                students.forEach(s => {
+                    if (s.afterSchoolDestinations?.[selectedDay]) afterSchoolIds.add(s.id);
                 });
             }
 
@@ -705,6 +722,8 @@ export const StudentManagementTab = ({
                         if (afterWedKey) { afterSchoolDestinations['Wednesday'] = destMap[afterWedKey] || null; hasAfterSchoolInCsv = true; }
                         if (afterThuKey) { afterSchoolDestinations['Thursday'] = destMap[afterThuKey] || null; hasAfterSchoolInCsv = true; }
                         
+                        if (hasAfterSchoolInCsv) afterSchoolDestinations['Friday'] = null; // Default Friday empty
+
                         if (hasAfterSchoolInCsv) studentUpdate.afterSchoolDestinations = afterSchoolDestinations;
 
                         newStudents.push(studentUpdate as NewStudent);
@@ -732,6 +751,94 @@ export const StudentManagementTab = ({
             }
         });
         if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleAfterSchoolDownloadTemplate = () => {
+        const headers = ["이름", "학년", "반", "월요일 목적지", "화요일 목적지", "수요일 목적지", "목요일 목적지"];
+        const rows = [
+            ["Kim-Chulsu", "G1", "C1", "Gangnam-yeok", "Seocho-yeok", "", "Gangnam-yeok"]
+        ];
+        const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.body.appendChild(document.createElement("a"));
+        link.setAttribute("href", url);
+        link.setAttribute("download", "after_school_template.csv");
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleAfterSchoolFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const destMap: Record<string, string> = {};
+                destinations.forEach(d => {
+                    destMap[normalizeString(d.name)] = d.id;
+                });
+
+                const updates: (Partial<Student> & { id: string })[] = [];
+                
+                results.data.forEach((row: any) => {
+                    const name = (row['이름'] || row['Name'] || '').toString().trim();
+                    const grade = (row['학년'] || row['Grade'] || '').toString().trim();
+                    const studentClass = (row['반'] || row['Class'] || '').toString().trim();
+
+                    const student = students.find(s => 
+                        normalizeString(s.name) === normalizeString(name) &&
+                        normalizeString(s.grade) === normalizeString(grade) &&
+                        normalizeString(s.class) === normalizeString(studentClass)
+                    );
+
+                    if (student) {
+                        const afterSchoolDests = { ...(student.afterSchoolDestinations || {}) };
+                        let hasChange = false;
+
+                        const days = {
+                            'Monday': row['월요일 목적지'] || row['Monday'],
+                            'Tuesday': row['화요일 목적지'] || row['Tuesday'],
+                            'Wednesday': row['수요일 목적지'] || row['Wednesday'],
+                            'Thursday': row['목요일 목적지'] || row['Thursday']
+                        };
+
+                        Object.entries(days).forEach(([day, destName]) => {
+                            if (destName) {
+                                const destId = destMap[normalizeString(destName)] || null;
+                                afterSchoolDests[day as DayOfWeek] = destId;
+                                hasChange = true;
+                            }
+                        });
+
+                        if (hasChange) {
+                            updates.push({ id: student.id, afterSchoolDestinations: afterSchoolDests });
+                        }
+                    }
+                });
+
+                if (updates.length === 0) {
+                    toast({ title: t('notice'), description: "업데이트할 학생 정보가 없습니다. 이름과 학년/반이 정확한지 확인해주세요." });
+                    return;
+                }
+
+                const { dismiss } = toast({ title: t('processing'), description: "방과후 정보 업데이트 중..." });
+                try {
+                    await updateStudentsInBatch(updates);
+                    dismiss();
+                    toast({ title: t('success'), description: t('admin.student_management.after_school_batch.success', { count: updates.length }) });
+                } catch (error) {
+                    dismiss();
+                    toast({ title: t('error'), description: "방과후 일괄 업로드 중 오류가 발생했습니다.", variant: 'destructive' });
+                }
+            },
+            error: (error) => {
+                toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
+            }
+        });
+        if (afterSchoolFileInputRef.current) afterSchoolFileInputRef.current.value = '';
     };
 
     const handleDestinationChange = useCallback(async (sid: string, nid: string | null, type: string, day?: DayOfWeek) => {
@@ -798,6 +905,33 @@ export const StudentManagementTab = ({
         <div className="space-y-6" onContextMenu={handleSeatContextMenu}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
+                    <Card className="border-primary/20 bg-primary/5">
+                        <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Upload className="h-5 w-5 text-primary" />
+                                {t('admin.student_management.after_school_batch.title')}
+                            </CardTitle>
+                            <CardDescription>
+                                {t('admin.student_management.after_school_batch.description')}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex gap-2">
+                            <Button variant="outline" onClick={handleAfterSchoolDownloadTemplate}>
+                                <Download className="mr-2 h-4 w-4" /> {t('admin.student_management.after_school_batch.template')}
+                            </Button>
+                            <Button variant="outline" onClick={() => afterSchoolFileInputRef.current?.click()}>
+                                <Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}
+                            </Button>
+                            <input 
+                                type="file" 
+                                ref={afterSchoolFileInputRef} 
+                                onChange={handleAfterSchoolFileUpload} 
+                                accept=".csv" 
+                                className="hidden" 
+                            />
+                        </CardContent>
+                    </Card>
+
                     {unassignableStudents.length > 0 && (
                         <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />

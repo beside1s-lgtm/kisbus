@@ -1,4 +1,3 @@
-
 {
     "main.title": "Trình quản lý xe buýt<br/>trường học KIS",
     "main.select_role": "Chọn vai trò của bạn để bắt đầu.",
@@ -272,6 +271,10 @@
     "admin.student_management.batch_upload.processing": "Đang xử lý hàng loạt thông tin học sinh...",
     "admin.student_management.batch_upload.success": "Thông tin của {{count}} học sinh đã được thêm/cập nhật.",
     "admin.student_management.batch_upload.error": "Đã xảy ra lỗi trong quá trình xử lý hàng loạt",
+    "admin.student_management.after_school_batch.title": "After-School Student Bulk Upload",
+    "admin.student_management.after_school_batch.description": "Upload the list of students attending after-school classes. They will be automatically removed from the afternoon bus seats for that day.",
+    "admin.student_management.after_school_batch.template": "After-School Template",
+    "admin.student_management.after_school_batch.success": "{{count}} students have been registered as after-school students.",
     "admin.student_management.unassignable.title": "Không thể phân công do lỗi điểm đến",
     "admin.student_management.unassignable.description": "Không thể phân công các học sinh sau đây vì điểm đến đã đặt của họ hiện không có trong bất kỳ tuyến xe buýt nào. Vui lòng sửa lại điểm đến.",
     "admin.student_management.unassignable.error_reason": "Lý do lỗi",
@@ -323,7 +326,6 @@
     "apply.sat_after_school.success_title": "Đăng ký hoàn tất!",
     "apply.sat_after_school.success_desc": "Thông tin xe buýt sau giờ học của học sinh {{studentName}} đã được cập nhật.",
     "apply.sat_after_school.success_desc_multi": "After-school information for all family members has been updated.",
-    "apply.after_school.notice": "After-school drop-off points are set to match your primary afternoon drop-off point.",
     "apply.custom_dest_prompt_morning": "Không tìm thấy điểm đến đi học của bạn? Hãy tự nhập.",
     "apply.new_dest_name_morning": "Tên điểm đến đi học mới",
     "apply.new_dest_placeholder_morning": "Ví dụ: Lối ra số 1 ga Seocho",
@@ -331,7 +333,6 @@
     "apply.new_dest_name_afternoon": "Tên điểm đến tan học mới",
     "apply.new_dest_placeholder_afternoon": "Ví dụ: Lối ra số 5 ga Gangnam",
     "apply.custom_dest_prompt_short": "Tự nhập",
-    "apply.new_after_school_dest_placeholder": "Tên điểm đến sau giờ học mới",
     "apply.suggestion_submitted": "Đề xuất đã được gửi",
     "apply.suggestion_submitted_desc": "Điểm đến \"{{destName}}\" đã được đề xuất.",
     "apply.suggestion_error": "Không thể đề xuất điểm đến",
