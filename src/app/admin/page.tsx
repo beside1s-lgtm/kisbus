@@ -151,6 +151,19 @@ const AdminPageContent: React.FC<{
                student.suggestedSatMorningDestination || 
                student.suggestedSatAfternoonDestination;
     };
+
+    const handleManageStudent = (student: Student) => {
+        setActiveTab('student-management');
+        setSelectedGlobalStudent(student);
+        
+        // 시각적인 피드백을 위해 스크롤 이동
+        setTimeout(() => {
+            const el = document.getElementById('student-management-panel');
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 150);
+    };
     
     return (
         <>
@@ -191,10 +204,7 @@ const AdminPageContent: React.FC<{
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button size="sm" variant="secondary" onClick={() => {
-                                                setActiveTab('student-management');
-                                                setSelectedGlobalStudent(student);
-                                            }}>
+                                            <Button size="sm" variant="secondary" onClick={() => handleManageStudent(student)}>
                                                 <UserCog className="mr-1 h-3 w-3" /> 관리
                                             </Button>
                                             <Button size="sm" variant="outline" onClick={() => handleAcknowledgeSingle(student.id)}>
@@ -227,7 +237,7 @@ const AdminPageContent: React.FC<{
                     </Alert>
                 </Collapsible>
             )}
-            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management">
+            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management" id="admin-tabs-root">
                 <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="bus-registration">{t('admin.tabs.bus_registration')}</TabsTrigger>
                     <TabsTrigger value="teacher-management">{t('admin.tabs.teacher_management')}</TabsTrigger>
@@ -263,32 +273,34 @@ const AdminPageContent: React.FC<{
                     />
                 </TabsContent>
                 <TabsContent value="student-management" className="mt-6">
-                    <AdminPageFilter
-                        buses={buses}
-                        routes={routes}
-                        selectedBusId={selectedBusId}
-                        setSelectedBusId={setSelectedBusId}
-                        selectedDay={selectedDay}
-                        setSelectedDay={setSelectedDay}
-                        selectedRouteType={selectedRouteType}
-                        setSelectedRouteType={setSelectedRouteType}
-                        days={DAYS}
-                        filterConfiguredBusesOnly={true}
-                        showRouteStops={true}
-                        destinations={destinations}
-                    />
-                    <StudentManagementTab 
-                        students={students} 
-                        buses={buses}
-                        routes={routes} 
-                        destinations={destinations}
-                        selectedBusId={selectedBusId}
-                        selectedDay={selectedDay}
-                        selectedRouteType={selectedRouteType}
-                        days={DAYS}
-                        selectedGlobalStudent={selectedGlobalStudent}
-                        setSelectedGlobalStudent={setSelectedGlobalStudent}
-                    />
+                    <div id="student-management-panel" className="scroll-mt-20">
+                        <AdminPageFilter
+                            buses={buses}
+                            routes={routes}
+                            selectedBusId={selectedBusId}
+                            setSelectedBusId={setSelectedBusId}
+                            selectedDay={selectedDay}
+                            setSelectedDay={setSelectedDay}
+                            selectedRouteType={selectedRouteType}
+                            setSelectedRouteType={setSelectedRouteType}
+                            days={DAYS}
+                            filterConfiguredBusesOnly={true}
+                            showRouteStops={true}
+                            destinations={destinations}
+                        />
+                        <StudentManagementTab 
+                            students={students} 
+                            buses={buses}
+                            routes={routes} 
+                            destinations={destinations}
+                            selectedBusId={selectedBusId}
+                            selectedDay={selectedDay}
+                            selectedRouteType={selectedRouteType}
+                            days={DAYS}
+                            selectedGlobalStudent={selectedGlobalStudent}
+                            setSelectedGlobalStudent={setSelectedGlobalStudent}
+                        />
+                    </div>
                 </TabsContent>
             </Tabs>
         </>

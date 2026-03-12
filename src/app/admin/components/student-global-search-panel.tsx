@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -14,7 +13,7 @@ import type { Student, Destination, Bus, Route, DayOfWeek, RouteType } from '@/l
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { cn, normalizeString } from '@/lib/utils';
-import { updateStudent, addDestination } from '@/lib/firebase-data';
+import { updateStudent, addDestination, deleteStudentsInBatch } from '@/lib/firebase-data';
 import { useToast } from '@/hooks/use-toast';
 
 interface StudentGlobalSearchPanelProps {
@@ -142,6 +141,17 @@ export const StudentGlobalSearchPanel = ({
         }
     };
 
+    const handleDeleteSelectedStudent = async () => {
+        if (!selectedGlobalStudent) return;
+        try {
+            await deleteStudentsInBatch([selectedGlobalStudent.id]);
+            setSelectedGlobalStudent(null);
+            toast({ title: t('success'), description: "학생 신청 정보가 삭제되었습니다." });
+        } catch (error) {
+            toast({ title: t('error'), description: "삭제 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -201,7 +211,7 @@ export const StudentGlobalSearchPanel = ({
                     </AlertDialog>
                 </div>
                 {selectedGlobalStudent && (
-                    <div className="space-y-4 p-4 border rounded-md">
+                    <div className="space-y-4 p-4 border rounded-md bg-card/50">
                         <div className="flex justify-between items-start">
                             <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
@@ -209,25 +219,46 @@ export const StudentGlobalSearchPanel = ({
                                     {selectedGlobalStudent.siblingGroupId && <Badge variant="secondary" className="text-[10px] py-0 h-4"><Users className="w-2 h-2 mr-1"/>가족</Badge>}
                                 </div>
                                 <p className="text-xs text-muted-foreground">{selectedGlobalStudent.grade} {selectedGlobalStudent.class}</p>
-                                 <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                         <Button variant="link" size="sm" className="p-0 h-auto text-destructive justify-start">
-                                            <UserX className="mr-1 w-3 h-3"/>{t('admin.student_management.search.unassign_all_button')}
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>{t('admin.student_management.search.unassign_all_confirm_title')}</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                {t('admin.student_management.search.unassign_all_confirm_description', { studentName: selectedGlobalStudent.name })}
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleUnassignAllFromStudent}>{t('unassign')}</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="link" size="sm" className="p-0 h-auto text-destructive justify-start">
+                                                <UserX className="mr-1 w-3 h-3"/>{t('admin.student_management.search.unassign_all_button')}
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>{t('admin.student_management.search.unassign_all_confirm_title')}</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    {t('admin.student_management.search.unassign_all_confirm_description', { studentName: selectedGlobalStudent.name })}
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleUnassignAllFromStudent}>{t('unassign')}</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="link" size="sm" className="p-0 h-auto text-destructive justify-start">
+                                                <Trash2 className="mr-1 w-3 h-3"/>신청 삭제
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>학생 신청 정보를 삭제하시겠습니까?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    {selectedGlobalStudent.name} 학생의 모든 정보와 배정 내역이 영구적으로 삭제됩니다.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleDeleteSelectedStudent}>{t('delete')}</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => setSelectedGlobalStudent(null)}><X className="w-4 h-4"/></Button>
                         </div>
