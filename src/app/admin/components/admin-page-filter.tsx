@@ -45,8 +45,6 @@ export const AdminPageFilter = ({
         const operationalBusIds = new Set<string>();
         routes.forEach(route => {
             if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
-                // For administrative filtering (Student Management), 
-                // a bus is candidate if it has at least one stop defined.
                 if ((route.stops?.length ?? 0) > 0) {
                     operationalBusIds.add(route.busId);
                 }
@@ -124,12 +122,8 @@ export const AdminPageFilter = ({
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            {selectedDay !== 'Saturday' && (
-                                <>
-                                    <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
-                                    <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
-                                </>
-                            )}
+                            <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
+                            {selectedDay !== 'Saturday' && <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>}
                             <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>
                         </SelectContent>
                     </Select>

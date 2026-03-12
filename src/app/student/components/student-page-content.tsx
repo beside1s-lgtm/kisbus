@@ -108,17 +108,22 @@ export function StudentPageContent() {
         let tType: RouteType = 'Morning';
 
         if (d >= 1 && d <= 5) {
-            if (h < 9) tType = 'Morning';
-            else if (h < 16) tType = 'Afternoon';
-            else if (h < 19) tType = 'AfterSchool';
-            else {
+            if (h < 9) {
+                tType = 'Morning';
+            } else if (h < 16) {
+                tType = 'Afternoon';
+            } else if (h < 19) {
+                tType = 'AfterSchool';
+            } else {
                 tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
                 tType = 'Morning';
             }
         } else if (d === 6) {
-            if (h < 11) tType = 'Morning';
-            else if (h < 14) tType = 'Afternoon';
-            else {
+            if (h < 11) {
+                tType = 'Morning';
+            } else if (h < 14) {
+                tType = 'AfterSchool';
+            } else {
                 tDate.setDate(tDate.getDate() + 2);
                 tType = 'Morning';
             }

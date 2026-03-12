@@ -100,7 +100,6 @@ const ClassListDownloadDialog = ({
 
         const isSaturday = selectedDay === 'Saturday';
         
-        // 1. Filter only assigned students and sort them
         const assignedStudentsData = filteredStudents.map(student => {
             const route = allRoutes.find(r => 
                 r.dayOfWeek === selectedDay && 
@@ -109,14 +108,13 @@ const ClassListDownloadDialog = ({
             );
             const bus = route ? buses.find(b => b.id === route.busId) : null;
             return { student, bus, route };
-        }).filter(item => item.bus !== null); // 미배정 학생 제외
+        }).filter(item => item.bus !== null);
 
         if (assignedStudentsData.length === 0) {
             toast({ title: t('notice'), description: "해당 학급에 배정된 학생이 없습니다." });
             return;
         }
 
-        // 2. Sort by Bus Number then Student Name
         assignedStudentsData.sort((a, b) => {
             const nameA = a.bus!.name;
             const nameB = b.bus!.name;
@@ -132,7 +130,6 @@ const ClassListDownloadDialog = ({
             return a.student.name.localeCompare(b.student.name, 'ko');
         });
 
-        // 3. Generate CSV
         const headers = ["이름", "학년", "반", "버스", "목적지"];
         if (!isSaturday) {
             headers.push(t('day_short.monday'), t('day_short.tuesday'), t('day_short.wednesday'), t('day_short.thursday'), t('day_short.friday'));
@@ -161,7 +158,6 @@ const ClassListDownloadDialog = ({
                 escape(destinationName)
             ];
 
-            // Add Mon-Fri boarding status if not Saturday
             if (!isSaturday) {
                 const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
                 weekdays.forEach(day => {
@@ -197,7 +193,11 @@ const ClassListDownloadDialog = ({
     return (
         <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-                <DialogTitle>{selectedDay === 'Saturday' ? "토요한글학교 학급 명단" : t('teacher_page.download_class_list_dialog.title')}</DialogTitle>
+                <DialogTitle>
+                    {selectedDay === 'Saturday' 
+                        ? (selectedRouteType === 'AfterSchool' ? "토요 방과후 학급 명단" : "토요 한글학교 학급 명단")
+                        : t('teacher_page.download_class_list_dialog.title')}
+                </DialogTitle>
                 <CardDescription>
                     {selectedDay === 'Saturday' 
                         ? "토요한글학교 학년과 반을 입력하여 해당 학생들의 버스 정보를 다운로드합니다." 
@@ -594,6 +594,9 @@ export default function TeacherPage() {
         const d = vTime.getDay();
         let tDate = new Date(vTime);
 
+        // VN Time Rules:
+        // Mon-Fri: After 19:00 -> Next working day morning
+        // Sat: After 14:00 -> Monday morning
         if (d >= 1 && d <= 5) {
             if (h >= 19) tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
         } else if (d === 6) {
@@ -638,9 +641,9 @@ export default function TeacherPage() {
         const isNewDate = selectedDate !== lastProcessedDateRef.current;
         const targetDate = new Date(selectedDate);
         const isSat = getDay(targetDate) === 6;
-        const isToday = format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+        const isSun = getDay(targetDate) === 0;
         
-        if (isSunday(targetDate)) {
+        if (isSun) {
             setSelectedDay('Monday');
         } else {
             const dayIndex = getDay(targetDate);
@@ -650,17 +653,19 @@ export default function TeacherPage() {
         if (isNewDate) {
             lastProcessedDateRef.current = selectedDate;
             
+            const isToday = format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
             if (isToday) {
                 const now = new Date();
-                const vietnamHour = (now.getUTCHours() + 7) % 24;
+                const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
+                const vietnamHour = vTime.getHours();
 
                 if (isSat) {
                     if (vietnamHour < 11) {
                         setSelectedRouteType('Morning');
                     } else if (vietnamHour < 14) {
-                        setSelectedRouteType('Afternoon');
-                    } else {
                         setSelectedRouteType('AfterSchool');
+                    } else {
+                        // Logic handled by date update above
                     }
                 } else {
                     if (vietnamHour >= 9 && vietnamHour < 16) {
@@ -672,7 +677,7 @@ export default function TeacherPage() {
                     }
                 }
             } else {
-                setSelectedRouteType(isSat ? 'Morning' : 'Morning');
+                setSelectedRouteType('Morning');
             }
         }
     }

@@ -87,17 +87,22 @@ const AdminPageContent: React.FC<{
         let tType: RouteType = 'Morning';
 
         if (d >= 1 && d <= 5) {
-            if (h < 9) tType = 'Morning';
-            else if (h < 16) tType = 'Afternoon';
-            else if (h < 19) tType = 'AfterSchool';
-            else {
+            if (h < 9) {
+                tType = 'Morning';
+            } else if (h < 16) {
+                tType = 'Afternoon';
+            } else if (h < 19) {
+                tType = 'AfterSchool';
+            } else {
                 tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
                 tType = 'Morning';
             }
         } else if (d === 6) {
-            if (h < 11) tType = 'Morning';
-            else if (h < 14) tType = 'Afternoon';
-            else {
+            if (h < 11) {
+                tType = 'Morning';
+            } else if (h < 14) {
+                tType = 'AfterSchool';
+            } else {
                 tDate.setDate(tDate.getDate() + 2);
                 tType = 'Morning';
             }
@@ -156,7 +161,6 @@ const AdminPageContent: React.FC<{
         setActiveTab('student-management');
         setSelectedGlobalStudent(student);
         
-        // 시각적인 피드백을 위해 스크롤 이동
         setTimeout(() => {
             const el = document.getElementById('student-management-panel');
             if (el) {
