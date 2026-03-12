@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Bus, Clock, Plus, Trash2, Users } from 'lucide-react';
 import { MainLayout } from '@/components/layout/main-layout';
@@ -14,8 +13,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Combobox } from '@/components/ui/combobox';
 import { useTranslation } from '@/hooks/use-translation';
-
-const daysOfWeek: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 interface SiblingEntry {
     name: string;
@@ -26,14 +23,6 @@ interface SiblingEntry {
 
 export default function ApplyPage() {
     const { t } = useTranslation();
-    const dayLabels: Record<DayOfWeek, string> = {
-        Monday: t('day_short.monday'),
-        Tuesday: t('day_short.tuesday'),
-        Wednesday: t('day_short.wednesday'),
-        Thursday: t('day_short.thursday'),
-        Friday: t('day_short.friday'),
-        Saturday: t('day_short.saturday'),
-    };
 
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -57,8 +46,15 @@ export default function ApplyPage() {
     const [useCustomAfternoonDest, setUseCustomAfternoonDest] = useState(false);
     const [customAfternoonDestName, setCustomAfternoonDestName] = useState('');
 
-    const [afterSchoolDays, setAfterSchoolDays] = useState<Partial<Record<DayOfWeek, boolean>>>({});
-    
+    // Saturday specific state
+    const [satMorningDestinationId, setSatMorningDestinationId] = useState<string | null>(null);
+    const [useCustomSatMorningDest, setUseCustomSatMorningDest] = useState(false);
+    const [customSatMorningDestName, setCustomSatMorningDestName] = useState('');
+
+    const [satAfternoonDestinationId, setSatAfternoonDestinationId] = useState<string | null>(null);
+    const [useCustomSatAfternoonDest, setUseCustomSatAfternoonDest] = useState(false);
+    const [customSatAfternoonDestName, setCustomSatAfternoonDestName] = useState('');
+
     const { toast } = useToast();
 
     useEffect(() => {
@@ -91,13 +87,11 @@ export default function ApplyPage() {
     };
 
     const validateAllStudents = () => {
-        // Validate main student
         if (!name.trim() || !grade.trim() || !studentClass.trim() || !gender) {
             toast({ title: t('error'), description: t('apply.validation.base_info_error'), variant: "destructive" });
             return false;
         }
         
-        // Validate siblings
         if (hasSiblings) {
             for (let i = 0; i < siblings.length; i++) {
                 const s = siblings[i];
@@ -144,8 +138,12 @@ export default function ApplyPage() {
                 morningDestinationId: appData.morningDestinationId || null,
                 afternoonDestinationId: appData.afternoonDestinationId || null,
                 afterSchoolDestinations: appData.afterSchoolDestinations || {},
+                satMorningDestinationId: appData.satMorningDestinationId || null,
+                satAfternoonDestinationId: appData.satAfternoonDestinationId || null,
                 suggestedMorningDestination: appData.suggestedMorningDestination || null,
                 suggestedAfternoonDestination: appData.suggestedAfternoonDestination || null,
+                suggestedSatMorningDestination: appData.suggestedSatMorningDestination || null,
+                suggestedSatAfternoonDestination: appData.suggestedSatAfternoonDestination || null,
                 applicationStatus: 'pending',
                 siblingGroupId: studentData.siblingGroupId || null
             };
@@ -177,7 +175,6 @@ export default function ApplyPage() {
         const siblingGroupId = hasSiblings ? `group_${Date.now()}` : null;
 
         try {
-            // Handle custom suggestions first if any
             if (useCustomMorningDest && customMorningDestName.trim()) {
                 await addSuggestedDestination({ name: customMorningDestName.trim() });
             }
@@ -185,10 +182,8 @@ export default function ApplyPage() {
                 await addSuggestedDestination({ name: customAfternoonDestName.trim() });
             }
 
-            // Process Main Student
             await processStudentApplication({ name, grade, studentClass, gender, contact, siblingGroupId }, baseAppData);
 
-            // Process Siblings
             if (hasSiblings) {
                 for (const sib of siblings) {
                     await processStudentApplication({ ...sib, contact: contact, siblingGroupId }, baseAppData);
@@ -200,7 +195,6 @@ export default function ApplyPage() {
                 description: hasSiblings ? t('apply.commute.success_desc_multi') : t('apply.commute.success_desc', { studentName: name }) 
             });
 
-            // Reset destinations
             setMorningDestinationId(null);
             setCustomMorningDestName('');
             setUseCustomMorningDest(false);
@@ -208,7 +202,6 @@ export default function ApplyPage() {
             setCustomAfternoonDestName('');
             setUseCustomAfternoonDest(false);
             
-            // Refresh student list to reflect changes
             const freshStudents = await getStudents();
             setAllStudents(freshStudents);
 
@@ -218,54 +211,63 @@ export default function ApplyPage() {
         }
     }
 
-    const handleAfterSchoolSubmit = async () => {
+    const handleSatSubmit = async () => {
         if (!validateAllStudents()) return;
     
-        // All students must have a base commute destination to apply for after-school
-        // We'll check the main student and assume siblings share the logic or check them too
-        const mainExisting = findStudentInList(name, grade, studentClass);
-        let commuteDestinationId = mainExisting?.afternoonDestinationId || mainExisting?.morningDestinationId || afternoonDestinationId || morningDestinationId;
-    
-        if (!commuteDestinationId) {
-            toast({ title: t('error'), description: t('apply.validation.after_school_no_base_dest'), variant: "destructive" });
+        const hasSatMorning = !useCustomSatMorningDest && satMorningDestinationId;
+        const hasCustomSatMorning = useCustomSatMorningDest && customSatMorningDestName.trim();
+        const hasSatAfternoon = !useCustomSatAfternoonDest && satAfternoonDestinationId;
+        const hasCustomSatAfternoon = useCustomSatAfternoonDest && customSatAfternoonDestName.trim();
+
+        if (!hasSatMorning && !hasCustomSatMorning && !hasSatAfternoon && !hasCustomSatAfternoon) {
+            toast({ title: t('error'), description: "토요일 등교 또는 하교 목적지를 선택하거나 입력해주세요.", variant: "destructive" });
             return;
         }
-    
-        const finalAfterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
-        for (const day of daysOfWeek) {
-            finalAfterSchoolDestinations[day] = afterSchoolDays[day] ? commuteDestinationId : null;
-        }
 
+        let satAppData: Partial<Student> = {
+            satMorningDestinationId: useCustomSatMorningDest ? null : satMorningDestinationId,
+            suggestedSatMorningDestination: useCustomSatMorningDest ? customSatMorningDestName.trim() : null,
+            satAfternoonDestinationId: useCustomSatAfternoonDest ? null : satAfternoonDestinationId,
+            suggestedSatAfternoonDestination: useCustomSatAfternoonDest ? customSatAfternoonDestName.trim() : null,
+        };
+
+        const mainExisting = findStudentInList(name, grade, studentClass);
         const siblingGroupId = hasSiblings ? (mainExisting?.siblingGroupId || `group_${Date.now()}`) : null;
     
         try {
-            // Process Main Student
-            await processStudentApplication({ name, grade, studentClass, gender, contact, siblingGroupId }, { afterSchoolDestinations: finalAfterSchoolDestinations });
+            if (useCustomSatMorningDest && customSatMorningDestName.trim()) {
+                await addSuggestedDestination({ name: customSatMorningDestName.trim() });
+            }
+            if (useCustomSatAfternoonDest && customSatAfternoonDestName.trim()) {
+                await addSuggestedDestination({ name: customSatAfternoonDestName.trim() });
+            }
 
-            // Process Siblings
+            await processStudentApplication({ name, grade, studentClass, gender, contact, siblingGroupId }, satAppData);
+
             if (hasSiblings) {
                 for (const sib of siblings) {
-                    const sibExisting = findStudentInList(sib.name, sib.grade, sib.studentClass);
-                    await processStudentApplication({ ...sib, contact: contact, siblingGroupId: siblingGroupId || sibExisting?.siblingGroupId }, { afterSchoolDestinations: finalAfterSchoolDestinations });
+                    await processStudentApplication({ ...sib, contact: contact, siblingGroupId }, satAppData);
                 }
             }
 
             toast({ 
-                title: t('apply.after_school.success_title'), 
-                description: hasSiblings ? t('apply.after_school.success_desc_multi') : t('apply.after_school.success_desc', { studentName: name }) 
+                title: t('apply.sat_after_school.success_title'), 
+                description: hasSiblings ? t('apply.sat_after_school.success_desc_multi') : t('apply.sat_after_school.success_desc', { studentName: name }) 
             });
     
-            setAfterSchoolDays({});
+            setSatMorningDestinationId(null);
+            setCustomSatMorningDestName('');
+            setUseCustomSatMorningDest(false);
+            setSatAfternoonDestinationId(null);
+            setCustomSatAfternoonDestName('');
+            setUseCustomSatAfternoonDest(false);
+
             const freshStudents = await getStudents();
             setAllStudents(freshStudents);
         } catch (error) {
-            console.error("Error submitting after school application:", error);
+            console.error("Error submitting saturday application:", error);
             toast({ title: t('error'), description: t('apply.submit_error'), variant: 'destructive' });
         }
-    }
-
-    const handleToggleAfterSchoolDay = (day: DayOfWeek, checked: boolean) => {
-        setAfterSchoolDays(prev => ({...prev, [day]: checked}));
     }
 
     return (
@@ -282,7 +284,6 @@ export default function ApplyPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* Main Student Form */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border">
                             <div className="space-y-2">
                                 <Label htmlFor="name">{t('student.name')}</Label>
@@ -316,7 +317,6 @@ export default function ApplyPage() {
                             </div>
                         </div>
 
-                        {/* Sibling Toggle */}
                         <div className="flex items-center space-x-2 py-2">
                             <Checkbox 
                                 id="has-siblings" 
@@ -331,7 +331,6 @@ export default function ApplyPage() {
                             </Label>
                         </div>
 
-                        {/* Sibling Forms */}
                         {hasSiblings && (
                             <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
                                 {siblings.map((sib, index) => (
@@ -447,38 +446,60 @@ export default function ApplyPage() {
                     
                     <Card className="h-full">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2 font-headline"><Clock className="text-primary" /> {t('apply.after_school.title')}</CardTitle>
-                            <CardDescription>{t('apply.after_school.description')}</CardDescription>
+                            <CardTitle className="flex items-center gap-2 font-headline"><Clock className="text-primary" /> {t('apply.sat_after_school.title')}</CardTitle>
+                            <CardDescription>{t('apply.sat_after_school.description')}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label>{t('apply.after_school.select_days')}</Label>
-                                <div className="grid grid-cols-3 gap-2 p-2 bg-muted/20 rounded-md border">
-                                    {daysOfWeek.map(day => (
-                                        <div key={day} className="flex items-center gap-2 p-1">
-                                            <Checkbox
-                                                id={`day-${day}`}
-                                                checked={!!afterSchoolDays[day]}
-                                                onCheckedChange={(checked) => handleToggleAfterSchoolDay(day, checked as boolean)}
-                                            />
-                                            <Label htmlFor={`day-${day}`} className="cursor-pointer">{dayLabels[day]}</Label>
-                                        </div>
-                                    ))}
+                                <Label htmlFor="satMorningDestinationId">{t('student.sat_morning_destination')}</Label>
+                                <Combobox 
+                                    options={destinationOptions}
+                                    value={satMorningDestinationId}
+                                    onSelect={setSatMorningDestinationId}
+                                    placeholder={t('select_or_search_destination')}
+                                    disabled={useCustomSatMorningDest}
+                                />
+                            </div>
+                             <div className="flex items-center space-x-2">
+                                <Checkbox id="useCustomSatMorningDest" checked={useCustomSatMorningDest} onCheckedChange={(checked) => setUseCustomSatMorningDest(checked as boolean)} />
+                                <label htmlFor="useCustomSatMorningDest" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    {t('apply.custom_dest_prompt_sat_morning')}
+                                </label>
+                            </div>
+                            {useCustomSatMorningDest && (
+                                <div className="space-y-2 animate-in fade-in duration-300">
+                                    <Label htmlFor="customSatMorningDestName">{t('apply.new_dest_name_morning')}</Label>
+                                    <Input id="customSatMorningDestName" value={customSatMorningDestName} onChange={e => setCustomSatMorningDestName(e.target.value)} placeholder={t('apply.new_dest_placeholder_morning')} />
                                 </div>
-                            </div>
-                            <div className="p-3 bg-primary/5 border border-primary/10 rounded-md">
-                                <p className="text-xs text-muted-foreground leading-relaxed">
-                                    {t('apply.after_school.notice')}
-                                </p>
-                            </div>
+                            )}
                             
-                            <Button 
-                                onClick={handleAfterSchoolSubmit} 
-                                className="w-full mt-4" 
-                                size="lg"
-                                disabled={Object.values(afterSchoolDays).every(v => !v)}
-                            >
-                                {hasSiblings ? t('apply.after_school.submit_button_multi') : t('apply.after_school.submit_button')}
+                            <Separator />
+
+                            <div className="space-y-2">
+                                <Label htmlFor="satAfternoonDestinationId">{t('student.sat_afternoon_destination')}</Label>
+                                <Combobox 
+                                    options={destinationOptions}
+                                    value={satAfternoonDestinationId}
+                                    onSelect={setSatAfternoonDestinationId}
+                                    placeholder={t('select_or_search_destination')}
+                                    disabled={useCustomSatAfternoonDest}
+                                />
+                            </div>
+                             <div className="flex items-center space-x-2">
+                                <Checkbox id="useCustomSatAfternoonDest" checked={useCustomSatAfternoonDest} onCheckedChange={(checked) => setUseCustomSatAfternoonDest(checked as boolean)} />
+                                <label htmlFor="useCustomSatAfternoonDest" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    {t('apply.custom_dest_prompt_sat_afternoon')}
+                                </label>
+                            </div>
+                            {useCustomSatAfternoonDest && (
+                                <div className="space-y-2 animate-in fade-in duration-300">
+                                    <Label htmlFor="customSatAfternoonDestName">{t('apply.new_dest_name_afternoon')}</Label>
+                                    <Input id="customSatAfternoonDestName" value={customSatAfternoonDestName} onChange={e => setCustomSatAfternoonDestName(e.target.value)} placeholder={t('apply.new_dest_placeholder_afternoon')} />
+                                </div>
+                            )}
+                            
+                            <Button onClick={handleSatSubmit} className="w-full mt-4" size="lg">
+                                {hasSiblings ? t('apply.sat_after_school.submit_button_multi') : t('apply.sat_after_school.submit_button')}
                             </Button>
                         </CardContent>
                     </Card>

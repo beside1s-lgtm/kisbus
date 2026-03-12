@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, onLostItemsUpdate, onAttendanceUpdate } from '@/lib/firebase-data';
@@ -100,7 +99,6 @@ export function StudentPageContent() {
         );
         setAssignedRoutes(studentRoutes);
 
-        // Advanced Auto-matching logic based on Vietnam UTC+7 time
         const now = new Date();
         const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
         const h = vTime.getHours();
@@ -109,7 +107,6 @@ export function StudentPageContent() {
         let tDate = new Date(vTime);
         let tType: RouteType = 'Morning';
 
-        // 19:00 threshold for weekdays, 14:00 for Sat
         if (d >= 1 && d <= 5) {
             if (h < 9) tType = 'Morning';
             else if (h < 16) tType = 'Afternoon';
@@ -119,8 +116,8 @@ export function StudentPageContent() {
                 tType = 'Morning';
             }
         } else if (d === 6) {
-            if (h >= 11 && h < 14) tType = 'AfterSchool';
-            else if (h < 11) tType = 'AfterSchool';
+            if (h < 11) tType = 'Morning';
+            else if (h < 14) tType = 'Afternoon';
             else {
                 tDate.setDate(tDate.getDate() + 2);
                 tType = 'Morning';
@@ -183,7 +180,6 @@ export function StudentPageContent() {
   const disembarkedStudentIds = useMemo(() => attendance?.disembarked || [], [attendance]);
 
   const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
-      // interaction disabled for parent page
   }, []);
 
   useEffect(() => {

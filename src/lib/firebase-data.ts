@@ -206,7 +206,7 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         const docRef = querySnapshot.docs[0].ref;
         const existingStudentData = querySnapshot.docs[0].data() as Student;
 
-        // Smart merge: Only include fields that are actually provided in the input
+        // Smart merge
         const updateData: Partial<Student> = {};
         if (student.name) updateData.name = sanitizedName;
         if (student.grade) updateData.grade = sanitizedGrade;
@@ -216,6 +216,12 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         if (student.morningDestinationId !== undefined) updateData.morningDestinationId = student.morningDestinationId;
         if (student.afternoonDestinationId !== undefined) updateData.afternoonDestinationId = student.afternoonDestinationId;
         if (student.afterSchoolDestinations !== undefined) updateData.afterSchoolDestinations = student.afterSchoolDestinations;
+        
+        if (student.satMorningDestinationId !== undefined) updateData.satMorningDestinationId = student.satMorningDestinationId;
+        if (student.satAfternoonDestinationId !== undefined) updateData.satAfternoonDestinationId = student.satAfternoonDestinationId;
+        if (student.suggestedSatMorningDestination !== undefined) updateData.suggestedSatMorningDestination = student.suggestedSatMorningDestination ? sanitizeDataForSystem(student.suggestedSatMorningDestination) : null;
+        if (student.suggestedSatAfternoonDestination !== undefined) updateData.suggestedSatAfternoonDestination = student.suggestedSatAfternoonDestination ? sanitizeDataForSystem(student.suggestedSatAfternoonDestination) : null;
+
         if (student.applicationStatus) updateData.applicationStatus = student.applicationStatus;
         if (student.siblingGroupId !== undefined) updateData.siblingGroupId = student.siblingGroupId;
         if (student.suggestedMorningDestination !== undefined) updateData.suggestedMorningDestination = student.suggestedMorningDestination ? sanitizeDataForSystem(student.suggestedMorningDestination) : null;
@@ -232,6 +238,8 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
             contact: sanitizedContact,
             suggestedMorningDestination: student.suggestedMorningDestination ? sanitizeDataForSystem(student.suggestedMorningDestination) : null,
             suggestedAfternoonDestination: student.suggestedAfternoonDestination ? sanitizeDataForSystem(student.suggestedAfternoonDestination) : null,
+            suggestedSatMorningDestination: student.suggestedSatMorningDestination ? sanitizeDataForSystem(student.suggestedSatMorningDestination) : null,
+            suggestedSatAfternoonDestination: student.suggestedSatAfternoonDestination ? sanitizeDataForSystem(student.suggestedSatAfternoonDestination) : null,
         };
         const docRef = await addDoc(collection(db, 'students'), newStudentData).catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
@@ -253,35 +261,37 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
 
     const oldData = studentBeforeUpdate.data() as Student;
     
-    let affectedRouteTypes: RouteType[] = [];
+    let affectedRouteConfigs: { day: DayOfWeek, types: RouteType[] }[] = [];
 
-    // ONLY unassign if the destination actually changes to a different NON-NULL value or NULL
-    if ('morningDestinationId' in data && data.morningDestinationId !== undefined && data.morningDestinationId !== oldData.morningDestinationId) {
-        affectedRouteTypes.push('Morning');
-    }
-    if ('afternoonDestinationId' in data && data.afternoonDestinationId !== undefined && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
-        affectedRouteTypes.push('Afternoon');
+    // Mon-Fri Commute
+    if (('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) ||
+        ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId)) {
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].forEach(day => {
+            affectedRouteConfigs.push({ day: day as DayOfWeek, types: ['Morning', 'Afternoon'] });
+        });
     }
     
-    if ('afterSchoolDestinations' in data && data.afterSchoolDestinations !== undefined) {
+    // Mon-Fri AfterSchool
+    if ('afterSchoolDestinations' in data) {
         const oldAfterSchoolDests = oldData.afterSchoolDestinations || {};
         const newAfterSchoolDests = data.afterSchoolDestinations || {};
-        const allAfterSchoolDays = new Set([...Object.keys(oldAfterSchoolDests), ...Object.keys(newAfterSchoolDests)]);
-
-        let afterSchoolChanged = false;
-        for (const day of allAfterSchoolDays) {
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].forEach(day => {
             if (oldAfterSchoolDests[day as DayOfWeek] !== newAfterSchoolDests[day as DayOfWeek]) {
-                afterSchoolChanged = true;
-                break;
+                affectedRouteConfigs.push({ day: day as DayOfWeek, types: ['AfterSchool'] });
             }
-        }
-        if (afterSchoolChanged) {
-            affectedRouteTypes.push('AfterSchool');
-        }
+        });
+    }
+
+    // Saturday special
+    if (('satMorningDestinationId' in data && data.satMorningDestinationId !== oldData.satMorningDestinationId) ||
+        ('satAfternoonDestinationId' in data && data.satAfternoonDestinationId !== oldData.satAfternoonDestinationId)) {
+        affectedRouteConfigs.push({ day: 'Saturday', types: ['Morning', 'Afternoon', 'AfterSchool'] });
     }
     
-    if (affectedRouteTypes.length > 0) {
-        await unassignStudentFromAllRoutes(studentId, affectedRouteTypes);
+    if (affectedRouteConfigs.length > 0) {
+        for (const config of affectedRouteConfigs) {
+            await unassignStudentFromAllRoutes(studentId, config.types, config.day);
+        }
     }
 
     const updatePayload: any = { ...data };
@@ -291,6 +301,8 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
     if (updatePayload.contact) updatePayload.contact = sanitizeContact(updatePayload.contact);
     if (updatePayload.suggestedMorningDestination) updatePayload.suggestedMorningDestination = sanitizeDataForSystem(updatePayload.suggestedMorningDestination);
     if (updatePayload.suggestedAfternoonDestination) updatePayload.suggestedAfternoonDestination = sanitizeDataForSystem(updatePayload.suggestedAfternoonDestination);
+    if (updatePayload.suggestedSatMorningDestination) updatePayload.suggestedSatMorningDestination = sanitizeDataForSystem(updatePayload.suggestedSatMorningDestination);
+    if (updatePayload.suggestedSatAfternoonDestination) updatePayload.suggestedSatAfternoonDestination = sanitizeDataForSystem(updatePayload.suggestedSatAfternoonDestination);
     
     await updateDoc(studentDocRef, updatePayload)
     .catch(async (serverError) => {
@@ -831,10 +843,15 @@ export const clearAllSuggestedDestinations = async () => {
     });
 };
 
-export const unassignStudentFromAllRoutes = async (studentId: string, routeTypes?: RouteType[]) => {
+export const unassignStudentFromAllRoutes = async (studentId: string, routeTypes?: RouteType[], day?: DayOfWeek) => {
     if (!studentId) return;
 
-    const routesSnapshot = await getDocs(collection(db, 'routes'));
+    let q = query(collection(db, 'routes'));
+    if (day) {
+        q = query(collection(db, 'routes'), where('dayOfWeek', '==', day));
+    }
+    
+    const routesSnapshot = await getDocs(q);
     if (routesSnapshot.empty) return;
 
     const batch = writeBatch(db);

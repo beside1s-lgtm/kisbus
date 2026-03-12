@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -9,7 +8,6 @@ import {
     onDestinationsUpdate,
     onTeachersUpdate,
     onAfterSchoolTeachersUpdate,
-    onLogsUpdate,
     onLostItemsUpdate,
     getGroupLeaderRecords, 
     saveGroupLeaderRecords,
@@ -426,14 +424,12 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (isClient && !selectedDate) {
-        // Initial Operational Config (Vietnam UTC+7)
         const now = new Date();
         const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
         const h = vTime.getHours();
         const d = vTime.getDay();
         let tDate = new Date(vTime);
 
-        // Thresholds: 19:00 for weekdays, 14:00 for Sat
         if (d >= 1 && d <= 5) {
             if (h >= 19) tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
         } else if (d === 6) {
@@ -495,8 +491,10 @@ export default function TeacherPage() {
                 const vietnamHour = (now.getUTCHours() + 7) % 24;
 
                 if (isSat) {
-                    if (vietnamHour >= 11 && vietnamHour < 14) {
-                        setSelectedRouteType('AfterSchool');
+                    if (vietnamHour < 11) {
+                        setSelectedRouteType('Morning');
+                    } else if (vietnamHour < 14) {
+                        setSelectedRouteType('Afternoon');
                     } else {
                         setSelectedRouteType('AfterSchool');
                     }
@@ -510,7 +508,7 @@ export default function TeacherPage() {
                     }
                 }
             } else {
-                setSelectedRouteType(isSat ? 'AfterSchool' : 'Morning');
+                setSelectedRouteType(isSat ? 'Morning' : 'Morning');
             }
         }
     }
@@ -532,7 +530,6 @@ export default function TeacherPage() {
     const operationalBusIds = new Set<string>();
     allRoutes.forEach(route => {
         if (route.dayOfWeek === selectedDay && route.type === selectedRouteType) {
-            // A bus is considered operational for teachers if it has both stops AND students.
             if ((route.stops?.length ?? 0) > 0 && route.seating.some(s => s.studentId !== null)) {
                 operationalBusIds.add(route.busId);
             }
@@ -654,7 +651,6 @@ export default function TeacherPage() {
     }
   }, [groupLeaderRecords, currentRoute]);
 
-  // Auto-cleanup orphaned active leaders
   useEffect(() => {
     if (!currentRoute || !students.length || lastLoadedRouteIdRef.current !== currentRoute.id) return;
 
@@ -662,10 +658,8 @@ export default function TeacherPage() {
     if (activeLeaderIndex === -1) return;
 
     const activeLeader = groupLeaderRecords[activeLeaderIndex];
-    // Check if the student is still on this route
     const isStillOnRoute = currentRoute.seating.some(s => s.studentId === activeLeader.studentId);
     
-    // Also check if the student still exists in the system
     const studentExists = students.some(s => s.id === activeLeader.studentId);
 
     if (!isStillOnRoute || !studentExists) {
@@ -690,9 +684,9 @@ export default function TeacherPage() {
       
       const getStatusPriority = (studentId: string) => {
         if (boardedStudentIds.includes(studentId) || notBoardingStudentIds.includes(studentId)) {
-            return 2; // Processed
+            return 2;
         }
-        return 1; // Unprocessed
+        return 1;
       };
 
       return Array.from(studentIdsOnRoute)
@@ -748,16 +742,21 @@ export default function TeacherPage() {
         : [...disembarkedStudentIds, studentId];
       
     const newBoardedIds = isDisembarked
-        ? [...boardedStudentIds, studentId] // Re-boarding
-        : boardedStudentIds.filter(id => id !== studentId); // Disembarking
+        ? [...boardedStudentIds, studentId]
+        : boardedStudentIds.filter(id => id !== studentId);
 
     let newCompletedDestinations = [...completedDestinations];
     
     const studentsForDestination = studentsOnCurrentRoute.filter(s => {
         let destId: string | null = null;
-        if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
-        else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
-        else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
+        if (selectedDay === 'Saturday') {
+            if (selectedRouteType === 'Morning') destId = s.satMorningDestinationId;
+            else destId = s.satAfternoonDestinationId;
+        } else {
+            if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
+            else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
+            else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
+        }
         return destId === destinationId;
     });
 
@@ -792,11 +791,11 @@ export default function TeacherPage() {
     const newRecords = [...groupLeaderRecords];
     const existingRecordIndex = newRecords.findIndex(r => r.studentId === studentId && r.endDate === null);
 
-    if (existingRecordIndex > -1) { // Demote
+    if (existingRecordIndex > -1) {
         const record = newRecords[existingRecordIndex];
         record.endDate = dateStr;
         record.days = differenceInDays(new Date(dateStr), new Date(record.startDate)) + 1;
-    } else { // Promote
+    } else {
         const currentLeaderIndex = newRecords.findIndex(r => r.endDate === null);
         if (currentLeaderIndex > -1) {
             newRecords[currentLeaderIndex].endDate = dateStr;
@@ -832,7 +831,6 @@ export default function TeacherPage() {
       let newDisembarked = [...disembarkedStudentIds];
       let newNotBoarding = notBoardingStudentIds.filter(id => id !== studentId);
 
-      // Transition: Unprocessed -> Boarded -> Disembarked -> Unprocessed
       if (isDisembarked) {
           newDisembarked = newDisembarked.filter(id => id !== studentId);
       } else if (isBoarded) {
@@ -904,13 +902,10 @@ export default function TeacherPage() {
         .filter(s => {
             const nameMatch = formatStudentName(s).toLowerCase().includes(lowerCaseQuery);
             if (nameMatch) return true;
-            
-            // 연락처 숫자 매칭 (하이픈/공백 무시)
             if (queryOnlyNumbers && s.contact) {
                 const contactOnlyNumbers = s.contact.replace(/\D/g, '');
                 if (contactOnlyNumbers.includes(queryOnlyNumbers)) return true;
             }
-            
             return false;
         })
         .map(student => {
@@ -920,9 +915,14 @@ export default function TeacherPage() {
             const busName = studentRoute ? buses.find(b => b.id === studentRoute.busId)?.name : undefined;
 
             let destId: string | null = null;
-            if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
-            else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
-            else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[selectedDay] || null;
+            if (selectedDay === 'Saturday') {
+                if (selectedRouteType === 'Morning') destId = student.satMorningDestinationId;
+                else destId = student.satAfternoonDestinationId;
+            } else {
+                if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
+                else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
+                else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[selectedDay] || null;
+            }
             const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
 
             return {
@@ -946,7 +946,7 @@ export default function TeacherPage() {
     if (routeForStudent) {
         setSelectedBusId(routeForStudent.busId);
     } else {
-        setSelectedBusId(''); // Unassigned
+        setSelectedBusId('');
     }
   }, [allRoutes, selectedDay, selectedRouteType]);
 
@@ -972,6 +972,10 @@ export default function TeacherPage() {
     if (!selectedDestinationId) return [];
     
     const getStudentDestinationId = (student: Student) => {
+        if (selectedDay === 'Saturday') {
+            if (selectedRouteType === 'Morning') return student.satMorningDestinationId;
+            return student.satAfternoonDestinationId;
+        }
         if (selectedRouteType === 'Morning') return student.morningDestinationId;
         if (selectedRouteType === 'Afternoon') return student.afternoonDestinationId;
         if (selectedRouteType === 'AfterSchool') return student.afterSchoolDestinations?.[selectedDay] || null;
@@ -1026,13 +1030,9 @@ export default function TeacherPage() {
         <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
             <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-                <TabsList className={cn("grid w-full", selectedDay === 'Saturday' ? "grid-cols-1" : "grid-cols-3")}>
-                    {selectedDay !== 'Saturday' && (
-                        <>
-                            <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
-                            <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
-                        </>
-                    )}
+                <TabsList className={cn("grid w-full", "grid-cols-3")}>
+                    <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
+                    <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
                     <TabsTrigger value="AfterSchool" disabled={loading}>{t(`route_type.AfterSchool`)}</TabsTrigger>
                 </TabsList>
             </Tabs>
@@ -1079,9 +1079,14 @@ export default function TeacherPage() {
                     <p className="text-sm text-muted-foreground">
                         {t('destination')}: {destinations.find(d => {
                             let destId: string | null = null;
-                            if (selectedRouteType === 'Morning') destId = selectedStudent.morningDestinationId;
-                            else if (selectedRouteType === 'Afternoon') destId = selectedStudent.afternoonDestinationId;
-                            else if (selectedRouteType === 'AfterSchool') destId = selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
+                            if (selectedDay === 'Saturday') {
+                                if (selectedRouteType === 'Morning') destId = selectedStudent.satMorningDestinationId;
+                                else destId = selectedStudent.satAfternoonDestinationId;
+                            } else {
+                                if (selectedRouteType === 'Morning') destId = selectedStudent.morningDestinationId;
+                                else if (selectedRouteType === 'Afternoon') destId = selectedStudent.afternoonDestinationId;
+                                else if (selectedRouteType === 'AfterSchool') destId = selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
+                            }
                             return d.id === destId;
                         })?.name || t('unassigned')}
                     </p>

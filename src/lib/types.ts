@@ -5,11 +5,15 @@ export type Student = {
   morningDestinationId: string | null;
   afternoonDestinationId: string | null;
   afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>>;
+  satMorningDestinationId: string | null;
+  satAfternoonDestinationId: string | null;
   grade: string;
   class: string;
   gender: 'Male' | 'Female';
   suggestedMorningDestination?: string | null;
   suggestedAfternoonDestination?: string | null;
+  suggestedSatMorningDestination?: string | null;
+  suggestedSatAfternoonDestination?: string | null;
   suggestedAfterSchoolDestinations?: Partial<Record<DayOfWeek, string | null>>;
   applicationStatus?: 'pending' | 'reviewed';
   siblingGroupId?: string | null;

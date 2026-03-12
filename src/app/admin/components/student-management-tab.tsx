@@ -142,24 +142,32 @@ export const StudentManagementTab = ({
         const unassignables: (Student & { errorReason: string })[] = [];
 
         students.forEach(student => {
-            // 이미 배정된 학생은 제외
             if (allAssignedIds.has(student.id)) return;
 
             let destId: string | null = null;
             let errorKey = '';
 
-            if (selectedRouteType === 'Morning') {
-                destId = student.morningDestinationId;
-                errorKey = 'admin.student_management.unassignable.error_morning';
-            } else if (selectedRouteType === 'Afternoon') {
-                destId = student.afternoonDestinationId;
-                errorKey = 'admin.student_management.unassignable.error_afternoon';
-            } else if (selectedRouteType === 'AfterSchool') {
-                destId = student.afterSchoolDestinations?.[selectedDay] || null;
-                errorKey = 'admin.student_management.unassignable.error_after_school';
+            if (selectedDay === 'Saturday') {
+                if (selectedRouteType === 'Morning') {
+                    destId = student.satMorningDestinationId;
+                    errorKey = 'admin.student_management.unassignable.error_morning';
+                } else if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
+                    destId = student.satAfternoonDestinationId;
+                    errorKey = 'admin.student_management.unassignable.error_afternoon';
+                }
+            } else {
+                if (selectedRouteType === 'Morning') {
+                    destId = student.morningDestinationId;
+                    errorKey = 'admin.student_management.unassignable.error_morning';
+                } else if (selectedRouteType === 'Afternoon') {
+                    destId = student.afternoonDestinationId;
+                    errorKey = 'admin.student_management.unassignable.error_afternoon';
+                } else if (selectedRouteType === 'AfterSchool') {
+                    destId = student.afterSchoolDestinations?.[selectedDay] || null;
+                    errorKey = 'admin.student_management.unassignable.error_after_school';
+                }
             }
 
-            // 목적지가 설정되어 있는데, 현재 운영 중인 어떤 노선 정류장에도 포함되어 있지 않은 경우에만 표시
             if (destId && !validStopIds.has(destId)) {
                 const destName = destinations.find(d => d.id === destId)?.name || '알 수 없음';
                 const baseReason = errorKey === 'admin.student_management.unassignable.error_after_school' 
@@ -185,6 +193,7 @@ export const StudentManagementTab = ({
             const batch = writeBatch(db);
             let updatesMade = false;
             for (const day of days) {
+                if (day === 'Saturday') continue;
                 const afterSchoolStudentIds = new Set<string>();
                 routes.filter(r => r.dayOfWeek === day && r.type === 'AfterSchool').forEach(r => {
                     r.seating.forEach(seat => { if (seat.studentId) afterSchoolStudentIds.add(seat.studentId); });
@@ -211,19 +220,22 @@ export const StudentManagementTab = ({
         if (selectedDay === 'Friday' && selectedRouteType === 'AfterSchool') { setFilteredUnassignedStudents([]); return; }
         
         const getStudentDestId = (s: Student) => {
+            if (selectedDay === 'Saturday') {
+                if (selectedRouteType === 'Morning') return s.satMorningDestinationId;
+                if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') return s.satAfternoonDestinationId;
+                return null;
+            }
             if (selectedRouteType === 'Morning') return s.morningDestinationId;
             if (selectedRouteType === 'Afternoon') return s.afternoonDestinationId;
             if (selectedRouteType === 'AfterSchool') return s.afterSchoolDestinations?.[selectedDay] || null;
             return null;
         };
 
-        // 현재 요일/타입에 이미 배정된 모든 학생 ID (모든 버스 합산)
         const allAssignedIdsOnCurrentConfig = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
             r.seating.forEach(s => { if (s.studentId) allAssignedIdsOnCurrentConfig.add(s.studentId); });
         });
 
-        // 목적지가 설정된 학생들만 후보로 (신청하지 않은 학생은 미배정 목록에서 제외)
         const applicants = students.filter(s => !!getStudentDestId(s));
 
         let unassigned: Student[];
@@ -231,15 +243,13 @@ export const StudentManagementTab = ({
         if (unassignedView === 'current') {
             if (!currentRoute && selectedBusId !== 'all') { setFilteredUnassignedStudents([]); return; }
             
-            // 해당 요일에 방과후를 가는 학생들은 하교 명단에서 제외
             const afterSchoolIds = new Set<string>();
-            if (selectedRouteType === 'Afternoon') {
+            if (selectedDay !== 'Saturday' && selectedRouteType === 'Afternoon') {
                 routes.filter(r => r.dayOfWeek === selectedDay && r.type === 'AfterSchool').forEach(r => {
                     r.seating.forEach(s => { if (s.studentId) afterSchoolIds.add(s.studentId); });
                 });
             }
 
-            // '현재 노선' 뷰에서 필터링 대상 정류장 ID들
             const targetStopIds = new Set<string>();
             if (selectedBusId === 'all') {
                 routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
@@ -250,19 +260,14 @@ export const StudentManagementTab = ({
             }
 
             unassigned = applicants.filter(s => {
-                // 1. 이미 배정됨
                 if (allAssignedIdsOnCurrentConfig.has(s.id)) return false;
-                // 2. 목적지 오류 학생
                 if (unassignableStudents.some(u => u.id === s.id)) return false;
-                // 3. 하교 시간인데 방과후 신청함
-                if (selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) return false;
+                if (selectedDay !== 'Saturday' && selectedRouteType === 'Afternoon' && afterSchoolIds.has(s.id)) return false;
                 
-                // 4. 이 버스(들)의 정류장에 목적지가 포함되는지 확인
                 const destId = getStudentDestId(s);
                 return destId && targetStopIds.has(destId);
             });
         } else {
-            // 전체 뷰: 목적지가 설정되어 있고(신청자), 현재 설정(요일/타입)에서 어떤 버스에도 배정되지 않은 모든 학생
             unassigned = applicants.filter(s => !allAssignedIdsOnCurrentConfig.has(s.id));
         }
         
@@ -417,6 +422,8 @@ export const StudentManagementTab = ({
                 morningDestinationId: null,
                 afternoonDestinationId: null,
                 afterSchoolDestinations: {},
+                satMorningDestinationId: null,
+                satAfternoonDestinationId: null,
                 applicationStatus: 'reviewed'
             });
             setAddStudentDialogOpen(false);
@@ -431,18 +438,22 @@ export const StudentManagementTab = ({
         }
     };
 
-    // 랜덤 배정 로직 (쾌적함 고려 버전)
+    // 랜덤 배정 로직
     const randomizeSeating = useCallback(async () => {
         if (!selectedBus || !currentRoute) return;
         setPreviousSeating([...currentRoute.seating]);
 
         const getDest = (s: Student) => {
+            if (selectedDay === 'Saturday') {
+                if (selectedRouteType === 'Morning') return s.satMorningDestinationId;
+                if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') return s.satAfternoonDestinationId;
+                return null;
+            }
             if (selectedRouteType === 'Morning') return s.morningDestinationId;
             if (selectedRouteType === 'Afternoon') return s.afternoonDestinationId;
             return s.afterSchoolDestinations?.[selectedDay] || null;
         };
         
-        // 배정 가능 학생 필터링
         const alreadyAssignedOnOtherBuses = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType && r.id !== currentRoute.id).forEach(r => {
             r.seating.forEach(s => { if (s.studentId) alreadyAssignedOnOtherBuses.add(s.studentId); });
@@ -458,7 +469,6 @@ export const StudentManagementTab = ({
             return;
         }
 
-        // 1. 그룹화 (가족/개인)
         const siblingGroups: Record<string, Student[]> = {};
         const individualStudents: Student[] = [];
 
@@ -478,7 +488,6 @@ export const StudentManagementTab = ({
         });
         individualStudents.forEach(s => blocks.push([s]));
 
-        // 블록 정렬
         blocks.sort((a, b) => {
             const gA = Math.min(...a.map(s => getGradeValue(s.grade)));
             const gB = Math.min(...b.map(s => getGradeValue(s.grade)));
@@ -488,7 +497,6 @@ export const StudentManagementTab = ({
             return dA - dB;
         });
 
-        // 2. 쾌적함 기반 시트 오더 생성
         const capacity = selectedBus.capacity;
         const windowSeats: number[] = [];
         const aisleSeats: number[] = [];
@@ -497,7 +505,7 @@ export const StudentManagementTab = ({
             const rows = capacity === 45 ? 11 : 7;
             for (let r = 0; r < rows; r++) {
                 const base = r * 4;
-                if (r === rows - 1) { // 마지막 줄
+                if (r === rows - 1) {
                     if (capacity === 45) {
                         windowSeats.push(41, 45);
                         aisleSeats.push(42, 43, 44);
@@ -511,22 +519,17 @@ export const StudentManagementTab = ({
                 }
             }
         } else if (capacity === 16) {
-            // 16인승: 4~16번 우선 (운전석 쪽 1~3번 제외)
             for (let i = 4; i <= 16; i++) windowSeats.push(i);
             aisleSeats.push(1, 2, 3);
         }
 
-        // 3. 배정 전략 결정
-        // 학생 수가 전체 좌석의 절반 이하이면 최대한 창가만 채움
         const totalToAssign = blocks.flat().length;
         const useComfortStrategy = totalToAssign <= windowSeats.length;
 
         let seatOrder: number[] = [];
         if (useComfortStrategy) {
-            // 쾌적 모드: 창가 먼저 쫙 채우고, 넘치면 통로
             seatOrder = [...windowSeats, ...aisleSeats];
         } else {
-            // 밀집 모드: 기존처럼 줄 단위로 페어(창가+통로)를 채움 (가족 인접성 유리)
             if (capacity === 45 || capacity === 29) {
                 const rows = capacity === 45 ? 11 : 7;
                 for (let r = 0; r < rows; r++) {
@@ -543,7 +546,6 @@ export const StudentManagementTab = ({
             }
         }
 
-        // 4. 배정 실행
         let newSeating = generateInitialSeating(capacity);
         const flatStudents = blocks.flat();
         
@@ -563,9 +565,9 @@ export const StudentManagementTab = ({
     const handleUndoRandomize = useCallback(async () => { if (previousSeating) { await handleSeatUpdate(previousSeating); setPreviousSeating(null); } }, [previousSeating, handleSeatUpdate]);
 
     const handleDownloadStudentTemplate = () => {
-        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)"];
+        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "토요 등교", "토요 하교", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)"];
         const rows = [
-            ["Kim-Chulsu", "G1", "C1", "Male", "01012345678", "Gangnam-yeok", "Gangnam-yeok", "Gangnam-yeok", "", "Seocho-yeok", "", "Gangnam-yeok"]
+            ["Kim-Chulsu", "G1", "C1", "Male", "01012345678", "Gangnam-yeok", "Gangnam-yeok", "Gangnam-yeok", "Seocho-yeok", "Gangnam-yeok", "", "Seocho-yeok", ""]
         ];
         const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -582,7 +584,7 @@ export const StudentManagementTab = ({
             toast({ title: t('notice'), description: "다운로드할 학생 데이터가 없습니다." });
             return;
         }
-        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "방과후(토)", "형제/자매"];
+        const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "토요 등교", "토요 하교", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)", "형제/자매"];
         const rows = students.map(s => {
             const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
             return [
@@ -593,11 +595,12 @@ export const StudentManagementTab = ({
                 escape(s.contact || ""),
                 escape(destinations.find(d => d.id === s.morningDestinationId)?.name || ""),
                 escape(destinations.find(d => d.id === s.afternoonDestinationId)?.name || ""),
+                escape(destinations.find(d => d.id === s.satMorningDestinationId)?.name || ""),
+                escape(destinations.find(d => d.id === s.satAfternoonDestinationId)?.name || ""),
                 escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Monday'])?.name || ""),
                 escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Tuesday'])?.name || ""),
                 escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Wednesday'])?.name || ""),
                 escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Thursday'])?.name || ""),
-                escape(destinations.find(d => d.id === s.afterSchoolDestinations?.['Saturday'])?.name || ""),
                 escape(s.siblingGroupId ? "O" : "")
             ];
         });
@@ -620,9 +623,14 @@ export const StudentManagementTab = ({
         const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "목적지", "형제/자매"];
         const rows = filteredUnassignedStudents.map(s => {
             let destId = null;
-            if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
-            else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
-            else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
+            if (selectedDay === 'Saturday') {
+                if (selectedRouteType === 'Morning') destId = s.satMorningDestinationId;
+                else destId = s.satAfternoonDestinationId;
+            } else {
+                if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
+                else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
+                else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
+            }
             
             const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
             return [
@@ -670,11 +678,13 @@ export const StudentManagementTab = ({
                     const morningDestKey = normalizeString(row['등교 목적지'] || row['Morning Destination'] || '');
                     const afternoonDestKey = normalizeString(row['하교 목적지'] || row['Afternoon Destination'] || '');
                     
+                    const satMorningDestKey = normalizeString(row['토요 등교'] || '');
+                    const satAfternoonDestKey = normalizeString(row['토요 하교'] || '');
+
                     const afterMonKey = normalizeString(row['방과후(월)'] || '');
                     const afterTueKey = normalizeString(row['방과후(화)'] || '');
                     const afterWedKey = normalizeString(row['방과후(수)'] || '');
                     const afterThuKey = normalizeString(row['방과후(목)'] || '');
-                    const afterSatKey = normalizeString(row['방과후(토)'] || '');
 
                     if (name && grade && studentClass) {
                         const studentUpdate: any = { name, grade, class: studentClass };
@@ -684,6 +694,9 @@ export const StudentManagementTab = ({
                         
                         if (morningDestKey) studentUpdate.morningDestinationId = destMap[morningDestKey] || null;
                         if (afternoonDestKey) studentUpdate.afternoonDestinationId = destMap[afternoonDestKey] || null;
+                        
+                        if (satMorningDestKey) studentUpdate.satMorningDestinationId = destMap[satMorningDestKey] || null;
+                        if (satAfternoonDestKey) studentUpdate.satAfternoonDestinationId = destMap[satAfternoonDestKey] || null;
 
                         const afterSchoolDestinations: Partial<Record<DayOfWeek, string | null>> = {};
                         let hasAfterSchoolInCsv = false;
@@ -691,7 +704,6 @@ export const StudentManagementTab = ({
                         if (afterTueKey) { afterSchoolDestinations['Tuesday'] = destMap[afterTueKey] || null; hasAfterSchoolInCsv = true; }
                         if (afterWedKey) { afterSchoolDestinations['Wednesday'] = destMap[afterWedKey] || null; hasAfterSchoolInCsv = true; }
                         if (afterThuKey) { afterSchoolDestinations['Thursday'] = destMap[afterThuKey] || null; hasAfterSchoolInCsv = true; }
-                        if (afterSatKey) { afterSchoolDestinations['Saturday'] = destMap[afterSatKey] || null; hasAfterSchoolInCsv = true; }
                         
                         if (hasAfterSchoolInCsv) studentUpdate.afterSchoolDestinations = afterSchoolDestinations;
 
@@ -729,6 +741,8 @@ export const StudentManagementTab = ({
         let up: any = { applicationStatus: 'pending' };
         if (type === 'morning') up.morningDestinationId = val;
         else if (type === 'afternoon') up.afternoonDestinationId = val;
+        else if (type === 'satMorning') up.satMorningDestinationId = val;
+        else if (type === 'satAfternoon') up.satAfternoonDestinationId = val;
         else if (type === 'afterSchool' && day) up.afterSchoolDestinations = { ...(s.afterSchoolDestinations || {}), [day]: val };
         await updateStudent(sid, up);
         if (selectedGlobalStudent?.id === sid) setSelectedGlobalStudent({ ...s, ...up });

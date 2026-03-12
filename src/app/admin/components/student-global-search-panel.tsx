@@ -36,7 +36,7 @@ interface StudentGlobalSearchPanelProps {
     handleUnassignAllFromStudent: () => void;
     handleAssignStudentFromSearch: () => void;
     handleStudentInfoChange: (id: string, field: 'name'|'gender'|'contact', val: string) => void;
-    handleDestinationChange: (id: string, val: string|null, type: 'morning'|'afternoon'|'afterSchool', day?: DayOfWeek) => void;
+    handleDestinationChange: (id: string, val: string|null, type: 'morning'|'afternoon'|'afterSchool'|'satMorning'|'satAfternoon', day?: DayOfWeek) => void;
     handleUnassignStudentFromRoute: (routeId: string, studentId: string) => void;
     assignedRoutesForSelectedStudent: Route[];
 }
@@ -89,7 +89,6 @@ export const StudentGlobalSearchPanel = ({
 
     const handleRemoveSibling = async (siblingId: string) => {
         await updateStudent(siblingId, { siblingGroupId: null });
-        // If no more siblings in group, optionally clear selected student's group ID too
         if (currentSiblings.length === 1) {
              await updateStudent(selectedGlobalStudent!.id, { siblingGroupId: null });
              setSelectedGlobalStudent(prev => prev ? { ...prev, siblingGroupId: null } : null);
@@ -308,10 +307,41 @@ export const StudentGlobalSearchPanel = ({
                             </Select>
                         </div>
                         
+                        <Separator className="my-2" />
+
+                        <div className="space-y-2">
+                            <Label className="text-xs">{t('student.sat_morning_destination')}</Label>
+                            <Select 
+                                value={selectedGlobalStudent.satMorningDestinationId || '_NONE_'} 
+                                onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'satMorning')}
+                            >
+                                <SelectTrigger><SelectValue placeholder={t('no_destination')} /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value='_NONE_'>{t('no_selection')}</SelectItem>
+                                    {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs">{t('student.sat_afternoon_destination')}</Label>
+                            <Select 
+                                value={selectedGlobalStudent.satAfternoonDestinationId || '_NONE_'} 
+                                onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'satAfternoon')}
+                            >
+                                <SelectTrigger><SelectValue placeholder={t('no_destination')} /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value='_NONE_'>{t('no_selection')}</SelectItem>
+                                    {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <Separator className="my-2" />
+
                         <div className="space-y-3">
                             <Label className="text-xs">{t('student.after_school_destination')}</Label>
                             <div className="grid grid-cols-2 gap-2">
-                                {dayOrder.map(day => (
+                                {dayOrder.filter(d => d !== 'Saturday').map(day => (
                                     <div key={day} className="space-y-1">
                                         <Label className="text-[10px] text-muted-foreground">{t(`day_short.${day.toLowerCase()}`)}</Label>
                                         <Select 

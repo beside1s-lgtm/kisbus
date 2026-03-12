@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -23,7 +22,6 @@ import { useTranslation } from '@/hooks/use-translation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
 
-// 분리한 컴포넌트 임포트
 import { BusRegistrationTab } from './components/bus-registration-tab';
 import { TeacherManagementTab } from './components/teacher-management-tab';
 import { BusConfigurationTab } from './components/bus-configuration-tab';
@@ -78,18 +76,14 @@ const AdminPageContent: React.FC<{
     useEffect(() => {
         setIsClient(true);
         
-        // Initialize day and route type based on specific time rules (Vietnam UTC+7)
         const now = new Date();
         const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
         const h = vTime.getHours();
-        const d = vTime.getDay(); // 0:Sun, 1:Mon... 6:Sat
+        const d = vTime.getDay();
 
         let tDate = new Date(vTime);
         let tType: RouteType = 'Morning';
 
-        // User Rules:
-        // Weekdays: 9-16 Afternoon, 16-19 AfterSchool, 19-NextDay 9 Morning
-        // Saturday: 11-14 AfterSchool, 14-Next (Mon) Morning
         if (d >= 1 && d <= 5) {
             if (h < 9) tType = 'Morning';
             else if (h < 16) tType = 'Afternoon';
@@ -99,8 +93,8 @@ const AdminPageContent: React.FC<{
                 tType = 'Morning';
             }
         } else if (d === 6) {
-            if (h >= 11 && h < 14) tType = 'AfterSchool';
-            else if (h < 11) tType = 'AfterSchool';
+            if (h < 11) tType = 'Morning';
+            else if (h < 14) tType = 'Afternoon';
             else {
                 tDate.setDate(tDate.getDate() + 2);
                 tType = 'Morning';
@@ -113,13 +107,6 @@ const AdminPageContent: React.FC<{
         setSelectedDay(DAYS[(tDate.getDay() + 6) % 7]);
         setSelectedRouteType(tType);
     }, []);
-
-    // Force AfterSchool on Saturday if route type is manually changed or day is changed
-    useEffect(() => {
-        if (selectedDay === 'Saturday' && selectedRouteType !== 'AfterSchool') {
-            setSelectedRouteType('AfterSchool');
-        }
-    }, [selectedDay, selectedRouteType]);
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
@@ -183,6 +170,8 @@ const AdminPageContent: React.FC<{
                                             <div className="text-xs text-muted-foreground mt-1 space-y-1">
                                                 <p>등교: {getDestinationName(student.morningDestinationId) || <span className="font-bold text-amber-600">{student.suggestedMorningDestination} (신규 요청)</span> || "변경 없음"}</p>
                                                 <p>하교: {getDestinationName(student.afternoonDestinationId) || <span className="font-bold text-amber-600">{student.suggestedAfternoonDestination} (신규 요청)</span> || "변경 없음"}</p>
+                                                <p>토요 등교: {getDestinationName(student.satMorningDestinationId) || <span className="font-bold text-amber-600">{student.suggestedSatMorningDestination} (신규 요청)</span> || "변경 없음"}</p>
+                                                <p>토요 하교: {getDestinationName(student.satAfternoonDestinationId) || <span className="font-bold text-amber-600">{student.suggestedSatAfternoonDestination} (신규 요청)</span> || "변경 없음"}</p>
                                                 <p>방과후: {Object.entries(student.afterSchoolDestinations || {}).filter(([, destId]) => destId).map(([day, destId]) => `${t(`day_short.${day.toLowerCase()}`)}: ${getDestinationName(destId)}`).join(', ') || "변경 없음"}</p>
                                             </div>
                                         </div>
