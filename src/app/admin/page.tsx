@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -23,6 +22,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 import { BusRegistrationTab } from './components/bus-registration-tab';
 import { TeacherManagementTab } from './components/teacher-management-tab';
