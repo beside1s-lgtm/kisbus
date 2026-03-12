@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -305,6 +306,8 @@
     "admin.student_management.search.unassign_error": "배정 해제 중 오류가 발생했습니다.",
     "admin.student_management.search.assigned_routes": "배정된 노선",
     "admin.student_management.search.no_assigned_routes": "배정된 노선이 없습니다.",
+    "admin.student_management.search.approve_suggestion": "승인 및 등록",
+    "admin.student_management.search.suggested_label": "신청",
     "apply.base_info.title": "학생 기본 정보",
     "apply.base_info.description": "먼저 학생의 정보를 입력해주세요. 이 정보는 등하교 및 토요 방과후 버스 신청에 공통으로 사용됩니다.",
     "apply.commute.title": "평일 등하교 버스",

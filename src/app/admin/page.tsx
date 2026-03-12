@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -21,6 +22,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useTranslation } from '@/hooks/use-translation';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 
 import { BusRegistrationTab } from './components/bus-registration-tab';
 import { TeacherManagementTab } from './components/teacher-management-tab';
@@ -142,6 +144,13 @@ const AdminPageContent: React.FC<{
         if (!destId) return null;
         return destinations.find(d => d.id === destId)?.name || null;
     }
+
+    const hasNewSuggestion = (student: Student) => {
+        return student.suggestedMorningDestination || 
+               student.suggestedAfternoonDestination || 
+               student.suggestedSatMorningDestination || 
+               student.suggestedSatAfternoonDestination;
+    };
     
     return (
         <>
@@ -152,7 +161,10 @@ const AdminPageContent: React.FC<{
                         <div className="flex justify-between items-center w-full">
                             <CollapsibleTrigger asChild>
                                 <div className="flex items-center cursor-pointer">
-                                    <AlertTitle>{t('admin.new_applications.title')}</AlertTitle>
+                                    <AlertTitle className="flex items-center gap-2">
+                                        {t('admin.new_applications.title')}
+                                        <Badge variant="destructive" className="animate-pulse">NEW</Badge>
+                                    </AlertTitle>
                                     <AlertDescription className="ml-2">({t('admin.new_applications.description', {count: pendingStudents.length})})</AlertDescription>
                                     <ChevronDown className="h-4 w-4 ml-1 transition-transform [&[data-state=open]]:rotate-180" />
                                 </div>
@@ -163,15 +175,18 @@ const AdminPageContent: React.FC<{
                         </div>
                          <CollapsibleContent className="mt-4 space-y-2">
                              {pendingStudents.map(student => (
-                                <Card key={student.id} className="p-3">
+                                <Card key={student.id} className={cn("p-3 border-l-4", hasNewSuggestion(student) ? "border-l-amber-500 bg-amber-50/30" : "border-l-primary")}>
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <p className="font-semibold">{student.name} ({student.grade} {student.class})</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-semibold">{student.name} ({student.grade} {student.class})</p>
+                                                {hasNewSuggestion(student) && <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-700 bg-amber-50">신규 목적지 포함</Badge>}
+                                            </div>
                                             <div className="text-xs text-muted-foreground mt-1 space-y-1">
-                                                <p>등교: {getDestinationName(student.morningDestinationId) || <span className="font-bold text-amber-600">{student.suggestedMorningDestination} (신규 요청)</span> || "변경 없음"}</p>
-                                                <p>하교: {getDestinationName(student.afternoonDestinationId) || <span className="font-bold text-amber-600">{student.suggestedAfternoonDestination} (신규 요청)</span> || "변경 없음"}</p>
-                                                <p>토요 등교: {getDestinationName(student.satMorningDestinationId) || <span className="font-bold text-amber-600">{student.suggestedSatMorningDestination} (신규 요청)</span> || "변경 없음"}</p>
-                                                <p>토요 하교: {getDestinationName(student.satAfternoonDestinationId) || <span className="font-bold text-amber-600">{student.suggestedSatAfternoonDestination} (신규 요청)</span> || "변경 없음"}</p>
+                                                <p>등교: {getDestinationName(student.morningDestinationId) || (student.suggestedMorningDestination ? <span className="font-bold text-amber-600">{student.suggestedMorningDestination} (신규 요청)</span> : "변경 없음")}</p>
+                                                <p>하교: {getDestinationName(student.afternoonDestinationId) || (student.suggestedAfternoonDestination ? <span className="font-bold text-amber-600">{student.suggestedAfternoonDestination} (신규 요청)</span> : "변경 없음")}</p>
+                                                <p>토요 등교: {getDestinationName(student.satMorningDestinationId) || (student.suggestedSatMorningDestination ? <span className="font-bold text-amber-600">{student.suggestedSatMorningDestination} (신규 요청)</span> : "변경 없음")}</p>
+                                                <p>토요 하교: {getDestinationName(student.satAfternoonDestinationId) || (student.suggestedSatAfternoonDestination ? <span className="font-bold text-amber-600">{student.suggestedSatAfternoonDestination} (신규 요청)</span> : "변경 없음")}</p>
                                                 <p>방과후: {Object.entries(student.afterSchoolDestinations || {}).filter(([, destId]) => destId).map(([day, destId]) => `${t(`day_short.${day.toLowerCase()}`)}: ${getDestinationName(destId)}`).join(', ') || "변경 없음"}</p>
                                             </div>
                                         </div>

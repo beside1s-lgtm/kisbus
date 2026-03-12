@@ -1,7 +1,8 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Download, Upload, Trash2, UserX, Users, UserPlus, X, Pencil, Check } from 'lucide-react';
+import { Search, Download, Upload, Trash2, UserX, Users, UserPlus, X, Pencil, Check, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,8 @@ import type { Student, Destination, Bus, Route, DayOfWeek, RouteType } from '@/l
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { cn, normalizeString } from '@/lib/utils';
-import { updateStudent } from '@/lib/firebase-data';
+import { updateStudent, addDestination } from '@/lib/firebase-data';
+import { useToast } from '@/hooks/use-toast';
 
 interface StudentGlobalSearchPanelProps {
     students: Student[];
@@ -50,6 +52,7 @@ export const StudentGlobalSearchPanel = ({
     assignedRoutesForSelectedStudent
 }: StudentGlobalSearchPanelProps) => {
     const { t } = useTranslation();
+    const { toast } = useToast();
     const [siblingSearchQuery, setSiblingSearchQuery] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
 
@@ -100,6 +103,43 @@ export const StudentGlobalSearchPanel = ({
             handleStudentInfoChange(selectedGlobalStudent.id, 'name', selectedGlobalStudent.name);
         }
         setIsEditingName(!isEditingName);
+    };
+
+    const handleApproveStudentDestination = async (studentId: string, suggestion: string, type: 'morning' | 'afternoon' | 'satMorning' | 'satAfternoon') => {
+        try {
+            // 1. 등록 (이미 있는지 확인하고 등록)
+            const newDest = await addDestination({ name: suggestion });
+            
+            // 2. 학생에게 배정 및 제안 필드 초기화
+            const updates: any = {};
+            if (type === 'morning') {
+                updates.morningDestinationId = newDest.id;
+                updates.suggestedMorningDestination = null;
+            } else if (type === 'afternoon') {
+                updates.afternoonDestinationId = newDest.id;
+                updates.suggestedAfternoonDestination = null;
+            } else if (type === 'satMorning') {
+                updates.satMorningDestinationId = newDest.id;
+                updates.suggestedSatMorningDestination = null;
+            } else if (type === 'satAfternoon') {
+                updates.satAfternoonDestinationId = newDest.id;
+                updates.suggestedSatAfternoonDestination = null;
+            }
+            
+            await updateStudent(studentId, updates);
+            
+            toast({ 
+                title: t('success'), 
+                description: `'${suggestion}'이(가) 정식 목적지로 등록되고 학생에게 배정되었습니다.` 
+            });
+
+            // UI 업데이트
+            if (selectedGlobalStudent?.id === studentId) {
+                setSelectedGlobalStudent(prev => prev ? { ...prev, ...updates } : null);
+            }
+        } catch (error) {
+            toast({ title: t('error'), description: "승인 처리 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
     };
 
     return (
@@ -282,6 +322,22 @@ export const StudentGlobalSearchPanel = ({
 
                         <div className="space-y-2">
                             <Label className="text-xs">{t('student.morning_destination')}</Label>
+                            {selectedGlobalStudent.suggestedMorningDestination && (
+                                <div className="flex items-center justify-between p-2 bg-amber-50 border border-amber-200 rounded-md mb-1 animate-in fade-in slide-in-from-left-1">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-amber-600 font-bold uppercase">{t('admin.student_management.search.suggested_label')}</span>
+                                        <span className="text-xs font-semibold text-amber-900">{selectedGlobalStudent.suggestedMorningDestination}</span>
+                                    </div>
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
+                                        onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedMorningDestination!, 'morning')}
+                                    >
+                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
+                                    </Button>
+                                </div>
+                            )}
                             <Select 
                                 value={selectedGlobalStudent.morningDestinationId || '_NONE_'} 
                                 onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'morning')}
@@ -295,6 +351,22 @@ export const StudentGlobalSearchPanel = ({
                         </div>
                         <div className="space-y-2">
                             <Label className="text-xs">{t('student.afternoon_destination')}</Label>
+                            {selectedGlobalStudent.suggestedAfternoonDestination && (
+                                <div className="flex items-center justify-between p-2 bg-amber-50 border border-amber-200 rounded-md mb-1 animate-in fade-in slide-in-from-left-1">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-amber-600 font-bold uppercase">{t('admin.student_management.search.suggested_label')}</span>
+                                        <span className="text-xs font-semibold text-amber-900">{selectedGlobalStudent.suggestedAfternoonDestination}</span>
+                                    </div>
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
+                                        onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedAfternoonDestination!, 'afternoon')}
+                                    >
+                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
+                                    </Button>
+                                </div>
+                            )}
                             <Select 
                                 value={selectedGlobalStudent.afternoonDestinationId || '_NONE_'} 
                                 onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'afternoon')}
@@ -311,6 +383,22 @@ export const StudentGlobalSearchPanel = ({
 
                         <div className="space-y-2">
                             <Label className="text-xs">{t('student.sat_morning_destination')}</Label>
+                            {selectedGlobalStudent.suggestedSatMorningDestination && (
+                                <div className="flex items-center justify-between p-2 bg-amber-50 border border-amber-200 rounded-md mb-1 animate-in fade-in slide-in-from-left-1">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-amber-600 font-bold uppercase">{t('admin.student_management.search.suggested_label')}</span>
+                                        <span className="text-xs font-semibold text-amber-900">{selectedGlobalStudent.suggestedSatMorningDestination}</span>
+                                    </div>
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
+                                        onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedSatMorningDestination!, 'satMorning')}
+                                    >
+                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
+                                    </Button>
+                                </div>
+                            )}
                             <Select 
                                 value={selectedGlobalStudent.satMorningDestinationId || '_NONE_'} 
                                 onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'satMorning')}
@@ -324,6 +412,22 @@ export const StudentGlobalSearchPanel = ({
                         </div>
                         <div className="space-y-2">
                             <Label className="text-xs">{t('student.sat_afternoon_destination')}</Label>
+                            {selectedGlobalStudent.suggestedSatAfternoonDestination && (
+                                <div className="flex items-center justify-between p-2 bg-amber-50 border border-amber-200 rounded-md mb-1 animate-in fade-in slide-in-from-left-1">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-amber-600 font-bold uppercase">{t('admin.student_management.search.suggested_label')}</span>
+                                        <span className="text-xs font-semibold text-amber-900">{selectedGlobalStudent.suggestedSatAfternoonDestination}</span>
+                                    </div>
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
+                                        onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedSatAfternoonDestination!, 'satAfternoon')}
+                                    >
+                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
+                                    </Button>
+                                </div>
+                            )}
                             <Select 
                                 value={selectedGlobalStudent.satAfternoonDestinationId || '_NONE_'} 
                                 onValueChange={(v) => handleDestinationChange(selectedGlobalStudent.id, v, 'satAfternoon')}
