@@ -66,26 +66,34 @@ const ClassListDownloadDialog = ({
     allRoutes,
     buses,
     destinations,
-    selectedDay,
-    selectedRouteType,
     t
 }: {
     students: Student[];
     allRoutes: Route[];
     buses: Bus[];
     destinations: Destination[];
-    selectedDay: DayOfWeek;
-    selectedRouteType: RouteType;
     t: any;
 }) => {
     const [grade, setGrade] = useState('');
     const [studentClass, setStudentClass] = useState('');
+    const [category, setCategory] = useState<'commute' | 'afterschool' | 'saturday'>('commute');
     const { toast } = useToast();
 
     const handleDownload = () => {
         if (!grade || !studentClass) {
             toast({ title: t('error'), description: "학년과 반을 모두 입력해주세요.", variant: 'destructive' });
             return;
+        }
+
+        // Determine target day and route type for base data matching
+        let effectiveDay: DayOfWeek = 'Monday';
+        let effectiveType: RouteType = 'Afternoon';
+        
+        if (category === 'afterschool') {
+            effectiveType = 'AfterSchool';
+        } else if (category === 'saturday') {
+            effectiveDay = 'Saturday';
+            effectiveType = 'AfterSchool';
         }
 
         const filteredStudents = students.filter(s => 
@@ -98,12 +106,13 @@ const ClassListDownloadDialog = ({
             return;
         }
 
-        const isSaturday = selectedDay === 'Saturday';
+        const isSaturday = category === 'saturday';
         
+        // Find students assigned to the effective route
         const assignedStudentsData = filteredStudents.map(student => {
             const route = allRoutes.find(r => 
-                r.dayOfWeek === selectedDay && 
-                r.type === selectedRouteType && 
+                r.dayOfWeek === effectiveDay && 
+                r.type === effectiveType && 
                 r.seating.some(seat => seat.studentId === student.id)
             );
             const bus = route ? buses.find(b => b.id === route.busId) : null;
@@ -111,22 +120,19 @@ const ClassListDownloadDialog = ({
         }).filter(item => item.bus !== null);
 
         if (assignedStudentsData.length === 0) {
-            toast({ title: t('notice'), description: "해당 학급에 배정된 학생이 없습니다." });
+            toast({ title: t('notice'), description: "해당 조건에 배정된 학생이 없습니다." });
             return;
         }
 
+        // Sort: Bus number, then Name
         assignedStudentsData.sort((a, b) => {
             const nameA = a.bus!.name;
             const nameB = b.bus!.name;
             const numA = parseInt(nameA.replace(/\D/g, ''), 10);
             const numB = parseInt(nameB.replace(/\D/g, ''), 10);
-            
-            if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
-                return numA - numB;
-            }
+            if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
             const busCompare = nameA.localeCompare(nameB);
             if (busCompare !== 0) return busCompare;
-
             return a.student.name.localeCompare(b.student.name, 'ko');
         });
 
@@ -135,17 +141,15 @@ const ClassListDownloadDialog = ({
             headers.push(t('day_short.monday'), t('day_short.tuesday'), t('day_short.wednesday'), t('day_short.thursday'), t('day_short.friday'));
         }
 
-        const rows = assignedStudentsData.map(({ student, bus, route }) => {
+        const rows = assignedStudentsData.map(({ student, bus }) => {
             const busName = bus!.name;
             
             let destId: string | null = null;
             if (isSaturday) {
-                if (selectedRouteType === 'Morning') destId = student.satMorningDestinationId;
-                else destId = student.satAfternoonDestinationId;
+                destId = student.satAfternoonDestinationId;
             } else {
-                if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
-                else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
-                else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[selectedDay] || null;
+                if (category === 'commute') destId = student.afternoonDestinationId;
+                else destId = student.afterSchoolDestinations?.[effectiveDay] || null;
             }
             const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
 
@@ -163,7 +167,7 @@ const ClassListDownloadDialog = ({
                 weekdays.forEach(day => {
                     const isAssignedOnDay = allRoutes.some(r => 
                         r.dayOfWeek === day && 
-                        r.type === selectedRouteType && 
+                        r.type === effectiveType && 
                         r.seating.some(seat => seat.studentId === student.id)
                     );
                     studentRow.push(isAssignedOnDay ? 'O' : 'X');
@@ -178,9 +182,13 @@ const ClassListDownloadDialog = ({
         const url = URL.createObjectURL(blob);
         const link = document.body.appendChild(document.createElement("a"));
         
-        const typeStr = selectedRouteType === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${selectedRouteType.toLowerCase()}`);
+        const categoryLabels = {
+            'commute': '등하교',
+            'afterschool': '평일방과후',
+            'saturday': '주말방과후'
+        };
         const prefix = isSaturday ? "KIS_KoreanSchool" : "KIS_Class";
-        const fileName = `${prefix}_Bus_List_${grade}_${studentClass}_${typeStr}_${format(new Date(), 'yyyyMMdd')}.csv`;
+        const fileName = `${prefix}_Bus_List_${grade}_${studentClass}_${categoryLabels[category]}_${format(new Date(), 'yyyyMMdd')}.csv`;
         
         link.setAttribute("href", url);
         link.setAttribute("download", fileName);
@@ -193,29 +201,30 @@ const ClassListDownloadDialog = ({
     return (
         <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-                <DialogTitle>
-                    {selectedDay === 'Saturday' 
-                        ? (selectedRouteType === 'AfterSchool' ? "토요 방과후 학급 명단" : "토요 한글학교 학급 명단")
-                        : t('teacher_page.download_class_list_dialog.title')}
-                </DialogTitle>
-                <CardDescription>
-                    {selectedDay === 'Saturday' 
-                        ? "토요한글학교 학년과 반을 입력하여 해당 학생들의 버스 정보를 다운로드합니다." 
-                        : t('teacher_page.download_class_list_dialog.description')}
-                </CardDescription>
+                <DialogTitle>{t('teacher_page.download_class_list_dialog.title')}</DialogTitle>
+                <CardDescription>{t('teacher_page.download_class_list_dialog.description')}</CardDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="grade" className="text-right">
-                        {t('teacher_page.download_class_list_dialog.grade_label')}
-                    </Label>
+                    <Label htmlFor="grade" className="text-right">{t('teacher_page.download_class_list_dialog.grade_label')}</Label>
                     <Input id="grade" value={grade} onChange={e => setGrade(e.target.value)} className="col-span-3" placeholder="예: G1" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="class" className="text-right">
-                        {t('teacher_page.download_class_list_dialog.class_label')}
-                    </Label>
+                    <Label htmlFor="class" className="text-right">{t('teacher_page.download_class_list_dialog.class_label')}</Label>
                     <Input id="class" value={studentClass} onChange={e => setStudentClass(e.target.value)} className="col-span-3" placeholder="예: C1" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="category" className="text-right">노선</Label>
+                    <Select value={category} onValueChange={(v: any) => setCategory(v)}>
+                        <SelectTrigger className="col-span-3">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="commute">등하교 (평일)</SelectItem>
+                            <SelectItem value="afterschool">방과후 (평일)</SelectItem>
+                            <SelectItem value="saturday">방과후 (주말)</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
             <DialogFooter>
@@ -1323,8 +1332,6 @@ export default function TeacherPage() {
                         allRoutes={allRoutes}
                         buses={buses}
                         destinations={destinations}
-                        selectedDay={selectedDay}
-                        selectedRouteType={selectedRouteType}
                         t={t}
                     />
                 </Dialog>
