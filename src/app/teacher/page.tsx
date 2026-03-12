@@ -43,15 +43,15 @@ const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday
 const getGradeValue = (grade: string): number => {
   const upperGrade = grade.toUpperCase();
   if (upperGrade.startsWith('K')) {
-      const num = parseInt(upperGrade.replace('K', ''));
+      const num = parseInt(upperGrade.replace('K', ''), 10);
       return isNaN(num) ? 0 : -100 + num;
   }
-  const num = parseInt(upperGrade.replace(/\D/g, ''));
+  const num = parseInt(upperGrade.replace(/\D/g, ''), 10);
   return isNaN(num) ? 999 : num;
 };
 
 const sortBuses = (buses: Bus[]): Bus[] => {
-  return buses.sort((a, b) => {
+  return [...buses].sort((a, b) => {
     const numA = parseInt(a.name.replace(/\D/g, ''), 10);
     const numB = parseInt(b.name.replace(/\D/g, ''), 10);
     if (!isNaN(numA) && !isNaN(numB)) {
@@ -100,21 +100,46 @@ const ClassListDownloadDialog = ({
 
         const isSaturday = selectedDay === 'Saturday';
         
-        // CSV Headers
-        const headers = ["이름", "학년", "반", "버스", "목적지"];
-        if (!isSaturday) {
-            headers.push(t('day_short.monday'), t('day_short.tuesday'), t('day_short.wednesday'), t('day_short.thursday'), t('day_short.friday'));
-        }
-
-        const rows = filteredStudents.map(student => {
-            // Find current bus/dest for the selected time
+        // 1. Filter only assigned students and sort them
+        const assignedStudentsData = filteredStudents.map(student => {
             const route = allRoutes.find(r => 
                 r.dayOfWeek === selectedDay && 
                 r.type === selectedRouteType && 
                 r.seating.some(seat => seat.studentId === student.id)
             );
             const bus = route ? buses.find(b => b.id === route.busId) : null;
-            const busName = bus ? bus.name : t('unassigned');
+            return { student, bus, route };
+        }).filter(item => item.bus !== null); // 미배정 학생 제외
+
+        if (assignedStudentsData.length === 0) {
+            toast({ title: t('notice'), description: "해당 학급에 배정된 학생이 없습니다." });
+            return;
+        }
+
+        // 2. Sort by Bus Number then Student Name
+        assignedStudentsData.sort((a, b) => {
+            const nameA = a.bus!.name;
+            const nameB = b.bus!.name;
+            const numA = parseInt(nameA.replace(/\D/g, ''), 10);
+            const numB = parseInt(nameB.replace(/\D/g, ''), 10);
+            
+            if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+                return numA - numB;
+            }
+            const busCompare = nameA.localeCompare(nameB);
+            if (busCompare !== 0) return busCompare;
+
+            return a.student.name.localeCompare(b.student.name, 'ko');
+        });
+
+        // 3. Generate CSV
+        const headers = ["이름", "학년", "반", "버스", "목적지"];
+        if (!isSaturday) {
+            headers.push(t('day_short.monday'), t('day_short.tuesday'), t('day_short.wednesday'), t('day_short.thursday'), t('day_short.friday'));
+        }
+
+        const rows = assignedStudentsData.map(({ student, bus, route }) => {
+            const busName = bus!.name;
             
             let destId: string | null = null;
             if (isSaturday) {
@@ -1660,7 +1685,7 @@ export default function TeacherPage() {
                             <CardContent>
                                 {sidePanel}
                             </CardContent>
-                        </div>
+                        </Card>
                     </div>
                 </div>
             </div>
