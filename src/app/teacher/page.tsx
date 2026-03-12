@@ -20,7 +20,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2, Users, Trash2 } from 'lucide-react';
+import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2, Users, Trash2, Download } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -35,7 +35,7 @@ import { LostAndFound } from './components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -59,6 +59,116 @@ const sortBuses = (buses: Bus[]): Bus[] => {
     }
     return a.name.localeCompare(b.name);
   });
+};
+
+const ClassListDownloadDialog = ({
+    students,
+    allRoutes,
+    buses,
+    destinations,
+    selectedDay,
+    selectedRouteType,
+    t
+}: {
+    students: Student[];
+    allRoutes: Route[];
+    buses: Bus[];
+    destinations: Destination[];
+    selectedDay: DayOfWeek;
+    selectedRouteType: RouteType;
+    t: any;
+}) => {
+    const [grade, setGrade] = useState('');
+    const [studentClass, setStudentClass] = useState('');
+    const { toast } = useToast();
+
+    const handleDownload = () => {
+        if (!grade || !studentClass) {
+            toast({ title: t('error'), description: "학년과 반을 모두 입력해주세요.", variant: 'destructive' });
+            return;
+        }
+
+        const filteredStudents = students.filter(s => 
+            s.grade.toLowerCase() === grade.trim().toLowerCase() && 
+            s.class.toLowerCase() === studentClass.trim().toLowerCase()
+        );
+
+        if (filteredStudents.length === 0) {
+            toast({ title: t('notice'), description: "해당 학년/반의 학생을 찾을 수 없습니다." });
+            return;
+        }
+
+        const headers = ["이름", "학년", "반", "버스", "목적지"];
+        const rows = filteredStudents.map(student => {
+            const route = allRoutes.find(r => 
+                r.dayOfWeek === selectedDay && 
+                r.type === selectedRouteType && 
+                r.seating.some(seat => seat.studentId === student.id)
+            );
+            const bus = route ? buses.find(b => b.id === route.busId) : null;
+            const busName = bus ? bus.name : t('unassigned');
+            
+            let destId: string | null = null;
+            if (selectedDay === 'Saturday') {
+                if (selectedRouteType === 'Morning') destId = student.satMorningDestinationId;
+                else destId = student.satAfternoonDestinationId;
+            } else {
+                if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
+                else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
+                else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[selectedDay] || null;
+            }
+            const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
+
+            const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
+            return [
+                escape(student.name),
+                escape(student.grade),
+                escape(student.class),
+                escape(busName),
+                escape(destinationName)
+            ];
+        });
+
+        const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.map(r => r.join(',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.body.appendChild(document.createElement("a"));
+        const fileName = `KIS_Class_Bus_List_${grade}_${studentClass}_${selectedDay}_${selectedRouteType}.csv`;
+        link.setAttribute("href", url);
+        link.setAttribute("download", fileName);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast({ title: t('success'), description: "파일 다운로드가 시작되었습니다." });
+    };
+
+    return (
+        <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>{t('teacher_page.download_class_list_dialog.title')}</DialogTitle>
+                <CardDescription>
+                    {t('teacher_page.download_class_list_dialog.description')}
+                </CardDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="grade" className="text-right">
+                        {t('teacher_page.download_class_list_dialog.grade_label')}
+                    </Label>
+                    <Input id="grade" value={grade} onChange={e => setGrade(e.target.value)} className="col-span-3" placeholder="예: G1" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="class" className="text-right">
+                        {t('teacher_page.download_class_list_dialog.class_label')}
+                    </Label>
+                    <Input id="class" value={studentClass} onChange={e => setStudentClass(e.target.value)} className="col-span-3" placeholder="예: C1" />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button onClick={handleDownload}>{t('teacher_page.download_class_list_button')}</Button>
+            </DialogFooter>
+        </DialogContent>
+    );
 };
 
 const AllStudentsBoardingStatus = ({
@@ -1140,24 +1250,44 @@ export default function TeacherPage() {
     <MainLayout 
         headerContent={headerContent}
         titleActions={
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8">
-                        <Users className="mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">{t('teacher_page.check_assignments_button')}</span>
-                        <span className="sm:hidden">{t('confirm')}</span>
-                    </Button>
-                </DialogTrigger>
-                <TeacherAssignmentViewDialog 
-                    buses={buses}
-                    allRoutes={allRoutes}
-                    teachers={teachers}
-                    afterSchoolTeachers={afterSchoolTeachers}
-                    selectedDay={selectedDay}
-                    selectedRouteType={selectedRouteType}
-                    t={t}
-                />
-            </Dialog>
+            <div className="flex gap-2">
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8">
+                            <Download className="mr-2 h-4 w-4" />
+                            <span className="hidden sm:inline">{t('teacher_page.download_class_list_button')}</span>
+                            <span className="sm:hidden">{t('template')}</span>
+                        </Button>
+                    </DialogTrigger>
+                    <ClassListDownloadDialog 
+                        students={students}
+                        allRoutes={allRoutes}
+                        buses={buses}
+                        destinations={destinations}
+                        selectedDay={selectedDay}
+                        selectedRouteType={selectedRouteType}
+                        t={t}
+                    />
+                </Dialog>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8">
+                            <Users className="mr-2 h-4 w-4" />
+                            <span className="hidden sm:inline">{t('teacher_page.check_assignments_button')}</span>
+                            <span className="sm:hidden">{t('confirm')}</span>
+                        </Button>
+                    </DialogTrigger>
+                    <TeacherAssignmentViewDialog 
+                        buses={buses}
+                        allRoutes={allRoutes}
+                        teachers={teachers}
+                        afterSchoolTeachers={afterSchoolTeachers}
+                        selectedDay={selectedDay}
+                        selectedRouteType={selectedRouteType}
+                        t={t}
+                    />
+                </Dialog>
+            </div>
         }
     >
         <AlertDialog

@@ -454,5 +454,10 @@
     "teacher_page.group_leader_management.delete_confirm.description": "Hành động này không thể được hoàn tác. Tất cả hồ sơ bổ nhiệm tổ trưởng trên tuyến đường hiện tại sẽ bị xóa vĩnh viễn.",
     "teacher_page.check_assignments_button": "Xác nhận xe phụ trách",
     "teacher_page.assignments_dialog.title": "Tình trạng phân công giáo viên toàn xe buýt",
-    "teacher_page.assignments_dialog.description": "Tình trạng phân công dựa trên ngày và loại tuyến đường hiện đang được chọn."
+    "teacher_page.assignments_dialog.description": "Tình trạng phân công dựa trên ngày và loại tuyến đường hiện đang được chọn.",
+    "teacher_page.download_class_list_button": "Danh sách xe lớp",
+    "teacher_page.download_class_list_dialog.title": "Tải xuống danh sách xe lớp",
+    "teacher_page.download_class_list_dialog.description": "Nhập khối và lớp để tải xuống thông tin phân công xe buýt cho những học sinh đó. (Dựa trên ngày/tuyến đường hiện được chọn)",
+    "teacher_page.download_class_list_dialog.grade_label": "Khối",
+    "teacher_page.download_class_list_dialog.class_label": "Lớp"
 }

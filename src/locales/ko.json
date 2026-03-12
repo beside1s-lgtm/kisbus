@@ -456,5 +456,10 @@
     "teacher_page.group_leader_management.delete_confirm.description": "이 작업은 되돌릴 수 없습니다. 현재 노선의 모든 조장 임명 기록이 영구적으로 삭제됩니다.",
     "teacher_page.check_assignments_button": "담당 버스 확인",
     "teacher_page.assignments_dialog.title": "전체 버스 담당 교사 현황",
-    "teacher_page.assignments_dialog.description": "현재 선택된 요일 및 경로 타입 기준의 배정 현황입니다."
+    "teacher_page.assignments_dialog.description": "현재 선택된 요일 및 경로 타입 기준의 배정 현황입니다.",
+    "teacher_page.download_class_list_button": "학급 버스 명단",
+    "teacher_page.download_class_list_dialog.title": "학급 버스 명단 다운로드",
+    "teacher_page.download_class_list_dialog.description": "학년과 반을 입력하여 해당 학생들의 버스 배정 정보를 다운로드합니다. (현재 선택된 요일/시간 기준)",
+    "teacher_page.download_class_list_dialog.grade_label": "학년",
+    "teacher_page.download_class_list_dialog.class_label": "반"
 }

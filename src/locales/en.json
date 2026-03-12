@@ -455,5 +455,10 @@
     "teacher_page.group_leader_management.delete_confirm.description": "This action cannot be undone. All group leader appointment records for the current route will be permanently deleted.",
     "teacher_page.check_assignments_button": "Check Assigned Bus",
     "teacher_page.assignments_dialog.title": "Overall Bus Teacher Assignments",
-    "teacher_page.assignments_dialog.description": "Assignment status based on the currently selected day and route type."
+    "teacher_page.assignments_dialog.description": "Assignment status based on the currently selected day and route type.",
+    "teacher_page.download_class_list_button": "Class Bus List",
+    "teacher_page.download_class_list_dialog.title": "Download Class Bus List",
+    "teacher_page.download_class_list_dialog.description": "Enter grade and class to download bus assignment info for those students. (Based on currently selected day/route)",
+    "teacher_page.download_class_list_dialog.grade_label": "Grade",
+    "teacher_page.download_class_list_dialog.class_label": "Class"
 }
