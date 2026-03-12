@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Combobox } from '@/components/ui/combobox';
 import { useTranslation } from '@/hooks/use-translation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface SiblingEntry {
     name: string;
