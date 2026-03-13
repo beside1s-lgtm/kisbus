@@ -1189,14 +1189,30 @@ export default function TeacherPage() {
         </div>
         <div className="flex-1 min-w-[120px]">
             <Label className="text-xs">{t('day')}</Label>
-            <div className="flex items-center rounded-md border border-input bg-background h-10 px-3">
-                <Input 
-                    type="date" 
-                    value={selectedDate} 
-                    onChange={e => setSelectedDate(e.target.value)}
-                    className="w-auto border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                />
-            </div>
+            <Select 
+                value={selectedDay} 
+                onValueChange={(v) => {
+                    const day = v as DayOfWeek;
+                    const today = new Date();
+                    const currentDayIndex = today.getDay() || 7; 
+                    const targetDayIndex = DAYS.indexOf(day) + 1;
+                    const diff = targetDayIndex - currentDayIndex;
+                    const targetDate = new Date(today);
+                    targetDate.setDate(today.getDate() + diff);
+                    setSelectedDate(format(targetDate, 'yyyy-MM-dd'));
+                }}
+            >
+                <SelectTrigger>
+                    <SelectValue placeholder={t('select_day')} />
+                </SelectTrigger>
+                <SelectContent>
+                    {DAYS.map((day) => (
+                        <SelectItem key={day} value={day}>
+                            {t(`day.${day.toLowerCase()}`)}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         </div>
         <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
