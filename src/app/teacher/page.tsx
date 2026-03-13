@@ -539,7 +539,7 @@ const TeacherAssignmentViewDialog = ({
                                 <TableCell className="whitespace-nowrap">{t(`bus_type.${bus.type}`)}</TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">
-                                        {getTeachersForBus(bus.id).split(', ').map((name, i) => (
+                                        {getTeachersForBus(bus.id).split(', ').map((name: string, i: number) => (
                                             name === t('unassigned') ? 
                                             <span key={i} className="text-muted-foreground italic text-xs">{name}</span> :
                                             <Badge key={i} variant="secondary" className="font-normal text-xs py-0 h-5 whitespace-nowrap">{name}</Badge>
@@ -817,7 +817,7 @@ export default function TeacherPage() {
   
   useEffect(() => {
     if (currentRoute && lastLoadedRouteIdRef.current === currentRoute.id) {
-        const recordsToSave = groupLeaderRecords.map(({name, ...rest}) => rest);
+        const recordsToSave = groupLeaderRecords;
         saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
     }
   }, [groupLeaderRecords, currentRoute]);
@@ -1092,7 +1092,7 @@ export default function TeacherPage() {
             } else {
                 if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
                 else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
-                else if (selectedRouteType === 'AfterSchool') destId = student.afterSchoolDestinations?.[selectedDay] || null;
+                else if (selectedRouteType === 'AfterSchool') student.afterSchoolDestinations?.[selectedDay] || null;
             }
             const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
 
