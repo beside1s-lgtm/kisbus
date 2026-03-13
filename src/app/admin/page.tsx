@@ -94,7 +94,7 @@ const AdminPageContent: React.FC<{
             } else if (h < 19) {
                 tType = 'AfterSchool';
             } else {
-                tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
+                tDate.setDate(tDate.getDate() + 1);
                 tType = 'Morning';
             }
         } else if (d === 6) {

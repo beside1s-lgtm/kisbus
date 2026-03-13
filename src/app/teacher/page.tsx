@@ -85,16 +85,18 @@ const ClassListDownloadDialog = ({
             return;
         }
 
-        // Determine target day and route type for base data matching
-        let effectiveDay: DayOfWeek = 'Monday';
         let effectiveType: RouteType = 'Afternoon';
+        let relevantDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
         
         if (category === 'afterschool') {
             effectiveType = 'AfterSchool';
+            relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
         } else if (category === 'saturday') {
-            effectiveDay = 'Saturday';
             effectiveType = 'AfterSchool';
+            relevantDays = ['Saturday'];
         }
+
+        const isSaturday = category === 'saturday';
 
         const filteredStudents = students.filter(s => 
             s.grade.toLowerCase() === grade.trim().toLowerCase() && 
@@ -105,29 +107,30 @@ const ClassListDownloadDialog = ({
             toast({ title: t('notice'), description: "해당 학년/반의 학생을 찾을 수 없습니다." });
             return;
         }
-
-        const isSaturday = category === 'saturday';
         
-        // Find students assigned to the effective route
         const assignedStudentsData = filteredStudents.map(student => {
-            const route = allRoutes.find(r => 
-                r.dayOfWeek === effectiveDay && 
+            const routes = allRoutes.filter(r => 
+                relevantDays.includes(r.dayOfWeek) && 
                 r.type === effectiveType && 
                 r.seating.some(seat => seat.studentId === student.id)
             );
-            const bus = route ? buses.find(b => b.id === route.busId) : null;
-            return { student, bus, route };
-        }).filter(item => item.bus !== null);
+            
+            if (routes.length === 0) return null;
+            
+            const firstBus = buses.find(b => b.id === routes[0].busId);
+            if (!firstBus) return null;
+
+            return { student, bus: firstBus, routes };
+        }).filter((item): item is NonNullable<typeof item> => item !== null);
 
         if (assignedStudentsData.length === 0) {
             toast({ title: t('notice'), description: "해당 조건에 배정된 학생이 없습니다." });
             return;
         }
 
-        // Sort: Bus number, then Name
         assignedStudentsData.sort((a, b) => {
-            const nameA = a.bus!.name;
-            const nameB = b.bus!.name;
+            const nameA = a.bus.name;
+            const nameB = b.bus.name;
             const numA = parseInt(nameA.replace(/\D/g, ''), 10);
             const numB = parseInt(nameB.replace(/\D/g, ''), 10);
             if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
@@ -141,15 +144,13 @@ const ClassListDownloadDialog = ({
             headers.push(t('day_short.monday'), t('day_short.tuesday'), t('day_short.wednesday'), t('day_short.thursday'), t('day_short.friday'));
         }
 
-        const rows = assignedStudentsData.map(({ student, bus }) => {
-            const busName = bus!.name;
-            
+        const rows = assignedStudentsData.map(({ student, bus, routes }) => {
             let destId: string | null = null;
             if (isSaturday) {
                 destId = student.satAfternoonDestinationId;
             } else {
                 if (category === 'commute') destId = student.afternoonDestinationId;
-                else destId = student.afterSchoolDestinations?.[effectiveDay] || null;
+                else destId = student.afterSchoolDestinations?.[routes[0].dayOfWeek] || null;
             }
             const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
 
@@ -158,18 +159,14 @@ const ClassListDownloadDialog = ({
                 escape(student.name),
                 escape(student.grade),
                 escape(student.class),
-                escape(busName),
+                escape(bus.name),
                 escape(destinationName)
             ];
 
             if (!isSaturday) {
                 const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
                 weekdays.forEach(day => {
-                    const isAssignedOnDay = allRoutes.some(r => 
-                        r.dayOfWeek === day && 
-                        r.type === effectiveType && 
-                        r.seating.some(seat => seat.studentId === student.id)
-                    );
+                    const isAssignedOnDay = routes.some(r => r.dayOfWeek === day);
                     studentRow.push(isAssignedOnDay ? 'O' : 'X');
                 });
             }
@@ -603,11 +600,8 @@ export default function TeacherPage() {
         const d = vTime.getDay();
         let tDate = new Date(vTime);
 
-        // VN Time Rules:
-        // Mon-Fri: After 19:00 -> Next working day morning
-        // Sat: After 14:00 -> Monday morning
         if (d >= 1 && d <= 5) {
-            if (h >= 19) tDate.setDate(tDate.getDate() + (d === 5 ? 3 : 1));
+            if (h >= 19) tDate.setDate(tDate.getDate() + 1);
         } else if (d === 6) {
             if (h >= 14) tDate.setDate(tDate.getDate() + 2);
         } else {
@@ -674,7 +668,6 @@ export default function TeacherPage() {
                     } else if (vietnamHour < 14) {
                         setSelectedRouteType('AfterSchool');
                     } else {
-                        // Logic handled by date update above
                     }
                 } else {
                     if (vietnamHour >= 9 && vietnamHour < 16) {
