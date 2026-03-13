@@ -204,11 +204,11 @@ const ClassListDownloadDialog = ({
             <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="grade" className="text-right">{t('teacher_page.download_class_list_dialog.grade_label')}</Label>
-                    <Input id="grade" value={grade} onChange={e => setGrade(e.target.value)} className="col-span-3" placeholder="예: G1" />
+                    <Input id="grade" value={grade} onChange={e => setGrade(e.target.value)} className="col-span-3" placeholder="예: 1" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="class" className="text-right">{t('teacher_page.download_class_list_dialog.class_label')}</Label>
-                    <Input id="class" value={studentClass} onChange={e => setStudentClass(e.target.value)} className="col-span-3" placeholder="예: C1" />
+                    <Input id="class" value={studentClass} onChange={e => setStudentClass(e.target.value)} className="col-span-3" placeholder="예: 1" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="category" className="text-right">노선</Label>

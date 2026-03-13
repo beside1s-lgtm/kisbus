@@ -584,7 +584,7 @@ export const StudentManagementTab = ({
     const handleDownloadStudentTemplate = () => {
         const headers = ["이름", "학년", "반", "성별", "베트남 전화번호", "등교 목적지", "하교 목적지", "토요 등교", "토요 하교", "방과후(월)", "방과후(화)", "방과후(수)", "방과후(목)"];
         const rows = [
-            ["Kim-Chulsu", "G1", "C1", "Male", "01012345678", "Gangnam-yeok", "Gangnam-yeok", "Gangnam-yeok", "Seocho-yeok", "Gangnam-yeok", "", "Seocho-yeok", ""]
+            ["Kim-Chulsu", "1", "1", "Male", "01012345678", "Gangnam-yeok", "Gangnam-yeok", "Gangnam-yeok", "Seocho-yeok", "Gangnam-yeok", "", "Seocho-yeok", ""]
         ];
         const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -756,7 +756,7 @@ export const StudentManagementTab = ({
     const handleAfterSchoolDownloadTemplate = () => {
         const headers = ["이름", "학년", "반", "월요일 목적지", "화요일 목적지", "수요일 목적지", "목요일 목적지"];
         const rows = [
-            ["Kim-Chulsu", "G1", "C1", "Gangnam-yeok", "Seocho-yeok", "", "Gangnam-yeok"]
+            ["Kim-Chulsu", "1", "1", "Gangnam-yeok", "Seocho-yeok", "", "Gangnam-yeok"]
         ];
         const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1015,11 +1015,11 @@ export const StudentManagementTab = ({
                                                 </div>
                                                 <div className="grid grid-cols-4 items-center gap-4">
                                                     <Label htmlFor="add-student-grade" className="text-right">{t('student.grade')}</Label>
-                                                    <Input id="add-student-grade" className="col-span-3" value={newStudentGrade} onChange={e => setNewStudentGrade(e.target.value)} placeholder="예: G1" />
+                                                    <Input id="add-student-grade" className="col-span-3" value={newStudentGrade} onChange={e => setNewStudentGrade(e.target.value)} placeholder="예: 1" />
                                                 </div>
                                                 <div className="grid grid-cols-4 items-center gap-4">
                                                     <Label htmlFor="add-student-class" className="text-right">{t('student.class')}</Label>
-                                                    <Input id="add-student-class" className="col-span-3" value={newStudentClass} onChange={e => setNewStudentClass(e.target.value)} placeholder="예: C1" />
+                                                    <Input id="add-student-class" className="col-span-3" value={newStudentClass} onChange={e => setNewStudentClass(e.target.value)} placeholder="예: 1" />
                                                 </div>
                                                 <div className="grid grid-cols-4 items-center gap-4">
                                                     <Label htmlFor="add-student-gender" className="text-right">{t('student.gender')}</Label>
