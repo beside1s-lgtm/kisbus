@@ -360,21 +360,27 @@ const AllGroupLeadersStatus = ({
     t: any;
 }) => {
     const { toast } = useToast();
-    const [leadersMap, setLeadersMap] = useState<Record<string, { name: string; days: number } | null>>({});
+    const [leadersMap, setLeadersMap] = useState<Record<string, { names: string[]; days: number } | null>>({});
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     useEffect(() => {
         const fetchAllLeaders = async () => {
-            const results: Record<string, { name: string; days: number } | null> = {};
+            const results: Record<string, { names: string[]; days: number } | null> = {};
             const promises = relevantRoutes.map(async (route) => {
                 try {
                     const records = await getGroupLeaderRecords(route.id);
-                    const activeLeader = records.find(r => r.endDate === null);
-                    if (activeLeader) {
-                        const days = differenceInDays(new Date(), new Date(activeLeader.startDate)) + 1;
-                        const student = students.find(s => s.id === activeLeader.studentId);
-                        const displayName = student ? formatStudentName(student) : (activeLeader.name || "알 수 없는 학생");
-                        results[route.id] = { name: displayName, days };
+                    const activeLeaders = records.filter(r => r.endDate === null);
+                    if (activeLeaders.length > 0) {
+                        // For display in overall status, we'll take the earliest start date for the "days" count
+                        const earliestStart = new Date(Math.min(...activeLeaders.map(l => new Date(l.startDate).getTime())));
+                        const days = differenceInDays(new Date(), earliestStart) + 1;
+                        
+                        const displayNames = activeLeaders.map(l => {
+                            const student = students.find(s => s.id === l.studentId);
+                            return student ? formatStudentName(student) : (l.name || "알 수 없는 학생");
+                        });
+                        
+                        results[route.id] = { names: displayNames, days };
                     } else {
                         results[route.id] = null;
                     }
@@ -412,7 +418,7 @@ const AllGroupLeadersStatus = ({
             return {
                 routeId: route.id,
                 busName: bus?.name || '?',
-                leaderName: leaderInfo?.name || t('unassigned'),
+                leaderNames: leaderInfo?.names || [t('unassigned')],
                 days: leaderInfo?.days || 0
             };
         });
@@ -444,7 +450,13 @@ const AllGroupLeadersStatus = ({
                         {sortedBusesWithLeaders.map((item, idx) => (
                             <TableRow key={idx}>
                                 <TableCell className="font-medium whitespace-nowrap text-xs">{item.busName}</TableCell>
-                                <TableCell className="whitespace-nowrap text-xs truncate max-w-[100px] sm:max-w-none">{item.leaderName}</TableCell>
+                                <TableCell className="whitespace-nowrap text-xs">
+                                    <div className="flex flex-col gap-0.5">
+                                        {item.leaderNames.map((name, nIdx) => (
+                                            <span key={nIdx} className="truncate max-w-[100px] sm:max-w-none">{name}</span>
+                                        ))}
+                                    </div>
+                                </TableCell>
                                 <TableCell className="whitespace-nowrap text-xs">
                                     {item.days > 0 ? `${item.days}${t('teacher_page.group_leader_days_suffix')}` : '-'}
                                 </TableCell>
@@ -508,7 +520,7 @@ const TeacherAssignmentViewDialog = ({
         const pool = selectedRouteType === 'AfterSchool' ? afterSchoolTeachers : teachers;
         
         const names = route.teacherIds
-            .map(id => pool.find(t => t.id === id)?.name)
+            .map((id: string) => pool.find(t => t.id === id)?.name)
             .filter(Boolean);
         return names.length > 0 ? names.join(', ') : t('unassigned');
     };
@@ -825,24 +837,34 @@ export default function TeacherPage() {
   useEffect(() => {
     if (!currentRoute || !students.length || lastLoadedRouteIdRef.current !== currentRoute.id) return;
 
-    const activeLeaderIndex = groupLeaderRecords.findIndex(r => r.endDate === null);
-    if (activeLeaderIndex === -1) return;
-
-    const activeLeader = groupLeaderRecords[activeLeaderIndex];
-    const isStillOnRoute = currentRoute.seating.some(s => s.studentId === activeLeader.studentId);
+    const activeLeaderIndices = groupLeaderRecords
+        .map((r, i) => r.endDate === null ? i : -1)
+        .filter(i => i !== -1);
     
-    const studentExists = students.some(s => s.id === activeLeader.studentId);
+    if (activeLeaderIndices.length === 0) return;
 
-    if (!isStillOnRoute || !studentExists) {
-        const newRecords = [...groupLeaderRecords];
-        const dateStr = format(new Date(), 'yyyy-MM-dd');
-        newRecords[activeLeaderIndex].endDate = dateStr;
-        newRecords[activeLeaderIndex].days = differenceInDays(new Date(dateStr), new Date(newRecords[activeLeaderIndex].startDate)) + 1;
+    let recordsChanged = false;
+    const newRecords = [...groupLeaderRecords];
+    const dateStr = format(new Date(), 'yyyy-MM-dd');
+
+    activeLeaderIndices.forEach(idx => {
+        const leader = newRecords[idx];
+        const isStillOnRoute = currentRoute.seating.some(s => s.studentId === leader.studentId);
+        const studentExists = students.some(s => s.id === leader.studentId);
+
+        if (!isStillOnRoute || !studentExists) {
+            leader.endDate = dateStr;
+            leader.days = differenceInDays(new Date(dateStr), new Date(leader.startDate)) + 1;
+            recordsChanged = true;
+            toast({
+                title: t('notice'),
+                description: `${leader.name} 조장이 ${studentExists ? "노선에서 제외" : "삭제"}되어 활동이 종료되었습니다.`,
+            });
+        }
+    });
+
+    if (recordsChanged) {
         setGroupLeaderRecords(newRecords);
-        toast({
-            title: t('notice'),
-            description: studentExists ? "조장이 버스에서 하차하여 활동이 종료되었습니다." : "조장 학생 정보가 삭제되어 활동이 종료되었습니다.",
-        });
     }
   }, [currentRoute, students, groupLeaderRecords, t, toast]);
 
@@ -960,17 +982,24 @@ export default function TeacherPage() {
     const studentId = student.id;
 
     const newRecords = [...groupLeaderRecords];
-    const existingRecordIndex = newRecords.findIndex(r => r.studentId === studentId && r.endDate === null);
+    const activeLeaderIndex = newRecords.findIndex(r => r.studentId === studentId && r.endDate === null);
 
-    if (existingRecordIndex > -1) {
-        const record = newRecords[existingRecordIndex];
+    if (activeLeaderIndex > -1) {
+        // Deactivate existing leader
+        const record = newRecords[activeLeaderIndex];
         record.endDate = dateStr;
         record.days = differenceInDays(new Date(dateStr), new Date(record.startDate)) + 1;
+        toast({ title: t('notice'), description: `${formatStudentName(student)} 조장 활동을 종료했습니다.` });
     } else {
-        const currentLeaderIndex = newRecords.findIndex(r => r.endDate === null);
-        if (currentLeaderIndex > -1) {
-            newRecords[currentLeaderIndex].endDate = dateStr;
-            newRecords[currentLeaderIndex].days = differenceInDays(new Date(dateStr), new Date(newRecords[currentLeaderIndex].startDate)) + 1;
+        // Activate new leader - allow up to 3 active leaders
+        const currentActiveCount = newRecords.filter(r => r.endDate === null).length;
+        if (currentActiveCount >= 3) {
+            toast({ 
+                title: t('notice'), 
+                description: "동시에 활동 가능한 조장은 최대 3명입니다.",
+                variant: 'destructive'
+            });
+            return;
         }
 
         newRecords.push({
@@ -980,6 +1009,7 @@ export default function TeacherPage() {
             endDate: null,
             days: 1,
         });
+        toast({ title: t('success'), description: `${formatStudentName(student)} 학생을 조장으로 임명했습니다.` });
     }
     
     setGroupLeaderRecords(newRecords);
