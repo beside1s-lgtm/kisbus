@@ -1,4 +1,3 @@
-
 {
     "main.title": "KIS<br/>School Bus Manager",
     "main.select_role": "Select your role to begin.",
@@ -60,6 +59,7 @@
     "reset": "Reset",
     "unassign": "Unassign",
     "copy": "Copy",
+    "print": "Print",
     "day.monday": "Monday",
     "day.tuesday": "Tuesday",
     "day.wednesday": "Wednesday",

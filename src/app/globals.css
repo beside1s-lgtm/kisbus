@@ -67,3 +67,46 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  header, 
+  .no-print, 
+  .lg\:col-span-1, 
+  .lg\:hidden, 
+  button,
+  .Alert {
+    display: none !important;
+  }
+  
+  .lg\:col-span-2 {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    grid-column: span 3 / span 3 !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .Card {
+    border: none !important;
+    box-shadow: none !important;
+  }
+  
+  #printable-seat-map {
+    border: 1px solid #ddd !important;
+    padding: 1rem !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  [data-cy="scroll-container"] {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}

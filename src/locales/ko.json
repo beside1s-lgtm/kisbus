@@ -1,4 +1,3 @@
-
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -60,6 +59,7 @@
     "reset": "초기화",
     "unassign": "배정 해제",
     "copy": "복사",
+    "print": "프린트",
     "day.monday": "월요일",
     "day.tuesday": "화요일",
     "day.wednesday": "수요일",

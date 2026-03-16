@@ -20,7 +20,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2, Users, Trash2, Download } from 'lucide-react';
+import { Crown, UserX, ArrowLeftRight, Search, CheckCircle, Rocket, Undo2, Users, Trash2, Download, Printer } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -1357,7 +1357,7 @@ export default function TeacherPage() {
     <MainLayout 
         headerContent={headerContent}
         titleActions={
-            <div className="flex gap-2">
+            <div className="flex gap-2 no-print">
                 <Dialog>
                     <DialogTrigger asChild>
                         <Button variant="outline" size="sm" className="h-8">
@@ -1442,7 +1442,7 @@ export default function TeacherPage() {
         ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 flex flex-col gap-6 order-last lg:order-first">
-                    <Card>
+                    <Card id="printable-seat-map">
                         <CardHeader>
                             <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                                 <div>
@@ -1454,8 +1454,17 @@ export default function TeacherPage() {
                                             </span>
                                         )}
                                     </CardTitle>
-                                    <CardDescription className="hidden md:block">{t('teacher_page.seat_map_description')}</CardDescription>
+                                    <CardDescription className="hidden md:block no-print">{t('teacher_page.seat_map_description')}</CardDescription>
                                 </div>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => window.print()} 
+                                    className="h-8 no-print"
+                                >
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    {t('print') || '프린트'}
+                                </Button>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -1499,7 +1508,7 @@ export default function TeacherPage() {
                         />
                     </div>
                 </div>
-                <div className="hidden lg:flex lg:flex-col lg:gap-6">
+                <div className="hidden lg:flex lg:flex-col lg:gap-6 no-print">
                     <Card>
                         <CardHeader>
                             <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
@@ -1624,7 +1633,7 @@ export default function TeacherPage() {
                         />
                     </div>
                 </div>
-                <div className="contents lg:hidden">
+                <div className="contents lg:hidden no-print">
                     <div className="order-first lg:order-none">
                         <Card>
                             <CardHeader>
