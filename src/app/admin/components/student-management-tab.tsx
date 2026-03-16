@@ -129,6 +129,7 @@ export const StudentManagementTab = ({
         if (!routes.length || !students.length) return;
 
         // 1. 현재 설정(요일/타입)에서 이미 배정된 학생 ID 집합
+        // (주의: 요일뿐만 아니라 타입까지 일치해야 함)
         const allAssignedIds = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
             r.seating.forEach(s => {
@@ -145,6 +146,7 @@ export const StudentManagementTab = ({
         const unassignables: (Student & { errorReason: string })[] = [];
 
         students.forEach(student => {
+            // 이미 현재 시간대의 어느 버스에든 배정된 학생은 오류 목록에서 제외
             if (allAssignedIds.has(student.id)) return;
 
             let destId: string | null = null;
@@ -155,6 +157,7 @@ export const StudentManagementTab = ({
                     destId = student.satMorningDestinationId;
                     errorKey = 'admin.student_management.unassignable.error_sat_morning';
                 } else {
+                    // 토요일 오후/방과후는 동일한 목적지(satAfternoonDestinationId) 사용
                     destId = student.satAfternoonDestinationId;
                     errorKey = 'admin.student_management.unassignable.error_sat_afternoon';
                 }
@@ -171,6 +174,7 @@ export const StudentManagementTab = ({
                 }
             }
 
+            // 목적지는 설정되어 있으나, 현재 운행 중인 어떤 노선에도 해당 목적지가 없는 경우
             if (destId && !validStopIds.has(destId)) {
                 const destName = destinations.find(d => d.id === destId)?.name || '알 수 없음';
                 const baseReason = errorKey === 'admin.student_management.unassignable.error_after_school' 

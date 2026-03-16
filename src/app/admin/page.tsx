@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -94,7 +95,7 @@ const AdminPageContent: React.FC<{
             } else if (h < 19) {
                 tType = 'AfterSchool';
             } else {
-                tDate.setDate(tDate.getDate() + 1);
+                tDate.setDate(tDate.getDate() + (d === 5 ? 1 : 1)); // 금요일이면 토요일
                 tType = 'Morning';
             }
         } else if (d === 6) {
@@ -103,17 +104,25 @@ const AdminPageContent: React.FC<{
             } else if (h < 14) {
                 tType = 'AfterSchool';
             } else {
-                tDate.setDate(tDate.getDate() + 2);
+                tDate.setDate(tDate.getDate() + 2); // 월요일로
                 tType = 'Morning';
             }
         } else {
-            tDate.setDate(tDate.getDate() + 1);
+            tDate.setDate(tDate.getDate() + 1); // 월요일로
             tType = 'Morning';
         }
 
-        setSelectedDay(DAYS[(tDate.getDay() + 6) % 7]);
+        const dayIdx = (tDate.getDay() + 6) % 7;
+        setSelectedDay(DAYS[dayIdx < 6 ? dayIdx : 0]);
         setSelectedRouteType(tType);
     }, []);
+
+    // 요일이 토요일로 변경될 때 하교 타입을 방과후로 자동 전환
+    useEffect(() => {
+        if (selectedDay === 'Saturday' && selectedRouteType === 'Afternoon') {
+            setSelectedRouteType('AfterSchool');
+        }
+    }, [selectedDay, selectedRouteType]);
 
     const handleAcknowledgeAll = async () => {
         const pendingStudentIds = pendingStudents.map(s => s.id);
