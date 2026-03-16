@@ -501,9 +501,24 @@ export const StudentGlobalSearchPanel = ({
                                     assignedRoutesForSelectedStudent.map(route => {
                                         const busName = buses.find(b => b.id === route.busId)?.name || t('unknown_bus');
                                         const routeTypeName = route.type === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${route.type.toLowerCase()}`);
+                                        
+                                        // Find student's destination for this specific route
+                                        let destId: string | null = null;
+                                        if (route.dayOfWeek === 'Saturday') {
+                                            destId = route.type === 'Morning' ? selectedGlobalStudent.satMorningDestinationId : selectedGlobalStudent.satAfternoonDestinationId;
+                                        } else {
+                                            if (route.type === 'Morning') destId = selectedGlobalStudent.morningDestinationId;
+                                            else if (route.type === 'Afternoon') destId = selectedGlobalStudent.afternoonDestinationId;
+                                            else destId = selectedGlobalStudent.afterSchoolDestinations?.[route.dayOfWeek] || null;
+                                        }
+                                        const destName = destinations.find(d => d.id === destId)?.name || t('unassigned');
+
                                         return (
                                             <div key={route.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                                                <p className="text-[10px]">{busName} - {t(`day_short.${route.dayOfWeek.toLowerCase()}`)} {routeTypeName}</p>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <p className="text-[10px] font-bold">{busName} - {t(`day_short.${route.dayOfWeek.toLowerCase()}`)} {routeTypeName}</p>
+                                                    <p className="text-[9px] text-muted-foreground">{t('destination')}: {destName}</p>
+                                                </div>
                                                 <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => handleUnassignStudentFromRoute(route.id, selectedGlobalStudent.id)}>
                                                     <UserX className="h-3 h-3" />
                                                 </Button>
