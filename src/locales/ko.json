@@ -1,3 +1,4 @@
+
 {
     "main.title": "KIS<br/>스쿨버스 매니저",
     "main.select_role": "역할을 선택하여 시작하세요.",
@@ -282,6 +283,8 @@
     "admin.student_management.unassignable.error_morning": "등교 목적지가 노선에 없음",
     "admin.student_management.unassignable.error_afternoon": "하교 목적지가 노선에 없음",
     "admin.student_management.unassignable.error_after_school": "{{day}} 방과후 목적지가 노선에 없음",
+    "admin.student_management.unassignable.error_sat_morning": "토요 등교 목적지가 노선에 없음",
+    "admin.student_management.unassignable.error_sat_afternoon": "토요 하교 목적지가 노선에 없음",
     "admin.student_management.unassigned.title": "미배정 학생 ({{routeType}})",
     "admin.student_management.unassigned.description": "학생을 클릭하여 정보를 보거나, 좌석 배정 버튼을 눌러 선택한 빈 좌석에 배정하세요.",
     "admin.student_management.unassigned.search_placeholder": "학생 이름 또는 목적지로 검색...",
@@ -330,11 +333,11 @@
     "apply.custom_dest_prompt_morning": "원하는 등교 목적지가 없나요? 직접 입력해보세요.",
     "apply.custom_dest_prompt_sat_morning": "원하는 토요 등교 목적지가 없나요? 직접 입력해보세요.",
     "apply.new_dest_name_morning": "새 등교 목적지 이름",
-    "apply.new_dest_placeholder_morning": "예: 서초역 1번 출구",
+    "apply.new_dest_placeholder_morning": "예: 1",
     "apply.custom_dest_prompt_afternoon": "원하는 하교 목적지가 없나요? 직접 입력해보세요.",
     "apply.custom_dest_prompt_sat_afternoon": "원하는 토요 하교 목적지가 없나요? 직접 입력해보세요.",
     "apply.new_dest_name_afternoon": "새 하교 목적지 이름",
-    "apply.new_dest_placeholder_afternoon": "예: 강남역 5번 출구",
+    "apply.new_dest_placeholder_afternoon": "예: 1",
     "apply.custom_dest_prompt_short": "직접 입력",
     "apply.suggestion_submitted": "제안 제출됨",
     "apply.suggestion_submitted_desc": "'{{destName}}' 목적지가 제안되었습니다.",

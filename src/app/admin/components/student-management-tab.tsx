@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -152,10 +153,10 @@ export const StudentManagementTab = ({
             if (selectedDay === 'Saturday') {
                 if (selectedRouteType === 'Morning') {
                     destId = student.satMorningDestinationId;
-                    errorKey = 'admin.student_management.unassignable.error_morning';
-                } else if (selectedRouteType === 'Afternoon' || selectedRouteType === 'AfterSchool') {
+                    errorKey = 'admin.student_management.unassignable.error_sat_morning';
+                } else {
                     destId = student.satAfternoonDestinationId;
-                    errorKey = 'admin.student_management.unassignable.error_afternoon';
+                    errorKey = 'admin.student_management.unassignable.error_sat_afternoon';
                 }
             } else {
                 if (selectedRouteType === 'Morning') {
@@ -937,16 +938,16 @@ export const StudentManagementTab = ({
                             <AlertCircle className="h-4 w-4" />
                             <AlertTitle>{t('admin.student_management.unassignable.title')}</AlertTitle>
                             <AlertDescription>
-                                <div className="mt-2 space-y-1">
+                                <div className="mt-2 space-y-1 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                                     {unassignableStudents.map(student => (
                                         <div 
                                             key={student.id} 
-                                            className="text-xs flex justify-between items-center border-b border-destructive/20 pb-1 cursor-pointer hover:bg-destructive/10 transition-colors"
+                                            className="text-xs flex justify-between items-center border-b border-destructive/20 py-1.5 cursor-pointer hover:bg-destructive/10 transition-colors"
                                             onClick={() => setSelectedGlobalStudent(student)}
                                             title="클릭하여 학생 정보 수정"
                                         >
-                                            <span>{student.name} ({student.grade} {student.class})</span>
-                                            <span className="font-semibold">{student.errorReason}</span>
+                                            <span className="font-medium">{student.name} ({student.grade} {student.class})</span>
+                                            <span className="text-[10px] bg-destructive/10 px-2 py-0.5 rounded-full border border-destructive/30">{student.errorReason}</span>
                                         </div>
                                     ))}
                                 </div>
