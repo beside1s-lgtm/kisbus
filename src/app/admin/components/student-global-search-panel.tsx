@@ -36,7 +36,7 @@ interface StudentGlobalSearchPanelProps {
     handleDeleteAllStudents: () => void;
     handleUnassignAllFromStudent: () => void;
     handleAssignStudentFromSearch: () => void;
-    handleStudentInfoChange: (id: string, field: 'name'|'gender'|'contact', val: string) => void;
+    handleStudentInfoChange: (id: string, field: 'name'|'gender'|'contact'|'grade'|'class', val: string) => void;
     handleDestinationChange: (id: string, val: string|null, type: 'morning'|'afternoon'|'afterSchool'|'satMorning'|'satAfternoon', day?: DayOfWeek) => void;
     handleUnassignStudentFromRoute: (routeId: string, studentId: string) => void;
     assignedRoutesForSelectedStudent: Route[];
@@ -283,6 +283,27 @@ export const StudentGlobalSearchPanel = ({
                                 >
                                     {isEditingName ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
                                 </Button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-2">
+                                <Label className="text-xs">{t('student.grade')}</Label>
+                                <Input
+                                    value={selectedGlobalStudent.grade || ''}
+                                    onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, grade: e.target.value} : null)}
+                                    onBlur={(e) => handleStudentInfoChange(selectedGlobalStudent.id, 'grade', e.target.value)}
+                                    placeholder="예: 1"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs">{t('student.class')}</Label>
+                                <Input
+                                    value={selectedGlobalStudent.class || ''}
+                                    onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, class: e.target.value} : null)}
+                                    onBlur={(e) => handleStudentInfoChange(selectedGlobalStudent.id, 'class', e.target.value)}
+                                    placeholder="예: 1"
+                                />
                             </div>
                         </div>
 

@@ -41,10 +41,11 @@ import { cn } from '@/lib/utils';
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const getGradeValue = (grade: string): number => {
-  const upperGrade = grade.toUpperCase();
+  const upperGrade = grade.trim().toUpperCase();
+  if (upperGrade === 'S') return -50; // S학년: 유치원(K)과 초등 1학년 사이로 판별
   if (upperGrade.startsWith('K')) {
       const num = parseInt(upperGrade.replace('K', ''), 10);
-      return isNaN(num) ? 0 : -100 + num;
+      return isNaN(num) ? -100 : -100 + num;
   }
   const num = parseInt(upperGrade.replace(/\D/g, ''), 10);
   return isNaN(num) ? 999 : num;
@@ -829,8 +830,7 @@ export default function TeacherPage() {
   
   useEffect(() => {
     if (currentRoute && lastLoadedRouteIdRef.current === currentRoute.id) {
-        const recordsToSave = groupLeaderRecords;
-        saveGroupLeaderRecords(currentRoute.id, recordsToSave).catch(e => console.error("Failed to save leader records", e));
+        saveGroupLeaderRecords(currentRoute.id, groupLeaderRecords).catch(e => console.error("Failed to save leader records", e));
     }
   }, [groupLeaderRecords, currentRoute]);
 
@@ -1302,7 +1302,7 @@ export default function TeacherPage() {
                             } else {
                                 if (selectedRouteType === 'Morning') destId = selectedStudent.morningDestinationId;
                                 else if (selectedRouteType === 'Afternoon') destId = selectedStudent.afternoonDestinationId;
-                                else if (selectedRouteType === 'AfterSchool') destId = selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
+                                else if (selectedRouteType === 'AfterSchool') selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
                             }
                             return d.id === destId;
                         })?.name || t('unassigned')}
