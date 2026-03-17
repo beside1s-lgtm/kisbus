@@ -42,7 +42,7 @@ const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday
 
 const getGradeValue = (grade: string): number => {
   const upperGrade = grade.trim().toUpperCase();
-  if (upperGrade === 'S') return -50; // S학년: 유치원(K)과 초등 1학년 사이로 판별
+  if (upperGrade === 'S') return -50; 
   if (upperGrade.startsWith('K')) {
       const num = parseInt(upperGrade.replace('K', ''), 10);
       return isNaN(num) ? -100 : -100 + num;
@@ -97,7 +97,7 @@ const ClassListDownloadDialog = ({
             relevantDays = ['Saturday'];
         }
 
-        const isSaturday = category === 'saturday';
+        const isSat = category === 'saturday';
 
         const filteredStudents = students.filter(s => 
             s.grade.toLowerCase() === grade.trim().toLowerCase() && 
@@ -141,13 +141,13 @@ const ClassListDownloadDialog = ({
         });
 
         const headers = ["이름", "학년", "반", "버스", "목적지"];
-        if (!isSaturday) {
+        if (!isSat) {
             headers.push(t('day_short.monday'), t('day_short.tuesday'), t('day_short.wednesday'), t('day_short.thursday'), t('day_short.friday'));
         }
 
         const rows = assignedStudentsData.map(({ student, bus, routes }) => {
             let destId: string | null = null;
-            if (isSaturday) {
+            if (isSat) {
                 destId = student.satAfternoonDestinationId;
             } else {
                 if (category === 'commute') destId = student.afternoonDestinationId;
@@ -164,7 +164,7 @@ const ClassListDownloadDialog = ({
                 escape(destinationName)
             ];
 
-            if (!isSaturday) {
+            if (!isSat) {
                 const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
                 weekdays.forEach(day => {
                     const isAssignedOnDay = routes.some(r => r.dayOfWeek === day);
@@ -185,7 +185,7 @@ const ClassListDownloadDialog = ({
             'afterschool': '평일방과후',
             'saturday': '주말방과후'
         };
-        const prefix = isSaturday ? "KIS_KoreanSchool" : "KIS_Class";
+        const prefix = isSat ? "KIS_KoreanSchool" : "KIS_Class";
         const fileName = `${prefix}_Bus_List_${grade}_${studentClass}_${categoryLabels[category]}_${format(new Date(), 'yyyyMMdd')}.csv`;
         
         link.setAttribute("href", url);
@@ -372,7 +372,6 @@ const AllGroupLeadersStatus = ({
                     const records = await getGroupLeaderRecords(route.id);
                     const activeLeaders = records.filter(r => r.endDate === null);
                     if (activeLeaders.length > 0) {
-                        // For display in overall status, we'll take the earliest start date for the "days" count
                         const earliestStart = new Date(Math.min(...activeLeaders.map(l => new Date(l.startDate).getTime())));
                         const days = differenceInDays(new Date(), earliestStart) + 1;
                         
@@ -496,7 +495,6 @@ const AllGroupLeadersStatus = ({
     );
 };
 
-
 const TeacherAssignmentViewDialog = ({
     buses,
     allRoutes,
@@ -568,7 +566,6 @@ const TeacherAssignmentViewDialog = ({
     );
 };
 
-
 export default function TeacherPage() {
   const { t } = useTranslation();
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -625,7 +622,6 @@ export default function TeacherPage() {
     }
   }, [isClient, selectedDate]);
 
-
   useEffect(() => {
     const unsubscribers = [
       onBusesUpdate((data) => setBuses(sortBuses(data))),
@@ -644,7 +640,6 @@ export default function TeacherPage() {
     };
   }, []);
   
-
   const formatStudentName = (student: Student) => {
     if (!student) return '';
     const grade = student.grade.toUpperCase();
@@ -656,40 +651,29 @@ export default function TeacherPage() {
     if (selectedDate) {
         const isNewDate = selectedDate !== lastProcessedDateRef.current;
         const targetDate = new Date(selectedDate);
-        const isSat = getDay(targetDate) === 6;
-        const isSun = getDay(targetDate) === 0;
+        const dayIdx = targetDate.getDay();
         
-        if (isSun) {
+        if (dayIdx === 0) {
             setSelectedDay('Monday');
         } else {
-            const dayIndex = getDay(targetDate);
-            setSelectedDay(DAYS[dayIndex - 1]);
+            setSelectedDay(DAYS[dayIdx - 1]);
         }
 
         if (isNewDate) {
             lastProcessedDateRef.current = selectedDate;
-            
             const isToday = format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
             if (isToday) {
                 const now = new Date();
                 const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
                 const vietnamHour = vTime.getHours();
 
-                if (isSat) {
-                    if (vietnamHour < 11) {
-                        setSelectedRouteType('Morning');
-                    } else if (vietnamHour < 14) {
-                        setSelectedRouteType('AfterSchool');
-                    } else {
-                    }
+                if (dayIdx === 6) {
+                    if (vietnamHour < 11) setSelectedRouteType('Morning');
+                    else if (vietnamHour < 14) setSelectedRouteType('AfterSchool');
                 } else {
-                    if (vietnamHour >= 9 && vietnamHour < 16) {
-                        setSelectedRouteType('Afternoon');
-                    } else if (vietnamHour >= 16 && vietnamHour < 19) {
-                        setSelectedRouteType('AfterSchool');
-                    } else {
-                        setSelectedRouteType('Morning');
-                    }
+                    if (vietnamHour >= 9 && vietnamHour < 16) setSelectedRouteType('Afternoon');
+                    else if (vietnamHour >= 16 && vietnamHour < 19) setSelectedRouteType('AfterSchool');
+                    else setSelectedRouteType('Morning');
                 }
             } else {
                 setSelectedRouteType('Morning');
@@ -698,7 +682,6 @@ export default function TeacherPage() {
     }
   }, [selectedDate]);
 
-  
   const currentRoute = useMemo(() => {
     if (selectedBusId === 'all') return null;
     return allRoutes.find(r => 
@@ -720,7 +703,7 @@ export default function TeacherPage() {
         }
     });
     return buses.filter(bus => (bus.isActive ?? true) && operationalBusIds.has(bus.id));
-}, [buses, allRoutes, selectedDay, selectedRouteType]);
+  }, [buses, allRoutes, selectedDay, selectedRouteType]);
 
   const relevantRoutesForDay = useMemo(() => {
     const activeBusIds = new Set(filteredBuses.map(b => b.id));
@@ -753,22 +736,14 @@ export default function TeacherPage() {
         setAllAttendance({});
         return;
     }
-
     const unsubscribers: (() => void)[] = [];
-    
     relevantRoutesForDay.forEach(route => {
         const unsub = onAttendanceUpdate(route.id, selectedDate, (record) => {
-            setAllAttendance(prev => ({
-                ...prev,
-                [route.id]: record
-            }));
+            setAllAttendance(prev => ({ ...prev, [route.id]: record }));
         });
         unsubscribers.push(unsub);
     });
-
-    return () => {
-        unsubscribers.forEach(unsub => unsub());
-    }
+    return () => unsubscribers.forEach(unsub => unsub());
   }, [selectedBusId, relevantRoutesForDay, selectedDate]);
 
   const boardedStudentIds = useMemo(() => attendance?.boarded || [], [attendance]);
@@ -800,14 +775,13 @@ export default function TeacherPage() {
             }
         }
     }
-}, [groupLeaderRecords, selectedStudent, students]);
+  }, [groupLeaderRecords, selectedStudent, students]);
 
-
-    const assignedTeachers = useMemo(() => {
-        if (!currentRoute || !currentRoute.teacherIds) return [];
-        const pool = selectedRouteType === 'AfterSchool' ? afterSchoolTeachers : teachers;
-        return currentRoute.teacherIds.map(id => pool.find(t => t.id === id)).filter(Boolean) as Teacher[];
-    }, [currentRoute, teachers, afterSchoolTeachers, selectedRouteType]);
+  const assignedTeachers = useMemo(() => {
+    if (!currentRoute || !currentRoute.teacherIds) return [];
+    const pool = selectedRouteType === 'AfterSchool' ? afterSchoolTeachers : teachers;
+    return currentRoute.teacherIds.map(id => pool.find(t => t.id === id)).filter(Boolean) as Teacher[];
+  }, [currentRoute, teachers, afterSchoolTeachers, selectedRouteType]);
 
   useEffect(() => {
     if (currentRoute) {
@@ -836,52 +810,30 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (!currentRoute || !students.length || lastLoadedRouteIdRef.current !== currentRoute.id) return;
-
-    const activeLeaderIndices = groupLeaderRecords
-        .map((r, i) => r.endDate === null ? i : -1)
-        .filter(i => i !== -1);
-    
+    const activeLeaderIndices = groupLeaderRecords.map((r, i) => r.endDate === null ? i : -1).filter(i => i !== -1);
     if (activeLeaderIndices.length === 0) return;
-
     let recordsChanged = false;
     const newRecords = [...groupLeaderRecords];
     const dateStr = format(new Date(), 'yyyy-MM-dd');
-
     activeLeaderIndices.forEach(idx => {
         const leader = newRecords[idx];
         const isStillOnRoute = currentRoute.seating.some(s => s.studentId === leader.studentId);
         const studentExists = students.some(s => s.id === leader.studentId);
-
         if (!isStillOnRoute || !studentExists) {
             leader.endDate = dateStr;
             leader.days = differenceInDays(new Date(dateStr), new Date(leader.startDate)) + 1;
             recordsChanged = true;
-            toast({
-                title: t('notice'),
-                description: `${leader.name} 조장이 ${studentExists ? "노선에서 제외" : "삭제"}되어 활동이 종료되었습니다.`,
-            });
+            toast({ title: t('notice'), description: `${leader.name} 조장이 ${studentExists ? "노선에서 제외" : "삭제"}되어 활동이 종료되었습니다.` });
         }
     });
-
-    if (recordsChanged) {
-        setGroupLeaderRecords(newRecords);
-    }
+    if (recordsChanged) setGroupLeaderRecords(newRecords);
   }, [currentRoute, students, groupLeaderRecords, t, toast]);
 
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
       const studentIdsOnRoute = new Set<string>();
-      currentRoute.seating.forEach(seat => {
-          if(seat.studentId) studentIdsOnRoute.add(seat.studentId);
-      });
-      
-      const getStatusPriority = (studentId: string) => {
-        if (boardedStudentIds.includes(studentId) || notBoardingStudentIds.includes(studentId)) {
-            return 2;
-        }
-        return 1;
-      };
-
+      currentRoute.seating.forEach(seat => { if(seat.studentId) studentIdsOnRoute.add(seat.studentId); });
+      const getStatusPriority = (studentId: string) => (boardedStudentIds.includes(studentId) || notBoardingStudentIds.includes(studentId)) ? 2 : 1;
       return Array.from(studentIdsOnRoute)
           .map(id => students.find(s => s.id === id))
           .filter((s): s is Student => !!s)
@@ -889,331 +841,158 @@ export default function TeacherPage() {
               const statusPriorityA = getStatusPriority(a.id);
               const statusPriorityB = getStatusPriority(b.id);
               if (statusPriorityA !== statusPriorityB) return statusPriorityA - statusPriorityB;
-
               const gradeA = getGradeValue(a.grade);
               const gradeB = getGradeValue(b.grade);
               if (gradeA !== gradeB) return gradeA - gradeB;
-              
               const classCompare = a.class.localeCompare(b.class, undefined, { numeric: true });
               if (classCompare !== 0) return classCompare;
-
               return a.name.localeCompare(b.name, 'ko');
           });
   }, [currentRoute, students, boardedStudentIds, notBoardingStudentIds]);
   
- const toggleNotBoarding = useCallback((student: Student) => {
-    if (!currentRoute) {
-        toast({ title: t("error"), description: t("teacher_page.no_route_info"), variant: 'destructive'});
-        return;
-    }
-
+  const toggleNotBoarding = useCallback((student: Student) => {
+    if (!currentRoute) { toast({ title: t("error"), description: t("teacher_page.no_route_info"), variant: 'destructive'}); return; }
     const isNotBoarding = notBoardingStudentIds.includes(student.id);
-
-    const newNotBoardingIds = isNotBoarding
-        ? notBoardingStudentIds.filter(id => id !== student.id)
-        : [...notBoardingStudentIds, student.id];
-    
+    const newNotBoardingIds = isNotBoarding ? notBoardingStudentIds.filter(id => id !== student.id) : [...notBoardingStudentIds, student.id];
     const newBoardedIds = boardedStudentIds.filter(id => id !== student.id);
-
     updateAttendance(currentRoute.id, selectedDate, { notBoarding: newNotBoardingIds, boarded: newBoardedIds, disembarked: disembarkedStudentIds, completedDestinations })
-      .then(() => {
-        toast({ title: t("success"), description: `${formatStudentName(student)} ${t('teacher_page.not_boarding_updated')}`});
-      })
-      .catch((error) => {
-        console.error("Error updating not-boarding status:", error);
-        toast({ title: t('error'), description: t('teacher_page.boarding_error'), variant: "destructive"});
-      });
+      .then(() => toast({ title: t("success"), description: `${formatStudentName(student)} ${t('teacher_page.not_boarding_updated')}`}))
+      .catch(() => toast({ title: t('error'), description: t('teacher_page.boarding_error'), variant: "destructive"}));
   }, [currentRoute, selectedDate, notBoardingStudentIds, boardedStudentIds, disembarkedStudentIds, completedDestinations, toast, t]);
 
   const toggleDisembark = useCallback(async (studentId: string, destinationId: string) => {
     if (!currentRoute) return;
-
     const isDisembarked = disembarkedStudentIds.includes(studentId);
-    
-    const newDisembarkedIds = isDisembarked
-        ? disembarkedStudentIds.filter(id => id !== studentId)
-        : [...disembarkedStudentIds, studentId];
-      
-    const newBoardedIds = isDisembarked
-        ? [...boardedStudentIds, studentId]
-        : boardedStudentIds.filter(id => id !== studentId);
-
+    const newDisembarkedIds = isDisembarked ? disembarkedStudentIds.filter(id => id !== studentId) : [...disembarkedStudentIds, studentId];
+    const newBoardedIds = isDisembarked ? [...boardedStudentIds, studentId] : boardedStudentIds.filter(id => id !== studentId);
     let newCompletedDestinations = [...completedDestinations];
-    
     const studentsForDestination = studentsOnCurrentRoute.filter(s => {
         let destId: string | null = null;
-        if (selectedDay === 'Saturday') {
-            if (selectedRouteType === 'Morning') destId = s.satMorningDestinationId;
-            else destId = s.satAfternoonDestinationId;
-        } else {
+        if (selectedDay === 'Saturday') destId = selectedRouteType === 'Morning' ? s.satMorningDestinationId : s.satAfternoonDestinationId;
+        else {
             if (selectedRouteType === 'Morning') destId = s.morningDestinationId;
             else if (selectedRouteType === 'Afternoon') destId = s.afternoonDestinationId;
-            else if (selectedRouteType === 'AfterSchool') destId = s.afterSchoolDestinations?.[selectedDay] || null;
+            else destId = s.afterSchoolDestinations?.[selectedDay] || null;
         }
         return destId === destinationId;
     });
-
     const disembarkedForDestination = studentsForDestination.filter(s => newDisembarkedIds.includes(s.id));
-
     if (disembarkedForDestination.length === studentsForDestination.length && studentsForDestination.length > 0) {
-        if (!newCompletedDestinations.includes(destinationId)) {
-            newCompletedDestinations.push(destinationId);
-        }
-    } else {
-        newCompletedDestinations = newCompletedDestinations.filter(id => id !== destinationId);
-    }
-      
-    try {
-        await updateAttendance(currentRoute.id, selectedDate, { 
-            boarded: newBoardedIds, 
-            disembarked: newDisembarkedIds,
-            completedDestinations: newCompletedDestinations
-        });
-    } catch (error) {
-        console.error("Error updating disembark status", error);
-        toast({ title: "Error", description: "Failed to update disembark status.", variant: "destructive" });
-    }
+        if (!newCompletedDestinations.includes(destinationId)) newCompletedDestinations.push(destinationId);
+    } else newCompletedDestinations = newCompletedDestinations.filter(id => id !== destinationId);
+    try { await updateAttendance(currentRoute.id, selectedDate, { boarded: newBoardedIds, disembarked: newDisembarkedIds, completedDestinations: newCompletedDestinations }); }
+    catch (error) { toast({ title: "Error", description: "Failed to update disembark status.", variant: "destructive" }); }
   }, [currentRoute, selectedDate, studentsOnCurrentRoute, selectedRouteType, selectedDay, boardedStudentIds, disembarkedStudentIds, completedDestinations, toast]);
 
-  
   const toggleGroupLeader = (student: Student) => {
     if(!currentRoute) return;
     const dateStr = format(new Date(), 'yyyy-MM-dd');
-    const studentId = student.id;
-
     const newRecords = [...groupLeaderRecords];
-    const activeLeaderIndex = newRecords.findIndex(r => r.studentId === studentId && r.endDate === null);
-
+    const activeLeaderIndex = newRecords.findIndex(r => r.studentId === student.id && r.endDate === null);
     if (activeLeaderIndex > -1) {
-        // Deactivate existing leader
         const record = newRecords[activeLeaderIndex];
         record.endDate = dateStr;
         record.days = differenceInDays(new Date(dateStr), new Date(record.startDate)) + 1;
         toast({ title: t('notice'), description: `${formatStudentName(student)} 조장 활동을 종료했습니다.` });
     } else {
-        // Activate new leader - allow up to 3 active leaders
         const currentActiveCount = newRecords.filter(r => r.endDate === null).length;
-        if (currentActiveCount >= 3) {
-            toast({ 
-                title: t('notice'), 
-                description: "동시에 활동 가능한 조장은 최대 3명입니다.",
-                variant: 'destructive'
-            });
-            return;
-        }
-
-        newRecords.push({
-            studentId,
-            name: student.name,
-            startDate: dateStr,
-            endDate: null,
-            days: 1,
-        });
+        if (currentActiveCount >= 3) { toast({ title: t('notice'), description: "동시에 활동 가능한 조장은 최대 3명입니다.", variant: 'destructive' }); return; }
+        newRecords.push({ studentId: student.id, name: student.name, startDate: dateStr, endDate: null, days: 1 });
         toast({ title: t('success'), description: `${formatStudentName(student)} 학생을 조장으로 임명했습니다.` });
     }
-    
     setGroupLeaderRecords(newRecords);
-    if (selectedStudent && selectedStudent.id === student.id) {
-        setSelectedStudent(prev => prev ? {...prev, isGroupLeader: !prev.isGroupLeader} : null);
-    }
+    if (selectedStudent && selectedStudent.id === student.id) setSelectedStudent(prev => prev ? {...prev, isGroupLeader: !prev.isGroupLeader} : null);
   };
   
-    const handleSeatClick = (seatNumber: number, studentId: string | null) => {
-      if (!studentId || !currentRoute) {
-        setLastClickedStudentId(null);
-        setSelectedStudent(null);
-        return;
-      }
-      
-      const isBoarded = boardedStudentIds.includes(studentId);
-      const isDisembarked = disembarkedStudentIds.includes(studentId);
-
-      let newBoarded = [...boardedStudentIds];
-      let newDisembarked = [...disembarkedStudentIds];
-      let newNotBoarding = notBoardingStudentIds.filter(id => id !== studentId);
-
-      if (isDisembarked) {
-          newDisembarked = newDisembarked.filter(id => id !== studentId);
-      } else if (isBoarded) {
-          newBoarded = newBoarded.filter(id => id !== studentId);
-          newDisembarked.push(studentId);
-      } else {
-          newBoarded.push(studentId);
-      }
-  
-      updateAttendance(currentRoute.id, selectedDate, { 
-          boarded: newBoarded, 
-          notBoarding: newNotBoarding, 
-          disembarked: newDisembarked, 
-          completedDestinations 
-      })
-      .then(() => {
-          setLastClickedStudentId(studentId);
-      })
-      .catch(() => {
-          toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive" });
-      });
-    };
+  const handleSeatClick = (seatNumber: number, studentId: string | null) => {
+    if (!studentId || !currentRoute) { setLastClickedStudentId(null); setSelectedStudent(null); return; }
+    const isBoarded = boardedStudentIds.includes(studentId);
+    const isDisembarked = disembarkedStudentIds.includes(studentId);
+    let newBoarded = [...boardedStudentIds], newDisembarked = [...disembarkedStudentIds], newNotBoarding = notBoardingStudentIds.filter(id => id !== studentId);
+    if (isDisembarked) newDisembarked = newDisembarked.filter(id => id !== studentId);
+    else if (isBoarded) { newBoarded = newBoarded.filter(id => id !== studentId); newDisembarked.push(studentId); }
+    else newBoarded.push(studentId);
+    updateAttendance(currentRoute.id, selectedDate, { boarded: newBoarded, notBoarding: newNotBoarding, disembarked: newDisembarked, completedDestinations })
+      .then(() => setLastClickedStudentId(studentId))
+      .catch(() => toast({ title: t("error"), description: t('teacher_page.boarding_error'), variant: "destructive" }));
+  };
     
   const handleSeatContextMenu = async (e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
     if (!currentRoute) return;
-
     const newSeating = [...currentRoute.seating];
     const clickedSeat = newSeating.find(s => s.seatNumber === seatNumber);
     if (!clickedSeat) return;
-
     if (selectedSeat) {
         const sourceSeatIndex = newSeating.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
         const targetSeatIndex = newSeating.findIndex(s => s.seatNumber === seatNumber);
-
-        if (sourceSeatIndex === -1 || targetSeatIndex === -1 || sourceSeatIndex === targetSeatIndex) {
-            setSelectedSeat(null);
-            toast({ title: t("cancelled"), description: t('teacher_page.swap_cancelled') });
-            return;
-        }
-
-        const sourceStudentId = newSeating[sourceSeatIndex].studentId;
-        const targetStudentId = newSeating[targetSeatIndex].studentId;
+        if (sourceSeatIndex === -1 || targetSeatIndex === -1 || sourceSeatIndex === targetSeatIndex) { setSelectedSeat(null); toast({ title: t("cancelled"), description: t('teacher_page.swap_cancelled') }); return; }
+        const sourceStudentId = newSeating[sourceSeatIndex].studentId, targetStudentId = newSeating[targetSeatIndex].studentId;
         newSeating[sourceSeatIndex].studentId = targetStudentId;
         newSeating[targetSeatIndex].studentId = sourceStudentId;
-        
-        try {
-           await updateRouteSeating(currentRoute.id, newSeating);
-           toast({ title: t("success"), description: t('teacher_page.swap_success') });
-        } catch {
-             toast({ title: t("error"), description: t('teacher_page.swap_error'), variant: "destructive" });
-        } finally {
-            setSelectedSeat(null);
-        }
-
-    } else {
-        setSelectedSeat(clickedSeat);
-        toast({ title: t('teacher_page.seat_selected'), description: t('teacher_page.seat_selected_description') });
-    }
+        try { await updateRouteSeating(currentRoute.id, newSeating); toast({ title: t("success"), description: t('teacher_page.swap_success') }); }
+        catch { toast({ title: t("error"), description: t('teacher_page.swap_error'), variant: "destructive" }); }
+        finally { setSelectedSeat(null); }
+    } else { setSelectedSeat(clickedSeat); toast({ title: t('teacher_page.seat_selected'), description: t('teacher_page.seat_selected_description') }); }
   };
-
 
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
-    const lowerCaseQuery = searchQuery.toLowerCase();
-    const queryOnlyNumbers = searchQuery.replace(/\D/g, '');
-    
-    return students
-        .filter(s => {
-            const nameMatch = formatStudentName(s).toLowerCase().includes(lowerCaseQuery);
-            if (nameMatch) return true;
-            if (queryOnlyNumbers && s.contact) {
-                const contactOnlyNumbers = s.contact.replace(/\D/g, '');
-                if (contactOnlyNumbers.includes(queryOnlyNumbers)) return true;
-            }
-            return false;
-        })
-        .map(student => {
-            const studentRoute = allRoutes.find(route => 
-                route.seating.some(seat => seat.studentId === student.id)
-            );
-            const busName = studentRoute ? buses.find(b => b.id === studentRoute.busId)?.name : undefined;
-
-            let destId: string | null = null;
-            if (selectedDay === 'Saturday') {
-                if (selectedRouteType === 'Morning') destId = student.satMorningDestinationId;
-                else destId = student.satAfternoonDestinationId;
-            } else {
-                if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
-                else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
-                else if (selectedRouteType === 'AfterSchool') student.afterSchoolDestinations?.[selectedDay] || null;
-            }
-            const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
-
-            return {
-                ...student,
-                busName,
-                destinationName
-            };
-        });
+    const lowerCaseQuery = searchQuery.toLowerCase(), queryNumbers = searchQuery.replace(/\D/g, '');
+    return students.filter(s => formatStudentName(s).toLowerCase().includes(lowerCaseQuery) || (queryNumbers && s.contact?.replace(/\D/g, '').includes(queryNumbers))).map(student => {
+        const studentRoute = allRoutes.find(route => route.seating.some(seat => seat.studentId === student.id));
+        const busName = studentRoute ? buses.find(b => b.id === studentRoute.busId)?.name : undefined;
+        let destId: string | null = null;
+        if (selectedDay === 'Saturday') destId = selectedRouteType === 'Morning' ? student.satMorningDestinationId : student.satAfternoonDestinationId;
+        else {
+            if (selectedRouteType === 'Morning') destId = student.morningDestinationId;
+            else if (selectedRouteType === 'Afternoon') destId = student.afternoonDestinationId;
+            else destId = student.afterSchoolDestinations?.[selectedDay] || null;
+        }
+        return { ...student, busName, destinationName: destinations.find(d => d.id === destId)?.name || t('unassigned') };
+    });
   }, [searchQuery, students, allRoutes, buses, selectedRouteType, selectedDay, destinations, t]);
 
   const handleSelectStudentFromSearch = useCallback((student: Student) => {
-    setLastClickedStudentId(student.id);
-    setSearchQuery('');
-
-    const routeForStudent = allRoutes.find(route => 
-        route.dayOfWeek === selectedDay &&
-        route.type === selectedRouteType &&
-        route.seating.some(seat => seat.studentId === student.id)
-    );
-
-    if (routeForStudent) {
-        setSelectedBusId(routeForStudent.busId);
-    } else {
-        setSelectedBusId('');
-    }
+    setLastClickedStudentId(student.id); setSearchQuery('');
+    const routeForStudent = allRoutes.find(route => route.dayOfWeek === selectedDay && route.type === selectedRouteType && route.seating.some(seat => seat.studentId === student.id));
+    if (routeForStudent) setSelectedBusId(routeForStudent.busId);
+    else setSelectedBusId('');
   }, [allRoutes, selectedDay, selectedRouteType]);
 
-
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (searchResults.length > 0) {
-        handleSelectStudentFromSearch(searchResults[0]);
-      }
-    }
-  };
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && searchResults.length > 0) { e.preventDefault(); handleSelectStudentFromSearch(searchResults[0]); } };
 
   useEffect(() => {
-      if (selectedBusId && selectedBusId !== 'all' && !filteredBuses.some(b => b.id === selectedBusId)) {
-          setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : '');
-      } else if (!selectedBusId && filteredBuses.length > 0) {
-          setSelectedBusId(filteredBuses[0].id);
-      }
+      if (selectedBusId && selectedBusId !== 'all' && !filteredBuses.some(b => b.id === selectedBusId)) setSelectedBusId(filteredBuses.length > 0 ? filteredBuses[0].id : '');
+      else if (!selectedBusId && filteredBuses.length > 0) setSelectedBusId(filteredBuses[0].id);
   }, [filteredBuses, selectedBusId]);
 
   const studentsToDisembark = useMemo(() => {
     if (!selectedDestinationId) return [];
-    
-    const getStudentDestinationId = (student: Student) => {
-        if (selectedDay === 'Saturday') {
-            if (selectedRouteType === 'Morning') return student.satMorningDestinationId;
-            return student.satAfternoonDestinationId;
-        }
-        if (selectedRouteType === 'Morning') return student.morningDestinationId;
-        if (selectedRouteType === 'Afternoon') return student.afternoonDestinationId;
-        if (selectedRouteType === 'AfterSchool') return student.afterSchoolDestinations?.[selectedDay] || null;
-        return null;
-    }
-
-    return studentsOnCurrentRoute.filter(student => 
-        getStudentDestinationId(student) === selectedDestinationId &&
-        boardedStudentIds.includes(student.id) &&
-        !disembarkedStudentIds.includes(student.id)
-    );
+    const getDestId = (s: Student) => {
+        if (selectedDay === 'Saturday') return selectedRouteType === 'Morning' ? s.satMorningDestinationId : s.satAfternoonDestinationId;
+        if (selectedRouteType === 'Morning') return s.morningDestinationId;
+        if (selectedRouteType === 'Afternoon') return s.afternoonDestinationId;
+        return s.afterSchoolDestinations?.[selectedDay] || null;
+    };
+    return studentsOnCurrentRoute.filter(s => getDestId(s) === selectedDestinationId && boardedStudentIds.includes(s.id) && !disembarkedStudentIds.includes(s.id));
   }, [selectedDestinationId, studentsOnCurrentRoute, boardedStudentIds, disembarkedStudentIds, selectedRouteType, selectedDay]);
 
   const handleToggleDeparture = async () => {
     if (!selectedBus) return;
-    if (selectedBus.status === 'departed') {
-        await updateBus(selectedBus.id, { status: 'ready', departureTime: null });
-    } else {
-        await updateBus(selectedBus.id, { status: 'departed', departureTime: new Date().toISOString() });
-    }
-  }
+    if (selectedBus.status === 'departed') await updateBus(selectedBus.id, { status: 'ready', departureTime: null });
+    else await updateBus(selectedBus.id, { status: 'departed', departureTime: new Date().toISOString() });
+  };
 
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-2">
         <div className="flex-1 min-w-[120px]">
             <Label className="text-xs">{t('bus')}</Label>
             <Select value={selectedBusId} onValueChange={setSelectedBusId} disabled={loading}>
-                <SelectTrigger>
-                    <SelectValue placeholder={t('teacher_page.select_bus')} />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('teacher_page.select_bus')} /></SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">{t('teacher_page.all_buses')}</SelectItem>
-                    {filteredBuses.map((bus) => (
-                        <SelectItem key={bus.id} value={bus.id}>
-                            {bus.name} ({t(`bus_type.${bus.capacity}`)})
-                        </SelectItem>
-                    ))}
+                    {filteredBuses.map((bus) => <SelectItem key={bus.id} value={bus.id}>{bus.name} ({t(`bus_type.${bus.capacity}`)})</SelectItem>)}
                 </SelectContent>
             </Select>
         </div>
@@ -1222,32 +1001,19 @@ export default function TeacherPage() {
             <Select 
                 value={selectedDay} 
                 onValueChange={(v) => {
-                    const day = v as DayOfWeek;
-                    const today = new Date();
-                    const currentDayIndex = today.getDay() || 7; 
-                    const targetDayIndex = DAYS.indexOf(day) + 1;
-                    const diff = targetDayIndex - currentDayIndex;
-                    const targetDate = new Date(today);
-                    targetDate.setDate(today.getDate() + diff);
+                    const day = v as DayOfWeek, today = new Date(), currentDayIndex = today.getDay() || 7, targetDayIndex = DAYS.indexOf(day) + 1;
+                    const targetDate = new Date(today); targetDate.setDate(today.getDate() + (targetDayIndex - currentDayIndex));
                     setSelectedDate(format(targetDate, 'yyyy-MM-dd'));
                 }}
             >
-                <SelectTrigger>
-                    <SelectValue placeholder={t('select_day')} />
-                </SelectTrigger>
-                <SelectContent>
-                    {DAYS.map((day) => (
-                        <SelectItem key={day} value={day}>
-                            {t(`day.${day.toLowerCase()}`)}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
+                <SelectTrigger><SelectValue placeholder={t('select_day')} /></SelectTrigger>
+                <SelectContent>{DAYS.map((day) => <SelectItem key={day} value={day}>{t(`day.${day.toLowerCase()}`)}</SelectItem>)}</SelectContent>
             </Select>
         </div>
         <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
             <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full">
-                <TabsList className={cn("grid w-full", "grid-cols-3")}>
+                <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="Morning" disabled={loading}>{t('route_type.morning')}</TabsTrigger>
                     <TabsTrigger value="Afternoon" disabled={loading}>{t('route_type.afternoon')}</TabsTrigger>
                     <TabsTrigger value="AfterSchool" disabled={loading}>{t(`route_type.AfterSchool`)}</TabsTrigger>
@@ -1255,189 +1021,67 @@ export default function TeacherPage() {
             </Tabs>
         </div>
     </div>
-);
+  );
 
   const sidePanel = (
     <div className="min-h-[300px]">
         <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-                type="search"
-                placeholder={t('teacher_page.search_student_placeholder')}
-                className="pl-8 w-full"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-            />
+            <Input type="search" placeholder={t('teacher_page.search_student_placeholder')} className="pl-8 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={handleSearchKeyDown} />
             {searchResults.length > 0 && (
                 <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto">
                     <CardContent className="p-2">
                         {searchResults.map(student => (
-                            <div key={student.id} 
-                                 className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer"
-                                 onClick={() => handleSelectStudentFromSearch(student)}>
+                            <div key={student.id} className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer" onClick={() => handleSelectStudentFromSearch(student)}>
                                 {formatStudentName(student)}
-                                <p className="text-xs text-muted-foreground">
-                                    {student.destinationName}
-                                    {student.busName && `, ${student.busName}`}
-                                    {student.contact && `, ${student.contact}`}
-                                </p>
+                                <p className="text-xs text-muted-foreground">{student.destinationName}{student.busName && `, ${student.busName}`}{student.contact && `, ${student.contact}`}</p>
                             </div>
                         ))}
                     </CardContent>
                 </Card>
             )}
         </div>
-
         {selectedStudent ? (
             <div>
                 <div className="text-center my-4">
                     <h3 className="text-xl font-bold font-headline">{formatStudentName(selectedStudent)}</h3>
-                    <p className="text-sm text-muted-foreground">
-                        {t('destination')}: {destinations.find(d => {
-                            let destId: string | null = null;
-                            if (selectedDay === 'Saturday') {
-                                if (selectedRouteType === 'Morning') destId = selectedStudent.satMorningDestinationId;
-                                else destId = selectedStudent.satAfternoonDestinationId;
-                            } else {
-                                if (selectedRouteType === 'Morning') destId = selectedStudent.morningDestinationId;
-                                else if (selectedRouteType === 'Afternoon') destId = selectedStudent.afternoonDestinationId;
-                                else if (selectedRouteType === 'AfterSchool') selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
-                            }
-                            return d.id === destId;
-                        })?.name || t('unassigned')}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                        {t('student.contact')}: {selectedStudent.contact || t('no_selection')}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{t('destination')}: {destinations.find(d => {
+                        let destId: string | null = null;
+                        if (selectedDay === 'Saturday') destId = selectedRouteType === 'Morning' ? selectedStudent.satMorningDestinationId : selectedStudent.satAfternoonDestinationId;
+                        else {
+                            if (selectedRouteType === 'Morning') destId = selectedStudent.morningDestinationId;
+                            else if (selectedRouteType === 'Afternoon') destId = selectedStudent.afternoonDestinationId;
+                            else destId = selectedStudent.afterSchoolDestinations?.[selectedDay] || null;
+                        }
+                        return d.id === destId;
+                    })?.name || t('unassigned')}</p>
+                    <p className="text-sm text-muted-foreground">{t('student.contact')}: {selectedStudent.contact || t('no_selection')}</p>
                 </div>
                 <Separator className="my-4" />
                 <div className="space-y-3">
-                    <Button
-                        variant={notBoardingStudentIds.includes(selectedStudent.id) ? "destructive" : "outline"}
-                        className="w-full"
-                        onClick={() => setStudentToConfirm(selectedStudent)}
-                    >
-                        <UserX className="mr-2" /> {t('teacher_page.status_not_riding_today')}
-                    </Button>
-                    <Button
-                        variant={selectedStudent.isGroupLeader ? "default" : "outline"}
-                        className="w-full"
-                        onClick={() => toggleGroupLeader(selectedStudent)}
-                        disabled={!currentRoute}
-                    >
-                        <Crown className="mr-2" /> {selectedStudent.isGroupLeader ? t('teacher_page.demote_leader') : t('teacher_page.promote_leader')}
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        className="w-full"
-                        onClick={() => { setLastClickedStudentId(null); setSelectedStudent(null); }}
-                    >
-                        {t('close')}
-                    </Button>
+                    <Button variant={notBoardingStudentIds.includes(selectedStudent.id) ? "destructive" : "outline"} className="w-full" onClick={() => setStudentToConfirm(selectedStudent)}><UserX className="mr-2" /> {t('teacher_page.status_not_riding_today')}</Button>
+                    <Button variant={selectedStudent.isGroupLeader ? "default" : "outline"} className="w-full" onClick={() => toggleGroupLeader(selectedStudent)} disabled={!currentRoute}><Crown className="mr-2" /> {selectedStudent.isGroupLeader ? t('teacher_page.demote_leader') : t('teacher_page.promote_leader')}</Button>
+                    <Button variant="ghost" className="w-full" onClick={() => { setLastClickedStudentId(null); setSelectedStudent(null); }}>{t('close')}</Button>
                 </div>
             </div>
-        ) : (
-            <div className="text-center text-muted-foreground pt-10">
-                <p>{t('teacher_page.select_student_prompt')}</p>
-            </div>
-        )}
+        ) : <div className="text-center text-muted-foreground pt-10"><p>{t('teacher_page.select_student_prompt')}</p></div>}
     </div>
   );
 
-  if (loading) {
-    return (
-        <MainLayout headerContent={headerContent}>
-            <div className="flex justify-center items-center h-64"><p>{t('loading.data')}</p></div>
-        </MainLayout>
-    );
-  }
+  if (loading) return <MainLayout headerContent={headerContent}><div className="flex justify-center items-center h-64"><p>{t('loading.data')}</p></div></MainLayout>;
 
   return (
-    <MainLayout 
-        headerContent={headerContent}
-        titleActions={
-            <div className="flex gap-2 no-print">
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8">
-                            <Download className="mr-2 h-4 w-4" />
-                            <span className="hidden sm:inline">{t('teacher_page.download_class_list_button')}</span>
-                            <span className="sm:hidden">{t('template')}</span>
-                        </Button>
-                    </DialogTrigger>
-                    <ClassListDownloadDialog 
-                        students={students}
-                        allRoutes={allRoutes}
-                        buses={buses}
-                        destinations={destinations}
-                        t={t}
-                    />
-                </Dialog>
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8">
-                            <Users className="mr-2 h-4 w-4" />
-                            <span className="hidden sm:inline">{t('teacher_page.check_assignments_button')}</span>
-                            <span className="sm:hidden">{t('confirm')}</span>
-                        </Button>
-                    </DialogTrigger>
-                    <TeacherAssignmentViewDialog 
-                        buses={buses}
-                        allRoutes={allRoutes}
-                        teachers={teachers}
-                        afterSchoolTeachers={afterSchoolTeachers}
-                        selectedDay={selectedDay}
-                        selectedRouteType={selectedRouteType}
-                        t={t}
-                    />
-                </Dialog>
-            </div>
-        }
-    >
-        <AlertDialog
-            open={!!studentToConfirm}
-            onOpenChange={(open) => !open && setStudentToConfirm(null)}
-        >
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>{t('teacher_page.not_boarding_confirm.title')}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        {studentToConfirm ? t('teacher_page.not_boarding_confirm.description', {studentName: formatStudentName(studentToConfirm)}) : ''}
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                    <AlertDialogAction
-                        onClick={() => {
-                            if (studentToConfirm) {
-                                toggleNotBoarding(studentToConfirm);
-                            }
-                            setStudentToConfirm(null);
-                        }}
-                    >
-                        {t('confirm')}
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+    <MainLayout headerContent={headerContent} titleActions={
+        <div className="flex gap-2 no-print">
+            <Dialog><DialogTrigger asChild><Button variant="outline" size="sm" className="h-8"><Download className="mr-2 h-4 w-4" /><span className="hidden sm:inline">{t('teacher_page.download_class_list_button')}</span><span className="sm:hidden">{t('template')}</span></Button></DialogTrigger><ClassListDownloadDialog students={students} allRoutes={allRoutes} buses={buses} destinations={destinations} t={t} /></Dialog>
+            <Dialog><DialogTrigger asChild><Button variant="outline" size="sm" className="h-8"><Users className="mr-2 h-4 w-4" /><span className="hidden sm:inline">{t('teacher_page.check_assignments_button')}</span><span className="sm:hidden">{t('confirm')}</span></Button></DialogTrigger><TeacherAssignmentViewDialog buses={buses} allRoutes={allRoutes} teachers={teachers} afterSchoolTeachers={afterSchoolTeachers} selectedDay={selectedDay} selectedRouteType={selectedRouteType} t={t} /></Dialog>
+        </div>
+    }>
+        <AlertDialog open={!!studentToConfirm} onOpenChange={(open) => !open && setStudentToConfirm(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('teacher_page.not_boarding_confirm.title')}</AlertDialogTitle><AlertDialogDescription>{studentToConfirm ? t('teacher_page.not_boarding_confirm.description', {studentName: formatStudentName(studentToConfirm)}) : ''}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => { if (studentToConfirm) toggleNotBoarding(studentToConfirm); setStudentToConfirm(null); }}>{t('confirm')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
         {selectedBusId === 'all' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full">
-                <AllStudentsBoardingStatus
-                    relevantRoutes={relevantRoutesForDay}
-                    students={students}
-                    buses={buses}
-                    allAttendance={allAttendance}
-                    formatStudentName={formatStudentName}
-                    t={t}
-                />
-                <AllGroupLeadersStatus
-                    relevantRoutes={relevantRoutesForDay}
-                    students={students}
-                    buses={buses}
-                    formatStudentName={formatStudentName}
-                    t={t}
-                />
+                <AllStudentsBoardingStatus relevantRoutes={relevantRoutesForDay} students={students} buses={buses} allAttendance={allAttendance} formatStudentName={formatStudentName} t={t} />
+                <AllGroupLeadersStatus relevantRoutes={relevantRoutesForDay} students={students} buses={buses} formatStudentName={formatStudentName} t={t} />
             </div>
         ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1446,307 +1090,36 @@ export default function TeacherPage() {
                         <CardHeader>
                             <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                                 <div>
-                                    <CardTitle className="font-headline flex items-center">
-                                        {t('teacher_page.seat_map_title')}
-                                        {assignedTeachers.length > 0 && (
-                                            <span className="text-sm font-medium text-muted-foreground ml-2">
-                                            - {assignedTeachers.map(t => t.name).join(', ')} {t('teacher_page.assigned_teacher_suffix')}
-                                            </span>
-                                        )}
-                                    </CardTitle>
+                                    <CardTitle className="font-headline flex items-center">{t('teacher_page.seat_map_title')}{assignedTeachers.length > 0 && <span className="text-sm font-medium text-muted-foreground ml-2">- {assignedTeachers.map(t => t.name).join(', ')} {t('teacher_page.assigned_teacher_suffix')}</span>}</CardTitle>
                                     <CardDescription className="hidden md:block no-print">{t('teacher_page.seat_map_description')}</CardDescription>
                                 </div>
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={() => window.print()} 
-                                    className="h-8 no-print"
-                                >
-                                    <Printer className="mr-2 h-4 w-4" />
-                                    {t('print') || '프린트'}
-                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => typeof window !== 'undefined' && window.print()} className="h-8 no-print"><Printer className="mr-2 h-4 w-4" />{t('print') || '프린트'}</Button>
                             </div>
                         </CardHeader>
-                        <CardContent>
-                            {selectedBus && currentRoute ? (
-                                <BusSeatMap 
-                                    bus={selectedBus}
-                                    seating={currentRoute.seating}
-                                    students={students}
-                                    destinations={destinations}
-                                    onSeatClick={handleSeatClick}
-                                    onSeatContextMenu={handleSeatContextMenu}
-                                    notBoardingStudentIds={notBoardingStudentIds}
-                                    boardedStudentIds={boardedStudentIds}
-                                    highlightedStudentId={selectedStudent?.id}
-                                    highlightedSeatNumber={selectedSeat?.seatNumber}
-                                    routeType={selectedRouteType}
-                                    dayOfWeek={selectedDay}
-                                    groupLeaderRecords={groupLeaderRecords}
-                                />
-                            ) : (
-                                <div className="text-center py-10 text-muted-foreground">
-                                    {filteredBuses.length === 0 && !loading ? t('teacher_page.no_assigned_routes') : t('teacher_page.no_route_info') }
-                                </div>
-                            )}
-                        </CardContent>
+                        <CardContent>{selectedBus && currentRoute ? <BusSeatMap bus={selectedBus} seating={currentRoute.seating} students={students} destinations={destinations} onSeatClick={handleSeatClick} onSeatContextMenu={handleSeatContextMenu} notBoardingStudentIds={notBoardingStudentIds} boardedStudentIds={boardedStudentIds} highlightedStudentId={selectedStudent?.id} highlightedSeatNumber={selectedSeat?.seatNumber} routeType={selectedRouteType} dayOfWeek={selectedDay} groupLeaderRecords={groupLeaderRecords} /> : <div className="text-center py-10 text-muted-foreground">{filteredBuses.length === 0 && !loading ? t('teacher_page.no_assigned_routes') : t('teacher_page.no_route_info') }</div>}</CardContent>
                     </Card>
-                    <div className="lg:hidden">
-                        <GroupLeaderManager records={groupLeaderRecords.map(r => {
-                            const student = students.find(s => s.id === r.studentId);
-                            return {
-                                ...r,
-                                name: student ? formatStudentName(student) : (r.name || "알 수 없는 학생"),
-                            };
-                        })} setRecords={setGroupLeaderRecords} />
-                    </div>
-                    <div className="lg:hidden">
-                        <LostAndFound 
-                        lostItems={lostItems}
-                        setLostItems={setLostItems}
-                        buses={buses}
-                        />
-                    </div>
+                    <div className="lg:hidden"><GroupLeaderManager records={groupLeaderRecords.map(r => ({ ...r, name: students.find(s => s.id === r.studentId) ? formatStudentName(students.find(s => s.id === r.studentId)!) : (r.name || "알 수 없는 학생") }))} setRecords={setGroupLeaderRecords} /></div>
+                    <div className="lg:hidden"><LostAndFound lostItems={lostItems} setLostItems={setLostItems} buses={buses} /></div>
                 </div>
                 <div className="hidden lg:flex lg:flex-col lg:gap-6 no-print">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
-                        </CardHeader>
-                        <CardContent className='max-h-[60vh] overflow-y-auto'>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
-                                        <TableHead className="whitespace-nowrap">{t('teacher_page.status')}</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {studentsOnCurrentRoute.map(student => (
-                                        <TableRow 
-                                            key={student.id} 
-                                            onClick={() => setLastClickedStudentId(student.id)}
-                                            className="cursor-pointer"
-                                        >
-                                            <TableCell className="whitespace-nowrap">{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
-                                            <TableCell className="whitespace-nowrap">
-                                                <Badge 
-                                                    variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (notBoardingStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (!disembarkedStudentIds.includes(student.id)) {
-                                                            handleSeatClick(0, student.id);
-                                                        }
-                                                    }}
-                                                    className="cursor-pointer"
-                                                >
-                                                    {disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_riding_today') : t('teacher_page.status_not_boarded'))}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                        <CardFooter>
-                            {selectedBus && (
-                                <Button 
-                                    onClick={handleToggleDeparture}
-                                    variant={selectedBus.status === 'departed' ? 'destructive' : 'default'}
-                                    className="w-full"
-                                >
-                                    {selectedBus.status === 'departed' ? <Undo2 className="mr-2"/> : <Rocket className="mr-2" />}
-                                    {selectedBus.status === 'departed' ? "출발 취소" : "버스 출발"}
-                                </Button>
-                            )}
-                        </CardFooter>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{t('teacher_page.disembark_management.title')}</CardTitle>
-                            <CardDescription>{t('teacher_page.disembark_management.description')}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex flex-wrap gap-2 mb-4">
-                                {(currentRoute?.stops || []).map(stopId => {
-                                    const dest = destinations.find(d => d.id === stopId);
-                                    return dest ? (
-                                        <Button key={stopId} variant={selectedDestinationId === stopId ? "default" : "outline"} onClick={() => setSelectedDestinationId(prev => prev === stopId ? null : stopId)}>
-                                            {dest.name}
-                                        </Button>
-                                    ) : null;
-                                })}
-                            </div>
-                            {selectedDestinationId && (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
-                                            <TableHead className="whitespace-nowrap">{t('teacher_page.disembark_management.disembark')}</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {studentsToDisembark.map(student => (
-                                            <TableRow key={student.id} onClick={() => toggleDisembark(student.id, selectedDestinationId)} className="cursor-pointer">
-                                                <TableCell className="whitespace-nowrap">{formatStudentName(student)}</TableCell>
-                                                <TableCell className="whitespace-nowrap">
-                                                    <Button size="sm" variant="ghost">
-                                                        <CheckCircle className="h-5 w-5 text-green-600" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                        {studentsToDisembark.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                                    {t('teacher_page.disembark_management.no_students')}
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {sidePanel}
-                        </CardContent>
-                    </Card>
-                    <div className="w-full">
-                        <GroupLeaderManager records={groupLeaderRecords.map(r => {
-                            const student = students.find(s => s.id === r.studentId);
-                            return {
-                                ...r,
-                                name: student ? formatStudentName(student) : (r.name || "알 수 없는 학생"),
-                            };
-                        })} setRecords={setGroupLeaderRecords} />
-                    </div>
-                    <div className="w-full">
-                        <LostAndFound 
-                        lostItems={lostItems}
-                        setLostItems={setLostItems}
-                        buses={buses}
-                        />
-                    </div>
+                    <Card><CardHeader><CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle></CardHeader><CardContent className='max-h-[60vh] overflow-y-auto'><Table><TableHeader><TableRow><TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead><TableHead className="whitespace-nowrap">{t('teacher_page.status')}</TableHead></TableRow></TableHeader><TableBody>{studentsOnCurrentRoute.map(student => (
+                        <TableRow key={student.id} onClick={() => setLastClickedStudentId(student.id)} className="cursor-pointer"><TableCell className="whitespace-nowrap">{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell><TableCell className="whitespace-nowrap"><Badge variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (notBoardingStudentIds.includes(student.id) ? 'destructive' : 'secondary')} onClick={(e) => { e.stopPropagation(); if (!disembarkedStudentIds.includes(student.id)) handleSeatClick(0, student.id); }} className="cursor-pointer">{disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_riding_today') : t('teacher_page.status_not_boarded'))}</Badge></TableCell></TableRow>
+                    ))}</TableBody></Table></CardContent><CardFooter>{selectedBus && <Button onClick={handleToggleDeparture} variant={selectedBus.status === 'departed' ? 'destructive' : 'default'} className="w-full">{selectedBus.status === 'departed' ? <Undo2 className="mr-2"/> : <Rocket className="mr-2" />}{selectedBus.status === 'departed' ? "출발 취소" : "버스 출발"}</Button>}</CardFooter></Card>
+                    <Card><CardHeader><CardTitle>{t('teacher_page.disembark_management.title')}</CardTitle><CardDescription>{t('teacher_page.disembark_management.description')}</CardDescription></CardHeader><CardContent><div className="flex flex-wrap gap-2 mb-4">{(currentRoute?.stops || []).map(stopId => { const dest = destinations.find(d => d.id === stopId); return dest ? <Button key={stopId} variant={selectedDestinationId === stopId ? "default" : "outline"} onClick={() => setSelectedDestinationId(prev => prev === stopId ? null : stopId)}>{dest.name}</Button> : null; })}</div>{selectedDestinationId && <Table><TableHeader><TableRow><TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead><TableHead className="whitespace-nowrap">{t('teacher_page.disembark_management.disembark')}</TableHead></TableRow></TableHeader><TableBody>{studentsToDisembark.map(student => (
+                        <TableRow key={student.id} onClick={() => toggleDisembark(student.id, selectedDestinationId)} className="cursor-pointer"><TableCell className="whitespace-nowrap">{formatStudentName(student)}</TableCell><TableCell className="whitespace-nowrap"><Button size="sm" variant="ghost"><CheckCircle className="h-5 w-5 text-green-600" /></Button></TableCell></TableRow>
+                    ))}{studentsToDisembark.length === 0 && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">{t('teacher_page.disembark_management.no_students')}</TableCell></TableRow>}</TableBody></Table>}</CardContent></Card>
+                    <Card><CardHeader><CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle></CardHeader><CardContent>{sidePanel}</CardContent></Card>
+                    <div className="w-full"><GroupLeaderManager records={groupLeaderRecords.map(r => ({ ...r, name: students.find(s => s.id === r.studentId) ? formatStudentName(students.find(s => s.id === r.studentId)!) : (r.name || "알 수 없는 학생") }))} setRecords={setGroupLeaderRecords} /></div>
+                    <div className="w-full"><LostAndFound lostItems={lostItems} setLostItems={setLostItems} buses={buses} /></div>
                 </div>
                 <div className="contents lg:hidden no-print">
-                    <div className="order-first lg:order-none">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle>
-                            </CardHeader>
-                            <CardContent className='max-h-[60vh] overflow-y-auto'>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
-                                            <TableHead className="whitespace-nowrap">{t('teacher_page.status')}</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {studentsOnCurrentRoute.map(student => (
-                                            <TableRow 
-                                                key={student.id} 
-                                                onClick={() => setLastClickedStudentId(student.id)}
-                                                className="cursor-pointer"
-                                            >
-                                                <TableCell className="whitespace-nowrap">{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell>
-                                                <TableCell className="whitespace-nowrap">
-                                                    <Badge 
-                                                        variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (notBoardingStudentIds.includes(student.id) ? 'destructive' : 'secondary')}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (!disembarkedStudentIds.includes(student.id)) {
-                                                                handleSeatClick(0, student.id);
-                                                            }
-                                                        }}
-                                                        className="cursor-pointer"
-                                                    >
-                                                        {disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_riding_today') : t('teacher_page.status_not_boarded'))}
-                                                    </Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                            <CardFooter>
-                                {selectedBus && (
-                                    <Button 
-                                        onClick={handleToggleDeparture}
-                                        variant={selectedBus.status === 'departed' ? 'destructive' : 'default'}
-                                        className="w-full"
-                                    >
-                                        {selectedBus.status === 'departed' ? <Undo2 className="mr-2"/> : <Rocket className="mr-2" />}
-                                        {selectedBus.status === 'departed' ? "출발 취소" : "버스 출발"}
-                                    </Button>
-                                )}
-                            </CardFooter>
-                        </Card>
-                    </div>
-                    <div className="lg:order-none">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>{t('teacher_page.disembark_management.title')}</CardTitle>
-                                <CardDescription>{t('teacher_page.disembark_management.description')}</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex flex-wrap gap-2 mb-4">
-                                    {(currentRoute?.stops || []).map(stopId => {
-                                        const dest = destinations.find(d => d.id === stopId);
-                                        return dest ? (
-                                            <Button key={stopId} variant={selectedDestinationId === stopId ? "default" : "outline"} onClick={() => setSelectedDestinationId(prev => prev === stopId ? null : stopId)}>
-                                                {dest.name}
-                                            </Button>
-                                        ) : null;
-                                    })}
-                                </div>
-                                {selectedDestinationId && (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead>
-                                                <TableHead className="whitespace-nowrap">{t('teacher_page.disembark_management.disembark')}</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {studentsToDisembark.map(student => (
-                                                <TableRow key={student.id} onClick={() => toggleDisembark(student.id, selectedDestinationId)} className="cursor-pointer">
-                                                    <TableCell className="whitespace-nowrap">{formatStudentName(student)}</TableCell>
-                                                    <TableCell className="whitespace-nowrap">
-                                                        <Button size="sm" variant="ghost">
-                                                            <CheckCircle className="h-5 w-5 text-green-600" />
-                                                        </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                            {studentsToDisembark.length === 0 && (
-                                                <TableRow>
-                                                    <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                                        {t('teacher_page.disembark_management.no_students')}
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-                    <div className="lg:order-none">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {sidePanel}
-                            </CardContent>
-                        </Card>
-                    </div>
+                    <div className="order-first lg:order-none"><Card><CardHeader><CardTitle className="font-headline">{t('teacher_page.boarding_list_title')}</CardTitle></CardHeader><CardContent className='max-h-[60vh] overflow-y-auto'><Table><TableHeader><TableRow><TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead><TableHead className="whitespace-nowrap">{t('teacher_page.status')}</TableHead></TableRow></TableHeader><TableBody>{studentsOnCurrentRoute.map(student => (
+                        <TableRow key={student.id} onClick={() => setLastClickedStudentId(student.id)} className="cursor-pointer"><TableCell className="whitespace-nowrap">{formatStudentName(student)} {groupLeaderRecords.some(r => r.studentId === student.id && r.endDate === null) && "👑"}</TableCell><TableCell className="whitespace-nowrap"><Badge variant={disembarkedStudentIds.includes(student.id) ? 'outline' : boardedStudentIds.includes(student.id) ? 'default' : (notBoardingStudentIds.includes(student.id) ? 'destructive' : 'secondary')} onClick={(e) => { e.stopPropagation(); if (!disembarkedStudentIds.includes(student.id)) handleSeatClick(0, student.id); }} className="cursor-pointer">{disembarkedStudentIds.includes(student.id) ? t('teacher_page.status_disembarked') : boardedStudentIds.includes(student.id) ? t('teacher_page.status_boarded') : (notBoardingStudentIds.includes(student.id) ? t('teacher_page.status_not_riding_today') : t('teacher_page.status_not_boarded'))}</Badge></TableCell></TableRow>
+                    ))}</TableBody></Table></CardContent><CardFooter>{selectedBus && <Button onClick={handleToggleDeparture} variant={selectedBus.status === 'departed' ? 'destructive' : 'default'} className="w-full">{selectedBus.status === 'departed' ? <Undo2 className="mr-2"/> : <Rocket className="mr-2" />}{selectedBus.status === 'departed' ? "출발 취소" : "버스 출발"}</Button>}</CardFooter></Card></div>
+                    <div className="lg:order-none"><Card><CardHeader><CardTitle>{t('teacher_page.disembark_management.title')}</CardTitle><CardDescription>{t('teacher_page.disembark_management.description')}</CardDescription></CardHeader><CardContent><div className="flex flex-wrap gap-2 mb-4">{(currentRoute?.stops || []).map(stopId => { const dest = destinations.find(d => d.id === stopId); return dest ? <Button key={stopId} variant={selectedDestinationId === stopId ? "default" : "outline"} onClick={() => setSelectedDestinationId(prev => prev === stopId ? null : stopId)}>{dest.name}</Button> : null; })}</div>{selectedDestinationId && <Table><TableHeader><TableRow><TableHead className="whitespace-nowrap w-px">{t('student.name')}</TableHead><TableHead className="whitespace-nowrap">{t('teacher_page.disembark_management.disembark')}</TableHead></TableRow></TableHeader><TableBody>{studentsToDisembark.map(student => (
+                        <TableRow key={student.id} onClick={() => toggleDisembark(student.id, selectedDestinationId)} className="cursor-pointer"><TableCell className="whitespace-nowrap">{formatStudentName(student)}</TableCell><TableCell className="whitespace-nowrap"><Button size="sm" variant="ghost"><CheckCircle className="h-5 w-5 text-green-600" /></Button></TableCell></TableRow>
+                    ))}{studentsToDisembark.length === 0 && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">{t('teacher_page.disembark_management.no_students')}</TableCell></TableRow>}</TableBody></Table>}</CardContent></Card></div>
+                    <div className="lg:order-none"><Card><CardHeader><CardTitle className="font-headline">{t('teacher_page.student_info_title')}</CardTitle></CardHeader><CardContent>{sidePanel}</CardContent></Card></div>
                 </div>
             </div>
         )}
