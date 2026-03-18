@@ -263,11 +263,17 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
     
     let affectedRouteConfigs: { day: DayOfWeek, types: RouteType[] }[] = [];
 
-    // Mon-Fri Commute
-    if (('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) ||
-        ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId)) {
+    // Mon-Fri Commute Morning
+    if ('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) {
         ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].forEach(day => {
-            affectedRouteConfigs.push({ day: day as DayOfWeek, types: ['Morning', 'Afternoon'] });
+            affectedRouteConfigs.push({ day: day as DayOfWeek, types: ['Morning'] });
+        });
+    }
+    
+    // Mon-Fri Commute Afternoon
+    if ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].forEach(day => {
+            affectedRouteConfigs.push({ day: day as DayOfWeek, types: ['Afternoon'] });
         });
     }
     
@@ -282,10 +288,14 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
         });
     }
 
-    // Saturday special
-    if (('satMorningDestinationId' in data && data.satMorningDestinationId !== oldData.satMorningDestinationId) ||
-        ('satAfternoonDestinationId' in data && data.satAfternoonDestinationId !== oldData.satAfternoonDestinationId)) {
-        affectedRouteConfigs.push({ day: 'Saturday', types: ['Morning', 'Afternoon', 'AfterSchool'] });
+    // Saturday Morning
+    if ('satMorningDestinationId' in data && data.satMorningDestinationId !== oldData.satMorningDestinationId) {
+        affectedRouteConfigs.push({ day: 'Saturday', types: ['Morning'] });
+    }
+
+    // Saturday Afternoon
+    if ('satAfternoonDestinationId' in data && data.satAfternoonDestinationId !== oldData.satAfternoonDestinationId) {
+        affectedRouteConfigs.push({ day: 'Saturday', types: ['Afternoon', 'AfterSchool'] });
     }
     
     if (affectedRouteConfigs.length > 0) {
