@@ -23,7 +23,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { writeBatch, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
-import { normalizeString } from '@/lib/utils';
+import { normalizeString, sanitizeDataForSystem } from '@/lib/utils';
 
 import { StudentUnassignedPanel } from './student-unassigned-panel';
 import { StudentGlobalSearchPanel } from './student-global-search-panel';
@@ -66,14 +66,7 @@ export const StudentManagementTab = ({
     const { toast } = useToast();
     const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const afterSchoolFileInputRef = useRef<HTMLInputElement>(null);
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-    const [isCopySeatingDialogOpen, setCopySeatingDialogOpen] = useState(false);
-    const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
-    const [daysToCopyTo, setDaysToCopyTo] = useState<Partial<Record<DayOfWeek, boolean>>>(() => 
-        weekdays.reduce((acc, day) => ({ ...acc, [day]: true }), {})
-    );
-    const [routeTypesToCopyTo, setRouteTypesToCopyTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
     
     const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
@@ -82,19 +75,9 @@ export const StudentManagementTab = ({
     const [unassignableStudents, setUnassignableStudents] = useState<(Student & { errorReason: string })[]>([]);
 
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
-    const [globalSearchResults, setGlobalSearchResults] = useState<Student[]>([]);
-    
     const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
 
-    const [previousSeating, setPreviousSeating] = useState<{ seatNumber: number; studentId: string | null }[] | null>(null);
-    const [unassignedView, setUnassignedView] = useState<'current' | 'all'>('current');
-
     const [isAddStudentDialogOpen, setAddStudentDialogOpen] = useState(false);
-    const [newStudentName, setNewStudentName] = useState('');
-    const [newStudentGrade, setNewStudentGrade] = useState('');
-    const [newStudentClass, setNewStudentClass] = useState('');
-    const [newStudentGender, setNewStudentGender] = useState<'Male' | 'Female'>('Male');
-    const [newStudentContact, setNewStudentContact] = useState('');
 
     const assignedRoutesForSelectedStudent = useMemo(() => {
         if (!selectedGlobalStudent) return [];
@@ -121,32 +104,57 @@ export const StudentManagementTab = ({
         return currentRoute.seating.filter(s => !!s.studentId).length;
     }, [currentRoute]);
 
+    const [unassignedView, setUnassignedView] = useState<'current' | 'all'>('current');
+
     useEffect(() => {
         if (!routes.length || !students.length) return;
+        
+        // 현재 선택된 필터(요일/타입)에서 이미 배정된 학생 ID들
         const allAssignedIds = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
             r.seating.forEach(s => { if (s.studentId) allAssignedIds.add(s.studentId); });
         });
+
+        // 현재 모든 버스가 가고 있는 정류장 ID들
         const validStopIds = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
             r.stops.forEach(s => validStopIds.add(s));
         });
+
         const unassignables: (Student & { errorReason: string })[] = [];
         students.forEach(student => {
             if (allAssignedIds.has(student.id)) return;
+            
             let destId: string | null = null;
             let errorKey = '';
+            
             if (selectedDay === 'Saturday') {
-                if (selectedRouteType === 'Morning') { destId = student.satMorningDestinationId; errorKey = 'admin.student_management.unassignable.error_sat_morning'; }
-                else { destId = student.satAfternoonDestinationId; errorKey = 'admin.student_management.unassignable.error_sat_afternoon'; }
+                if (selectedRouteType === 'Morning') { 
+                    destId = student.satMorningDestinationId; 
+                    errorKey = 'admin.student_management.unassignable.error_sat_morning'; 
+                } else { 
+                    destId = student.satAfternoonDestinationId; 
+                    errorKey = 'admin.student_management.unassignable.error_sat_afternoon'; 
+                }
             } else {
-                if (selectedRouteType === 'Morning') { destId = student.morningDestinationId; errorKey = 'admin.student_management.unassignable.error_morning'; }
-                else if (selectedRouteType === 'Afternoon') { destId = student.afternoonDestinationId; errorKey = 'admin.student_management.unassignable.error_afternoon'; }
-                else if (selectedRouteType === 'AfterSchool') { destId = student.afterSchoolDestinations?.[selectedDay] || null; errorKey = 'admin.student_management.unassignable.error_after_school'; }
+                if (selectedRouteType === 'Morning') { 
+                    destId = student.morningDestinationId; 
+                    errorKey = 'admin.student_management.unassignable.error_morning'; 
+                } else if (selectedRouteType === 'Afternoon') { 
+                    destId = student.afternoonDestinationId; 
+                    errorKey = 'admin.student_management.unassignable.error_afternoon'; 
+                } else if (selectedRouteType === 'AfterSchool') { 
+                    destId = student.afterSchoolDestinations?.[selectedDay] || null; 
+                    errorKey = 'admin.student_management.unassignable.error_after_school'; 
+                }
             }
+
             if (destId && !validStopIds.has(destId)) {
                 const destName = destinations.find(d => d.id === destId)?.name || '알 수 없음';
-                unassignables.push({ ...student, errorReason: `${t(errorKey, { day: t(`day_short.${selectedDay.toLowerCase()}`) })} (${destName})` });
+                unassignables.push({ 
+                    ...student, 
+                    errorReason: `${t(errorKey, { day: t(`day_short.${selectedDay.toLowerCase()}`) })} (${destName})` 
+                });
             }
         });
         setUnassignableStudents(unassignables);
@@ -160,13 +168,18 @@ export const StudentManagementTab = ({
             if (selectedRouteType === 'AfterSchool') return s.afterSchoolDestinations?.[selectedDay] || null;
             return null;
         };
+
         const allAssignedIds = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
             r.seating.forEach(s => { if (s.studentId) allAssignedIds.add(s.studentId); });
         });
+
         const targetStopIds = new Set<string>();
-        if (selectedBusId === 'all') routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => r.stops.forEach(s => targetStopIds.add(s)));
-        else if (currentRoute) currentRoute.stops.forEach(s => targetStopIds.add(s));
+        if (selectedBusId === 'all') {
+            routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => r.stops.forEach(s => targetStopIds.add(s)));
+        } else if (currentRoute) {
+            currentRoute.stops.forEach(s => targetStopIds.add(s));
+        }
 
         let unassigned = students.filter(s => {
             if (allAssignedIds.has(s.id)) return false;
@@ -175,19 +188,36 @@ export const StudentManagementTab = ({
             if (unassignedView === 'current') return targetStopIds.has(destId);
             return true;
         });
+
         if (unassignedSearchQuery) {
             const lq = normalizeString(unassignedSearchQuery);
-            unassigned = unassigned.filter(s => normalizeString(s.name).includes(lq) || (s.contact && s.contact.includes(unassignedSearchQuery.replace(/\D/g, ''))));
+            unassigned = unassigned.filter(s => 
+                normalizeString(s.name).includes(lq) || 
+                (s.contact && s.contact.includes(unassignedSearchQuery.replace(/\D/g, '')))
+            );
         }
-        setFilteredUnassignedStudents(unassigned.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+
+        setFilteredUnassignedStudents(unassigned.sort((a, b) => {
+            const gA = getGradeValue(a.grade);
+            const gB = getGradeValue(b.grade);
+            if (gA !== gB) return gA - gB;
+            return a.name.localeCompare(b.name, 'ko');
+        }));
     }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, unassignedView, selectedBusId]);
 
-    const handleSeatUpdate = useCallback(async (newSeating: any) => { if (currentRoute) await updateRouteSeating(currentRoute.id, newSeating); }, [currentRoute]);
+    const handleSeatUpdate = useCallback(async (newSeating: any) => { 
+        if (currentRoute) await updateRouteSeating(currentRoute.id, newSeating); 
+    }, [currentRoute]);
+
     const handleStudentCardClick = useCallback(async (sid: string) => {
         if (currentRoute && selectedSeat && !selectedSeat.studentId) {
             const next = [...currentRoute.seating];
             const idx = next.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
-            if (idx > -1) { next[idx].studentId = sid; await handleSeatUpdate(next); setSelectedSeat(null); }
+            if (idx > -1) { 
+                next[idx].studentId = sid; 
+                await handleSeatUpdate(next); 
+                setSelectedSeat(null); 
+            }
         }
     }, [currentRoute, selectedSeat, handleSeatUpdate]);
 
@@ -197,10 +227,18 @@ export const StudentManagementTab = ({
         if (selectedSeat) {
             const sIdx = next.findIndex(x => x.seatNumber === selectedSeat.seatNumber);
             const tIdx = next.findIndex(x => x.seatNumber === num);
-            if (selectedSeat.seatNumber === num) next[sIdx].studentId = null;
-            else { const temp = next[sIdx].studentId; next[sIdx].studentId = next[tIdx].studentId; next[tIdx].studentId = temp; }
-            await handleSeatUpdate(next); setSelectedSeat(null);
-        } else setSelectedSeat({ seatNumber: num, studentId: sid });
+            if (selectedSeat.seatNumber === num) {
+                next[sIdx].studentId = null;
+            } else { 
+                const temp = next[sIdx].studentId; 
+                next[sIdx].studentId = next[tIdx].studentId; 
+                next[tIdx].studentId = temp; 
+            }
+            await handleSeatUpdate(next); 
+            setSelectedSeat(null);
+        } else {
+            setSelectedSeat({ seatNumber: num, studentId: sid });
+        }
     }, [currentRoute, selectedSeat, handleSeatUpdate]);
 
     const handleStudentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,24 +247,53 @@ export const StudentManagementTab = ({
         Papa.parse(file, {
             header: true, skipEmptyLines: true,
             complete: async (res) => {
-                const destMap: any = {}; destinations.forEach(d => destMap[normalizeString(d.name)] = d.id);
+                const destMap: any = {}; 
+                destinations.forEach(d => destMap[normalizeString(d.name)] = d.id);
                 const updates: any[] = [];
                 res.data.forEach((row: any) => {
-                    const name = (row['이름'] || row['Name'] || '').trim(), grade = (row['학년'] || row['Grade'] || '').trim(), sClass = (row['반'] || row['Class'] || '').trim(), contact = sanitizeDataForSystem(row['베트남 전화번호'] || row['연락처'] || '').replace(/\D/g, '');
+                    const name = (row['이름'] || row['Name'] || '').trim();
+                    const grade = (row['학년'] || row['Grade'] || '').trim();
+                    const sClass = (row['반'] || row['Class'] || '').trim();
+                    const contact = (row['베트남 전화번호'] || row['연락처'] || '').toString().replace(/\D/g, '');
                     if (name && grade && sClass) {
                         const up: any = { name, grade, class: sClass, contact };
-                        const mDest = destMap[normalizeString(row['등교 목적지'] || '')], aDest = destMap[normalizeString(row['하교 목적지'] || '')];
-                        if (mDest) up.morningDestinationId = mDest; if (aDest) up.afternoonDestinationId = aDest;
+                        const mDest = destMap[normalizeString(row['등교 목적지'] || '')];
+                        const aDest = destMap[normalizeString(row['하교 목적지'] || '')];
+                        if (mDest) up.morningDestinationId = mDest; 
+                        if (aDest) up.afternoonDestinationId = aDest;
                         updates.push(up);
                     }
                 });
-                if (!updates.length) { toast({ title: t('error'), variant: 'destructive' }); return; }
-                const { dismiss } = toast({ title: t('processing') });
-                try { await Promise.all(updates.map(s => addStudent(s))); dismiss(); toast({ title: t('success') }); }
-                catch (err) { dismiss(); toast({ title: t('error'), variant: 'destructive' }); }
+                if (!updates.length) { 
+                    toast({ title: t('error'), description: "유효한 학생 데이터를 찾을 수 없습니다.", variant: 'destructive' }); 
+                    return; 
+                }
+                const { dismiss } = toast({ title: t('processing'), description: "학생 명단을 처리 중입니다..." });
+                try { 
+                    await Promise.all(updates.map(s => addStudent(s))); 
+                    dismiss(); 
+                    toast({ title: t('success'), description: "명단 처리가 완료되었습니다." }); 
+                } catch (err) { 
+                    dismiss(); 
+                    toast({ title: t('error'), description: "파일 처리 중 오류가 발생했습니다.", variant: 'destructive' }); 
+                }
             }
         });
         if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleDestinationChangeWrapper = (id: string, val: string|null, type: 'morning'|'afternoon'|'afterSchool'|'satMorning'|'satAfternoon', day?: DayOfWeek) => {
+        const realVal = val === '_NONE_' ? null : val;
+        const updates: any = {};
+        if (type === 'morning') updates.morningDestinationId = realVal;
+        else if (type === 'afternoon') updates.afternoonDestinationId = realVal;
+        else if (type === 'satMorning') updates.satMorningDestinationId = realVal;
+        else if (type === 'satAfternoon') updates.satAfternoonDestinationId = realVal;
+        else if (type === 'afterSchool' && day) {
+            const current = selectedGlobalStudent?.afterSchoolDestinations || {};
+            updates.afterSchoolDestinations = { ...current, [day]: realVal };
+        }
+        updateStudent(id, updates);
     };
 
     return (
@@ -234,28 +301,102 @@ export const StudentManagementTab = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                     {unassignableStudents.length > 0 && (
-                        <Alert variant="destructive"><AlertCircle className="h-4 w-4"/><AlertTitle>{t('admin.student_management.unassignable.title')}</AlertTitle><AlertDescription>
-                            <div className="mt-2 space-y-1 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                {unassignableStudents.map(s => (
-                                    <div key={s.id} className="text-xs flex justify-between items-center border-b border-destructive/20 py-1.5 cursor-pointer hover:bg-destructive/10" onClick={() => setSelectedGlobalStudent(s)}>
-                                        <span className="font-medium">{s.name} ({s.grade} {s.class})</span><span className="text-[10px]">{s.errorReason}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </AlertDescription></Alert>
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4"/>
+                            <AlertTitle>{t('admin.student_management.unassignable.title')}</AlertTitle>
+                            <AlertDescription>
+                                <div className="mt-2 space-y-1 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {unassignableStudents.map(s => (
+                                        <div key={s.id} className="text-xs flex justify-between items-center border-b border-destructive/20 py-1.5 cursor-pointer hover:bg-destructive/10" onClick={() => setSelectedGlobalStudent(s)}>
+                                            <span className="font-medium">{s.name} ({s.grade} {s.class})</span>
+                                            <span className="text-[10px]">{s.errorReason}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </AlertDescription>
+                        </Alert>
                     )}
-                    <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>{t('admin.student_management.seat.title')} {currentRoute && `(${assignedStudentsCount}명)`}</CardTitle>
-                        <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => setAddStudentDialogOpen(true)}><UserPlus className="h-4 w-4 mr-2"/> {t('admin.student_management.add_student.button')}</Button>
-                            <Button variant="outline" size="sm" onClick={async () => { if (currentRoute) await handleSeatUpdate(generateInitialSeating(selectedBus!.capacity)); }}><RotateCcw className="h-4 w-4"/></Button>
-                        </div>
-                    </CardHeader><CardContent>
-                        {selectedBus && currentRoute && <BusSeatMap bus={selectedBus} seating={currentRoute.seating} students={students} destinations={destinations} onSeatClick={handleSeatClick} highlightedSeatNumber={selectedSeat?.seatNumber} highlightedStudentId={selectedGlobalStudent?.id} routeType={selectedRouteType} dayOfWeek={selectedDay}/>}
-                    </CardContent></Card>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle>{t('admin.student_management.seat.title')} {currentRoute && `(${assignedStudentsCount}명)`}</CardTitle>
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setAddStudentDialogOpen(true)}>
+                                    <UserPlus className="h-4 w-4 mr-2"/> {t('admin.student_management.add_student.button')}
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={async () => { 
+                                    if (currentRoute) await handleSeatUpdate(generateInitialSeating(selectedBus!.capacity)); 
+                                }}>
+                                    <RotateCcw className="h-4 w-4"/>
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {selectedBus && currentRoute ? (
+                                <BusSeatMap 
+                                    bus={selectedBus} 
+                                    seating={currentRoute.seating} 
+                                    students={students} 
+                                    destinations={destinations} 
+                                    onSeatClick={handleSeatClick} 
+                                    highlightedSeatNumber={selectedSeat?.seatNumber} 
+                                    highlightedStudentId={selectedGlobalStudent?.id} 
+                                    routeType={selectedRouteType} 
+                                    dayOfWeek={selectedDay}
+                                />
+                            ) : (
+                                <div className="text-center py-20 text-muted-foreground">버스를 선택해주세요.</div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
                 <div className="lg:col-span-1 space-y-4">
-                    <StudentUnassignedPanel filteredUnassignedStudents={filteredUnassignedStudents} destinations={destinations} selectedStudentIds={selectedStudentIds} unassignedSearchQuery={unassignedSearchQuery} setUnassignedSearchQuery={setUnassignedSearchQuery} unassignedView={unassignedView} setUnassignedView={setUnassignedView} unassignedTitle={t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })} selectedRouteType={selectedRouteType} selectedDay={selectedDay} handleDownloadUnassignedStudents={() => {}} handleToggleSelectAll={() => {}} handleDeleteSelectedStudents={() => {}} handleToggleStudentSelection={() => {}} handleUnassignedStudentClick={setSelectedGlobalStudent} handleStudentCardClick={handleStudentCardClick}/>
-                    <StudentGlobalSearchPanel students={students} destinations={destinations} buses={buses} routes={allRoutes} selectedRouteType={selectedRouteType} dayOrder={dayOrder} selectedGlobalStudent={selectedGlobalStudent} setSelectedGlobalStudent={setSelectedGlobalStudent} globalSearchQuery={globalSearchQuery} setGlobalSearchQuery={setGlobalSearchQuery} globalSearchResults={[]} handleGlobalStudentClick={setSelectedGlobalStudent} handleDownloadAllStudents={() => {}} handleDownloadStudentTemplate={() => {}} fileInputRef={fileInputRef} handleStudentFileUpload={handleStudentFileUpload} handleDeleteAllStudents={() => {}} handleUnassignAllFromStudent={() => {}} handleAssignStudentFromSearch={() => {}} handleStudentInfoChange={(sid, f, v) => updateStudent(sid, { [f]: v })} handleDestinationChange={(sid, vid, type, day) => updateStudent(sid, { [type === 'morning' ? 'morningDestinationId' : 'afternoonDestinationId']: vid })} handleUnassignStudentFromRoute={() => {}} assignedRoutesForSelectedStudent={assignedRoutesForSelectedStudent}/>
+                    <StudentUnassignedPanel 
+                        filteredUnassignedStudents={filteredUnassignedStudents} 
+                        destinations={destinations} 
+                        selectedStudentIds={selectedStudentIds} 
+                        unassignedSearchQuery={unassignedSearchQuery} 
+                        setUnassignedSearchQuery={setUnassignedSearchQuery} 
+                        unassignedView={unassignedView} 
+                        setUnassignedView={setUnassignedView} 
+                        unassignedTitle={t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })} 
+                        selectedRouteType={selectedRouteType} 
+                        selectedDay={selectedDay} 
+                        handleDownloadUnassignedStudents={() => {}} 
+                        handleToggleSelectAll={() => {}} 
+                        handleDeleteSelectedStudents={() => {}} 
+                        handleToggleStudentSelection={(id, checked) => {
+                            const next = new Set(selectedStudentIds);
+                            if (checked) next.add(id); else next.delete(id);
+                            setSelectedStudentIds(next);
+                        }} 
+                        handleUnassignedStudentClick={setSelectedGlobalStudent} 
+                        handleStudentCardClick={handleStudentCardClick}
+                    />
+                    <StudentGlobalSearchPanel 
+                        students={students} 
+                        destinations={destinations} 
+                        buses={buses} 
+                        routes={routes} 
+                        selectedRouteType={selectedRouteType} 
+                        dayOrder={dayOrder} 
+                        selectedGlobalStudent={selectedGlobalStudent} 
+                        setSelectedGlobalStudent={setSelectedGlobalStudent} 
+                        globalSearchQuery={globalSearchQuery} 
+                        setGlobalSearchQuery={setGlobalSearchQuery} 
+                        globalSearchResults={[]} 
+                        handleGlobalStudentClick={setSelectedGlobalStudent} 
+                        handleDownloadAllStudents={() => {}} 
+                        handleDownloadStudentTemplate={() => {}} 
+                        fileInputRef={fileInputRef} 
+                        handleStudentFileUpload={handleStudentFileUpload} 
+                        handleDeleteAllStudents={() => {}} 
+                        handleUnassignAllFromStudent={() => {}} 
+                        handleAssignStudentFromSearch={() => {}} 
+                        handleStudentInfoChange={(sid, f, v) => updateStudent(sid, { [f]: v })} 
+                        handleDestinationChange={handleDestinationChangeWrapper} 
+                        handleUnassignStudentFromRoute={() => {}} 
+                        assignedRoutesForSelectedStudent={assignedRoutesForSelectedStudent}
+                    />
                 </div>
             </div>
         </div>
