@@ -37,7 +37,6 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { normalizeString, sanitizeDataForSystem } from './utils';
 
-// Helper to sanitize contact numbers: remove hyphens/spaces, take first number if multiple
 const sanitizeContact = (val: any): string | null => {
     if (typeof val !== 'string') return null;
     const trimmed = val.trim();
@@ -47,7 +46,6 @@ const sanitizeContact = (val: any): string | null => {
     return digitsOnly || null;
 };
 
-// Generic function to fetch data from a collection
 async function fetchCollection<T>(collectionName: string, q?: Query): Promise<T[]> {
     const queryToExecute = q || query(collection(db, collectionName));
     try {
@@ -63,7 +61,6 @@ async function fetchCollection<T>(collectionName: string, q?: Query): Promise<T[
     }
 }
 
-// Generic function to add a document to a collection
 async function addDocument<T extends {id: string}>(collectionName: string, data: Omit<T, 'id'>): Promise<T> {
   const docRef = await addDoc(collection(db, collectionName), data)
     .catch(async (serverError) => {
@@ -78,7 +75,6 @@ async function addDocument<T extends {id: string}>(collectionName: string, data:
   return { id: docRef.id, ...data } as T;
 }
 
-// Generic realtime listener function
 function onCollectionUpdate<T>(collectionName: string, callback: (data: T[]) => void): () => void {
     const q = query(collection(db, collectionName));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -97,7 +93,6 @@ function onCollectionUpdate<T>(collectionName: string, callback: (data: T[]) => 
     return unsubscribe;
 }
 
-// Buses
 export const getBuses = () => fetchCollection<Bus>('buses');
 export const onBusesUpdate = (callback: (buses: Bus[]) => void) => onCollectionUpdate<Bus>('buses', callback);
 export const addBus = (bus: NewBus) => addDocument<Bus>('buses', { 
@@ -178,7 +173,6 @@ export const deleteBus = async (busId: string) => {
     });
 };
 
-// Students
 export const getStudents = () => fetchCollection<Student>('students');
 export const onStudentsUpdate = (callback: (students: Student[]) => void) => onCollectionUpdate<Student>('students', callback);
 
@@ -188,21 +182,10 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
     const sanitizedClass = sanitizeDataForSystem(student.class);
     const sanitizedContact = sanitizeContact(student.contact);
 
-    // Improvement: Try matching by (Name + Grade + Class) OR (Name + Contact if provided)
-    // This allows bulk updating grades for students if their phone number is the same.
     let existingStudentDoc: any = null;
 
-    // 1. Try exact match
-    const q1 = query(collection(db, "students"), 
-        where("name", "==", sanitizedName),
-        where("grade", "==", sanitizedGrade),
-        where("class", "==", sanitizedClass)
-    );
-    const snap1 = await getDocs(q1);
-    if (!snap1.empty) {
-        existingStudentDoc = snap1.docs[0];
-    } else if (sanitizedContact) {
-        // 2. Try match by Name + Contact (Allows Grade/Class updates)
+    // 1. Try match by Name + Contact (Best for metadata updates like Grade)
+    if (sanitizedContact) {
         const q2 = query(collection(db, "students"), 
             where("name", "==", sanitizedName),
             where("contact", "==", sanitizedContact)
@@ -210,6 +193,19 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         const snap2 = await getDocs(q2);
         if (!snap2.empty) {
             existingStudentDoc = snap2.docs[0];
+        }
+    }
+
+    // 2. Fallback to exact match by Name + Grade + Class
+    if (!existingStudentDoc) {
+        const q1 = query(collection(db, "students"), 
+            where("name", "==", sanitizedName),
+            where("grade", "==", sanitizedGrade),
+            where("class", "==", sanitizedClass)
+        );
+        const snap1 = await getDocs(q1);
+        if (!snap1.empty) {
+            existingStudentDoc = snap1.docs[0];
         }
     }
 
@@ -223,20 +219,17 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         if (student.class) updateData.class = sanitizedClass;
         if (student.gender) updateData.gender = student.gender;
         if (student.contact !== undefined) updateData.contact = sanitizedContact;
+        
+        // Dest logic: Only update if provided and different
         if (student.morningDestinationId !== undefined) updateData.morningDestinationId = student.morningDestinationId;
         if (student.afternoonDestinationId !== undefined) updateData.afternoonDestinationId = student.afternoonDestinationId;
         if (student.afterSchoolDestinations !== undefined) updateData.afterSchoolDestinations = student.afterSchoolDestinations;
-        
         if (student.satMorningDestinationId !== undefined) updateData.satMorningDestinationId = student.satMorningDestinationId;
         if (student.satAfternoonDestinationId !== undefined) updateData.satAfternoonDestinationId = student.satAfternoonDestinationId;
 
         if (student.applicationStatus) updateData.applicationStatus = student.applicationStatus;
         if (student.siblingGroupId !== undefined) updateData.siblingGroupId = student.siblingGroupId;
-        if (student.suggestedMorningDestination !== undefined) updateData.suggestedMorningDestination = student.suggestedMorningDestination ? sanitizeDataForSystem(student.suggestedMorningDestination) : null;
-        if (student.suggestedAfternoonDestination !== undefined) updateData.suggestedAfternoonDestination = student.suggestedAfternoonDestination ? sanitizeDataForSystem(student.suggestedAfternoonDestination) : null;
-        if (student.suggestedSatMorningDestination !== undefined) updateData.suggestedSatMorningDestination = student.suggestedSatMorningDestination ? sanitizeDataForSystem(student.suggestedSatMorningDestination) : null;
-        if (student.suggestedSatAfternoonDestination !== undefined) updateData.suggestedSatAfternoonDestination = student.suggestedSatAfternoonDestination ? sanitizeDataForSystem(student.suggestedSatAfternoonDestination) : null;
-
+        
         await updateStudent(docRef.id, updateData);
         return { id: docRef.id, ...existingStudentData, ...updateData } as Student;
     } else {
@@ -246,10 +239,6 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
             grade: sanitizedGrade,
             class: sanitizedClass,
             contact: sanitizedContact,
-            suggestedMorningDestination: student.suggestedMorningDestination ? sanitizeDataForSystem(student.suggestedMorningDestination) : null,
-            suggestedAfternoonDestination: student.suggestedAfternoonDestination ? sanitizeDataForSystem(student.suggestedAfternoonDestination) : null,
-            suggestedSatMorningDestination: student.suggestedSatMorningDestination ? sanitizeDataForSystem(student.suggestedSatMorningDestination) : null,
-            suggestedSatAfternoonDestination: student.suggestedSatAfternoonDestination ? sanitizeDataForSystem(student.suggestedSatAfternoonDestination) : null,
         };
         const docRef = await addDoc(collection(db, 'students'), newStudentData).catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
@@ -271,21 +260,17 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
 
     const oldData = studentBeforeUpdate.data() as Student;
     
-    // Core Fix: Unassigning one session should NOT affect others.
-    // We only unassign from routes that match the SPECIFIC destination change.
+    // Core Safety: Only unassign if destination is ACTUALLY changing to a different value
     let affectedRouteConfigs: { day?: DayOfWeek, types: RouteType[] }[] = [];
 
-    // Mon-Fri Commute Morning
     if ('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) {
-        affectedRouteConfigs.push({ types: ['Morning'] }); // Defaults to Mon-Fri in unassign logic
+        affectedRouteConfigs.push({ types: ['Morning'] });
     }
     
-    // Mon-Fri Commute Afternoon
     if ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
         affectedRouteConfigs.push({ types: ['Afternoon'] });
     }
     
-    // Mon-Fri AfterSchool
     if ('afterSchoolDestinations' in data) {
         const oldAfterSchoolDests = oldData.afterSchoolDestinations || {};
         const newAfterSchoolDests = data.afterSchoolDestinations || {};
@@ -296,19 +281,16 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
         });
     }
 
-    // Saturday Morning
     if ('satMorningDestinationId' in data && data.satMorningDestinationId !== oldData.satMorningDestinationId) {
         affectedRouteConfigs.push({ day: 'Saturday', types: ['Morning'] });
     }
 
-    // Saturday Afternoon
     if ('satAfternoonDestinationId' in data && data.satAfternoonDestinationId !== oldData.satAfternoonDestinationId) {
         affectedRouteConfigs.push({ day: 'Saturday', types: ['Afternoon', 'AfterSchool'] });
     }
     
     if (affectedRouteConfigs.length > 0) {
         for (const config of affectedRouteConfigs) {
-            // Note: config.day is optional. If null, unassignStudentFromAllRoutes handles weekdays.
             await unassignStudentFromAllRoutes(studentId, config.types, config.day);
         }
     }
@@ -330,6 +312,7 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
         throw serverError;
     });
 }
+
 export const updateStudentsInBatch = async (students: (Partial<Student> & {id: string})[]) => {
     const batch = writeBatch(db);
     students.forEach(student => {
@@ -356,14 +339,8 @@ export const updateStudentsInBatch = async (students: (Partial<Student> & {id: s
 
 export const deleteStudentsInBatch = async (studentIds: string[]) => {
     const batch = writeBatch(db);
-    
-    studentIds.forEach(id => {
-        const docRef = doc(db, 'students', id);
-        batch.delete(docRef);
-    });
-    
+    studentIds.forEach(id => batch.delete(doc(db, 'students', id)));
     const routesSnapshot = await getDocs(collection(db, 'routes'));
-
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
         let seatingChanged = false;
@@ -374,12 +351,8 @@ export const deleteStudentsInBatch = async (studentIds: string[]) => {
             }
             return seat;
         });
-
-        if (seatingChanged) {
-            batch.update(routeDoc.ref, { seating: newSeating });
-        }
+        if (seatingChanged) batch.update(routeDoc.ref, { seating: newSeating });
     });
-
     await batch.commit()
     .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -392,8 +365,6 @@ export const deleteStudentsInBatch = async (studentIds: string[]) => {
     });
 };
 
-
-// Destinations
 export const getDestinations = () => fetchCollection<Destination>('destinations');
 export const onDestinationsUpdate = (callback: (destinations: Destination[]) => void) => onCollectionUpdate<Destination>('destinations', callback);
 export const addDestination = (destination: NewDestination) => addDocument<Destination>('destinations', {
@@ -433,39 +404,25 @@ export const addDestinationsInBatch = async (destinations: NewDestination[]): Pr
 }
 export const deleteDestination = (destinationId: string) => {
     const docRef = doc(db, 'destinations', destinationId);
-    deleteDoc(docRef)
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
+    deleteDoc(docRef).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'delete' } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 }
 export const deleteAllDestinations = async () => {
     const batch = writeBatch(db);
-
     const destSnapshot = await getDocs(collection(db, 'destinations'));
     destSnapshot.forEach(doc => batch.delete(doc.ref));
-
     const routesSnapshot = await getDocs(collection(db, 'routes'));
-    routesSnapshot.forEach(doc => {
-        batch.update(doc.ref, { stops: [] });
-    });
-
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/`,
-            operation: 'write',
-        } satisfies SecurityRuleContext);
+    routesSnapshot.forEach(doc => batch.update(doc.ref, { stops: [] }));
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/`, operation: 'write' } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 };
 
-// Teachers (Commute)
 export const getTeachers = () => fetchCollection<Teacher>('teachers');
 export const onTeachersUpdate = (callback: (teachers: Teacher[]) => void) => onCollectionUpdate<Teacher>('teachers', callback);
 export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teacher[]> => {
@@ -474,49 +431,46 @@ export const addTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teache
     const q = query(collection(db, 'teachers'));
     const existingDocs = await getDocs(q);
     const existingNames = new Set(existingDocs.docs.map(d => normalizeString(d.data().name)));
-
     for (const teacher of teachers) {
         const sanitizedName = sanitizeDataForSystem(teacher.name);
-        const normName = normalizeString(sanitizedName);
-        if (!existingNames.has(normName)) {
+        if (!existingNames.has(normalizeString(sanitizedName))) {
             const docRef = doc(collection(db, 'teachers'));
             batch.set(docRef, { name: sanitizedName });
             newTeachers.push({ id: docRef.id, name: sanitizedName });
-            existingNames.add(normName);
+            existingNames.add(normalizeString(sanitizedName));
         }
     }
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/teachers`,
-            operation: 'create',
-            requestResourceData: newTeachers,
-        } satisfies SecurityRuleContext);
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/teachers`, operation: 'create', requestResourceData: newTeachers } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
     return newTeachers;
 };
 
-export const deleteTeacher = async (teacherId: string) => {
+export const getAfterSchoolTeachers = () => fetchCollection<Teacher>('afterSchoolTeachers');
+export const onAfterSchoolTeachersUpdate = (callback: (teachers: Teacher[]) => void) => onCollectionUpdate<Teacher>('afterSchoolTeachers', callback);
+export const addAfterSchoolTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teacher[]> => {
     const batch = writeBatch(db);
-    batch.delete(doc(db, 'teachers', teacherId));
-    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'Afternoon')));
-    routesSnapshot.forEach(routeDoc => {
-        const routeData = routeDoc.data() as Route;
-        if (routeData.teacherIds && routeData.teacherIds.includes(teacherId)) {
-            batch.update(routeDoc.ref, { teacherIds: routeData.teacherIds.filter(id => id !== teacherId) });
+    const newTeachers: Teacher[] = [];
+    const q = query(collection(db, 'afterSchoolTeachers'));
+    const existingDocs = await getDocs(q);
+    const existingNames = new Set(existingDocs.docs.map(d => normalizeString(d.data().name)));
+    for (const teacher of teachers) {
+        const sanitizedName = sanitizeDataForSystem(teacher.name);
+        if (!existingNames.has(normalizeString(sanitizedName))) {
+            const docRef = doc(collection(db, 'afterSchoolTeachers'));
+            batch.set(docRef, { name: sanitizedName });
+            newTeachers.push({ id: docRef.id, name: sanitizedName });
+            existingNames.add(normalizeString(sanitizedName));
         }
-    });
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/teachers/${teacherId}`,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
+    }
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/afterSchoolTeachers`, operation: 'create', requestResourceData: newTeachers } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
+    return newTeachers;
 };
 
 export const deleteTeachersInBatch = async (teacherIds: string[]) => {
@@ -530,83 +484,8 @@ export const deleteTeachersInBatch = async (teacherIds: string[]) => {
             if (newIds.length !== routeData.teacherIds.length) batch.update(routeDoc.ref, { teacherIds: newIds });
         }
     });
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/teachers`,
-            operation: 'delete',
-            } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
-};
-
-export const deleteAllTeachers = async () => {
-    const batch = writeBatch(db);
-    const teachersSnapshot = await getDocs(collection(db, 'teachers'));
-    teachersSnapshot.forEach(doc => batch.delete(doc.ref));
-    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'Afternoon')));
-    routesSnapshot.forEach(doc => batch.update(doc.ref, { teacherIds: [] }));
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/teachers`,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
-};
-
-// After School Teachers
-export const getAfterSchoolTeachers = () => fetchCollection<Teacher>('afterSchoolTeachers');
-export const onAfterSchoolTeachersUpdate = (callback: (teachers: Teacher[]) => void) => onCollectionUpdate<Teacher>('afterSchoolTeachers', callback);
-export const addAfterSchoolTeachersInBatch = async (teachers: NewTeacher[]): Promise<Teacher[]> => {
-    const batch = writeBatch(db);
-    const newTeachers: Teacher[] = [];
-    const q = query(collection(db, 'afterSchoolTeachers'));
-    const existingDocs = await getDocs(q);
-    const existingNames = new Set(existingDocs.docs.map(d => normalizeString(d.data().name)));
-
-    for (const teacher of teachers) {
-        const sanitizedName = sanitizeDataForSystem(teacher.name);
-        const normName = normalizeString(sanitizedName);
-        if (!existingNames.has(normName)) {
-            const docRef = doc(collection(db, 'afterSchoolTeachers'));
-            batch.set(docRef, { name: sanitizedName });
-            newTeachers.push({ id: docRef.id, name: sanitizedName });
-            existingNames.add(normName);
-        }
-    }
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/afterSchoolTeachers`,
-            operation: 'create',
-            requestResourceData: newTeachers,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
-    return newTeachers;
-};
-
-export const deleteAfterSchoolTeacher = async (teacherId: string) => {
-    const batch = writeBatch(db);
-    batch.delete(doc(db, 'afterSchoolTeachers', teacherId));
-    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'AfterSchool')));
-    routesSnapshot.forEach(routeDoc => {
-        const routeData = routeDoc.data() as Route;
-        if (routeData.teacherIds && routeData.teacherIds.includes(teacherId)) {
-            batch.update(routeDoc.ref, { teacherIds: routeData.teacherIds.filter(id => id !== teacherId) });
-        }
-    });
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/afterSchoolTeachers/${teacherId}`,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/teachers`, operation: 'delete' } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
@@ -623,12 +502,21 @@ export const deleteAfterSchoolTeachersInBatch = async (teacherIds: string[]) => 
             if (newIds.length !== routeData.teacherIds.length) batch.update(routeDoc.ref, { teacherIds: newIds });
         }
     });
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/afterSchoolTeachers`,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/afterSchoolTeachers`, operation: 'delete' } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+    });
+};
+
+export const deleteAllTeachers = async () => {
+    const batch = writeBatch(db);
+    const teachersSnapshot = await getDocs(collection(db, 'teachers'));
+    teachersSnapshot.forEach(doc => batch.delete(doc.ref));
+    const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'Afternoon')));
+    routesSnapshot.forEach(doc => batch.update(doc.ref, { teacherIds: [] }));
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/teachers`, operation: 'delete' } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
@@ -640,219 +528,119 @@ export const deleteAllAfterSchoolTeachers = async () => {
     teachersSnapshot.forEach(doc => batch.delete(doc.ref));
     const routesSnapshot = await getDocs(query(collection(db, 'routes'), where('type', '==', 'AfterSchool')));
     routesSnapshot.forEach(doc => batch.update(doc.ref, { teacherIds: [] }));
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/afterSchoolTeachers`,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/afterSchoolTeachers`, operation: 'delete' } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 };
 
-// Routes
 export const getRoutes = () => fetchCollection<Route>('routes');
 export const onRoutesUpdate = (callback: (routes: Route[]) => void) => onCollectionUpdate<Route>('routes', callback);
-
-export const getRoutesForBus = (busId: string) => {
-    const q = query(collection(db, "routes"), where("busId", "==", busId));
-    return fetchCollection<Route>('routes', q);
-}
-export const getRoutesByStop = async (stopId: string): Promise<Route[]> => {
-    const q = query(collection(db, "routes"), where("stops", "array-contains", stopId));
-    return fetchCollection<Route>('routes', q);
-}
-export const addRoute = (route: Omit<Route, 'id'>) => {
-    return addDoc(collection(db, 'routes'), route)
-    .then(docRef => docRef.id)
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: '/routes',
-            operation: 'create',
-            requestResourceData: route,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
-}
+export const addRoute = (route: Omit<Route, 'id'>) => addDoc(collection(db, 'routes'), route).then(docRef => docRef.id).catch(async (serverError) => {
+    const permissionError = new FirestorePermissionError({ path: '/routes', operation: 'create', requestResourceData: route } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
+    throw serverError;
+});
 export const updateRouteSeating = async (routeId: string, seating: SeatingAssignment[]) => {
   const docRef = doc(db, 'routes', routeId);
-  await updateDoc(docRef, { seating })
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: { seating },
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+  await updateDoc(docRef, { seating }).catch(async (serverError) => {
+    const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: { seating } } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
+    throw serverError;
+  });
 };
-
 export const updateRoute = async (routeId: string, data: Partial<Route>) => {
     const docRef = doc(db, 'routes', routeId);
-    await updateDoc(docRef, data)
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: data,
-        } satisfies SecurityRuleContext);
+    await updateDoc(docRef, data).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: data } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 }
-
 export const updateRouteStops = async (routeId: string, stops: string[]) => {
     const docRef = doc(db, 'routes', routeId);
-    await updateDoc(docRef, { stops })
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: { stops },
-        } satisfies SecurityRuleContext);
+    await updateDoc(docRef, { stops }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: { stops } } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 }
-
 export const copySeatingPlan = async (sourcePlan: { seatNumber: number; studentId: string | null }[], targetRoutes: Route[]) => {
     const batch = writeBatch(db);
-
-    for (const targetRoute of targetRoutes) {
-        batch.update(doc(db, 'routes', targetRoute.id), { seating: sourcePlan });
-    }
-
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes`,
-            operation: 'update',
-            requestResourceData: { seatingPlan: sourcePlan, targetRouteIds: targetRoutes.map(r => r.id) }
-        } satisfies SecurityRuleContext);
+    for (const targetRoute of targetRoutes) batch.update(doc(db, 'routes', targetRoute.id), { seating: sourcePlan });
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/routes`, operation: 'update', requestResourceData: { seatingPlan: sourcePlan, targetRouteIds: targetRoutes.map(r => r.id) } } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 };
-
 export const copyRoutePlan = async (sourceStops: string[], targetRoutes: Route[]) => {
     const batch = writeBatch(db);
-
-    for (const targetRoute of targetRoutes) {
-        batch.update(doc(db, 'routes', targetRoute.id), { stops: sourceStops });
-    }
-
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes`,
-            operation: 'update',
-            requestResourceData: { stops: sourceStops, targetRouteIds: targetRoutes.map(r => r.id) }
-        } satisfies SecurityRuleContext);
+    for (const targetRoute of targetRoutes) batch.update(doc(db, 'routes', targetRoute.id), { stops: sourceStops });
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/routes`, operation: 'update', requestResourceData: { stops: sourceStops, targetRouteIds: targetRoutes.map(r => r.id) } } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 }
 
-// Group Leader Records
 export const getGroupLeaderRecords = async (routeId: string): Promise<GroupLeaderRecord[]> => {
-    const collectionName = `routes/${routeId}/groupLeaderRecords`;
-    const recordsSnapshot = await getDocs(collection(db, collectionName));
+    const recordsSnapshot = await getDocs(collection(db, `routes/${routeId}/groupLeaderRecords`));
     return recordsSnapshot.docs.map(doc => doc.data() as GroupLeaderRecord);
 };
-
 export const saveGroupLeaderRecords = async (routeId: string, records: GroupLeaderRecord[]) => {
     const batch = writeBatch(db);
     const recordsCollection = collection(db, `routes/${routeId}/groupLeaderRecords`);
-
     const existingRecordsSnapshot = await getDocs(recordsCollection);
     const existingRecordIds = new Set(existingRecordsSnapshot.docs.map(d => d.id));
-    
     const localRecordIds = new Set<string>();
-
     records.forEach(record => {
         const recordId = record.studentId + '_' + record.startDate;
         localRecordIds.add(recordId);
-        const docRef = doc(recordsCollection, recordId);
-        batch.set(docRef, record, { merge: true });
+        batch.set(doc(recordsCollection, recordId), record, { merge: true });
     });
-
-    existingRecordIds.forEach(id => {
-        if (!localRecordIds.has(id)) {
-            batch.delete(doc(recordsCollection, id));
-        }
-    });
-    
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes/${routeId}/groupLeaderRecords`,
-            operation: 'write',
-            requestResourceData: records
-        } satisfies SecurityRuleContext);
+    existingRecordIds.forEach(id => { if (!localRecordIds.has(id)) batch.delete(doc(recordsCollection, id)); });
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/routes/${routeId}/groupLeaderRecords`, operation: 'write', requestResourceData: records } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 };
 
-
-// Suggested Destinations
 export const getSuggestedDestinations = () => fetchCollection<Destination>('suggestedDestinations');
 export const onSuggestedDestinationsUpdate = (callback: (destinations: Destination[]) => void) => onCollectionUpdate<Destination>('suggestedDestinations', callback);
 export const addSuggestedDestination = async (destination: { name: string }) => {
     const sanitizedName = sanitizeDataForSystem(destination.name);
     if (!sanitizedName) return;
-
     const currentDests = await getDestinations();
-    const normNewName = normalizeString(sanitizedName);
-    if (currentDests.some(d => normalizeString(d.name) === normNewName)) return;
-
+    if (currentDests.some(d => normalizeString(d.name) === normalizeString(sanitizedName))) return;
     const currentSuggestions = await getSuggestedDestinations();
-    if (currentSuggestions.some(s => normalizeString(s.name) === normNewName)) return;
-
+    if (currentSuggestions.some(s => normalizeString(s.name) === normalizeString(sanitizedName))) return;
     await addDocument<Destination>('suggestedDestinations', { name: sanitizedName });
 }
 export const approveSuggestedDestination = async (suggestion: Destination) => {
     const batch = writeBatch(db);
-    const newDestRef = doc(collection(db, 'destinations'));
     const sanitizedName = sanitizeDataForSystem(suggestion.name);
-    batch.set(newDestRef, { name: sanitizedName });
+    batch.set(doc(collection(db, 'destinations')), { name: sanitizedName });
     batch.delete(doc(db, 'suggestedDestinations', suggestion.id));
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/`,
-            operation: 'write',
-            requestResourceData: { approvedSuggestion: suggestion }
-        } satisfies SecurityRuleContext);
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/`, operation: 'write', requestResourceData: { approvedSuggestion: suggestion } } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 }
-export const deleteSuggestedDestination = (id: string) => {
-    const docRef = doc(db, 'suggestedDestinations', id);
-    return deleteDoc(docRef).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
-}
+export const deleteSuggestedDestination = (id: string) => deleteDoc(doc(db, 'suggestedDestinations', id)).catch(async (serverError) => {
+    const permissionError = new FirestorePermissionError({ path: `/suggestedDestinations/${id}`, operation: 'delete' } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
+    throw serverError;
+});
 export const clearAllSuggestedDestinations = async () => {
-    const suggestionsCollection = collection(db, 'suggestedDestinations');
-    const snapshot = await getDocs(suggestionsCollection);
+    const snapshot = await getDocs(collection(db, 'suggestedDestinations'));
     const batch = writeBatch(db);
     snapshot.docs.forEach(doc => batch.delete(doc.ref));
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/suggestedDestinations`,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/suggestedDestinations`, operation: 'delete' } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
@@ -860,136 +648,62 @@ export const clearAllSuggestedDestinations = async () => {
 
 export const unassignStudentFromAllRoutes = async (studentId: string, routeTypes?: RouteType[], day?: DayOfWeek) => {
     if (!studentId) return;
-
     let q = query(collection(db, 'routes'));
-    // If day is provided, we ONLY search for that day.
-    // If day is NOT provided, it defaults to the Mon-Fri commute logic.
-    if (day) {
-        q = query(collection(db, 'routes'), where('dayOfWeek', '==', day));
-    } else if (routeTypes && (routeTypes.includes('Morning') || routeTypes.includes('Afternoon'))) {
-        // For general commute updates, we limit to weekdays to be safe
+    if (day) q = query(collection(db, 'routes'), where('dayOfWeek', '==', day));
+    else if (routeTypes && (routeTypes.includes('Morning') || routeTypes.includes('Afternoon'))) {
         q = query(collection(db, 'routes'), where('dayOfWeek', 'in', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']));
     }
-    
     const routesSnapshot = await getDocs(q);
     if (routesSnapshot.empty) return;
-
     const batch = writeBatch(db);
     routesSnapshot.forEach(routeDoc => {
         const routeData = routeDoc.data() as Route;
-        
-        if (routeTypes && !routeTypes.includes(routeData.type)) {
-            return;
-        }
-
+        if (routeTypes && !routeTypes.includes(routeData.type)) return;
         let seatingChanged = false;
         const newSeating = routeData.seating.map(seat => {
-            if (seat.studentId === studentId) {
-                seatingChanged = true;
-                return { ...seat, studentId: null };
-            }
+            if (seat.studentId === studentId) { seatingChanged = true; return { ...seat, studentId: null }; }
             return seat;
         });
-
-        if (seatingChanged) {
-            batch.update(routeDoc.ref, { seating: newSeating });
-        }
+        if (seatingChanged) batch.update(routeDoc.ref, { seating: newSeating });
     });
-
-    await batch.commit()
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: `/routes`,
-            operation: 'update',
-            requestResourceData: { unassignStudentId: studentId }
-        } satisfies SecurityRuleContext);
+    await batch.commit().catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: `/routes`, operation: 'update', requestResourceData: { unassignStudentId: studentId } } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
-};
-
-
-// --- Attendance ---
-export const getAttendance = async (routeId: string, date: string): Promise<AttendanceRecord | null> => {
-  const docRef = doc(db, 'routes', routeId, 'attendance', date);
-  const docSnap = await getDoc(docRef).catch(async (serverError) => {
-    const permissionError = new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'get',
-    });
-    errorEmitter.emit('permission-error', permissionError);
-    throw serverError;
-  });
-  if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as AttendanceRecord;
-  }
-  return null;
 };
 
 export const updateAttendance = async (routeId: string, date: string, data: Partial<Omit<AttendanceRecord, 'id' | 'routeId'>>) => {
   const docRef = doc(db, 'routes', routeId, 'attendance', date);
-  await setDoc(docRef, data, { merge: true })
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'write',
-            requestResourceData: data,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
+  await setDoc(docRef, data, { merge: true }).catch(async (serverError) => {
+    const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
+    throw serverError;
+  });
 };
-
 export const onAttendanceUpdate = (routeId: string, date: string, callback: (record: AttendanceRecord | null) => void) => {
   const docRef = doc(db, 'routes', routeId, 'attendance', date);
-  const unsubscribe = onSnapshot(docRef, (docSnap) => {
-    if (docSnap.exists()) {
-      callback({ id: docSnap.id, ...docSnap.data() } as AttendanceRecord);
-    } else {
-      callback(null);
-    }
-  }, (serverError) => {
-    const permissionError = new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'get',
-    } satisfies SecurityRuleContext);
+  return onSnapshot(docRef, (docSnap) => { callback(docSnap.exists() ? ({ id: docSnap.id, ...docSnap.data() } as AttendanceRecord) : null); }, (serverError) => {
+    const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'get' } satisfies SecurityRuleContext);
     errorEmitter.emit('permission-error', permissionError);
   });
-  return unsubscribe;
 };
 
-// --- Lost & Found ---
 export const getLostItems = () => fetchCollection<LostItem>('lostItems');
 export const onLostItemsUpdate = (callback: (items: LostItem[]) => void) => onCollectionUpdate<LostItem>('lostItems', callback);
-export const addLostItem = (item: NewLostItem) => addDocument<LostItem>('lostItems', {
-    ...item,
-    itemType: item.itemType ? sanitizeDataForSystem(item.itemType) : null
-});
+export const addLostItem = (item: NewLostItem) => addDocument<LostItem>('lostItems', { ...item, itemType: item.itemType ? sanitizeDataForSystem(item.itemType) : null });
 export const updateLostItem = (itemId: string, data: Partial<LostItem>) => {
     const docRef = doc(db, 'lostItems', itemId);
     const updateData = { ...data };
     if (updateData.itemType) updateData.itemType = sanitizeDataForSystem(updateData.itemType);
-    
-    updateDoc(docRef, updateData)
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: data,
-        } satisfies SecurityRuleContext);
+    updateDoc(docRef, updateData).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: data } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
         throw serverError;
     });
 }
-export const deleteLostItem = (itemId: string) => {
-    const docRef = doc(db, 'lostItems', itemId);
-    deleteDoc(docRef)
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'delete',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
-    });
-}
+export const deleteLostItem = (itemId: string) => deleteDoc(doc(db, 'lostItems', itemId)).catch(async (serverError) => {
+    const permissionError = new FirestorePermissionError({ path: `/lostItems/${itemId}`, operation: 'delete' } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
+    throw serverError;
+});
