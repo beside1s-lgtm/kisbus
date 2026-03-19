@@ -42,9 +42,7 @@ const sanitizeContact = (val: any): string | null => {
     if (typeof val !== 'string') return null;
     const trimmed = val.trim();
     if (!trimmed) return null;
-    // Split by / or , and take the first part
     const firstPart = trimmed.split(/[/,]/)[0];
-    // Remove all non-digits
     const digitsOnly = firstPart.replace(/\D/g, '');
     return digitsOnly || null;
 };
@@ -113,7 +111,6 @@ export const updateBus = async (busId: string, data: Partial<Bus>) => {
     const updateData = { ...data };
     if (updateData.name) updateData.name = sanitizeDataForSystem(updateData.name);
     
-    // Check if capacity is changing to sync routes
     let capacityChanged = false;
     let newCapacity = 0;
     if (data.capacity !== undefined) {
@@ -136,7 +133,6 @@ export const updateBus = async (busId: string, data: Partial<Bus>) => {
         throw serverError;
     });
 
-    // If capacity changed, update all associated routes' seating array
     if (capacityChanged && newCapacity > 0) {
         const q = query(collection(db, "routes"), where("busId", "==", busId));
         const routesSnapshot = await getDocs(q);
@@ -147,10 +143,8 @@ export const updateBus = async (busId: string, data: Partial<Bus>) => {
             let newSeating = [...(routeData.seating || [])];
             
             if (newSeating.length > newCapacity) {
-                // Truncate
                 newSeating = newSeating.slice(0, newCapacity);
             } else if (newSeating.length < newCapacity) {
-                // Expand
                 for (let i = newSeating.length + 1; i <= newCapacity; i++) {
                     newSeating.push({ seatNumber: i, studentId: null });
                 }
@@ -194,19 +188,35 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
     const sanitizedClass = sanitizeDataForSystem(student.class);
     const sanitizedContact = sanitizeContact(student.contact);
 
-    // Try to find existing student by sanitized identifiers
-    const q = query(collection(db, "students"), 
+    // Improvement: Try matching by (Name + Grade + Class) OR (Name + Contact if provided)
+    // This allows bulk updating grades for students if their phone number is the same.
+    let existingStudentDoc: any = null;
+
+    // 1. Try exact match
+    const q1 = query(collection(db, "students"), 
         where("name", "==", sanitizedName),
         where("grade", "==", sanitizedGrade),
         where("class", "==", sanitizedClass)
     );
-    const querySnapshot = await getDocs(q);
+    const snap1 = await getDocs(q1);
+    if (!snap1.empty) {
+        existingStudentDoc = snap1.docs[0];
+    } else if (sanitizedContact) {
+        // 2. Try match by Name + Contact (Allows Grade/Class updates)
+        const q2 = query(collection(db, "students"), 
+            where("name", "==", sanitizedName),
+            where("contact", "==", sanitizedContact)
+        );
+        const snap2 = await getDocs(q2);
+        if (!snap2.empty) {
+            existingStudentDoc = snap2.docs[0];
+        }
+    }
 
-    if (!querySnapshot.empty) {
-        const docRef = querySnapshot.docs[0].ref;
-        const existingStudentData = querySnapshot.docs[0].data() as Student;
+    if (existingStudentDoc) {
+        const docRef = existingStudentDoc.ref;
+        const existingStudentData = existingStudentDoc.data() as Student;
 
-        // Smart merge
         const updateData: Partial<Student> = {};
         if (student.name) updateData.name = sanitizedName;
         if (student.grade) updateData.grade = sanitizedGrade;
@@ -219,13 +229,13 @@ export const addStudent = async (student: NewStudent): Promise<Student> => {
         
         if (student.satMorningDestinationId !== undefined) updateData.satMorningDestinationId = student.satMorningDestinationId;
         if (student.satAfternoonDestinationId !== undefined) updateData.satAfternoonDestinationId = student.satAfternoonDestinationId;
-        if (student.suggestedSatMorningDestination !== undefined) updateData.suggestedSatMorningDestination = student.suggestedSatMorningDestination ? sanitizeDataForSystem(student.suggestedSatMorningDestination) : null;
-        if (student.suggestedSatAfternoonDestination !== undefined) updateData.suggestedSatAfternoonDestination = student.suggestedSatAfternoonDestination ? sanitizeDataForSystem(student.suggestedSatAfternoonDestination) : null;
 
         if (student.applicationStatus) updateData.applicationStatus = student.applicationStatus;
         if (student.siblingGroupId !== undefined) updateData.siblingGroupId = student.siblingGroupId;
         if (student.suggestedMorningDestination !== undefined) updateData.suggestedMorningDestination = student.suggestedMorningDestination ? sanitizeDataForSystem(student.suggestedMorningDestination) : null;
         if (student.suggestedAfternoonDestination !== undefined) updateData.suggestedAfternoonDestination = student.suggestedAfternoonDestination ? sanitizeDataForSystem(student.suggestedAfternoonDestination) : null;
+        if (student.suggestedSatMorningDestination !== undefined) updateData.suggestedSatMorningDestination = student.suggestedSatMorningDestination ? sanitizeDataForSystem(student.suggestedSatMorningDestination) : null;
+        if (student.suggestedSatAfternoonDestination !== undefined) updateData.suggestedSatAfternoonDestination = student.suggestedSatAfternoonDestination ? sanitizeDataForSystem(student.suggestedSatAfternoonDestination) : null;
 
         await updateStudent(docRef.id, updateData);
         return { id: docRef.id, ...existingStudentData, ...updateData } as Student;
@@ -261,20 +271,18 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
 
     const oldData = studentBeforeUpdate.data() as Student;
     
-    let affectedRouteConfigs: { day: DayOfWeek, types: RouteType[] }[] = [];
+    // Core Fix: Unassigning one session should NOT affect others.
+    // We only unassign from routes that match the SPECIFIC destination change.
+    let affectedRouteConfigs: { day?: DayOfWeek, types: RouteType[] }[] = [];
 
     // Mon-Fri Commute Morning
     if ('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) {
-        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].forEach(day => {
-            affectedRouteConfigs.push({ day: day as DayOfWeek, types: ['Morning'] });
-        });
+        affectedRouteConfigs.push({ types: ['Morning'] }); // Defaults to Mon-Fri in unassign logic
     }
     
     // Mon-Fri Commute Afternoon
     if ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
-        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].forEach(day => {
-            affectedRouteConfigs.push({ day: day as DayOfWeek, types: ['Afternoon'] });
-        });
+        affectedRouteConfigs.push({ types: ['Afternoon'] });
     }
     
     // Mon-Fri AfterSchool
@@ -300,6 +308,7 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
     
     if (affectedRouteConfigs.length > 0) {
         for (const config of affectedRouteConfigs) {
+            // Note: config.day is optional. If null, unassignStudentFromAllRoutes handles weekdays.
             await unassignStudentFromAllRoutes(studentId, config.types, config.day);
         }
     }
@@ -309,10 +318,6 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
     if (updatePayload.grade) updatePayload.grade = sanitizeDataForSystem(updatePayload.grade);
     if (updatePayload.class) updatePayload.class = sanitizeDataForSystem(updatePayload.class);
     if (updatePayload.contact) updatePayload.contact = sanitizeContact(updatePayload.contact);
-    if (updatePayload.suggestedMorningDestination) updatePayload.suggestedMorningDestination = sanitizeDataForSystem(updatePayload.suggestedMorningDestination);
-    if (updatePayload.suggestedAfternoonDestination) updatePayload.suggestedAfternoonDestination = sanitizeDataForSystem(updatePayload.suggestedAfternoonDestination);
-    if (updatePayload.suggestedSatMorningDestination) updatePayload.suggestedSatMorningDestination = sanitizeDataForSystem(updatePayload.suggestedSatMorningDestination);
-    if (updatePayload.suggestedSatAfternoonDestination) updatePayload.suggestedSatAfternoonDestination = sanitizeDataForSystem(updatePayload.suggestedSatAfternoonDestination);
     
     await updateDoc(studentDocRef, updatePayload)
     .catch(async (serverError) => {
@@ -857,8 +862,13 @@ export const unassignStudentFromAllRoutes = async (studentId: string, routeTypes
     if (!studentId) return;
 
     let q = query(collection(db, 'routes'));
+    // If day is provided, we ONLY search for that day.
+    // If day is NOT provided, it defaults to the Mon-Fri commute logic.
     if (day) {
         q = query(collection(db, 'routes'), where('dayOfWeek', '==', day));
+    } else if (routeTypes && (routeTypes.includes('Morning') || routeTypes.includes('Afternoon'))) {
+        // For general commute updates, we limit to weekdays to be safe
+        q = query(collection(db, 'routes'), where('dayOfWeek', 'in', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']));
     }
     
     const routesSnapshot = await getDocs(q);
