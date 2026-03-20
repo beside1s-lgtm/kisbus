@@ -480,13 +480,22 @@ export default function TeacherPage() {
 
     if (swapSourceSeat === null) {
       setSwapSourceSeat(seatNumber);
-      toast({ title: t('teacher_page.seat_selected'), description: t('teacher_page.seat_selected_description') });
+      toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 비워집니다." });
     } else {
       if (swapSourceSeat === seatNumber) {
-        setSwapSourceSeat(null);
-        toast({ title: t('teacher_page.swap_cancelled') });
+        // Clearing seat if right-clicked again
+        const newSeating = currentRoute.seating.map(s => 
+          s.seatNumber === seatNumber ? { ...s, studentId: null } : s
+        );
+        updateRouteSeating(currentRoute.id, newSeating)
+          .then(() => { 
+            toast({ title: "좌석 비우기 완료", description: "해당 좌석의 배정이 해제되었습니다." }); 
+            setSwapSourceSeat(null); 
+          })
+          .catch(() => { toast({ title: "오류 발생", variant: 'destructive' }); });
         return;
       }
+      // Swapping if clicked different seat
       const newSeating = [...currentRoute.seating];
       const sourceIdx = newSeating.findIndex(s => s.seatNumber === swapSourceSeat);
       const targetIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
@@ -652,15 +661,21 @@ export default function TeacherPage() {
                                 }</p>
                             </CardContent>
                             <CardFooter className="flex flex-col gap-2">
-                                <Button 
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleMarkNotBoarding}
-                                    className="w-full text-destructive border-destructive hover:bg-destructive/10"
-                                    disabled={boardedStudentIds.includes(selectedStudent.id)}
-                                >
-                                    <AlertCircle className="mr-2 h-4 w-4" /> {t('teacher_page.mark_not_riding_today')}
-                                </Button>
+                                {(() => {
+                                    const isNotBoarding = notBoardingStudentIds.includes(selectedStudent.id);
+                                    return (
+                                        <Button 
+                                            variant={isNotBoarding ? "destructive" : "outline"}
+                                            size="sm"
+                                            onClick={handleMarkNotBoarding}
+                                            className={cn("w-full", !isNotBoarding && "text-destructive border-destructive hover:bg-destructive/10")}
+                                            disabled={boardedStudentIds.includes(selectedStudent.id) || isNotBoarding}
+                                        >
+                                            <AlertCircle className="mr-2 h-4 w-4" /> 
+                                            {isNotBoarding ? "오늘 안 탐 처리됨" : t('teacher_page.mark_not_riding_today')}
+                                        </Button>
+                                    );
+                                })()}
                                 <Button 
                                     variant={selectedStudent.isGroupLeader ? "destructive" : "default"} 
                                     size="sm" 
