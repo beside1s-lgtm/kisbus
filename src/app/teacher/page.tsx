@@ -483,7 +483,6 @@ export default function TeacherPage() {
       toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 비워집니다." });
     } else {
       if (swapSourceSeat === seatNumber) {
-        // Clearing seat if right-clicked again
         const newSeating = currentRoute.seating.map(s => 
           s.seatNumber === seatNumber ? { ...s, studentId: null } : s
         );
@@ -495,7 +494,6 @@ export default function TeacherPage() {
           .catch(() => { toast({ title: "오류 발생", variant: 'destructive' }); });
         return;
       }
-      // Swapping if clicked different seat
       const newSeating = [...currentRoute.seating];
       const sourceIdx = newSeating.findIndex(s => s.seatNumber === swapSourceSeat);
       const targetIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
@@ -627,7 +625,7 @@ export default function TeacherPage() {
                                     destinations={destinations} 
                                     onSeatClick={handleSeatClick} 
                                     onSeatContextMenu={handleSeatContextMenu}
-                                    highlightedSeatNumber={swapSourceSeat}
+                                    highlightedSeatNumber={swapSourceSeat || lastClickedStudentId ? (currentRoute.seating.find(s => s.studentId === lastClickedStudentId)?.seatNumber) : null}
                                     boardedStudentIds={boardedStudentIds} 
                                     notBoardingStudentIds={notBoardingStudentIds} 
                                     routeType={selectedRouteType} 
@@ -654,9 +652,10 @@ export default function TeacherPage() {
                                 <p className="text-sm text-muted-foreground">학년/반: {selectedStudent.grade}학년 {selectedStudent.class}반</p>
                                 <p className="text-sm text-muted-foreground">목적지: {
                                     destinations.find(d => d.id === (
-                                        selectedRouteType === 'Morning' ? selectedStudent.morningDestinationId :
+                                        selectedDay === 'Saturday' ? (selectedRouteType === 'Morning' ? selectedStudent.satMorningDestinationId : selectedStudent.satAfternoonDestinationId) :
+                                        (selectedRouteType === 'Morning' ? selectedStudent.morningDestinationId :
                                         selectedRouteType === 'Afternoon' ? selectedStudent.afternoonDestinationId :
-                                        selectedStudent.afterSchoolDestinations?.[selectedDay]
+                                        selectedStudent.afterSchoolDestinations?.[selectedDay])
                                     ))?.name || t('unassigned')
                                 }</p>
                             </CardContent>

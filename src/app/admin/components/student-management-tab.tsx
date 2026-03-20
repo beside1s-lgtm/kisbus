@@ -1,11 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import Papa from 'papaparse';
 import { 
-    addStudent, updateStudent, deleteStudentsInBatch, updateRouteSeating,
-    copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch,
-    getDestinations, addDestinationsInBatch
+    updateStudent, deleteStudentsInBatch, updateRouteSeating,
+    copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, SeatingAssignment } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -18,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useTranslation } from '@/hooks/use-translation';
-import { normalizeString, sanitizeDataForSystem } from '@/lib/utils';
+import { normalizeString } from '@/lib/utils';
 
 import { StudentUnassignedPanel } from './student-unassigned-panel';
 import { StudentGlobalSearchPanel } from './student-global-search-panel';
@@ -137,7 +135,7 @@ export const StudentManagementTab = ({
                 const busA = buses.find(bus => bus.id === a.busId);
                 const busB = buses.find(bus => bus.id === b.busId);
                 const numA = busA ? parseInt(busA.name.replace(/\D/g, ''), 10) : Infinity;
-                const numB = busB ? parseInt(b.name.replace(/\D/g, ''), 10) : Infinity;
+                const numB = busB ? parseInt(busB.name.replace(/\D/g, ''), 10) : Infinity;
                 if (numA !== numB) return (!isNaN(numA) ? numA : Infinity) - (!isNaN(numB) ? numB : Infinity);
                 const dayIndexA = dayOrder.indexOf(a.dayOfWeek);
                 const dayIndexB = dayOrder.indexOf(b.dayOfWeek);
@@ -248,6 +246,7 @@ export const StudentManagementTab = ({
 
     const handleSeatClick = useCallback(async (num: number, sid: string | null) => {
         if (!currentRoute) return;
+        setSwapSourceSeat(null);
         const next = [...currentRoute.seating];
         if (selectedSeat) {
             const sIdx = next.findIndex(x => x.seatNumber === selectedSeat.seatNumber);
@@ -447,27 +446,29 @@ export const StudentManagementTab = ({
     const handleStudentFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: async (results) => {
-                const newStudents = results.data.map((row: any) => {
-                    const name = (row['이름'] || row['name'] || '').trim();
-                    if (!name) return null;
-                    return {
-                        name,
-                        grade: (row['학년'] || row['grade'] || '1').toString().trim(),
-                        class: (row['반'] || row['class'] || '1').toString().trim(),
-                        gender: (row['성별'] || row['gender'] || 'Male').toString().trim() === '여자' ? 'Female' : 'Male',
-                        contact: (row['연락처'] || row['contact'] || '').toString().trim(),
-                        applicationStatus: 'reviewed' as const
-                    };
-                }).filter(Boolean) as any[];
+        import('papaparse').then(Papa => {
+            Papa.default.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: async (results) => {
+                    const newStudents = results.data.map((row: any) => {
+                        const name = (row['이름'] || row['name'] || '').trim();
+                        if (!name) return null;
+                        return {
+                            name,
+                            grade: (row['학년'] || row['grade'] || '1').toString().trim(),
+                            class: (row['반'] || row['class'] || '1').toString().trim(),
+                            gender: (row['성별'] || row['gender'] || 'Male').toString().trim() === '여자' ? 'Female' : 'Male',
+                            contact: (row['연락처'] || row['contact'] || '').toString().trim(),
+                            applicationStatus: 'reviewed' as const
+                        };
+                    }).filter(Boolean) as any[];
 
-                if (newStudents.length === 0) return;
-                await updateStudentsInBatch(newStudents);
-                toast({ title: t('success'), description: t('admin.student_management.batch_upload.success', { count: newStudents.length }) });
-            }
+                    if (newStudents.length === 0) return;
+                    await updateStudentsInBatch(newStudents);
+                    toast({ title: t('success'), description: t('admin.student_management.batch_upload.success', { count: newStudents.length }) });
+                }
+            });
         });
     };
 
@@ -567,7 +568,7 @@ export const StudentManagementTab = ({
                                     destinations={destinations} 
                                     onSeatClick={handleSeatClick} 
                                     onSeatContextMenu={handleSeatContextMenu}
-                                    highlightedSeatNumber={swapSourceSeat}
+                                    highlightedSeatNumber={swapSourceSeat || selectedSeat?.seatNumber}
                                     boardedStudentIds={[]} 
                                     notBoardingStudentIds={[]} 
                                     routeType={selectedRouteType} 
