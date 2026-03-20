@@ -13,7 +13,8 @@ import {
     saveGroupLeaderRecords,
     updateAttendance,
     onAttendanceUpdate,
-    updateBus
+    updateBus,
+    updateRouteSeating
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem, AttendanceRecord } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -359,6 +360,7 @@ export default function TeacherPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState('');
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
+  const [swapSourceSeat, setSwapSourceSeat] = useState<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -493,6 +495,7 @@ export default function TeacherPage() {
   }, [currentRoute, students, boardedStudentIds, notBoardingStudentIds]);
 
   const handleSeatClick = (sn: number, sid: string | null) => {
+    setSwapSourceSeat(null);
     if (!sid || !currentRoute) { setLastClickedStudentId(null); setSelectedStudent(null); return; }
     const isB = boardedStudentIds.includes(sid), isD = disembarkedStudentIds.includes(sid);
     let newB = [...boardedStudentIds], newD = [...disembarkedStudentIds], newNB = notBoardingStudentIds.filter(id => id !== sid);
@@ -500,6 +503,44 @@ export default function TeacherPage() {
     else if (isB) { newB = newB.filter(id => id !== sid); newD.push(sid); }
     else newB.push(sid);
     updateAttendance(currentRoute.id, selectedDate, { boarded: newB, notBoarding: newNB, disembarked: newD, completedDestinations }).then(() => setLastClickedStudentId(sid)).catch(() => toast({ title: t("error"), variant: "destructive" }));
+  };
+
+  const handleSeatContextMenu = (e: React.MouseEvent, seatNumber: number) => {
+    e.preventDefault();
+    if (!currentRoute) return;
+
+    if (swapSourceSeat === null) {
+      setSwapSourceSeat(seatNumber);
+      toast({
+        title: t('teacher_page.seat_selected'),
+        description: t('teacher_page.seat_selected_description'),
+      });
+    } else {
+      if (swapSourceSeat === seatNumber) {
+        setSwapSourceSeat(null);
+        toast({ title: t('teacher_page.swap_cancelled') });
+        return;
+      }
+
+      const newSeating = [...currentRoute.seating];
+      const sourceIdx = newSeating.findIndex(s => s.seatNumber === swapSourceSeat);
+      const targetIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
+
+      if (sourceIdx > -1 && targetIdx > -1) {
+        const tempStudentId = newSeating[sourceIdx].studentId;
+        newSeating[sourceIdx].studentId = newSeating[targetIdx].studentId;
+        newSeating[targetIdx].studentId = tempStudentId;
+
+        updateRouteSeating(currentRoute.id, newSeating)
+          .then(() => {
+            toast({ title: t('teacher_page.swap_success') });
+            setSwapSourceSeat(null);
+          })
+          .catch(() => {
+            toast({ title: t('teacher_page.swap_error'), variant: 'destructive' });
+          });
+      }
+    }
   };
 
   const handleToggleDeparture = async () => { 
@@ -594,6 +635,8 @@ export default function TeacherPage() {
                                     students={students} 
                                     destinations={destinations} 
                                     onSeatClick={handleSeatClick} 
+                                    onSeatContextMenu={handleSeatContextMenu}
+                                    highlightedSeatNumber={swapSourceSeat}
                                     boardedStudentIds={boardedStudentIds} 
                                     notBoardingStudentIds={notBoardingStudentIds} 
                                     routeType={selectedRouteType} 

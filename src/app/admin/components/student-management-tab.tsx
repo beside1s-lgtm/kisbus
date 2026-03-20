@@ -87,7 +87,7 @@ export const StudentManagementTab = ({
                 const busA = buses.find(bus => bus.id === a.busId);
                 const busB = buses.find(bus => bus.id === b.busId);
                 const numA = busA ? parseInt(busA.name.replace(/\D/g, ''), 10) : Infinity;
-                const numB = busB ? parseInt(busB.name.replace(/\D/g, ''), 10) : Infinity;
+                const numB = busB ? parseInt(b.name.replace(/\D/g, ''), 10) : Infinity;
                 if (numA !== numB) return (!isNaN(numA) ? numA : Infinity) - (!isNaN(numB) ? numB : Infinity);
                 const dayIndexA = dayOrder.indexOf(a.dayOfWeek);
                 const dayIndexB = dayOrder.indexOf(b.dayOfWeek);
