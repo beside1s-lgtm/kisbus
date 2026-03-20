@@ -67,6 +67,7 @@ export const StudentManagementTab = ({
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
     
     const [selectedSeat, setSelectedSeat] = useState<{ seatNumber: number; studentId: string | null } | null>(null);
+    const [swapSourceSeat, setSwapSourceSeat] = useState<number | null>(null);
     const [unassignableStudents, setUnassignableStudents] = useState<(Student & { errorReason: string })[]>([]);
 
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
@@ -265,6 +266,41 @@ export const StudentManagementTab = ({
         }
     }, [currentRoute, selectedSeat, handleSeatUpdate]);
 
+    const handleSeatContextMenu = (e: React.MouseEvent, seatNumber: number) => {
+        e.preventDefault();
+        if (!currentRoute) return;
+
+        if (swapSourceSeat === null) {
+            setSwapSourceSeat(seatNumber);
+            toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 비워집니다." });
+        } else {
+            if (swapSourceSeat === seatNumber) {
+                const newSeating = currentRoute.seating.map(s => 
+                    s.seatNumber === seatNumber ? { ...s, studentId: null } : s
+                );
+                updateRouteSeating(currentRoute.id, newSeating)
+                    .then(() => { 
+                        toast({ title: "좌석 비우기 완료", description: "해당 좌석의 배정이 해제되었습니다." }); 
+                        setSwapSourceSeat(null); 
+                    });
+                return;
+            }
+            const newSeating = [...currentRoute.seating];
+            const sourceIdx = newSeating.findIndex(s => s.seatNumber === swapSourceSeat);
+            const targetIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
+            if (sourceIdx > -1 && targetIdx > -1) {
+                const tempStudentId = newSeating[sourceIdx].studentId;
+                newSeating[sourceIdx].studentId = newSeating[targetIdx].studentId;
+                newSeating[targetIdx].studentId = tempStudentId;
+                updateRouteSeating(currentRoute.id, newSeating)
+                    .then(() => { 
+                        toast({ title: t('teacher_page.swap_success') }); 
+                        setSwapSourceSeat(null); 
+                    });
+            }
+        }
+    };
+
     const handleStudentCardClick = useCallback(async (sid: string) => {
         if (currentRoute && selectedSeat && !selectedSeat.studentId) {
             const next = [...currentRoute.seating];
@@ -436,7 +472,7 @@ export const StudentManagementTab = ({
     };
 
     return (
-        <div className="space-y-6" onContextMenu={(e) => { e.preventDefault(); setSelectedSeat(null); }}>
+        <div className="space-y-6" onContextMenu={(e) => { e.preventDefault(); setSwapSourceSeat(null); }}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                     {unassignableStudents.length > 0 && (
@@ -532,11 +568,11 @@ export const StudentManagementTab = ({
                                     onSeatClick={handleSeatClick} 
                                     onSeatContextMenu={handleSeatContextMenu}
                                     highlightedSeatNumber={swapSourceSeat}
-                                    boardedStudentIds={boardedStudentIds} 
-                                    notBoardingStudentIds={notBoardingStudentIds} 
+                                    boardedStudentIds={[]} 
+                                    notBoardingStudentIds={[]} 
                                     routeType={selectedRouteType} 
                                     dayOfWeek={selectedDay} 
-                                    groupLeaderRecords={groupLeaderRecords}
+                                    groupLeaderRecords={[]}
                                 />
                             ) : (
                                 <div className="text-center py-20 text-muted-foreground">버스를 선택해주세요.</div>
