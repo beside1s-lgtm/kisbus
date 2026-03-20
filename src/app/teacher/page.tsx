@@ -20,7 +20,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, Users, Trash2, Download, Printer, UserX } from 'lucide-react';
+import { Crown, Users, Printer, UserX, AlertCircle } from 'lucide-react';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -33,21 +33,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LostAndFound } from './components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-const getGradeValue = (grade: string): number => {
-  const upperGrade = grade.trim().toUpperCase();
-  if (upperGrade === 'S') return -50; 
-  if (upperGrade.startsWith('K')) {
-      const num = parseInt(upperGrade.replace('K', ''), 10);
-      return isNaN(num) ? -100 : -100 + num;
-  }
-  const num = parseInt(upperGrade.replace(/\D/g, ''), 10);
-  return isNaN(num) ? 999 : num;
-};
 
 const sortBuses = (buses: Bus[]): Bus[] => {
   return [...buses].sort((a, b) => {
@@ -58,112 +47,15 @@ const sortBuses = (buses: Bus[]): Bus[] => {
   });
 };
 
-const ClassListDownloadDialog = ({
-    students,
-    allRoutes,
-    buses,
-    destinations,
-    t
-}: {
-    students: Student[];
-    allRoutes: Route[];
-    buses: Bus[];
-    destinations: Destination[];
-    t: any;
-}) => {
-    const [grade, setGrade] = useState('');
-    const [studentClass, setStudentClass] = useState('');
-    const [category, setCategory] = useState<'commute' | 'afterschool' | 'saturday'>('commute');
-    const { toast } = useToast();
-
-    const handleDownload = () => {
-        if (!grade || !studentClass) {
-            toast({ title: t('error'), description: "학년과 반을 모두 입력해주세요.", variant: 'destructive' });
-            return;
-        }
-        let effectiveType: RouteType = 'Afternoon';
-        let relevantDays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        if (category === 'afterschool') { effectiveType = 'AfterSchool'; relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday']; }
-        else if (category === 'saturday') { effectiveType = 'AfterSchool'; relevantDays = ['Saturday']; }
-        
-        const isSat = category === 'saturday';
-        const filteredStudents = students.filter(s => s.grade.toLowerCase() === grade.trim().toLowerCase() && s.class.toLowerCase() === studentClass.trim().toLowerCase());
-        
-        if (filteredStudents.length === 0) { toast({ title: t('notice'), description: "해당 학년/반의 학생을 찾을 수 없습니다." }); return; }
-        
-        const assignedStudentsData = filteredStudents.map(student => {
-            const routes = allRoutes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === effectiveType && r.seating.some(seat => seat.studentId === student.id));
-            if (routes.length === 0) return null;
-            const firstBus = buses.find(b => b.id === routes[0].busId);
-            return firstBus ? { student, bus: firstBus, routes } : null;
-        }).filter((item): item is NonNullable<typeof item> => item !== null);
-        
-        if (assignedStudentsData.length === 0) { toast({ title: t('notice'), description: "해당 조건에 배정된 학생이 없습니다." }); return; }
-        
-        assignedStudentsData.sort((a, b) => {
-            const numA = parseInt(a.bus.name.replace(/\D/g, ''), 10);
-            const numB = parseInt(b.bus.name.replace(/\D/g, ''), 10);
-            if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
-            return a.student.name.localeCompare(b.student.name, 'ko');
-        });
-        
-        const headers = ["이름", "학년", "반", "버스", "목적지"];
-        if (!isSat) headers.push(t('day_short.monday'), t('day_short.tuesday'), t('day_short.wednesday'), t('day_short.thursday'), t('day_short.friday'));
-        
-        const rows = assignedStudentsData.map(({ student, bus, routes }) => {
-            let destId = isSat ? student.satAfternoonDestinationId : (category === 'commute' ? student.afternoonDestinationId : student.afterSchoolDestinations?.[routes[0].dayOfWeek] || null);
-            const destinationName = destinations.find(d => d.id === destId)?.name || t('unassigned');
-            const escape = (val: any) => `"${val.toString().replace(/"/g, '""')}"`;
-            const studentRow = [escape(student.name), escape(student.grade), escape(student.class), escape(bus.name), escape(destinationName)];
-            if (!isSat) { 
-                const weekdays: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']; 
-                weekdays.forEach(day => studentRow.push(routes.some(r => r.dayOfWeek === day) ? 'O' : 'X')); 
-            }
-            return studentRow;
-        });
-        
-        const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.map(r => r.join(',')).join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.body.appendChild(document.createElement("a"));
-        link.href = URL.createObjectURL(blob);
-        link.download = `${isSat ? "KIS_KoreanSchool" : "KIS_Class"}_Bus_List_${grade}_${studentClass}_${format(new Date(), 'yyyyMMdd')}.csv`;
-        link.click();
-        document.body.removeChild(link);
-        toast({ title: t('success'), description: "파일 다운로드가 시작되었습니다." });
-    };
-
-    return (
-        <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-                <DialogTitle>{t('teacher_page.download_class_list_dialog.title')}</DialogTitle>
-                <DialogDescription>{t('teacher_page.download_class_list_dialog.description')}</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="grade" className="text-right">{t('teacher_page.download_class_list_dialog.grade_label')}</Label>
-                    <Input id="grade" value={grade} onChange={e => setGrade(e.target.value)} className="col-span-3" placeholder="예: 1" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="class" className="text-right">{t('teacher_page.download_class_list_dialog.class_label')}</Label>
-                    <Input id="class" value={studentClass} onChange={e => setStudentClass(e.target.value)} className="col-span-3" placeholder="예: 1" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="category" className="text-right">노선</Label>
-                    <Select value={category} onValueChange={(v: any) => setCategory(v)}>
-                        <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="commute">등하교 (평일)</SelectItem>
-                            <SelectItem value="afterschool">방과후 (평일)</SelectItem>
-                            <SelectItem value="saturday">방과후 (주말)</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
-            <DialogFooter>
-                <Button onClick={handleDownload}>{t('teacher_page.download_class_list_button')}</Button>
-            </DialogFooter>
-        </DialogContent>
-    );
+const getGradeValue = (grade: string): number => {
+  const upperGrade = grade.trim().toUpperCase();
+  if (upperGrade === 'S') return -50; 
+  if (upperGrade.startsWith('K')) {
+      const num = parseInt(upperGrade.replace('K', ''), 10);
+      return isNaN(num) ? -100 : -100 + num;
+  }
+  const num = parseInt(upperGrade.replace(/\D/g, ''), 10);
+  return isNaN(num) ? 999 : num;
 };
 
 const AllStudentsBoardingStatus = ({ relevantRoutes, students, buses, allAttendance, formatStudentName, t }: { relevantRoutes: Route[]; students: Student[]; buses: Bus[]; allAttendance: Record<string, AttendanceRecord | null>; formatStudentName: (student: Student) => string; t: any; }) => {
@@ -404,9 +296,9 @@ export default function TeacherPage() {
   
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
-  const filteredBuses = useMemo(() => buses.filter(b => 
+  const filteredBuses = useMemo(() => sortBuses(buses.filter(b => 
     (b.isActive ?? true) && allRoutes.some(r => r.busId === b.id && r.dayOfWeek === selectedDay && r.type === selectedRouteType && r.stops?.length > 0 && r.seating.some(s => s.studentId !== null))
-  ), [buses, allRoutes, selectedDay, selectedRouteType]);
+  )), [buses, allRoutes, selectedDay, selectedRouteType]);
   
   const relevantRoutesForDay = useMemo(() => { 
     const activeIds = new Set(filteredBuses.map(b => b.id)); 
@@ -459,11 +351,7 @@ export default function TeacherPage() {
         toast({ title: t('teacher_page.demote_leader'), description: `${selectedStudent.name} 학생이 조장에서 해제되었습니다.` });
     } else {
         if (activeLeaders.length >= 3) {
-            toast({ 
-                title: t('error'), 
-                description: "동시에 활동 가능한 조장은 최대 3명입니다. 기존 조장을 먼저 해제해주세요.", 
-                variant: 'destructive' 
-            });
+            toast({ title: t('error'), description: "동시에 활동 가능한 조장은 최대 3명입니다. 기존 조장을 먼저 해제해주세요.", variant: 'destructive' });
             return;
         }
         const newRecord: GroupLeaderRecord = {
@@ -480,6 +368,15 @@ export default function TeacherPage() {
     setGroupLeaderRecords(newRecords);
     saveGroupLeaderRecords(currentRoute.id, newRecords).catch(console.error);
   }, [selectedStudent, currentRoute, groupLeaderRecords, t, toast]);
+
+  const handleMarkNotBoarding = useCallback(async () => {
+    if (!selectedStudent || !currentRoute) return;
+    const newNB = [...new Set([...notBoardingStudentIds, selectedStudent.id])];
+    const newB = boardedStudentIds.filter(id => id !== selectedStudent.id);
+    const newD = disembarkedStudentIds.filter(id => id !== selectedStudent.id);
+    await updateAttendance(currentRoute.id, selectedDate, { boarded: newB, notBoarding: newNB, disembarked: newD, completedDestinations });
+    toast({ title: t('teacher_page.not_boarding_updated') });
+  }, [selectedStudent, currentRoute, notBoardingStudentIds, boardedStudentIds, disembarkedStudentIds, completedDestinations, selectedDate, t, toast]);
 
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
@@ -511,34 +408,23 @@ export default function TeacherPage() {
 
     if (swapSourceSeat === null) {
       setSwapSourceSeat(seatNumber);
-      toast({
-        title: t('teacher_page.seat_selected'),
-        description: t('teacher_page.seat_selected_description'),
-      });
+      toast({ title: t('teacher_page.seat_selected'), description: t('teacher_page.seat_selected_description') });
     } else {
       if (swapSourceSeat === seatNumber) {
         setSwapSourceSeat(null);
         toast({ title: t('teacher_page.swap_cancelled') });
         return;
       }
-
       const newSeating = [...currentRoute.seating];
       const sourceIdx = newSeating.findIndex(s => s.seatNumber === swapSourceSeat);
       const targetIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
-
       if (sourceIdx > -1 && targetIdx > -1) {
         const tempStudentId = newSeating[sourceIdx].studentId;
         newSeating[sourceIdx].studentId = newSeating[targetIdx].studentId;
         newSeating[targetIdx].studentId = tempStudentId;
-
         updateRouteSeating(currentRoute.id, newSeating)
-          .then(() => {
-            toast({ title: t('teacher_page.swap_success') });
-            setSwapSourceSeat(null);
-          })
-          .catch(() => {
-            toast({ title: t('teacher_page.swap_error'), variant: 'destructive' });
-          });
+          .then(() => { toast({ title: t('teacher_page.swap_success') }); setSwapSourceSeat(null); })
+          .catch(() => { toast({ title: t('teacher_page.swap_error'), variant: 'destructive' }); });
       }
     }
   };
@@ -596,10 +482,6 @@ export default function TeacherPage() {
         headerContent={headerContent} 
         titleActions={
             <div className="flex gap-2 no-print">
-                <Dialog>
-                    <DialogTrigger asChild><Button variant="outline" size="sm" className="h-8"><Download className="mr-2 h-4 w-4" /><span className="hidden sm:inline">{t('teacher_page.download_class_list_button')}</span></Button></DialogTrigger>
-                    <ClassListDownloadDialog students={students} allRoutes={allRoutes} buses={buses} destinations={destinations} t={t}/>
-                </Dialog>
                 <Dialog>
                     <DialogTrigger asChild><Button variant="outline" size="sm" className="h-8"><Users className="mr-2 h-4 w-4" /><span className="hidden sm:inline">{t('teacher_page.check_assignments_button')}</span></Button></DialogTrigger>
                     <TeacherAssignmentViewDialog buses={buses} allRoutes={allRoutes} teachers={teachers} afterSchoolTeachers={afterSchoolTeachers} selectedDay={selectedDay} selectedRouteType={selectedRouteType} t={t}/>
@@ -659,7 +541,8 @@ export default function TeacherPage() {
                                     </Badge>
                                 </div>
                             </CardHeader>
-                            <CardContent className="pb-3">
+                            <CardContent className="pb-3 space-y-2">
+                                <p className="text-sm text-muted-foreground">학년/반: {selectedStudent.grade}학년 {selectedStudent.class}반</p>
                                 <p className="text-sm text-muted-foreground">목적지: {
                                     destinations.find(d => d.id === (
                                         selectedRouteType === 'Morning' ? selectedStudent.morningDestinationId :
@@ -668,7 +551,16 @@ export default function TeacherPage() {
                                     ))?.name || t('unassigned')
                                 }</p>
                             </CardContent>
-                            <CardFooter>
+                            <CardFooter className="flex flex-col gap-2">
+                                <Button 
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleMarkNotBoarding}
+                                    className="w-full text-destructive border-destructive hover:bg-destructive/10"
+                                    disabled={boardedStudentIds.includes(selectedStudent.id)}
+                                >
+                                    <AlertCircle className="mr-2 h-4 w-4" /> {t('teacher_page.mark_not_riding_today')}
+                                </Button>
                                 <Button 
                                     variant={selectedStudent.isGroupLeader ? "destructive" : "default"} 
                                     size="sm" 

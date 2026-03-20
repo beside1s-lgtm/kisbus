@@ -6,24 +6,18 @@ import {
     addStudent, updateStudent, deleteStudentsInBatch, updateRouteSeating,
     copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch
 } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, NewStudent } from '@/lib/types';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, SeatingAssignment } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Shuffle, UserPlus, RotateCcw, Copy, Bell, Undo2, AlertCircle, Users, Upload, Download } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Shuffle, UserPlus, RotateCcw, Copy, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useTranslation } from '@/hooks/use-translation';
-import { writeBatch, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { format } from 'date-fns';
-import { normalizeString, sanitizeDataForSystem } from '@/lib/utils';
+import { normalizeString } from '@/lib/utils';
 
 import { StudentUnassignedPanel } from './student-unassigned-panel';
 import { StudentGlobalSearchPanel } from './student-global-search-panel';
@@ -39,7 +33,7 @@ const getGradeValue = (grade: string): number => {
   return isNaN(num) ? 999 : num;
 };
 
-const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
+const generateInitialSeating = (capacity: number): SeatingAssignment[] => {
     return Array.from({ length: capacity }, (_, i) => ({
         seatNumber: i + 1,
         studentId: null,
@@ -77,9 +71,7 @@ export const StudentManagementTab = ({
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
 
-    const [isAddStudentDialogOpen, setAddStudentDialogOpen] = useState(false);
-    
-    // Copy Seating Dialog State
+    // Seating Copy Dialog State
     const [isCopySeatingDialogOpen, setIsCopySeatingDialogOpen] = useState(false);
     const [daysToCopySeatingTo, setDaysToCopySeatingTo] = useState<Partial<Record<DayOfWeek, boolean>>>(
         () => dayOrder.reduce((acc, day) => ({ ...acc, [day]: true }), {})
@@ -88,23 +80,6 @@ export const StudentManagementTab = ({
         Morning: true,
         Afternoon: true
     });
-
-    const assignedRoutesForSelectedStudent = useMemo(() => {
-        if (!selectedGlobalStudent) return [];
-        return routes
-            .filter(route => route.seating.some(seat => seat.studentId === selectedGlobalStudent.id))
-            .sort((a, b) => {
-                const busA = buses.find(bus => bus.id === a.busId);
-                const busB = buses.find(bus => bus.id === b.busId);
-                const numA = busA ? parseInt(busA.name.replace(/\D/g, ''), 10) : Infinity;
-                const numB = busB ? parseInt(b.name.replace(/\D/g, ''), 10) : Infinity;
-                if (numA !== numB) return (!isNaN(numA) ? numA : Infinity) - (!isNaN(numB) ? numB : Infinity);
-                const dayIndexA = dayOrder.indexOf(a.dayOfWeek);
-                const dayIndexB = dayOrder.indexOf(b.dayOfWeek);
-                if (dayIndexA !== dayIndexB) return dayIndexA - dayIndexB;
-                return 0;
-            });
-    }, [selectedGlobalStudent, routes, buses, dayOrder]);
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
     const currentRoute = useMemo(() => routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType), [routes, selectedBusId, selectedDay, selectedRouteType]);
@@ -120,6 +95,32 @@ export const StudentManagementTab = ({
         if (rt === 'AfterSchool') return t('route_type.after_school');
         return t(`route_type.${rt.toLowerCase()}`);
     };
+
+    // Global Search Logic
+    const globalSearchResults = useMemo(() => {
+        if (!globalSearchQuery.trim()) return [];
+        const lq = normalizeString(globalSearchQuery);
+        return students.filter(s => 
+            normalizeString(s.name).includes(lq) || 
+            (s.contact && s.contact.includes(globalSearchQuery.replace(/\D/g, '')))
+        ).slice(0, 10);
+    }, [students, globalSearchQuery]);
+
+    const assignedRoutesForSelectedStudent = useMemo(() => {
+        if (!selectedGlobalStudent) return [];
+        return routes
+            .filter(route => route.seating.some(seat => seat.studentId === selectedGlobalStudent.id))
+            .sort((a, b) => {
+                const busA = buses.find(bus => bus.id === a.busId);
+                const busB = buses.find(bus => bus.id === b.busId);
+                const numA = busA ? parseInt(busA.name.replace(/\D/g, ''), 10) : Infinity;
+                const numB = busB ? parseInt(b.name.replace(/\D/g, ''), 10) : Infinity;
+                if (numA !== numB) return (!isNaN(numA) ? numA : Infinity) - (!isNaN(numB) ? numB : Infinity);
+                const dayIndexA = dayOrder.indexOf(a.dayOfWeek);
+                const dayIndexB = dayOrder.indexOf(b.dayOfWeek);
+                return dayIndexA - dayIndexB;
+            });
+    }, [selectedGlobalStudent, routes, buses, dayOrder]);
 
     useEffect(() => {
         if (!routes.length || !students.length) return;
@@ -218,21 +219,9 @@ export const StudentManagementTab = ({
         }));
     }, [students, routes, currentRoute, selectedRouteType, selectedDay, unassignedSearchQuery, unassignedView, selectedBusId]);
 
-    const handleSeatUpdate = useCallback(async (newSeating: any) => { 
+    const handleSeatUpdate = useCallback(async (newSeating: SeatingAssignment[]) => { 
         if (currentRoute) await updateRouteSeating(currentRoute.id, newSeating); 
     }, [currentRoute]);
-
-    const handleStudentCardClick = useCallback(async (sid: string) => {
-        if (currentRoute && selectedSeat && !selectedSeat.studentId) {
-            const next = [...currentRoute.seating];
-            const idx = next.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
-            if (idx > -1) { 
-                next[idx].studentId = sid; 
-                await handleSeatUpdate(next); 
-                setSelectedSeat(null); 
-            }
-        }
-    }, [currentRoute, selectedSeat, handleSeatUpdate]);
 
     const handleSeatClick = useCallback(async (num: number, sid: string | null) => {
         if (!currentRoute) return;
@@ -253,6 +242,26 @@ export const StudentManagementTab = ({
             setSelectedSeat({ seatNumber: num, studentId: sid });
         }
     }, [currentRoute, selectedSeat, handleSeatUpdate]);
+
+    const handleStudentCardClick = useCallback(async (sid: string) => {
+        if (currentRoute && selectedSeat && !selectedSeat.studentId) {
+            const next = [...currentRoute.seating];
+            const idx = next.findIndex(s => s.seatNumber === selectedSeat.seatNumber);
+            if (idx > -1) { 
+                next[idx].studentId = sid; 
+                await handleSeatUpdate(next); 
+                setSelectedSeat(null); 
+            }
+        }
+    }, [currentRoute, selectedSeat, handleSeatUpdate]);
+
+    const handleAssignStudentFromSearch = useCallback(async () => {
+        if (!selectedGlobalStudent || !selectedSeat || selectedSeat.studentId) {
+            toast({ title: t('notice'), description: t('admin.student_management.seat.select_empty_seat_prompt') });
+            return;
+        }
+        await handleStudentCardClick(selectedGlobalStudent.id);
+    }, [selectedGlobalStudent, selectedSeat, handleStudentCardClick, t, toast]);
 
     const handleRandomAssign = useCallback(async () => {
         if (!currentRoute || !selectedBus) return;
@@ -293,7 +302,6 @@ export const StudentManagementTab = ({
             return;
         }
 
-        // Grade-based priority shuffling
         const shuffledStudents = [...eligibleStudents].sort((a, b) => {
             const gA = getGradeValue(a.grade);
             const gB = getGradeValue(b.grade);
@@ -345,47 +353,6 @@ export const StudentManagementTab = ({
         }
     }, [currentRoute, routes, daysToCopySeatingTo, routeTypesToCopySeatingTo, t, toast, dayOrder]);
 
-    const handleStudentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        Papa.parse(file, {
-            header: true, skipEmptyLines: true,
-            complete: async (res) => {
-                const destMap: any = {}; 
-                destinations.forEach(d => destMap[normalizeString(d.name)] = d.id);
-                const updates: any[] = [];
-                res.data.forEach((row: any) => {
-                    const name = (row['이름'] || row['Name'] || '').trim();
-                    const grade = (row['학년'] || row['Grade'] || '').trim();
-                    const sClass = (row['반'] || row['Class'] || '').trim();
-                    const contact = (row['베트남 전화번호'] || row['연락처'] || '').toString().replace(/\D/g, '');
-                    if (name && grade && sClass) {
-                        const up: any = { name, grade, class: sClass, contact };
-                        const mDest = destMap[normalizeString(row['등교 목적지'] || '')];
-                        const aDest = destMap[normalizeString(row['하교 목적지'] || '')];
-                        if (mDest) up.morningDestinationId = mDest; 
-                        if (aDest) up.afternoonDestinationId = aDest;
-                        updates.push(up);
-                    }
-                });
-                if (!updates.length) { 
-                    toast({ title: t('error'), description: "유효한 학생 데이터를 찾을 수 없습니다.", variant: 'destructive' }); 
-                    return; 
-                }
-                const { dismiss } = toast({ title: t('processing'), description: "학생 명단을 처리 중입니다..." });
-                try { 
-                    await Promise.all(updates.map(s => addStudent(s))); 
-                    dismiss(); 
-                    toast({ title: t('success'), description: "명단 처리가 완료되었습니다." }); 
-                } catch (err) { 
-                    dismiss(); 
-                    toast({ title: t('error'), description: "파일 처리 중 오류가 발생했습니다.", variant: 'destructive' }); 
-                }
-            }
-        });
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
     const handleDestinationChangeWrapper = (id: string, val: string|null, type: 'morning'|'afternoon'|'afterSchool'|'satMorning'|'satAfternoon', day?: DayOfWeek) => {
         const realVal = val === '_NONE_' ? null : val;
         const updates: any = {};
@@ -409,7 +376,7 @@ export const StudentManagementTab = ({
                             <AlertCircle className="h-4 w-4"/>
                             <AlertTitle>{t('admin.student_management.unassignable.title')}</AlertTitle>
                             <AlertDescription>
-                                <div className="mt-2 space-y-1 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                <div className="mt-2 space-y-1 max-h-[300px] overflow-y-auto pr-2">
                                     {unassignableStudents.map(s => (
                                         <div key={s.id} className="text-xs flex justify-between items-center border-b border-destructive/20 py-1.5 cursor-pointer hover:bg-destructive/10" onClick={() => setSelectedGlobalStudent(s)}>
                                             <span className="font-medium">{s.name} ({s.grade} {s.class})</span>
@@ -436,7 +403,6 @@ export const StudentManagementTab = ({
                                     <DialogContent>
                                         <DialogHeader>
                                             <DialogTitle>{t('admin.student_management.seat.copy.title')}</DialogTitle>
-                                            <CardDescription>{t('admin.student_management.seat.copy.description')}</CardDescription>
                                         </DialogHeader>
                                         <div className="space-y-4 py-4">
                                             <div>
@@ -481,11 +447,8 @@ export const StudentManagementTab = ({
                                         </DialogFooter>
                                     </DialogContent>
                                 </Dialog>
-                                <Button variant="outline" size="sm" onClick={() => setAddStudentDialogOpen(true)}>
-                                    <UserPlus className="h-4 w-4 mr-2"/> {t('admin.student_management.add_student.button')}
-                                </Button>
                                 <Button variant="outline" size="sm" onClick={async () => { 
-                                    if (currentRoute) await handleSeatUpdate(generateInitialSeating(selectedBus!.capacity)); 
+                                    if (currentRoute && selectedBus) await handleSeatUpdate(generateInitialSeating(selectedBus.capacity)); 
                                 }}>
                                     <RotateCcw className="h-4 w-4"/>
                                 </Button>
@@ -544,15 +507,15 @@ export const StudentManagementTab = ({
                         setSelectedGlobalStudent={setSelectedGlobalStudent} 
                         globalSearchQuery={globalSearchQuery} 
                         setGlobalSearchQuery={setGlobalSearchQuery} 
-                        globalSearchResults={[]} 
+                        globalSearchResults={globalSearchResults} 
                         handleGlobalStudentClick={setSelectedGlobalStudent} 
                         handleDownloadAllStudents={() => {}} 
                         handleDownloadStudentTemplate={() => {}} 
                         fileInputRef={fileInputRef} 
-                        handleStudentFileUpload={handleStudentFileUpload} 
+                        handleStudentFileUpload={() => {}} 
                         handleDeleteAllStudents={() => {}} 
-                        handleUnassignAllFromStudent={() => {}} 
-                        handleAssignStudentFromSearch={() => {}} 
+                        handleUnassignAllFromStudent={() => unassignStudentFromAllRoutes(selectedGlobalStudent?.id || '')} 
+                        handleAssignStudentFromSearch={handleAssignStudentFromSearch} 
                         handleStudentInfoChange={(sid, f, v) => updateStudent(sid, { [f]: v })} 
                         handleDestinationChange={handleDestinationChangeWrapper} 
                         handleUnassignStudentFromRoute={() => {}} 
