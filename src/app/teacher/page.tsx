@@ -20,7 +20,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, Users, Printer, UserX, AlertCircle } from 'lucide-react';
+import { Crown, Users, Printer, UserX, AlertCircle, Search } from 'lucide-react';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -128,7 +128,8 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
                 const recs = await getGroupLeaderRecords(r.id);
                 const active = recs.filter(x => x.endDate === null);
                 if (active.length > 0) {
-                    const days = differenceInDays(new Date(), new Date(Math.min(...active.map(l => new Date(l.startDate).getTime())))) + 1;
+                    const minDate = Math.min(...active.map(l => new Date(l.startDate).getTime()));
+                    const days = differenceInDays(new Date(), new Date(minDate)) + 1;
                     results[r.id] = { names: active.map(l => {
                         const student = students.find(s => s.id === l.studentId);
                         return student ? formatStudentName(student) : (l.name || "알 수 없음");
@@ -253,6 +254,8 @@ export default function TeacherPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [lastClickedStudentId, setLastClickedStudentId] = useState<string | null>(null);
   const [swapSourceSeat, setSwapSourceSeat] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Student[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -266,7 +269,7 @@ export default function TeacherPage() {
     else if (d === 0) tDate.setDate(tDate.getDate() + 1);
     
     setSelectedDate(format(tDate, 'yyyy-MM-dd'));
-    onBusesUpdate(setBuses); 
+    onBusesUpdate(data => setBuses(sortBuses(data))); 
     onStudentsUpdate(setStudents); 
     onRoutesUpdate(setAllRoutes); 
     onDestinationsUpdate(setDestinations); 
@@ -289,6 +292,50 @@ export default function TeacherPage() {
         }
     }
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const lq = searchQuery.toLowerCase();
+    const dq = searchQuery.replace(/\D/g, '');
+    const res = students.filter(s => 
+      s.name.toLowerCase().includes(lq) || 
+      (dq && s.contact?.replace(/\D/g, '').includes(dq))
+    );
+    setSearchResults(res.slice(0, 5));
+  }, [searchQuery, students]);
+
+  const handleSelectStudentFromSearch = (s: Student) => {
+    const route = allRoutes.find(r => 
+      r.dayOfWeek === selectedDay && 
+      r.type === selectedRouteType && 
+      r.seating.some(seat => seat.studentId === s.id)
+    );
+
+    if (route) {
+      setSelectedBusId(route.busId);
+      setLastClickedStudentId(s.id);
+    } else {
+      const anyRoute = allRoutes.find(r => r.seating.some(seat => seat.studentId === s.id));
+      if (anyRoute) {
+          toast({ 
+              title: t('notice'), 
+              description: `학생(${s.name})이 ${t(`day.${anyRoute.dayOfWeek.toLowerCase()}`)} ${t(`route_type.${anyRoute.type.toLowerCase()}`)} 노선에 배정되어 있습니다.`,
+          });
+          setSelectedDay(anyRoute.dayOfWeek);
+          setSelectedRouteType(anyRoute.type);
+          setSelectedBusId(anyRoute.busId);
+          setLastClickedStudentId(s.id);
+      } else {
+          toast({ title: t('notice'), description: "이 학생은 현재 어떤 노선에도 배정되어 있지 않습니다." });
+          setLastClickedStudentId(s.id);
+      }
+    }
+    setSearchQuery('');
+    setSearchResults([]);
+  };
 
   const currentRoute = useMemo(() => 
     selectedBusId === 'all' ? null : allRoutes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType), 
@@ -446,6 +493,34 @@ export default function TeacherPage() {
                     {filteredBuses.map(b => <SelectItem key={b.id} value={b.id}>{b.name} ({t(`bus_type.${b.capacity}`)})</SelectItem>)}
                 </SelectContent>
             </Select>
+        </div>
+        <div className="flex-1 min-w-[200px] relative">
+            <Label htmlFor="student-search" className="text-xs">{t('student.name')}</Label>
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    id="student-search"
+                    type="search"
+                    placeholder={t('teacher_page.search_student_placeholder')}
+                    className="pl-8 w-full"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
+            {searchResults.length > 0 && (
+                <Card className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto shadow-lg">
+                    <CardContent className="p-2">
+                        {searchResults.map(student => (
+                            <div key={student.id} 
+                                className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer flex justify-between items-center"
+                                onClick={() => handleSelectStudentFromSearch(student)}>
+                                <span>{formatStudentName(student)}</span>
+                                {student.contact && <span className="text-[10px] text-muted-foreground">{student.contact}</span>}
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
         </div>
         <div className="flex-1 min-w-[120px]">
             <Label className="text-xs">{t('day')}</Label>

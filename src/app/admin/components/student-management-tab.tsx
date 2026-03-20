@@ -394,7 +394,6 @@ export const StudentManagementTab = ({
             header: true,
             skipEmptyLines: true,
             complete: async (results) => {
-                const currentDests = await getDestinations();
                 const newStudents = results.data.map((row: any) => {
                     const name = (row['이름'] || row['name'] || '').trim();
                     if (!name) return null;
@@ -530,7 +529,7 @@ export const StudentManagementTab = ({
                         setUnassignedSearchQuery={setUnassignedSearchQuery} 
                         unassignedView={unassignedView} 
                         setUnassignedView={setUnassignedView} 
-                        unassignedTitle={t('admin.student_management.unassigned.title', { routeType: getRouteTypeLabel(selectedRouteType) }).replace(/\(.*\)/, '').trim()} 
+                        unassignedTitle={t('admin.student_management.unassigned.title', { routeType: getRouteTypeLabel(selectedRouteType) })} 
                         selectedRouteType={selectedRouteType} 
                         selectedDay={selectedDay} 
                         handleDownloadUnassignedStudents={() => {}} 
