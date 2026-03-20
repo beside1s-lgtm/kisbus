@@ -3,20 +3,23 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
     updateStudent, deleteStudentsInBatch, updateRouteSeating,
-    copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch
+    copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch,
+    addStudent
 } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, SeatingAssignment } from '@/lib/types';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, SeatingAssignment, NewStudent } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shuffle, RotateCcw, Copy, AlertCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Shuffle, RotateCcw, Copy, AlertCircle, UserPlus, PlusCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useTranslation } from '@/hooks/use-translation';
 import { normalizeString, sanitizeDataForSystem } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { StudentUnassignedPanel } from './student-unassigned-panel';
 import { StudentGlobalSearchPanel } from './student-global-search-panel';
@@ -71,34 +74,47 @@ export const StudentManagementTab = ({
     const [daysToCopySeatingTo, setDaysToCopySeatingTo] = useState<Partial<Record<DayOfWeek, boolean>>>(() => dayOrder.reduce((acc, day) => ({ ...acc, [day]: true }), {}));
     const [routeTypesToCopySeatingTo, setRouteTypesToCopySeatingTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
 
+    // New student form state
+    const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
+    const [newStudent, setNewStudent] = useState<Partial<NewStudent>>({
+        name: '',
+        grade: '',
+        class: '',
+        gender: 'Male',
+        contact: '',
+        afterSchoolDestinations: {},
+        applicationStatus: 'reviewed'
+    });
+
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
     const currentRoute = useMemo(() => routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType), [routes, selectedBusId, selectedDay, selectedRouteType]);
     const assignedStudentsCount = useMemo(() => currentRoute ? currentRoute.seating.filter(s => !!s.studentId).length : 0, [currentRoute]);
     const [unassignedView, setUnassignedView] = useState<'current' | 'all'>('current');
 
-    const getRouteTypeLabel = (rt: RouteType) => rt === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${rt.toLowerCase()}`);
-
     const globalSearchResults = useMemo(() => {
         if (!globalSearchQuery.trim()) return [];
         const q = normalizeString(globalSearchQuery);
-        return students.map(s => {
-            const gradeClass = normalizeString((s.grade || '') + (s.class || ''));
-            const name = normalizeString(s.name || '');
-            const contact = s.contact?.replace(/\D/g, '') || '';
+        return students.map(student => {
+            const gradeClass = normalizeString((student.grade || '') + (student.class || ''));
+            const name = normalizeString(student.name || '');
+            const contact = student.contact?.replace(/\D/g, '') || '';
             let score = 0;
             if (gradeClass === q) score += 1000; else if (gradeClass.startsWith(q)) score += 800;
             if (name.startsWith(q)) score += 500; else if (name.includes(q)) score += 300;
             if (contact.startsWith(q)) score += 100; else if (contact.includes(q)) score += 50;
-            return { s, score };
-        }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).map(x => x.s).slice(0, 10);
+            return { student, score };
+        }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).map(x => x.student).slice(0, 10);
     }, [students, globalSearchQuery]);
 
     const assignedRoutesForSelectedStudent = useMemo(() => {
         if (!selectedGlobalStudent) return [];
         return routes.filter(route => route.seating.some(seat => seat.studentId === selectedGlobalStudent.id)).sort((a, b) => {
-            const busA = buses.find(bus => bus.id === a.busId), busB = buses.find(bus => bus.id === b.busId);
-            const busNameA = busA?.name || '', busNameB = busB?.name || '';
-            const numA = parseInt(busNameA.replace(/\D/g, ''), 10) || Infinity, numB = parseInt(busNameB.replace(/\D/g, ''), 10) || Infinity;
+            const busA = buses.find(bus => bus.id === a.busId);
+            const busB = buses.find(bus => bus.id === b.busId);
+            const busNameA = busA?.name || '';
+            const busNameB = busB?.name || '';
+            const numA = parseInt(busNameA.replace(/\D/g, ''), 10) || Infinity;
+            const numB = parseInt(busNameB.replace(/\D/g, ''), 10) || Infinity;
             if (numA !== numB) return numA - numB;
             return dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek);
         });
@@ -176,7 +192,10 @@ export const StudentManagementTab = ({
 
     const handleSeatContextMenu = (e: React.MouseEvent, seatNumber: number) => {
         e.preventDefault(); if (!currentRoute) return;
-        if (swapSourceSeat === null) { setSwapSourceSeat(seatNumber); toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 비워집니다." }); }
+        if (swapSourceSeat === null) { 
+            setSwapSourceSeat(seatNumber); 
+            toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 비워집니다." }); 
+        }
         else {
             if (swapSourceSeat === seatNumber) {
                 const next = currentRoute.seating.map(s => s.seatNumber === seatNumber ? { ...s, studentId: null } : s);
@@ -235,6 +254,21 @@ export const StudentManagementTab = ({
         catch (error) { toast({ title: t('error'), description: t('admin.student_management.seat.copy.error'), variant: "destructive" }); }
     }, [currentRoute, routes, daysToCopySeatingTo, routeTypesToCopySeatingTo, t, dayOrder]);
 
+    const handleManualAddStudent = async () => {
+        if (!newStudent.name || !newStudent.grade || !newStudent.class) {
+            toast({ title: t('error'), description: t('admin.student_management.add_student.validation_error'), variant: 'destructive' });
+            return;
+        }
+        try {
+            await addStudent(newStudent as NewStudent);
+            setNewStudent({ name: '', grade: '', class: '', gender: 'Male', contact: '', afterSchoolDestinations: {}, applicationStatus: 'reviewed' });
+            setIsAddStudentDialogOpen(false);
+            toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.student_management.add_student.error'), variant: 'destructive' });
+        }
+    };
+
     return (
         <div className="space-y-6" onContextMenu={(e) => { e.preventDefault(); setSwapSourceSeat(null); }}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -249,8 +283,86 @@ export const StudentManagementTab = ({
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>{t('admin.student_management.seat.title')} {currentRoute && `(${assignedStudentsCount}명)`}</CardTitle>
                             <div className="flex gap-2">
+                                <Dialog open={isAddStudentDialogOpen} onOpenChange={setIsAddStudentDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm">
+                                            <UserPlus className="mr-2 h-4 w-4" /> {t('admin.student_management.add_student.button')}
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-[500px]">
+                                        <DialogHeader>
+                                            <DialogTitle>{t('admin.student_management.add_student.title')}</DialogTitle>
+                                            <DialogDescription>직접 새로운 학생 정보를 등록합니다.</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="grid gap-4 py-4">
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="name" className="text-right">이름</Label>
+                                                <Input id="name" value={newStudent.name} onChange={e => setNewStudent({...newStudent, name: e.target.value})} className="col-span-3" placeholder="영문 이름" />
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="grade" className="text-right">학년</Label>
+                                                <Input id="grade" value={newStudent.grade} onChange={e => setNewStudent({...newStudent, grade: e.target.value})} className="col-span-3" placeholder="예: 1" />
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="class" className="text-right">반</Label>
+                                                <Input id="class" value={newStudent.class} onChange={e => setNewStudent({...newStudent, class: e.target.value})} className="col-span-3" placeholder="예: 1" />
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="gender" className="text-right">성별</Label>
+                                                <Select value={newStudent.gender} onValueChange={(v: any) => setNewStudent({...newStudent, gender: v})}>
+                                                    <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="Male">{t('student.male')}</SelectItem>
+                                                        <SelectItem value="Female">{t('student.female')}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                                <Label htmlFor="contact" className="text-right">연락처</Label>
+                                                <Input id="contact" value={newStudent.contact} onChange={e => setNewStudent({...newStudent, contact: e.target.value})} className="col-span-3" placeholder="베트남 전화번호" />
+                                            </div>
+                                        </div>
+                                        <DialogFooter>
+                                            <Button onClick={handleManualAddStudent} className="w-full">{t('add')}</Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
                                 <Button variant="outline" size="sm" onClick={handleRandomAssign} disabled={!currentRoute} title={t('admin.student_management.seat.random_assign_button')}><Shuffle className="h-4 w-4" /></Button>
-                                <Dialog open={isCopySeatingDialogOpen} onOpenChange={setIsCopySeatingDialogOpen}><DialogTrigger asChild><Button variant="outline" size="sm" disabled={!currentRoute} title={t('admin.student_management.seat.copy.button')}><Copy className="h-4 w-4" /></Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{t('admin.student_management.seat.copy.title')}</DialogTitle></DialogHeader><div className="space-y-4 py-4"><div><Label>{t('admin.student_management.seat.copy.select_days')}</Label><div className="grid grid-cols-3 gap-2 mt-2">{dayOrder.map(day => <div key={`seating-day-${day}`} className="flex items-center space-x-2"><Checkbox id={`seating-day-${day}`} checked={!!daysToCopySeatingTo[day]} onCheckedChange={(checked) => setDaysToCopySeatingTo(prev => ({ ...prev, [day]: checked as boolean }))} /><Label htmlFor={`seating-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label></div>)}</div></div><div><Label>{t('admin.student_management.seat.copy.select_route_types')}</Label><div className="flex items-center space-x-4 mt-2"><div className="flex items-center space-x-2"><Checkbox id="seating-type-morning" checked={!!routeTypesToCopySeatingTo.Morning} onCheckedChange={(checked) => setRouteTypesToCopySeatingTo(prev => ({ ...prev, Morning: checked as boolean }))} /><Label htmlFor="seating-type-morning">{t('route_type.morning')}</Label></div><div className="flex items-center space-x-2"><Checkbox id="seating-type-afternoon" checked={!!routeTypesToCopySeatingTo.Afternoon} onCheckedChange={(checked) => setRouteTypesToCopySeatingTo(prev => ({ ...prev, Afternoon: checked as boolean }))} /><Label htmlFor="seating-type-afternoon">{t('route_type.afternoon')}</Label></div></div></div></div><DialogFooter><Button onClick={handleCopySeating} className="w-full">{t('copy')}</Button></DialogFooter></DialogContent></Dialog>
+                                <Dialog open={isCopySeatingDialogOpen} onOpenChange={setIsCopySeatingDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm" disabled={!currentRoute} title={t('admin.student_management.seat.copy.button')}><Copy className="h-4 w-4" /></Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader><DialogTitle>{t('admin.student_management.seat.copy.title')}</DialogTitle></DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <div>
+                                                <Label>{t('admin.student_management.seat.copy.select_days')}</Label>
+                                                <div className="grid grid-cols-3 gap-2 mt-2">
+                                                    {dayOrder.map(day => (
+                                                        <div key={`seating-day-${day}`} className="flex items-center space-x-2">
+                                                            <Checkbox id={`seating-day-${day}`} checked={!!daysToCopySeatingTo[day]} onCheckedChange={(checked) => setDaysToCopySeatingTo(prev => ({ ...prev, [day]: checked as boolean }))} />
+                                                            <Label htmlFor={`seating-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <Label>{t('admin.student_management.seat.copy.select_route_types')}</Label>
+                                                <div className="flex items-center space-x-4 mt-2">
+                                                    <div className="flex items-center space-x-2">
+                                                        <Checkbox id="seating-type-morning" checked={!!routeTypesToCopySeatingTo.Morning} onCheckedChange={(checked) => setRouteTypesToCopySeatingTo(prev => ({ ...prev, Morning: checked as boolean }))} />
+                                                        <Label htmlFor="seating-type-morning">{t('route_type.morning')}</Label>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <Checkbox id="seating-type-afternoon" checked={!!routeTypesToCopySeatingTo.Afternoon} onCheckedChange={(checked) => setRouteTypesToCopySeatingTo(prev => ({ ...prev, Afternoon: checked as boolean }))} />
+                                                        <Label htmlFor="seating-type-afternoon">{t('route_type.afternoon')}</Label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <DialogFooter><Button onClick={handleCopySeating} className="w-full">{t('copy')}</Button></DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
                                 <Button variant="outline" size="sm" onClick={async () => { if (currentRoute && selectedBus) await handleSeatUpdate(generateInitialSeating(selectedBus.capacity)); }}><RotateCcw className="h-4 w-4"/></Button>
                             </div>
                         </CardHeader>
