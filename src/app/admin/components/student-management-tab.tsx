@@ -99,8 +99,11 @@ export const StudentManagementTab = ({
             const name = normalizeString(student.name || '');
             const contact = student.contact?.replace(/\D/g, '') || '';
             let score = 0;
+            // 1st Priority: Grade+Class match
             if (gradeClass === q) score += 1000; else if (gradeClass.startsWith(q)) score += 800;
+            // 2nd Priority: Name match
             if (name.startsWith(q)) score += 500; else if (name.includes(q)) score += 300;
+            // 3rd Priority: Contact match
             if (contact.startsWith(q)) score += 100; else if (contact.includes(q)) score += 50;
             return { student, score };
         }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).map(x => x.student).slice(0, 10);
@@ -113,6 +116,7 @@ export const StudentManagementTab = ({
             const busB = buses.find(bus => bus.id === b.busId);
             const busNameA = busA?.name || '';
             const busNameB = busB?.name || '';
+            // Safe numeric sort
             const numA = parseInt(busNameA.replace(/\D/g, ''), 10) || Infinity;
             const numB = parseInt(busNameB.replace(/\D/g, ''), 10) || Infinity;
             if (numA !== numB) return numA - numB;
@@ -128,7 +132,9 @@ export const StudentManagementTab = ({
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => r.stops.forEach(s => validStopIds.add(s)));
         const unassignables: (Student & { errorReason: string })[] = [];
         students.forEach(student => {
+            // Only check students who are actually unassigned globally for this session
             if (allAssignedIds.has(student.id)) return;
+            
             let destId: string | null = null, errorKey = '';
             if (selectedDay === 'Saturday') {
                 if (selectedRouteType === 'Morning') { destId = student.satMorningDestinationId; errorKey = 'admin.student_management.unassignable.error_sat_morning'; }
@@ -260,10 +266,13 @@ export const StudentManagementTab = ({
             return;
         }
         try {
-            await addStudent(newStudent as NewStudent);
+            const added = await addStudent(newStudent as NewStudent);
             setNewStudent({ name: '', grade: '', class: '', gender: 'Male', contact: '', afterSchoolDestinations: {}, applicationStatus: 'reviewed' });
             setIsAddStudentDialogOpen(false);
             toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
+            
+            // Automatically select the new student to show info panel for destination entry
+            setSelectedGlobalStudent(added);
         } catch (error) {
             toast({ title: t('error'), description: t('admin.student_management.add_student.error'), variant: 'destructive' });
         }
