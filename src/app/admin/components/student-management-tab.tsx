@@ -78,6 +78,16 @@ export const StudentManagementTab = ({
     const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
 
     const [isAddStudentDialogOpen, setAddStudentDialogOpen] = useState(false);
+    
+    // Copy Seating Dialog State
+    const [isCopySeatingDialogOpen, setIsCopySeatingDialogOpen] = useState(false);
+    const [daysToCopySeatingTo, setDaysToCopySeatingTo] = useState<Partial<Record<DayOfWeek, boolean>>>(
+        () => dayOrder.reduce((acc, day) => ({ ...acc, [day]: true }), {})
+    );
+    const [routeTypesToCopySeatingTo, setRouteTypesToCopySeatingTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({
+        Morning: true,
+        Afternoon: true
+    });
 
     const assignedRoutesForSelectedStudent = useMemo(() => {
         if (!selectedGlobalStudent) return [];
@@ -244,6 +254,97 @@ export const StudentManagementTab = ({
         }
     }, [currentRoute, selectedSeat, handleSeatUpdate]);
 
+    const handleRandomAssign = useCallback(async () => {
+        if (!currentRoute || !selectedBus) return;
+        
+        const getStudentDestId = (s: Student) => {
+            if (selectedDay === 'Saturday') return selectedRouteType === 'Morning' ? s.satMorningDestinationId : s.satAfternoonDestinationId;
+            if (selectedRouteType === 'Morning') return s.morningDestinationId;
+            if (selectedRouteType === 'Afternoon') return s.afternoonDestinationId;
+            if (selectedRouteType === 'AfterSchool') return s.afterSchoolDestinations?.[selectedDay] || null;
+            return null;
+        };
+
+        const allAssignedIds = new Set<string>();
+        routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
+            r.seating.forEach(s => { if (s.studentId) allAssignedIds.add(s.studentId); });
+        });
+
+        const routeStopIds = new Set(currentRoute.stops);
+        const eligibleStudents = students.filter(s => {
+            if (allAssignedIds.has(s.id)) return false;
+            const destId = getStudentDestId(s);
+            return destId && routeStopIds.has(destId);
+        });
+
+        if (eligibleStudents.length === 0) {
+            toast({ title: t('notice'), description: "배정할 수 있는 대기 학생이 없습니다." });
+            return;
+        }
+
+        const newSeating = [...currentRoute.seating];
+        const emptySeatIndices = newSeating.reduce((acc, seat, idx) => {
+            if (!seat.studentId) acc.push(idx);
+            return acc;
+        }, [] as number[]);
+
+        if (emptySeatIndices.length === 0) {
+            toast({ title: t('notice'), description: "남은 좌석이 없습니다." });
+            return;
+        }
+
+        // Grade-based priority shuffling
+        const shuffledStudents = [...eligibleStudents].sort((a, b) => {
+            const gA = getGradeValue(a.grade);
+            const gB = getGradeValue(b.grade);
+            if (gA !== gB) return gA - gB;
+            return Math.random() - 0.5;
+        });
+
+        const assignCount = Math.min(shuffledStudents.length, emptySeatIndices.length);
+        for (let i = 0; i < assignCount; i++) {
+            newSeating[emptySeatIndices[i]].studentId = shuffledStudents[i].id;
+        }
+
+        await handleSeatUpdate(newSeating);
+        toast({ title: t('success'), description: t('admin.student_management.seat.random_assign_success') });
+    }, [currentRoute, selectedBus, students, routes, selectedDay, selectedRouteType, handleSeatUpdate, t, toast]);
+
+    const handleCopySeating = useCallback(async () => {
+        if (!currentRoute) {
+            toast({ title: t('error'), description: t('admin.student_management.seat.copy.no_source_error'), variant: "destructive" });
+            return;
+        }
+
+        const selectedDays = dayOrder.filter(day => daysToCopySeatingTo[day]);
+        const selectedRouteTypes = (['Morning', 'Afternoon'] as const).filter(type => routeTypesToCopySeatingTo[type]);
+
+        if (selectedDays.length === 0 || selectedRouteTypes.length === 0) {
+            toast({ title: t('notice'), description: t('admin.student_management.seat.copy.no_selection_error') });
+            return;
+        }
+
+        const targetRoutes = routes.filter(r =>
+            r.busId === currentRoute.busId &&
+            selectedDays.includes(r.dayOfWeek) &&
+            selectedRouteTypes.includes(r.type as 'Morning' | 'Afternoon') &&
+            r.id !== currentRoute.id
+        );
+
+        if (targetRoutes.length === 0) {
+            toast({ title: t('notice'), description: t('admin.student_management.seat.copy.no_target_error') });
+            return;
+        }
+
+        try {
+            await copySeatingPlan(currentRoute.seating, targetRoutes);
+            toast({ title: t('success'), description: t('admin.student_management.seat.copy.success') });
+            setIsCopySeatingDialogOpen(false);
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.student_management.seat.copy.error'), variant: "destructive" });
+        }
+    }, [currentRoute, routes, daysToCopySeatingTo, routeTypesToCopySeatingTo, t, toast, dayOrder]);
+
     const handleStudentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -323,6 +424,63 @@ export const StudentManagementTab = ({
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>{t('admin.student_management.seat.title')} {currentRoute && `(${assignedStudentsCount}명)`}</CardTitle>
                             <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={handleRandomAssign} disabled={!currentRoute} title={t('admin.student_management.seat.random_assign_button')}>
+                                    <Shuffle className="h-4 w-4" />
+                                </Button>
+                                <Dialog open={isCopySeatingDialogOpen} onOpenChange={setIsCopySeatingDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm" disabled={!currentRoute} title={t('admin.student_management.seat.copy.button')}>
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>{t('admin.student_management.seat.copy.title')}</DialogTitle>
+                                            <CardDescription>{t('admin.student_management.seat.copy.description')}</CardDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <div>
+                                                <Label>{t('admin.student_management.seat.copy.select_days')}</Label>
+                                                <div className="grid grid-cols-3 gap-2 mt-2">
+                                                    {dayOrder.map(day => (
+                                                        <div key={`seating-day-${day}`} className="flex items-center space-x-2">
+                                                            <Checkbox 
+                                                                id={`seating-day-${day}`} 
+                                                                checked={!!daysToCopySeatingTo[day]} 
+                                                                onCheckedChange={(checked) => setDaysToCopySeatingTo(prev => ({ ...prev, [day]: checked as boolean }))} 
+                                                            />
+                                                            <Label htmlFor={`seating-day-${day}`}>{t(`day.${day.toLowerCase()}`)}</Label>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <Label>{t('admin.student_management.seat.copy.select_route_types')}</Label>
+                                                <div className="flex items-center space-x-4 mt-2">
+                                                    <div className="flex items-center space-x-2">
+                                                        <Checkbox 
+                                                            id="seating-type-morning" 
+                                                            checked={!!routeTypesToCopySeatingTo.Morning} 
+                                                            onCheckedChange={(checked) => setRouteTypesToCopySeatingTo(prev => ({ ...prev, Morning: checked as boolean }))} 
+                                                        />
+                                                        <Label htmlFor="seating-type-morning">{t('route_type.morning')}</Label>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <Checkbox 
+                                                            id="seating-type-afternoon" 
+                                                            checked={!!routeTypesToCopySeatingTo.Afternoon} 
+                                                            onCheckedChange={(checked) => setRouteTypesToCopySeatingTo(prev => ({ ...prev, Afternoon: checked as boolean }))} 
+                                                        />
+                                                        <Label htmlFor="seating-type-afternoon">{t('route_type.afternoon')}</Label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <DialogFooter>
+                                            <Button onClick={handleCopySeating} className="w-full">{t('copy')}</Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
                                 <Button variant="outline" size="sm" onClick={() => setAddStudentDialogOpen(true)}>
                                     <UserPlus className="h-4 w-4 mr-2"/> {t('admin.student_management.add_student.button')}
                                 </Button>
@@ -361,7 +519,7 @@ export const StudentManagementTab = ({
                         setUnassignedSearchQuery={setUnassignedSearchQuery} 
                         unassignedView={unassignedView} 
                         setUnassignedView={setUnassignedView} 
-                        unassignedTitle={t('admin.student_management.unassigned.title', { routeType: getRouteTypeLabel(selectedRouteType) })} 
+                        unassignedTitle={t('admin.student_management.unassigned.title', { routeType: getRouteTypeLabel(selectedRouteType) }).replace(/\(.*\)/, '').trim()} 
                         selectedRouteType={selectedRouteType} 
                         selectedDay={selectedDay} 
                         handleDownloadUnassignedStudents={() => {}} 
