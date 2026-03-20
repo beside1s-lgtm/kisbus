@@ -34,7 +34,7 @@ import { Label } from '@/components/ui/label';
 import { LostAndFound } from './components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, normalizeString } from '@/lib/utils';
 
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -298,13 +298,38 @@ export default function TeacherPage() {
       setSearchResults([]);
       return;
     }
-    const lq = searchQuery.toLowerCase();
-    const dq = searchQuery.replace(/\D/g, '');
-    const res = students.filter(s => 
-      s.name.toLowerCase().includes(lq) || 
-      (dq && s.contact?.replace(/\D/g, '').includes(dq))
-    );
-    setSearchResults(res.slice(0, 5));
+    const q = normalizeString(searchQuery);
+    
+    const scored = students.map(student => {
+      const grade = student.grade.toLowerCase();
+      const cls = student.class.toLowerCase();
+      const gradeClass = normalizeString(grade + cls);
+      const name = normalizeString(student.name);
+      const contact = student.contact?.replace(/\D/g, '') || '';
+      
+      let score = 0;
+      
+      // 1순위: 학년+반 매칭
+      if (gradeClass === q) score += 1000;
+      else if (gradeClass.startsWith(q)) score += 800;
+      
+      // 2순위: 이름 매칭
+      if (name.startsWith(q)) score += 500;
+      else if (name.includes(q)) score += 300;
+      
+      // 3순위: 연락처 매칭
+      if (contact.startsWith(q)) score += 100;
+      else if (contact.includes(q)) score += 50;
+      
+      return { student, score };
+    });
+
+    const results = scored
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.student);
+
+    setSearchResults(results.slice(0, 10));
   }, [searchQuery, students]);
 
   const handleSelectStudentFromSearch = (s: Student) => {

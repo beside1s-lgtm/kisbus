@@ -97,14 +97,35 @@ export const StudentManagementTab = ({
         return t(`route_type.${rt.toLowerCase()}`);
     };
 
-    // Global Search Logic
+    // Global Search Logic with Priority
     const globalSearchResults = useMemo(() => {
         if (!globalSearchQuery.trim()) return [];
-        const lq = normalizeString(globalSearchQuery);
-        return students.filter(s => 
-            normalizeString(s.name).includes(lq) || 
-            (s.contact && s.contact.includes(globalSearchQuery.replace(/\D/g, '')))
-        ).slice(0, 10);
+        const q = normalizeString(globalSearchQuery);
+        
+        return students.map(s => {
+            const gradeClass = normalizeString(s.grade + s.class);
+            const name = normalizeString(s.name);
+            const contact = s.contact?.replace(/\D/g, '') || '';
+            
+            let score = 0;
+            // 1순위: 학년+반 매칭
+            if (gradeClass === q) score += 1000;
+            else if (gradeClass.startsWith(q)) score += 800;
+            
+            // 2순위: 이름 매칭
+            if (name.startsWith(q)) score += 500;
+            else if (name.includes(q)) score += 300;
+            
+            // 3순위: 연락처 매칭
+            if (contact.startsWith(q)) score += 100;
+            else if (contact.includes(q)) score += 50;
+            
+            return { s, score };
+        })
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(x => x.s)
+        .slice(0, 10);
     }, [students, globalSearchQuery]);
 
     const assignedRoutesForSelectedStudent = useMemo(() => {
@@ -509,10 +530,13 @@ export const StudentManagementTab = ({
                                     students={students} 
                                     destinations={destinations} 
                                     onSeatClick={handleSeatClick} 
-                                    highlightedSeatNumber={selectedSeat?.seatNumber} 
-                                    highlightedStudentId={selectedGlobalStudent?.id} 
+                                    onSeatContextMenu={handleSeatContextMenu}
+                                    highlightedSeatNumber={swapSourceSeat}
+                                    boardedStudentIds={boardedStudentIds} 
+                                    notBoardingStudentIds={notBoardingStudentIds} 
                                     routeType={selectedRouteType} 
-                                    dayOfWeek={selectedDay}
+                                    dayOfWeek={selectedDay} 
+                                    groupLeaderRecords={groupLeaderRecords}
                                 />
                             ) : (
                                 <div className="text-center py-20 text-muted-foreground">버스를 선택해주세요.</div>
