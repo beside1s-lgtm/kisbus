@@ -106,16 +106,19 @@ export const StudentManagementTab = ({
 
     const [unassignedView, setUnassignedView] = useState<'current' | 'all'>('current');
 
+    const getRouteTypeLabel = (rt: RouteType) => {
+        if (rt === 'AfterSchool') return t('route_type.after_school');
+        return t(`route_type.${rt.toLowerCase()}`);
+    };
+
     useEffect(() => {
         if (!routes.length || !students.length) return;
         
-        // 현재 선택된 필터(요일/타입)에서 이미 배정된 학생 ID들
         const allAssignedIds = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
             r.seating.forEach(s => { if (s.studentId) allAssignedIds.add(s.studentId); });
         });
 
-        // 현재 모든 버스가 가고 있는 정류장 ID들
         const validStopIds = new Set<string>();
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => {
             r.stops.forEach(s => validStopIds.add(s));
@@ -358,7 +361,7 @@ export const StudentManagementTab = ({
                         setUnassignedSearchQuery={setUnassignedSearchQuery} 
                         unassignedView={unassignedView} 
                         setUnassignedView={setUnassignedView} 
-                        unassignedTitle={t('admin.student_management.unassigned.title', { routeType: t(`route_type.${selectedRouteType.toLowerCase()}`) })} 
+                        unassignedTitle={t('admin.student_management.unassigned.title', { routeType: getRouteTypeLabel(selectedRouteType) })} 
                         selectedRouteType={selectedRouteType} 
                         selectedDay={selectedDay} 
                         handleDownloadUnassignedStudents={() => {}} 

@@ -261,14 +261,12 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
     const oldData = studentBeforeUpdate.data() as Student;
     
     // Core Safety: Only unassign if destination is ACTUALLY changing to a different value
-    let affectedRouteConfigs: { day?: DayOfWeek, types: RouteType[] }[] = [];
-
     if ('morningDestinationId' in data && data.morningDestinationId !== oldData.morningDestinationId) {
-        affectedRouteConfigs.push({ types: ['Morning'] });
+        await unassignStudentFromAllRoutes(studentId, ['Morning']);
     }
     
     if ('afternoonDestinationId' in data && data.afternoonDestinationId !== oldData.afternoonDestinationId) {
-        affectedRouteConfigs.push({ types: ['Afternoon'] });
+        await unassignStudentFromAllRoutes(studentId, ['Afternoon']);
     }
     
     if ('afterSchoolDestinations' in data) {
@@ -276,23 +274,17 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
         const newAfterSchoolDests = data.afterSchoolDestinations || {};
         ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].forEach(day => {
             if (oldAfterSchoolDests[day as DayOfWeek] !== newAfterSchoolDests[day as DayOfWeek]) {
-                affectedRouteConfigs.push({ day: day as DayOfWeek, types: ['AfterSchool'] });
+                unassignStudentFromAllRoutes(studentId, ['AfterSchool'], day as DayOfWeek);
             }
         });
     }
 
     if ('satMorningDestinationId' in data && data.satMorningDestinationId !== oldData.satMorningDestinationId) {
-        affectedRouteConfigs.push({ day: 'Saturday', types: ['Morning'] });
+        await unassignStudentFromAllRoutes(studentId, ['Morning'], 'Saturday');
     }
 
     if ('satAfternoonDestinationId' in data && data.satAfternoonDestinationId !== oldData.satAfternoonDestinationId) {
-        affectedRouteConfigs.push({ day: 'Saturday', types: ['Afternoon', 'AfterSchool'] });
-    }
-    
-    if (affectedRouteConfigs.length > 0) {
-        for (const config of affectedRouteConfigs) {
-            await unassignStudentFromAllRoutes(studentId, config.types, config.day);
-        }
+        await unassignStudentFromAllRoutes(studentId, ['Afternoon', 'AfterSchool'], 'Saturday');
     }
 
     const updatePayload: any = { ...data };

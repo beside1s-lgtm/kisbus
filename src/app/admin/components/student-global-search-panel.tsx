@@ -106,10 +106,7 @@ export const StudentGlobalSearchPanel = ({
 
     const handleApproveStudentDestination = async (studentId: string, suggestion: string, type: 'morning' | 'afternoon' | 'satMorning' | 'satAfternoon') => {
         try {
-            // 1. 등록 (이미 있는지 확인하고 등록)
             const newDest = await addDestination({ name: suggestion });
-            
-            // 2. 학생에게 배정 및 제안 필드 초기화
             const updates: any = {};
             if (type === 'morning') {
                 updates.morningDestinationId = newDest.id;
@@ -126,13 +123,11 @@ export const StudentGlobalSearchPanel = ({
             }
             
             await updateStudent(studentId, updates);
-            
             toast({ 
                 title: t('success'), 
                 description: `'${suggestion}'이(가) 정식 목적지로 등록되고 학생에게 배정되었습니다.` 
             });
 
-            // UI 업데이트
             if (selectedGlobalStudent?.id === studentId) {
                 setSelectedGlobalStudent(prev => prev ? { ...prev, ...updates } : null);
             }
@@ -523,7 +518,6 @@ export const StudentGlobalSearchPanel = ({
                                         const busName = buses.find(b => b.id === route.busId)?.name || t('unknown_bus');
                                         const routeTypeName = route.type === 'AfterSchool' ? t('route_type.after_school') : t(`route_type.${route.type.toLowerCase()}`);
                                         
-                                        // Find student's destination for this specific route
                                         let destId: string | null = null;
                                         if (route.dayOfWeek === 'Saturday') {
                                             destId = route.type === 'Morning' ? selectedGlobalStudent.satMorningDestinationId : selectedGlobalStudent.satAfternoonDestinationId;

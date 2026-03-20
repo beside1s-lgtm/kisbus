@@ -19,7 +19,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, Users, Trash2, Download, Printer } from 'lucide-react';
+import { Crown, Users, Trash2, Download, Printer, UserX } from 'lucide-react';
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -449,7 +449,6 @@ export default function TeacherPage() {
     let newRecords = [...groupLeaderRecords];
     
     if (isCurrentlyLeader) {
-        // End current leader activity
         newRecords = newRecords.map(r => 
             (r.studentId === selectedStudent.id && r.endDate === null) 
             ? { ...r, endDate: format(new Date(), 'yyyy-MM-dd') } 
@@ -457,7 +456,6 @@ export default function TeacherPage() {
         );
         toast({ title: t('teacher_page.demote_leader'), description: `${selectedStudent.name} 학생이 조장에서 해제되었습니다.` });
     } else {
-        // Check limit
         if (activeLeaders.length >= 3) {
             toast({ 
                 title: t('error'), 
@@ -466,7 +464,6 @@ export default function TeacherPage() {
             });
             return;
         }
-        // Promote new leader
         const newRecord: GroupLeaderRecord = {
             studentId: selectedStudent.id,
             name: `${selectedStudent.grade.toUpperCase()}${selectedStudent.class} ${selectedStudent.name}`,
