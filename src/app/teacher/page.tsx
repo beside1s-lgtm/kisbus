@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LostAndFound } from './components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -138,7 +138,7 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
             setLeadersMap(results);
         };
         if (relevantRoutes.length > 0) fetchAll();
-    }, [relevantRoutes, students, formatStudentName]);
+    }, [relevantRoutes, students, formatStudentName, t]);
 
     const sorted = useMemo(() => relevantRoutes.map(r => ({ 
         routeId: r.id, 
@@ -211,7 +211,7 @@ const TeacherAssignmentViewDialog = ({ buses, allRoutes, teachers, afterSchoolTe
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {sortBuses([...buses]).map(b => (
+                        {sortBuses([...buses]).map((b: Bus) => (
                             <TableRow key={b.id} className={cn(!(b.isActive ?? true) && "opacity-50 bg-muted/20")}>
                                 <TableCell className="font-medium whitespace-nowrap">{b.name}</TableCell>
                                 <TableCell className="whitespace-nowrap">{t(`bus_type.${b.type}`)}</TableCell>

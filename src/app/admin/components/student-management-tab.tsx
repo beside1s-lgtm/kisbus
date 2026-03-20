@@ -4,20 +4,21 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Papa from 'papaparse';
 import { 
     addStudent, updateStudent, deleteStudentsInBatch, updateRouteSeating,
-    copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch
+    copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch,
+    getDestinations, addDestinationsInBatch
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, SeatingAssignment } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shuffle, UserPlus, RotateCcw, Copy, AlertCircle } from 'lucide-react';
+import { Shuffle, RotateCcw, Copy, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useTranslation } from '@/hooks/use-translation';
-import { normalizeString } from '@/lib/utils';
+import { normalizeString, sanitizeDataForSystem } from '@/lib/utils';
 
 import { StudentUnassignedPanel } from './student-unassigned-panel';
 import { StudentGlobalSearchPanel } from './student-global-search-panel';
@@ -367,6 +368,53 @@ export const StudentManagementTab = ({
         updateStudent(id, updates);
     };
 
+    const handleDownloadAllStudents = useCallback(() => {
+        if (students.length === 0) return;
+        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지"];
+        const csvRows = students.map(s => [
+            `"${s.name}"`, `"${s.grade}"`, `"${s.class}"`, `"${s.gender}"`, `"${s.contact || ''}"`,
+            `"${destinations.find(d => d.id === s.morningDestinationId)?.name || ''}"`,
+            `"${destinations.find(d => d.id === s.afternoonDestinationId)?.name || ''}"`
+        ].join(','));
+        const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "KIS_Students_All.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, [students, destinations]);
+
+    const handleStudentFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const currentDests = await getDestinations();
+                const newStudents = results.data.map((row: any) => {
+                    const name = (row['이름'] || row['name'] || '').trim();
+                    if (!name) return null;
+                    return {
+                        name,
+                        grade: (row['학년'] || row['grade'] || '1').toString().trim(),
+                        class: (row['반'] || row['class'] || '1').toString().trim(),
+                        gender: (row['성별'] || row['gender'] || 'Male').toString().trim() === '여자' ? 'Female' : 'Male',
+                        contact: (row['연락처'] || row['contact'] || '').toString().trim(),
+                        applicationStatus: 'reviewed' as const
+                    };
+                }).filter(Boolean) as any[];
+
+                if (newStudents.length === 0) return;
+                await updateStudentsInBatch(newStudents);
+                toast({ title: t('success'), description: t('admin.student_management.batch_upload.success', { count: newStudents.length }) });
+            }
+        });
+    };
+
     return (
         <div className="space-y-6" onContextMenu={(e) => { e.preventDefault(); setSelectedSeat(null); }}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -486,8 +534,11 @@ export const StudentManagementTab = ({
                         selectedRouteType={selectedRouteType} 
                         selectedDay={selectedDay} 
                         handleDownloadUnassignedStudents={() => {}} 
-                        handleToggleSelectAll={() => {}} 
-                        handleDeleteSelectedStudents={() => {}} 
+                        handleToggleSelectAll={() => {
+                            if (selectedStudentIds.size === filteredUnassignedStudents.length) setSelectedStudentIds(new Set());
+                            else setSelectedStudentIds(new Set(filteredUnassignedStudents.map(s => s.id)));
+                        }} 
+                        handleDeleteSelectedStudents={() => deleteStudentsInBatch(Array.from(selectedStudentIds))} 
                         handleToggleStudentSelection={(id, checked) => {
                             const next = new Set(selectedStudentIds);
                             if (checked) next.add(id); else next.delete(id);
@@ -509,16 +560,22 @@ export const StudentManagementTab = ({
                         setGlobalSearchQuery={setGlobalSearchQuery} 
                         globalSearchResults={globalSearchResults} 
                         handleGlobalStudentClick={setSelectedGlobalStudent} 
-                        handleDownloadAllStudents={() => {}} 
+                        handleDownloadAllStudents={handleDownloadAllStudents} 
                         handleDownloadStudentTemplate={() => {}} 
                         fileInputRef={fileInputRef} 
-                        handleStudentFileUpload={() => {}} 
-                        handleDeleteAllStudents={() => {}} 
+                        handleStudentFileUpload={handleStudentFileUpload} 
+                        handleDeleteAllStudents={() => deleteStudentsInBatch(students.map(s => s.id))} 
                         handleUnassignAllFromStudent={() => unassignStudentFromAllRoutes(selectedGlobalStudent?.id || '')} 
                         handleAssignStudentFromSearch={handleAssignStudentFromSearch} 
                         handleStudentInfoChange={(sid, f, v) => updateStudent(sid, { [f]: v })} 
                         handleDestinationChange={handleDestinationChangeWrapper} 
-                        handleUnassignStudentFromRoute={() => {}} 
+                        handleUnassignStudentFromRoute={(rid, sid) => {
+                            const r = routes.find(x => x.id === rid);
+                            if (r) {
+                                const next = r.seating.map(seat => seat.studentId === sid ? { ...seat, studentId: null } : seat);
+                                updateRouteSeating(rid, next);
+                            }
+                        }} 
                         assignedRoutesForSelectedStudent={assignedRoutesForSelectedStudent}
                     />
                 </div>
