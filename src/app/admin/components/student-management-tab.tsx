@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -5,13 +6,13 @@ import Papa from 'papaparse';
 import { 
     updateStudent, deleteStudentsInBatch, updateRouteSeating,
     copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch,
-    addStudent, addDestinationsInBatch
+    addStudent, addDestinationsInBatch, getDestinations
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, SeatingAssignment, NewStudent } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Shuffle, RotateCcw, Copy, AlertCircle, UserPlus, PlusCircle } from 'lucide-react';
+import { Shuffle, RotateCcw, Copy, AlertCircle, UserPlus, PlusCircle, Download, Upload, Search, Trash2, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -67,6 +68,8 @@ export const StudentManagementTab = ({
     const { toast } = useToast();
     const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const afterSchoolFileRef = useRef<HTMLInputElement>(null);
+    
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
     const [unassignedSearchQuery, setUnassignedSearchQuery] = useState('');
     const [filteredUnassignedStudents, setFilteredUnassignedStudents] = useState<Student[]>([]);
@@ -75,20 +78,21 @@ export const StudentManagementTab = ({
     const [unassignableStudents, setUnassignableStudents] = useState<(Student & { errorReason: string })[]>([]);
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const dayOrder: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
+    
     const [isCopySeatingDialogOpen, setIsCopySeatingDialogOpen] = useState(false);
     const [daysToCopySeatingTo, setDaysToCopySeatingTo] = useState<Partial<Record<DayOfWeek, boolean>>>(() => dayOrder.reduce((acc, day) => ({ ...acc, [day]: true }), {}));
     const [routeTypesToCopySeatingTo, setRouteTypesToCopySeatingTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
 
+    // After School Batch State
+    const [isAfterSchoolDialogOpen, setIsAfterSchoolDialogOpen] = useState(false);
+    const [afterSchoolTargetDay, setAfterSchoolTargetDay] = useState<DayOfWeek>('Monday');
+    const [afterSchoolTargetDestId, setAfterSchoolTargetDestId] = useState<string>('');
+
     // New student form state
     const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
     const [newStudent, setNewStudent] = useState<Partial<NewStudent>>({
-        name: '',
-        grade: '',
-        class: '',
-        gender: 'Male',
-        contact: '',
-        afterSchoolDestinations: {},
-        applicationStatus: 'reviewed'
+        name: '', grade: '', class: '', gender: 'Male', contact: '',
+        afterSchoolDestinations: {}, applicationStatus: 'reviewed'
     });
 
     const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
@@ -106,11 +110,8 @@ export const StudentManagementTab = ({
             const name = normalizeString(student.name || '');
             const contact = student.contact?.replace(/\D/g, '') || '';
             let score = 0;
-            // 1st Priority: Grade+Class match
             if (gradeClass === q) score += 1000; else if (gradeClass.startsWith(q)) score += 800;
-            // 2nd Priority: Name match
             if (name.startsWith(q)) score += 500; else if (name.includes(q)) score += 300;
-            // 3rd Priority: Contact match
             if (contact.startsWith(q)) score += 100; else if (contact.includes(q)) score += 50;
             return { student, score };
         }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).map(x => x.student).slice(0, 10);
@@ -139,7 +140,6 @@ export const StudentManagementTab = ({
         const unassignables: (Student & { errorReason: string })[] = [];
         students.forEach(student => {
             if (allAssignedIds.has(student.id)) return;
-            
             let destId: string | null = null, errorKey = '';
             if (selectedDay === 'Saturday') {
                 if (selectedRouteType === 'Morning') { destId = student.satMorningDestinationId; errorKey = 'admin.student_management.unassignable.error_sat_morning'; }
@@ -202,21 +202,21 @@ export const StudentManagementTab = ({
     }, [currentRoute, selectedSeat, handleSeatUpdate]);
 
     const handleSeatContextMenu = (e: React.MouseEvent, seatNumber: number) => {
-        e.preventDefault(); if (!currentRoute) return;
-        if (swapSourceSeat === null) { 
-            setSwapSourceSeat(seatNumber); 
-            toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 비워집니다." }); 
-        }
-        else {
+        e.preventDefault();
+        if (!currentRoute) return;
+        if (swapSourceSeat === null) {
+            setSwapSourceSeat(seatNumber);
+            toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 비워집니다." });
+        } else {
             if (swapSourceSeat === seatNumber) {
                 const next = currentRoute.seating.map(s => s.seatNumber === seatNumber ? { ...s, studentId: null } : s);
-                updateRouteSeating(currentRoute.id, next).then(() => { toast({ title: "좌석 비우기 완료" }); setSwapSourceSeat(null); });
+                handleSeatUpdate(next).then(() => { toast({ title: "좌석 비우기 완료" }); setSwapSourceSeat(null); });
                 return;
             }
             const next = [...currentRoute.seating], sIdx = next.findIndex(s => s.seatNumber === swapSourceSeat), tIdx = next.findIndex(s => s.seatNumber === seatNumber);
             if (sIdx > -1 && tIdx > -1) {
                 const temp = next[sIdx].studentId; next[sIdx].studentId = next[tIdx].studentId; next[tIdx].studentId = temp;
-                updateRouteSeating(currentRoute.id, next).then(() => { toast({ title: t('teacher_page.swap_success') }); setSwapSourceSeat(null); });
+                handleSeatUpdate(next).then(() => { toast({ title: t('teacher_page.swap_success') }); setSwapSourceSeat(null); });
             }
         }
     };
@@ -324,16 +324,17 @@ export const StudentManagementTab = ({
             complete: async (results) => {
                 const { dismiss } = toast({ title: t('processing'), description: t('admin.student_management.batch_upload.processing') });
                 try {
+                    const freshDests = await getDestinations();
                     const newDests: string[] = [];
                     results.data.forEach((row: any) => {
                         const m = (row['등교 목적지'] || row['morningDestination'] || '').trim();
                         const a = (row['하교 목적지'] || row['afternoonDestination'] || '').trim();
-                        if (m && !destinations.find(d => normalizeString(d.name) === normalizeString(m))) newDests.push(m);
-                        if (a && !destinations.find(d => normalizeString(d.name) === normalizeString(a))) newDests.push(a);
+                        if (m && !freshDests.find(d => normalizeString(d.name) === normalizeString(m))) newDests.push(m);
+                        if (a && !freshDests.find(d => normalizeString(d.name) === normalizeString(a))) newDests.push(a);
                     });
                     if (newDests.length > 0) await addDestinationsInBatch(Array.from(new Set(newDests)).map(name => ({ name })));
                     
-                    const freshDests = await (require('@/lib/firebase-data').getDestinations());
+                    const updatedDests = await getDestinations();
                     const studentsToProcess = results.data.map((row: any) => {
                         const mName = (row['등교 목적지'] || row['morningDestination'] || '').trim();
                         const aName = (row['하교 목적지'] || row['afternoonDestination'] || '').trim();
@@ -343,8 +344,8 @@ export const StudentManagementTab = ({
                             class: (row['반'] || row['class'] || '').toString().trim(),
                             gender: (row['성별'] === '여자' || row['gender'] === 'Female') ? 'Female' : 'Male',
                             contact: (row['연락처'] || row['contact'] || '').toString().trim(),
-                            morningDestinationId: freshDests.find((d: any) => normalizeString(d.name) === normalizeString(mName))?.id || null,
-                            afternoonDestinationId: freshDests.find((d: any) => normalizeString(d.name) === normalizeString(aName))?.id || null,
+                            morningDestinationId: updatedDests.find((d: any) => normalizeString(d.name) === normalizeString(mName))?.id || null,
+                            afternoonDestinationId: updatedDests.find((d: any) => normalizeString(d.name) === normalizeString(aName))?.id || null,
                             afterSchoolDestinations: {},
                             applicationStatus: 'reviewed' as const
                         };
@@ -363,6 +364,77 @@ export const StudentManagementTab = ({
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
+    const handleDownloadAfterSchoolTemplate = () => {
+        const headers = "이름,학년,반";
+        const example = "Gildong Hong,1,1";
+        const csvContent = "\uFEFF" + headers + "\n" + example;
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.body.appendChild(document.createElement("a"));
+        link.setAttribute("href", url);
+        link.setAttribute("download", "after_school_template.csv");
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleAfterSchoolFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const { dismiss } = toast({ title: t('processing'), description: "방과후 명단을 처리 중입니다..." });
+                try {
+                    let updatedCount = 0;
+                    for (const row of results.data as any[]) {
+                        const name = (row['이름'] || row['name'] || '').trim();
+                        const grade = (row['학년'] || row['grade'] || '').toString().trim();
+                        const cls = (row['반'] || row['class'] || '').toString().trim();
+                        
+                        if (!name) continue;
+                        
+                        const student = students.find(s => 
+                            normalizeString(s.name) === normalizeString(name) && 
+                            normalizeString(s.grade) === normalizeString(grade) && 
+                            normalizeString(s.class) === normalizeString(cls)
+                        );
+                        
+                        if (student) {
+                            // 1. Update after school destination
+                            const currentDests = student.afterSchoolDestinations || {};
+                            await updateStudent(student.id, {
+                                afterSchoolDestinations: {
+                                    ...currentDests,
+                                    [afterSchoolTargetDay]: afterSchoolTargetDestId || null
+                                }
+                            });
+                            
+                            // 2. Remove from Afternoon seat for that day
+                            const afternoonRoutes = routes.filter(r => r.dayOfWeek === afterSchoolTargetDay && r.type === 'Afternoon');
+                            for (const route of afternoonRoutes) {
+                                if (route.seating.some(seat => seat.studentId === student.id)) {
+                                    const nextSeating = route.seating.map(seat => 
+                                        seat.studentId === student.id ? { ...seat, studentId: null } : seat
+                                    );
+                                    await updateRouteSeating(route.id, nextSeating);
+                                }
+                            }
+                            updatedCount++;
+                        }
+                    }
+                    dismiss();
+                    toast({ title: t('success'), description: `${updatedCount}명의 방과후 정보가 처리되었으며, 해당 요일의 하교 좌석에서 제외되었습니다.` });
+                    setIsAfterSchoolDialogOpen(false);
+                } catch (error) {
+                    dismiss();
+                    toast({ title: t('error'), description: "처리 중 오류가 발생했습니다.", variant: "destructive" });
+                }
+            }
+        });
+        if (afterSchoolFileRef.current) afterSchoolFileRef.current.value = "";
+    };
+
     return (
         <div className="space-y-6" onContextMenu={(e) => { e.preventDefault(); setSwapSourceSeat(null); }}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -377,6 +449,54 @@ export const StudentManagementTab = ({
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>{t('admin.student_management.seat.title')} {currentRoute && `(${assignedStudentsCount}명)`}</CardTitle>
                             <div className="flex gap-2">
+                                <Dialog open={isAfterSchoolDialogOpen} onOpenChange={setIsAfterSchoolDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm">
+                                            <Clock className="mr-2 h-4 w-4" /> 방과후 관리
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>방과후 학생 명단 처리</DialogTitle>
+                                            <DialogDescription>명단을 업로드하면 해당 학생들의 하교 좌석을 자동으로 비우고 방과후 목적지를 설정합니다.</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label>적용 요일</Label>
+                                                    <Select value={afterSchoolTargetDay} onValueChange={(v: any) => setAfterSchoolTargetDay(v)}>
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(d => (
+                                                                <SelectItem key={d} value={d}>{t(`day.${d.toLowerCase()}`)}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>방과후 목적지 (선택)</Label>
+                                                    <Select value={afterSchoolTargetDestId} onValueChange={setAfterSchoolTargetDestId}>
+                                                        <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="_NONE_">-</SelectItem>
+                                                            {destinations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <Button variant="outline" onClick={handleDownloadAfterSchoolTemplate} className="w-full">
+                                                    <Download className="mr-2 h-4 w-4" /> 방과후 템플릿 다운로드
+                                                </Button>
+                                                <Button onClick={() => afterSchoolFileRef.current?.click()} className="w-full">
+                                                    <Upload className="mr-2 h-4 w-4" /> 명단 업로드 및 좌석 비우기
+                                                </Button>
+                                                <input type="file" ref={afterSchoolFileRef} onChange={handleAfterSchoolFileUpload} accept=".csv" className="hidden" />
+                                            </div>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+
                                 <Dialog open={isAddStudentDialogOpen} onOpenChange={setIsAddStudentDialogOpen}>
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="sm">

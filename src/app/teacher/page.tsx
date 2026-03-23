@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -48,8 +49,12 @@ const sortBuses = (buses: Bus[]): Bus[] => {
 };
 
 const getGradeValue = (grade: string): number => {
-  const upperGrade = grade.trim().toUpperCase();
+  const upperGrade = (grade || '').trim().toUpperCase();
   if (upperGrade === 'S') return -50; 
+  if (upperGrade.startsWith('S')) {
+      const num = parseInt(upperGrade.replace('S', ''), 10);
+      return isNaN(num) ? -50 : -50 + (num / 100);
+  }
   if (upperGrade.startsWith('K')) {
       const num = parseInt(upperGrade.replace('K', ''), 10);
       return isNaN(num) ? -100 : -100 + num;
@@ -301,8 +306,8 @@ export default function TeacherPage() {
     const q = normalizeString(searchQuery);
     
     const scored = students.map(student => {
-      const grade = student.grade.toLowerCase();
-      const cls = student.class.toLowerCase();
+      const grade = (student.grade || '').toLowerCase();
+      const cls = (student.class || '').toLowerCase();
       const gradeClass = normalizeString(grade + cls);
       const name = normalizeString(student.name);
       const contact = student.contact?.replace(/\D/g, '') || '';
