@@ -247,7 +247,7 @@ export const updateStudent = async (studentId: string, data: Partial<Student>) =
         });
     }
     if ('satMorningDestinationId' in data && data.satMorningDestinationId !== oldData.satMorningDestinationId) await unassignStudentFromAllRoutes(studentId, ['Morning'], 'Saturday');
-    if ('satAfternoonDestinationId' in data && data.satAfternoonDestinationId !== oldData.satAfternoonDestinationId) await unassignStudentFromAllRoutes(studentId, ['Afternoon', 'AfterSchool'], 'Saturday');
+    if ('satAfternoonDestinationId' in data && data.satAfternoonDestinationId !== oldData.satAfternoonDestinationId) await unassignStudentFromAllRoutes(studentId, ['Afternoon'], 'Saturday');
 
     const updatePayload: any = { ...data };
     if (updatePayload.name) updatePayload.name = sanitizeDataForSystem(updatePayload.name);

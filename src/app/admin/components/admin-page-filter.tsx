@@ -39,7 +39,7 @@ export const AdminPageFilter = ({
     const { t } = useTranslation();
 
     const filteredBuses = useMemo(() => {
-        const activeBuses = buses.filter(bus => bus.isActive ?? true);
+        const activeBuses = buses.filter(bus => bus.isActive !== false);
         if (!filterConfiguredBusesOnly) return activeBuses;
 
         const operationalBusIds = new Set<string>();
@@ -123,8 +123,8 @@ export const AdminPageFilter = ({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
-                            {selectedDay !== 'Saturday' && <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>}
-                            <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>
+                            <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
+                            {selectedDay !== 'Saturday' && <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>}
                         </SelectContent>
                     </Select>
                 </div>

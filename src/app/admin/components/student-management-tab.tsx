@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -6,7 +5,7 @@ import Papa from 'papaparse';
 import { 
     updateStudent, deleteStudentsInBatch, updateRouteSeating,
     copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch,
-    addStudent, addDestinationsInBatch, getDestinations
+    addStudent, addDestinationsInBatch, getDestinations, updateRoute
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, SeatingAssignment, NewStudent } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -83,12 +82,10 @@ export const StudentManagementTab = ({
     const [daysToCopySeatingTo, setDaysToCopySeatingTo] = useState<Partial<Record<DayOfWeek, boolean>>>(() => dayOrder.reduce((acc, day) => ({ ...acc, [day]: true }), {}));
     const [routeTypesToCopySeatingTo, setRouteTypesToCopySeatingTo] = useState<Partial<Record<'Morning' | 'Afternoon', boolean>>>({ Morning: true, Afternoon: true });
 
-    // After School Batch State
     const [isAfterSchoolDialogOpen, setIsAfterSchoolDialogOpen] = useState(false);
     const [afterSchoolTargetDay, setAfterSchoolTargetDay] = useState<DayOfWeek>('Monday');
     const [afterSchoolTargetDestId, setAfterSchoolTargetDestId] = useState<string>('');
 
-    // New student form state
     const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
     const [newStudent, setNewStudent] = useState<Partial<NewStudent>>({
         name: '', grade: '', class: '', gender: 'Male', contact: '',
@@ -143,7 +140,7 @@ export const StudentManagementTab = ({
             let destId: string | null = null, errorKey = '';
             if (selectedDay === 'Saturday') {
                 if (selectedRouteType === 'Morning') { destId = student.satMorningDestinationId; errorKey = 'admin.student_management.unassignable.error_sat_morning'; }
-                else { destId = student.satAfternoonDestinationId; errorKey = 'admin.student_management.unassignable.error_sat_afternoon'; }
+                else if (selectedRouteType === 'Afternoon') { destId = student.satAfternoonDestinationId; errorKey = 'admin.student_management.unassignable.error_sat_afternoon'; }
             } else {
                 if (selectedRouteType === 'Morning') { destId = student.morningDestinationId; errorKey = 'admin.student_management.unassignable.error_morning'; }
                 else if (selectedRouteType === 'Afternoon') { destId = student.afternoonDestinationId; errorKey = 'admin.student_management.unassignable.error_afternoon'; }
@@ -401,7 +398,6 @@ export const StudentManagementTab = ({
                         );
                         
                         if (student) {
-                            // 1. Update after school destination
                             const currentDests = student.afterSchoolDestinations || {};
                             await updateStudent(student.id, {
                                 afterSchoolDestinations: {
@@ -410,7 +406,6 @@ export const StudentManagementTab = ({
                                 }
                             });
                             
-                            // 2. Remove from Afternoon seat for that day
                             const afternoonRoutes = routes.filter(r => r.dayOfWeek === afterSchoolTargetDay && r.type === 'Afternoon');
                             for (const route of afternoonRoutes) {
                                 if (route.seating.some(seat => seat.studentId === student.id)) {
@@ -452,18 +447,18 @@ export const StudentManagementTab = ({
                                 <Dialog open={isAfterSchoolDialogOpen} onOpenChange={setIsAfterSchoolDialogOpen}>
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="sm">
-                                            <Clock className="mr-2 h-4 w-4" /> 방과후 관리
+                                            <Clock className="mr-2 h-4 w-4" /> {t('route_type.after_school')} 관리
                                         </Button>
                                     </DialogTrigger>
                                     <DialogContent>
                                         <DialogHeader>
-                                            <DialogTitle>방과후 학생 명단 처리</DialogTitle>
-                                            <DialogDescription>명단을 업로드하면 해당 학생들의 하교 좌석을 자동으로 비우고 방과후 목적지를 설정합니다.</DialogDescription>
+                                            <DialogTitle>{t('admin.student_management.after_school_batch.title')}</DialogTitle>
+                                            <DialogDescription>{t('admin.student_management.after_school_batch.description')}</DialogDescription>
                                         </DialogHeader>
                                         <div className="space-y-4 py-4">
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-2">
-                                                    <Label>적용 요일</Label>
+                                                    <Label>{t('day')}</Label>
                                                     <Select value={afterSchoolTargetDay} onValueChange={(v: any) => setAfterSchoolTargetDay(v)}>
                                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                                         <SelectContent>
@@ -474,7 +469,7 @@ export const StudentManagementTab = ({
                                                     </Select>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label>방과후 목적지 (선택)</Label>
+                                                    <Label>{t('destination')}</Label>
                                                     <Select value={afterSchoolTargetDestId} onValueChange={setAfterSchoolTargetDestId}>
                                                         <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
                                                         <SelectContent>
@@ -486,10 +481,10 @@ export const StudentManagementTab = ({
                                             </div>
                                             <div className="flex flex-col gap-2">
                                                 <Button variant="outline" onClick={handleDownloadAfterSchoolTemplate} className="w-full">
-                                                    <Download className="mr-2 h-4 w-4" /> 방과후 템플릿 다운로드
+                                                    <Download className="mr-2 h-4 w-4" /> {t('admin.student_management.after_school_batch.template')}
                                                 </Button>
                                                 <Button onClick={() => afterSchoolFileRef.current?.click()} className="w-full">
-                                                    <Upload className="mr-2 h-4 w-4" /> 명단 업로드 및 좌석 비우기
+                                                    <Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}
                                                 </Button>
                                                 <input type="file" ref={afterSchoolFileRef} onChange={handleAfterSchoolFileUpload} accept=".csv" className="hidden" />
                                             </div>

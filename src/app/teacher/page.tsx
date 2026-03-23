@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -292,7 +291,7 @@ export default function TeacherPage() {
         if (isToday) {
             const vTime = new Date(new Date().getTime() + (new Date().getTimezoneOffset() + 420) * 60000);
             const vh = vTime.getHours();
-            if (dayIdx === 6) setSelectedRouteType(vh < 11 ? 'Morning' : 'AfterSchool');
+            if (dayIdx === 6) setSelectedRouteType(vh < 11 ? 'Morning' : 'Afternoon');
             else setSelectedRouteType(vh < 9 ? 'Morning' : (vh < 16 ? 'Afternoon' : 'AfterSchool'));
         }
     }
@@ -365,7 +364,7 @@ export default function TeacherPage() {
   const selectedBus = useMemo(() => buses.find(b => b.id === selectedBusId), [buses, selectedBusId]);
   
   const filteredBuses = useMemo(() => sortBuses(buses.filter(b => 
-    (b.isActive ?? true) && allRoutes.some(r => r.busId === b.id && r.dayOfWeek === selectedDay && r.type === selectedRouteType && r.stops?.length > 0 && r.seating.some(s => s.studentId !== null))
+    (b.isActive !== false) && allRoutes.some(r => r.busId === b.id && r.dayOfWeek === selectedDay && r.type === selectedRouteType && r.stops?.length > 0 && r.seating.some(s => s.studentId !== null))
   )), [buses, allRoutes, selectedDay, selectedRouteType]);
   
   const relevantRoutesForDay = useMemo(() => { 
@@ -591,7 +590,7 @@ export default function TeacherPage() {
                         <CardHeader>
                             <div className="flex justify-between items-start">
                                 <div><CardTitle>{t('teacher_page.seat_map_title')}</CardTitle><CardDescription>{t('teacher_page.seat_map_description')}</CardDescription></div>
-                                <Button variant="outline" size="sm" onClick={() => window.print()} className="no-print"><Printer className="mr-2 h-4 w-4"/>{t('print')}</Button>
+                                <Button variant="outline" size="sm" onClick={() => window.print()} className="no-print"><Printer className="mr-2 h-4 w-4"/>{t('print')}</Printer>
                             </div>
                         </CardHeader>
                         <CardContent>
