@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Papa from 'papaparse';
 import { 
     updateStudent, deleteStudentsInBatch, updateRouteSeating,
     copySeatingPlan, unassignStudentFromAllRoutes, updateStudentsInBatch,
-    addStudent
+    addStudent, addDestinationsInBatch
 } from '@/lib/firebase-data';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, SeatingAssignment, NewStudent } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
@@ -27,6 +28,10 @@ import { StudentGlobalSearchPanel } from './student-global-search-panel';
 const getGradeValue = (grade: string): number => {
   const upperGrade = grade?.trim()?.toUpperCase() || '';
   if (upperGrade === 'S') return -50; 
+  if (upperGrade.startsWith('S')) {
+      const num = parseInt(upperGrade.replace('S', ''), 10);
+      return isNaN(num) ? -50 : -50 + (num / 100);
+  }
   if (upperGrade.startsWith('K')) {
       const num = parseInt(upperGrade.replace('K', ''), 10);
       return isNaN(num) ? -100 : -100 + num;
@@ -95,7 +100,9 @@ export const StudentManagementTab = ({
         if (!globalSearchQuery.trim()) return [];
         const q = normalizeString(globalSearchQuery);
         return students.map(student => {
-            const gradeClass = normalizeString((student.grade || '') + (student.class || ''));
+            const grade = (student.grade || '').toLowerCase();
+            const cls = (student.class || '').toLowerCase();
+            const gradeClass = normalizeString(grade + cls);
             const name = normalizeString(student.name || '');
             const contact = student.contact?.replace(/\D/g, '') || '';
             let score = 0;
@@ -116,7 +123,6 @@ export const StudentManagementTab = ({
             const busB = buses.find(bus => bus.id === b.busId);
             const busNameA = busA?.name || '';
             const busNameB = busB?.name || '';
-            // Safe numeric sort
             const numA = parseInt(busNameA.replace(/\D/g, ''), 10) || Infinity;
             const numB = parseInt(busNameB.replace(/\D/g, ''), 10) || Infinity;
             if (numA !== numB) return numA - numB;
@@ -132,7 +138,6 @@ export const StudentManagementTab = ({
         routes.filter(r => r.dayOfWeek === selectedDay && r.type === selectedRouteType).forEach(r => r.stops.forEach(s => validStopIds.add(s)));
         const unassignables: (Student & { errorReason: string })[] = [];
         students.forEach(student => {
-            // Only check students who are actually unassigned globally for this session
             if (allAssignedIds.has(student.id)) return;
             
             let destId: string | null = null, errorKey = '';
@@ -270,12 +275,92 @@ export const StudentManagementTab = ({
             setNewStudent({ name: '', grade: '', class: '', gender: 'Male', contact: '', afterSchoolDestinations: {}, applicationStatus: 'reviewed' });
             setIsAddStudentDialogOpen(false);
             toast({ title: t('success'), description: t('admin.student_management.add_student.success') });
-            
-            // Automatically select the new student to show info panel for destination entry
             setSelectedGlobalStudent(added);
         } catch (error) {
             toast({ title: t('error'), description: t('admin.student_management.add_student.error'), variant: 'destructive' });
         }
+    };
+
+    const handleDownloadAllStudents = useCallback(() => {
+        if (students.length === 0) { toast({ title: t('notice'), description: "등록된 학생이 없습니다." }); return; }
+        const headers = ["이름", "학년", "반", "성별", "연락처", "등교 목적지", "하교 목적지", "토요 등교", "토요 하교"];
+        const csvRows = students.map(s => {
+            const morningDest = destinations.find(d => d.id === s.morningDestinationId)?.name || '';
+            const afternoonDest = destinations.find(d => d.id === s.afternoonDestinationId)?.name || '';
+            const satMorning = destinations.find(d => d.id === s.satMorningDestinationId)?.name || '';
+            const satAfternoon = destinations.find(d => d.id === s.satAfternoonDestinationId)?.name || '';
+            const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
+            return [escape(s.name), escape(s.grade), escape(s.class), escape(s.gender === 'Male' ? '남자' : '여자'), escape(s.contact || ''), escape(morningDest), escape(afternoonDest), escape(satMorning), escape(satAfternoon)].join(',');
+        });
+        const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.body.appendChild(document.createElement("a"));
+        link.setAttribute("href", url);
+        link.setAttribute("download", `KIS_All_Students_${new Date().toISOString().split('T')[0]}.csv`);
+        link.click();
+        document.body.removeChild(link);
+    }, [students, destinations, t]);
+
+    const handleDownloadStudentTemplate = () => {
+        const headers = "이름,학년,반,성별,연락처,등교 목적지,하교 목적지";
+        const example = "Minjun Kim,1,1,남자,01012345678,Stop-A,Stop-B";
+        const csvContent = "\uFEFF" + headers + "\n" + example;
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.body.appendChild(document.createElement("a"));
+        link.setAttribute("href", url);
+        link.setAttribute("download", "student_template.csv");
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleStudentFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const { dismiss } = toast({ title: t('processing'), description: t('admin.student_management.batch_upload.processing') });
+                try {
+                    const newDests: string[] = [];
+                    results.data.forEach((row: any) => {
+                        const m = (row['등교 목적지'] || row['morningDestination'] || '').trim();
+                        const a = (row['하교 목적지'] || row['afternoonDestination'] || '').trim();
+                        if (m && !destinations.find(d => normalizeString(d.name) === normalizeString(m))) newDests.push(m);
+                        if (a && !destinations.find(d => normalizeString(d.name) === normalizeString(a))) newDests.push(a);
+                    });
+                    if (newDests.length > 0) await addDestinationsInBatch(Array.from(new Set(newDests)).map(name => ({ name })));
+                    
+                    const freshDests = await (require('@/lib/firebase-data').getDestinations());
+                    const studentsToProcess = results.data.map((row: any) => {
+                        const mName = (row['등교 목적지'] || row['morningDestination'] || '').trim();
+                        const aName = (row['하교 목적지'] || row['afternoonDestination'] || '').trim();
+                        return {
+                            name: (row['이름'] || row['name'] || '').trim(),
+                            grade: (row['학년'] || row['grade'] || '').toString().trim(),
+                            class: (row['반'] || row['class'] || '').toString().trim(),
+                            gender: (row['성별'] === '여자' || row['gender'] === 'Female') ? 'Female' : 'Male',
+                            contact: (row['연락처'] || row['contact'] || '').toString().trim(),
+                            morningDestinationId: freshDests.find((d: any) => normalizeString(d.name) === normalizeString(mName))?.id || null,
+                            afternoonDestinationId: freshDests.find((d: any) => normalizeString(d.name) === normalizeString(aName))?.id || null,
+                            afterSchoolDestinations: {},
+                            applicationStatus: 'reviewed' as const
+                        };
+                    }).filter((s: any) => s.name);
+
+                    await Promise.all(studentsToProcess.map((s: any) => addStudent(s)));
+                    dismiss();
+                    toast({ title: t('success'), description: t('admin.student_management.batch_upload.success', { count: studentsToProcess.length }) });
+                } catch (error) {
+                    dismiss();
+                    toast({ title: t('error'), description: t('admin.student_management.batch_upload.error'), variant: "destructive" });
+                }
+            },
+            error: (error) => toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" })
+        });
+        if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     return (
@@ -380,7 +465,49 @@ export const StudentManagementTab = ({
                 </div>
                 <div className="lg:col-span-1 space-y-4">
                     <StudentUnassignedPanel filteredUnassignedStudents={filteredUnassignedStudents} destinations={destinations} selectedStudentIds={selectedStudentIds} unassignedSearchQuery={unassignedSearchQuery} setUnassignedSearchQuery={setUnassignedSearchQuery} unassignedView={unassignedView} setUnassignedView={setUnassignedView} unassignedTitle={t('admin.student_management.unassigned.title_simple', '미배정 학생')} selectedRouteType={selectedRouteType} selectedDay={selectedDay} handleDownloadUnassignedStudents={() => {}} handleToggleSelectAll={() => { if (selectedStudentIds.size === filteredUnassignedStudents.length) setSelectedStudentIds(new Set()); else setSelectedStudentIds(new Set(filteredUnassignedStudents.map(s => s.id))); }} handleDeleteSelectedStudents={() => deleteStudentsInBatch(Array.from(selectedStudentIds))} handleToggleStudentSelection={(id, checked) => { const next = new Set(selectedStudentIds); if (checked) next.add(id); else next.delete(id); setSelectedStudentIds(next); }} handleUnassignedStudentClick={setSelectedGlobalStudent} handleStudentCardClick={handleStudentCardClick}/>
-                    <StudentGlobalSearchPanel students={students} destinations={destinations} buses={buses} routes={routes} selectedRouteType={selectedRouteType} dayOrder={dayOrder} selectedGlobalStudent={selectedGlobalStudent} setSelectedGlobalStudent={setSelectedGlobalStudent} globalSearchQuery={globalSearchQuery} setGlobalSearchQuery={setGlobalSearchQuery} globalSearchResults={globalSearchResults} handleGlobalStudentClick={setSelectedGlobalStudent} handleDownloadAllStudents={() => {}} handleDownloadStudentTemplate={() => {}} fileInputRef={fileInputRef} handleStudentFileUpload={() => {}} handleDeleteAllStudents={() => deleteStudentsInBatch(students.map(s => s.id))} handleUnassignAllFromStudent={() => unassignStudentFromAllRoutes(selectedGlobalStudent?.id || '')} handleAssignStudentFromSearch={handleAssignStudentFromSearch} handleStudentInfoChange={(sid, f, v) => updateStudent(sid, { [f]: v })} handleDestinationChange={(sid, val, type, day) => { const realVal = val === '_NONE_' ? null : val; const updates: any = {}; if (type === 'morning') updates.morningDestinationId = realVal; else if (type === 'afternoon') updates.afternoonDestinationId = realVal; else if (type === 'satMorning') updates.satMorningDestinationId = realVal; else if (type === 'satAfternoon') updates.satAfternoonDestinationId = realVal; else if (type === 'afterSchool' && day) { const current = selectedGlobalStudent?.afterSchoolDestinations || {}; updates.afterSchoolDestinations = { ...current, [day]: realVal }; } updateStudent(sid, updates); }} handleUnassignStudentFromRoute={(rid, sid) => { const r = routes.find(x => x.id === rid); if (r) { const next = r.seating.map(seat => seat.studentId === sid ? { ...seat, studentId: null } : seat); updateRouteSeating(rid, next); } }} assignedRoutesForSelectedStudent={assignedRoutesForSelectedStudent}/>
+                    <StudentGlobalSearchPanel 
+                        students={students} 
+                        destinations={destinations} 
+                        buses={buses} 
+                        routes={routes} 
+                        selectedRouteType={selectedRouteType} 
+                        dayOrder={dayOrder} 
+                        selectedGlobalStudent={selectedGlobalStudent} 
+                        setSelectedGlobalStudent={setSelectedGlobalStudent} 
+                        globalSearchQuery={globalSearchQuery} 
+                        setGlobalSearchQuery={setGlobalSearchQuery} 
+                        globalSearchResults={globalSearchResults} 
+                        handleGlobalStudentClick={setSelectedGlobalStudent} 
+                        handleDownloadAllStudents={handleDownloadAllStudents} 
+                        handleDownloadStudentTemplate={handleDownloadStudentTemplate} 
+                        fileInputRef={fileInputRef} 
+                        handleStudentFileUpload={handleStudentFileUpload} 
+                        handleDeleteAllStudents={() => deleteStudentsInBatch(students.map(s => s.id))} 
+                        handleUnassignAllFromStudent={() => unassignStudentFromAllRoutes(selectedGlobalStudent?.id || '')} 
+                        handleAssignStudentFromSearch={handleAssignStudentFromSearch} 
+                        handleStudentInfoChange={(sid, f, v) => updateStudent(sid, { [f]: v })} 
+                        handleDestinationChange={(sid, val, type, day) => { 
+                            const realVal = val === '_NONE_' ? null : val; 
+                            const updates: any = {}; 
+                            if (type === 'morning') updates.morningDestinationId = realVal; 
+                            else if (type === 'afternoon') updates.afternoonDestinationId = realVal; 
+                            else if (type === 'satMorning') updates.satMorningDestinationId = realVal; 
+                            else if (type === 'satAfternoon') updates.satAfternoonDestinationId = realVal; 
+                            else if (type === 'afterSchool' && day) { 
+                                const current = selectedGlobalStudent?.afterSchoolDestinations || {}; 
+                                updates.afterSchoolDestinations = { ...current, [day]: realVal }; 
+                            } 
+                            updateStudent(sid, updates); 
+                        }} 
+                        handleUnassignStudentFromRoute={(rid, sid) => { 
+                            const r = routes.find(x => x.id === rid); 
+                            if (r) { 
+                                const next = r.seating.map(seat => seat.studentId === sid ? { ...seat, studentId: null } : seat); 
+                                updateRouteSeating(rid, next); 
+                            } 
+                        }} 
+                        assignedRoutesForSelectedStudent={assignedRoutesForSelectedStudent}
+                    />
                 </div>
             </div>
         </div>
