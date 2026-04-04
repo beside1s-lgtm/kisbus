@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import Papa from 'papaparse';
 import { addBus, deleteBus, updateBus, addRoute } from '@/lib/firebase-data';
 import type { Bus, NewBus, DayOfWeek, RouteType, Destination, Route } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -36,8 +35,9 @@ interface BusRegistrationTabProps {
 }
 
 const generateInitialSeating = (capacity: number): { seatNumber: number; studentId: string | null }[] => {
-    return Array.from({ length: capacity }, (_, i) => ({
-        seatNumber: i + 1,
+    const extra = capacity === 45 ? 1 : 0;
+    return Array.from({ length: capacity + extra }, (_, i) => ({
+        seatNumber: capacity === 45 ? i : i + 1,
         studentId: null,
     }));
 };
@@ -144,40 +144,49 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
     };
 
     const handleDownloadBusTemplate = () => {
-        const headers = "번호,타입";
-        const examples = [
-            "Bus-10,45-seater",
-            "Bus-11,29-seater",
-            "Bus-12,16-seater"
-        ];
-        const csvContent = "\uFEFF" + headers + "\n" + examples.join("\n");
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.body.appendChild(document.createElement("a"));
-        link.setAttribute("href", url);
-        link.setAttribute("download", "bus_template.csv");
-        link.click();
-        document.body.removeChild(link);
+        import('xlsx').then(XLSX => {
+            const headers = ["번호", "타입"];
+            const examples = [
+                ["Bus-10", "45-seater"],
+                ["Bus-11", "29-seater"],
+                ["Bus-12", "16-seater"]
+            ];
+            const wsData = [headers, ...examples];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "버스_등록_템플릿");
+            XLSX.writeFile(wb, "bus_template.xlsx");
+        }).catch(err => {
+            console.error(err);
+            toast({ title: t('error'), description: "Excel 다운로드 중 오류가 발생했습니다.", variant: 'destructive' });
+        });
     };
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            comments: "#",
-            complete: async (results) => {
+        
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const XLSX = await import('xlsx');
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const results: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                
                 const capacityMap = { '16-seater': 16, '29-seater': 29, '45-seater': 45 } as const;
                 const validTypes = Object.keys(capacityMap);
-                const newBusesData: NewBus[] = results.data.map((row: any) => {
-                    const type = (row['타입'] || row['type'] || '').trim();
+                const newBusesData: NewBus[] = results.map((row: any) => {
+                    const type = (row['타입'] || row['type'] || '').toString().trim();
                     return {
-                        name: (row['번호'] || row['name'] || '').trim(),
+                        name: (row['번호'] || row['name'] || '').toString().trim(),
                         type: type as '16-seater' | '29-seater' | '45-seater',
                         capacity: capacityMap[type as keyof typeof capacityMap]
                     }
                 }).filter(bus => bus.name && bus.type && validTypes.includes(bus.type));
+                
                 if (newBusesData.length === 0) {
                     toast({ title: t('error'), description: t('admin.bus_registration.batch.validation_error'), variant: "destructive" });
                     return;
@@ -191,11 +200,12 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
                     dismiss();
                     toast({ title: t('error'), description: t('admin.bus_registration.batch.error'), variant: "destructive" });
                 }
-            },
-            error: (error) => {
-                toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
+            } catch (err: any) {
+                toast({ title: t('admin.file_parse_error'), description: err.message, variant: "destructive" });
             }
-        });
+        };
+        reader.readAsArrayBuffer(file);
+        
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -204,24 +214,26 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
             toast({ title: t('notice'), description: "다운로드할 버스 데이터가 없습니다." });
             return;
         }
-        const headers = ["버스 번호", "타입", "상태"];
-        const sorted = sortBuses(buses);
-        const csvRows = sorted.map(bus => {
-            const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
-            return [
-                escape(bus.name),
-                escape(t(`bus_type.${bus.type}`)),
-                escape((bus.isActive ?? true) ? '활성' : '비활성')
-            ].join(',');
+        
+        import('xlsx').then(XLSX => {
+            const headers = ["버스 번호", "타입", "상태"];
+            const sorted = sortBuses(buses);
+            const wsData = [
+                headers,
+                ...sorted.map(bus => [
+                    bus.name,
+                    t(`bus_type.${bus.type}`),
+                    (bus.isActive ?? true) ? '활성' : '비활성'
+                ])
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "버스_목록");
+            XLSX.writeFile(wb, "KIS_Bus_Metadata_List.xlsx");
+        }).catch(err => {
+            console.error(err);
+            toast({ title: t('error'), description: "Excel 다운로드 중 오류가 발생했습니다.", variant: 'destructive' });
         });
-        const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.body.appendChild(document.createElement("a"));
-        link.setAttribute("href", url);
-        link.setAttribute("download", `KIS_Bus_Metadata_List.csv`);
-        link.click();
-        document.body.removeChild(link);
     };
 
     return (
@@ -235,7 +247,7 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
                     <Button variant="outline" onClick={handleDownloadBusList}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
                     <Button variant="outline" onClick={handleDownloadBusTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.bus_registration.template')}</Button>
                     <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
-                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx" className="hidden" />
                     <Dialog>
                         <DialogTrigger asChild>
                             <Button><PlusCircle className="mr-2" /> {t('admin.bus_registration.add_new_bus')}</Button>

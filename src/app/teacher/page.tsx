@@ -8,19 +8,22 @@ import {
     onDestinationsUpdate,
     onTeachersUpdate,
     onAfterSchoolTeachersUpdate,
+    onAfterSchoolClassesUpdate,
     onLostItemsUpdate,
     getGroupLeaderRecords, 
     saveGroupLeaderRecords,
     updateAttendance,
     onAttendanceUpdate,
     updateBus,
-    updateRouteSeating
+    updateRouteSeating,
+    getAfterSchoolClasses
 } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem, AttendanceRecord } from '@/lib/types';
+import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem, AttendanceRecord, AfterSchoolClass } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Crown, Users, Printer, UserX, AlertCircle, Search } from 'lucide-react';
+import { Crown, Users, Printer, UserX, AlertCircle, Search, GraduationCap } from 'lucide-react';
+
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -32,9 +35,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LostAndFound } from './components/lost-and-found';
+import { AfterSchoolInquiryDialog } from './components/after-school-inquiry-dialog';
 import { useTranslation } from '@/hooks/use-translation';
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { cn, normalizeString } from '@/lib/utils';
+import { cn, normalizeString, getStudentName } from '@/lib/utils';
 
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -82,11 +87,19 @@ const AllStudentsBoardingStatus = ({ relevantRoutes, students, buses, allAttenda
             });
         });
         return studentsList.sort((a,b) => {
-            const priority = (s: string) => s === 'not_boarded' ? 1 : 2;
+            const priority = (s: string) => {
+                if (s === 'not_boarded') return 1;
+                if (s === 'notRiding') return 2;
+                if (s === 'boarded') return 3;
+                if (s === 'disembarked') return 4;
+                return 5;
+            };
             if (priority(a.status) !== priority(b.status)) return priority(a.status) - priority(b.status);
+            const busCmp = a.busName.localeCompare(b.busName, undefined, { numeric: true });
+            if (busCmp !== 0) return busCmp;
             if (getGradeValue(a.grade) !== getGradeValue(b.grade)) return getGradeValue(a.grade) - getGradeValue(b.grade);
             if (a.class !== b.class) return a.class.localeCompare(b.class, undefined, { numeric: true });
-            return a.name.localeCompare(b.name, 'ko');
+            return getStudentName(a, t.language).localeCompare(getStudentName(b, t.language), 'ko');
         });
     }, [relevantRoutes, students, buses, allAttendance]);
 
@@ -239,14 +252,16 @@ const TeacherAssignmentViewDialog = ({ buses, allRoutes, teachers, afterSchoolTe
 };
 
 export default function TeacherPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [buses, setBuses] = useState<Bus[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [allRoutes, setAllRoutes] = useState<Route[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [afterSchoolTeachers, setAfterSchoolTeachers] = useState<Teacher[]>([]);
+  const [afterSchoolClasses, setAfterSchoolClasses] = useState<AfterSchoolClass[]>([]);
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
+
   const [selectedBusId, setSelectedBusId] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [selectedRouteType, setSelectedRouteType] = useState<RouteType>('Morning');
@@ -263,24 +278,39 @@ export default function TeacherPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const now = new Date();
-    const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
-    const h = vTime.getHours(), d = vTime.getDay();
-    let tDate = new Date(vTime);
+    const calculateDate = () => {
+        const now = new Date();
+        const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
+        const h = vTime.getHours(), d = vTime.getDay();
+        let tDate = new Date(vTime);
+        
+        if (d >= 1 && d <= 5 && h >= 19) tDate.setDate(tDate.getDate() + 1);
+        else if (d === 6 && h >= 14) tDate.setDate(tDate.getDate() + 2);
+        else if (d === 0) tDate.setDate(tDate.getDate() + 1);
+        
+        const newDate = format(tDate, 'yyyy-MM-dd');
+        setSelectedDate(prev => prev !== newDate ? newDate : prev);
+    };
     
-    if (d >= 1 && d <= 5 && h >= 19) tDate.setDate(tDate.getDate() + 1);
-    else if (d === 6 && h >= 14) tDate.setDate(tDate.getDate() + 2);
-    else if (d === 0) tDate.setDate(tDate.getDate() + 1);
-    
-    setSelectedDate(format(tDate, 'yyyy-MM-dd'));
+    calculateDate();
+    const intervalId = setInterval(calculateDate, 60000);
+    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') calculateDate(); };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     onBusesUpdate(data => setBuses(sortBuses(data))); 
     onStudentsUpdate(setStudents); 
     onRoutesUpdate(setAllRoutes); 
     onDestinationsUpdate(setDestinations); 
     onTeachersUpdate(setTeachers); 
     onAfterSchoolTeachersUpdate(setAfterSchoolTeachers); 
+    onAfterSchoolClassesUpdate(setAfterSchoolClasses);
     onLostItemsUpdate(setLostItems);
     setLoading(false);
+
+    return () => {
+        clearInterval(intervalId);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -291,7 +321,11 @@ export default function TeacherPage() {
         if (isToday) {
             const vTime = new Date(new Date().getTime() + (new Date().getTimezoneOffset() + 420) * 60000);
             const vh = vTime.getHours();
-            if (dayIdx === 6) setSelectedRouteType(vh < 11 ? 'Morning' : 'Afternoon');
+            if (dayIdx === 6) {
+                if (vh < 9) setSelectedRouteType('Morning');
+                else if (vh < 14) setSelectedRouteType('Afternoon');
+                else setSelectedRouteType('Morning'); // Will be Monday morning due to date shift logic
+            }
             else setSelectedRouteType(vh < 9 ? 'Morning' : (vh < 16 ? 'Afternoon' : 'AfterSchool'));
         }
     }
@@ -307,15 +341,21 @@ export default function TeacherPage() {
     const scored = students.map(student => {
       const grade = (student.grade || '').toLowerCase();
       const cls = (student.class || '').toLowerCase();
+      // 학년+반 조합 (예: "14" → 1학년 4반, "s14" → S1학년 4반)
       const gradeClass = normalizeString(grade + cls);
-      const name = normalizeString(student.name);
       const contact = student.contact?.replace(/\D/g, '') || '';
       
       let score = 0;
-      if (gradeClass === q) score += 1000;
-      else if (gradeClass.startsWith(q)) score += 800;
-      if (name.startsWith(q)) score += 500;
-      else if (name.includes(q)) score += 300;
+      // 학년+반 검색: 정확히 일치 시 최우선
+      if (gradeClass === q) score += 2000;
+      else if (gradeClass.startsWith(q)) score += 1500;
+      // 이름 검색
+      const displayName = normalizeString(getStudentName(student, i18n.language));
+      if (displayName.startsWith(q)) score += 500;
+      else if (displayName.includes(q)) score += 300;
+      else if (student.nameKo && normalizeString(student.nameKo).includes(q)) score += 200;
+      else if (student.nameEn && normalizeString(student.nameEn).toLowerCase().includes(q)) score += 200;
+      // 연락처 검색
       if (contact.startsWith(q)) score += 100;
       else if (contact.includes(q)) score += 50;
       
@@ -324,11 +364,17 @@ export default function TeacherPage() {
 
     const results = scored
       .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => {
+        const ga = getGradeValue(a.student.grade), gb = getGradeValue(b.student.grade);
+        if (ga !== gb) return ga - gb;
+        const ca = a.student.class.localeCompare(b.student.class, undefined, { numeric: true });
+        if (ca !== 0) return ca;
+        return getStudentName(a.student, i18n.language).localeCompare(getStudentName(b.student, i18n.language), 'ko');
+      })
       .map(item => item.student);
 
-    setSearchResults(results.slice(0, 10));
-  }, [searchQuery, students]);
+    setSearchResults(results.slice(0, 15));
+  }, [searchQuery, students, i18n.language]);
 
   const handleSelectStudentFromSearch = (s: Student) => {
     const route = allRoutes.find(r => 
@@ -343,7 +389,7 @@ export default function TeacherPage() {
     } else {
       const anyRoute = allRoutes.find(r => r.seating.some(seat => seat.studentId === s.id));
       if (anyRoute) {
-          toast({ title: t('notice'), description: `학생(${s.name})이 ${t(`day.${anyRoute.dayOfWeek.toLowerCase()}`)} ${t(`route_type.${anyRoute.type.toLowerCase()}`)} 노선에 배정되어 있습니다.` });
+          toast({ title: t('notice'), description: `학생(${getStudentName(s, i18n.language)})이 ${t(`day.${anyRoute.dayOfWeek.toLowerCase()}`)} ${t(`route_type.${anyRoute.type.toLowerCase()}`)} 노선에 배정되어 있습니다.` });
           setSelectedDay(anyRoute.dayOfWeek);
           setSelectedRouteType(anyRoute.type);
           setSelectedBusId(anyRoute.busId);
@@ -355,6 +401,13 @@ export default function TeacherPage() {
     }
     setSearchQuery('');
     setSearchResults([]);
+    
+    setTimeout(() => {
+      const el = document.getElementById('student-info-card');
+      if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 300);
   };
 
   const currentRoute = useMemo(() => 
@@ -408,11 +461,11 @@ export default function TeacherPage() {
     let newRecords = [...groupLeaderRecords];
     if (isCurrentlyLeader) {
         newRecords = newRecords.map(r => (r.studentId === selectedStudent.id && r.endDate === null) ? { ...r, endDate: format(new Date(), 'yyyy-MM-dd') } : r);
-        toast({ title: t('teacher_page.demote_leader'), description: `${selectedStudent.name} 학생이 조장에서 해제되었습니다.` });
+        toast({ title: t('teacher_page.demote_leader'), description: `${getStudentName(selectedStudent, i18n.language)} 학생이 조장에서 해제되었습니다.` });
     } else {
         if (activeLeaders.length >= 3) { toast({ title: t('error'), description: "동시에 활동 가능한 조장은 최대 3명입니다.", variant: 'destructive' }); return; }
-        newRecords.push({ studentId: selectedStudent.id, name: `${selectedStudent.grade.toUpperCase()}${selectedStudent.class} ${selectedStudent.name}`, startDate: format(new Date(), 'yyyy-MM-dd'), endDate: null, days: 1 });
-        toast({ title: t('teacher_page.promote_leader'), description: `${selectedStudent.name} 학생이 조장으로 임명되었습니다.` });
+        newRecords.push({ studentId: selectedStudent.id, name: `${selectedStudent.grade.toUpperCase()}${selectedStudent.class} ${getStudentName(selectedStudent, i18n.language)}`, startDate: format(new Date(), 'yyyy-MM-dd'), endDate: null, days: 1 });
+        toast({ title: t('teacher_page.promote_leader'), description: `${getStudentName(selectedStudent, i18n.language)} 학생이 조장으로 임명되었습니다.` });
     }
     setGroupLeaderRecords(newRecords);
     saveGroupLeaderRecords(currentRoute.id, newRecords).catch(console.error);
@@ -446,7 +499,7 @@ export default function TeacherPage() {
           if (p(a.id) !== p(b.id)) return p(a.id) - p(b.id);
           if (getGradeValue(a.grade) !== getGradeValue(b.grade)) return getGradeValue(a.grade) - getGradeValue(b.grade);
           if (a.class !== b.class) return a.class.localeCompare(b.class, undefined, { numeric: true });
-          return a.name.localeCompare(b.name, 'ko');
+          return getStudentName(a, i18n.language).localeCompare(getStudentName(b, i18n.language), 'ko');
       });
   }, [currentRoute, students, boardedStudentIds, notBoardingStudentIds, disembarkedStudentIds]);
 
@@ -458,17 +511,20 @@ export default function TeacherPage() {
 
   const handleSeatContextMenu = (e: React.MouseEvent, seatNumber: number) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!currentRoute) return;
     if (swapSourceSeat === null) {
       setSwapSourceSeat(seatNumber);
-      toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 비워집니다." });
+      toast({ title: t('teacher_page.seat_selected'), description: "다른 좌석을 우클릭하면 교체되고, 같은 좌석을 다시 우클릭하면 선택이 취소됩니다." });
     } else {
       if (swapSourceSeat === seatNumber) {
-        const newSeating = currentRoute.seating.map(s => s.seatNumber === seatNumber ? { ...s, studentId: null } : s);
-        updateRouteSeating(currentRoute.id, newSeating).then(() => { toast({ title: "좌석 비우기 완료" }); setSwapSourceSeat(null); }).catch(() => { toast({ title: "오류 발생", variant: 'destructive' }); });
+        // User wants to deselect on right click of the same seat or empty space
+        setSwapSourceSeat(null);
         return;
       }
       const newSeating = [...currentRoute.seating];
+      if (!newSeating.some(s => s.seatNumber === swapSourceSeat)) newSeating.push({ seatNumber: swapSourceSeat, studentId: null });
+      if (!newSeating.some(s => s.seatNumber === seatNumber)) newSeating.push({ seatNumber, studentId: null });
       const sourceIdx = newSeating.findIndex(s => s.seatNumber === swapSourceSeat);
       const targetIdx = newSeating.findIndex(s => s.seatNumber === seatNumber);
       if (sourceIdx > -1 && targetIdx > -1) {
@@ -484,7 +540,7 @@ export default function TeacherPage() {
     if (selectedBus) await updateBus(selectedBus.id, { status: selectedBus.status === 'departed' ? 'ready' : 'departed', departureTime: selectedBus.status === 'departed' ? null : new Date().toISOString() }); 
   };
 
-  const formatStudentName = (s: Student) => `${s.grade.toUpperCase()}${s.class} ${s.name}`;
+  const formatStudentName = (s: Student) => `${s.grade.toUpperCase()}${s.class} ${getStudentName(s, i18n.language)}`;
 
   const headerContent = (
     <div className="flex flex-col sm:flex-row sm:items-end gap-2">
@@ -530,20 +586,67 @@ export default function TeacherPage() {
         <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
             <Tabs value={selectedRouteType} onValueChange={(v: any) => setSelectedRouteType(v)} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className={cn("grid w-full", selectedDay === 'Saturday' ? "grid-cols-2" : "grid-cols-3")}>
                     <TabsTrigger value="Morning">{t('route_type.morning')}</TabsTrigger>
                     <TabsTrigger value="Afternoon">{t('route_type.afternoon')}</TabsTrigger>
-                    <TabsTrigger value="AfterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
+                    {selectedDay !== 'Saturday' && <TabsTrigger value="AfterSchool">{t('route_type.AfterSchool')}</TabsTrigger>}
                 </TabsList>
             </Tabs>
         </div>
     </div>
   );
 
-  if (loading) return <MainLayout headerContent={headerContent}><div className="flex justify-center items-center h-64"><p>{t('loading.data')}</p></div></MainLayout>;
+  if (loading) {
+    return (
+      <MainLayout headerContent={headerContent}>
+        <div className="flex justify-center items-center h-64">
+          <p>{t('loading.data')}</p>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const titleActions = (
+    <div className="flex gap-2 no-print">
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8">
+            <GraduationCap className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">방과후 명단</span>
+          </Button>
+        </DialogTrigger>
+        <AfterSchoolInquiryDialog
+          afterSchoolClasses={afterSchoolClasses}
+          afterSchoolTeachers={afterSchoolTeachers}
+          students={students}
+          buses={buses}
+          routes={allRoutes}
+          destinations={destinations}
+        />
+      </Dialog>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8">
+            <Users className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">{t('teacher_page.check_assignments_button')}</span>
+          </Button>
+        </DialogTrigger>
+        <TeacherAssignmentViewDialog 
+          buses={buses} 
+          allRoutes={allRoutes} 
+          teachers={teachers} 
+          afterSchoolTeachers={afterSchoolTeachers} 
+          selectedDay={selectedDay} 
+          selectedRouteType={selectedRouteType} 
+          t={t}
+        />
+      </Dialog>
+    </div>
+  );
 
   return (
-    <MainLayout headerContent={headerContent} titleActions={<div className="flex gap-2 no-print"><Dialog><DialogTrigger asChild><Button variant="outline" size="sm" className="h-8"><Users className="mr-2 h-4 w-4" /><span className="hidden sm:inline">{t('teacher_page.check_assignments_button')}</span></Button></DialogTrigger><TeacherAssignmentViewDialog buses={buses} allRoutes={allRoutes} teachers={teachers} afterSchoolTeachers={afterSchoolTeachers} selectedDay={selectedDay} selectedRouteType={selectedRouteType} t={t}/></Dialog></div>}>
+    <MainLayout headerContent={headerContent} titleActions={titleActions}>
+        <div onContextMenu={(e) => { e.preventDefault(); setSwapSourceSeat(null); }} className="min-h-full">
         {selectedBusId === 'all' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full">
                 <AllStudentsBoardingStatus relevantRoutes={relevantRoutesForDay} students={students} buses={buses} allAttendance={allAttendance} formatStudentName={formatStudentName} t={t}/>
@@ -559,14 +662,21 @@ export default function TeacherPage() {
                                 <TableBody>
                                     {studentsOnCurrentRoute.map(s => (
                                         <TableRow key={s.id} onClick={() => setLastClickedStudentId(s.id)} className={cn("cursor-pointer hover:bg-accent/50", lastClickedStudentId === s.id && "bg-accent")}>
-                                            <TableCell className="whitespace-nowrap font-medium">
-                                                {formatStudentName(s)} 
-                                                {groupLeaderRecords.some(r => r.studentId === s.id && r.endDate === null) && <Crown className="inline-block ml-1 w-3 h-3 text-yellow-500" />}
+                                            <TableCell className="px-2 py-3 whitespace-nowrap font-medium text-sm">
+                                                <div className="flex flex-col">
+                                                    <span className="flex items-center">
+                                                        {formatStudentName(s)} 
+                                                        {groupLeaderRecords.some(r => r.studentId === s.id && r.endDate === null) && <Crown className="inline-block ml-1 w-3 h-3 text-yellow-500" />}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground sm:hidden">
+                                                        {destinations.find(d => d.id === (selectedDay === 'Saturday' ? (selectedRouteType === 'Morning' ? s.satMorningDestinationId : s.satAfternoonDestinationId) : (selectedRouteType === 'Morning' ? s.morningDestinationId : selectedRouteType === 'Afternoon' ? s.afternoonDestinationId : s.afterSchoolDestinations?.[selectedDay])))?.name || t('unassigned')}
+                                                    </span>
+                                                </div>
                                             </TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="px-2 py-3 text-right">
                                                 <Badge 
                                                     variant={boardedStudentIds.includes(s.id) ? 'default' : (notBoardingStudentIds.includes(s.id) ? 'destructive' : (disembarkedStudentIds.includes(s.id) ? 'outline' : 'secondary'))}
-                                                    className="cursor-pointer"
+                                                    className="cursor-pointer h-7 px-2 text-[11px] sm:text-xs"
                                                     onClick={(e) => { e.stopPropagation(); toggleStudentAttendance(s.id); }}
                                                 >
                                                     {t(`teacher_page.status_${boardedStudentIds.includes(s.id) ? 'boarded' : (notBoardingStudentIds.includes(s.id) ? 'not_riding_today' : (disembarkedStudentIds.includes(s.id) ? 'disembarked' : 'not_boarded'))}`)}
@@ -590,7 +700,7 @@ export default function TeacherPage() {
                         <CardHeader>
                             <div className="flex justify-between items-start">
                                 <div><CardTitle>{t('teacher_page.seat_map_title')}</CardTitle><CardDescription>{t('teacher_page.seat_map_description')}</CardDescription></div>
-                                <Button variant="outline" size="sm" onClick={() => window.print()} className="no-print"><Printer className="mr-2 h-4 w-4"/>{t('print')}</Printer>
+                                <Button variant="outline" size="sm" onClick={() => window.print()} className="no-print"><Printer className="mr-2 h-4 w-4"/>{t('print')}</Button>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -603,7 +713,7 @@ export default function TeacherPage() {
                     </Card>
                     
                     {selectedStudent && (
-                        <Card className="no-print border-primary/20 bg-primary/5 animate-in fade-in slide-in-from-top-2">
+                        <Card id="student-info-card" className="no-print border-primary/20 bg-primary/5 animate-in fade-in slide-in-from-top-2 scroll-mt-20">
                             <CardHeader className="pb-3">
                                 <div className="flex justify-between items-center">
                                     <CardTitle className="text-lg">{formatStudentName(selectedStudent)}</CardTitle>
@@ -613,6 +723,42 @@ export default function TeacherPage() {
                             <CardContent className="pb-3 space-y-2">
                                 <p className="text-sm text-muted-foreground">학년/반: {selectedStudent.grade}학년 {selectedStudent.class}반</p>
                                 <p className="text-sm text-muted-foreground">목적지: {destinations.find(d => d.id === (selectedDay === 'Saturday' ? (selectedRouteType === 'Morning' ? selectedStudent.satMorningDestinationId : selectedStudent.satAfternoonDestinationId) : (selectedRouteType === 'Morning' ? selectedStudent.morningDestinationId : selectedRouteType === 'Afternoon' ? selectedStudent.afternoonDestinationId : selectedStudent.afterSchoolDestinations?.[selectedDay])))?.name || t('unassigned')}</p>
+                                {(() => {
+                                    // afterSchoolClassIds에서 해당 요일의 수업 ID를 가져옴
+                                    const classId = selectedStudent.afterSchoolClassIds?.[selectedDay];
+                                    if (classId) {
+                                        const afterSchoolClass = afterSchoolClasses.find(c => c.id === classId);
+                                        if (afterSchoolClass) {
+                                            return (
+                                                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                                    <GraduationCap className="w-3.5 h-3.5 text-primary shrink-0" />
+                                                    <span>방과후 ({t(`day_short.${selectedDay.toLowerCase()}`)}):</span>
+                                                    <span className="font-medium text-foreground">{afterSchoolClass.name}</span>
+                                                    {afterSchoolClass.teacherName && (
+                                                        <span className="text-xs text-muted-foreground/70">({afterSchoolClass.teacherName})</span>
+                                                    )}
+                                                </p>
+                                            );
+                                        }
+                                    }
+                                    // fallback: afterSchoolDestinations 기반으로도 시도
+                                    const destBasedClass = afterSchoolClasses.find(
+                                        c => c.id === selectedStudent.afterSchoolDestinations?.[selectedDay] && c.dayOfWeek === selectedDay
+                                    );
+                                    if (destBasedClass) {
+                                        return (
+                                            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                                <GraduationCap className="w-3.5 h-3.5 text-primary shrink-0" />
+                                                <span>방과후 ({t(`day_short.${selectedDay.toLowerCase()}`)}):</span>
+                                                <span className="font-medium text-foreground">{destBasedClass.name}</span>
+                                                {destBasedClass.teacherName && (
+                                                    <span className="text-xs text-muted-foreground/70">({destBasedClass.teacherName})</span>
+                                                )}
+                                            </p>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </CardContent>
                             <CardFooter className="flex flex-col gap-2">
                                 {(() => {
@@ -636,6 +782,7 @@ export default function TeacherPage() {
                 </div>
             </div>
         )}
+        </div>
     </MainLayout>
   );
 }

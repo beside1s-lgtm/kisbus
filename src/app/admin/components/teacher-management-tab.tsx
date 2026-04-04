@@ -1,21 +1,25 @@
 'use client';
 
 import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react';
-import Papa from 'papaparse';
 import { 
-    addTeachersInBatch, deleteTeacher, deleteAllTeachers, updateBus, deleteTeachersInBatch,
-    addAfterSchoolTeachersInBatch, deleteAfterSchoolTeacher, deleteAfterSchoolTeachersInBatch, deleteAllAfterSchoolTeachers
+    addTeachersInBatch, clearTeachers, updateBus, deleteTeachersInBatch,
+    addAfterSchoolTeachersInBatch, deleteAfterSchoolTeachersInBatch, clearAfterSchoolTeachers,
+    updateTeacher, updateAfterSchoolTeacher, updateSaturdayTeacher,
+    addSaturdayTeachersInBatch, clearSaturdayTeachers, deleteSaturdayTeachersInBatch
 } from '@/lib/firebase-data';
+import { sanitizeDataForSystem } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 import type { Teacher, NewTeacher, Bus, Route, DayOfWeek, Destination } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Upload, Trash2, UserCog, UserX, Pencil, Users, Undo2 } from 'lucide-react';
+import { Download, Upload, Trash2, UserCog, UserX, Pencil, Users, Undo2, X } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/hooks/use-translation';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -25,6 +29,90 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { format } from 'date-fns';
+
+interface TeacherEditDialogProps {
+    teacher: Teacher;
+    type: 'commute' | 'afterSchool' | 'saturday';
+}
+
+const TeacherEditDialog = ({ teacher, type }: TeacherEditDialogProps) => {
+    const { t } = useTranslation();
+    const { toast } = useToast();
+    const [name, setName] = useState(teacher.name);
+    const [days, setDays] = useState<DayOfWeek[]>(teacher.afterSchoolDays || []);
+    const [isOpen, setIsOpen] = useState(false);
+
+    const handleSave = async () => {
+        try {
+            const data: Partial<Teacher> = { 
+                name: sanitizeDataForSystem(name),
+                ...(type === 'afterSchool' ? { afterSchoolDays: days } : {})
+            };
+            if (type === 'commute') {
+                await updateTeacher(teacher.id, data);
+            } else if (type === 'afterSchool') {
+                await updateAfterSchoolTeacher(teacher.id, data);
+            } else {
+                await updateSaturdayTeacher(teacher.id, data);
+            }
+            toast({ title: t('success'), description: t('admin.teacher_management.edit.success') });
+            setIsOpen(false);
+        } catch (error) {
+            toast({ title: t('error'), description: t('admin.teacher_management.edit.error'), variant: 'destructive' });
+        }
+    };
+
+    const toggleDay = (day: DayOfWeek) => {
+        setDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Pencil className="h-4 w-4" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{t('admin.teacher_management.edit.title')}</DialogTitle>
+                    <DialogDescription>
+                        교사 정보를 수정합니다.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-name">{t('admin.teacher_management.teacher_name')}</Label>
+                        <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} />
+                    </div>
+                    {type === 'afterSchool' && (
+                        <div className="space-y-2">
+                            <Label>담당 가능 요일 (미선택 시 전체 가능)</Label>
+                            <div className="grid grid-cols-5 gap-2">
+                                {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as DayOfWeek[]).map(d => (
+                                    <Button 
+                                        key={d} 
+                                        type="button"
+                                        variant={days.includes(d) ? "default" : "outline"} 
+                                        size="sm" 
+                                        className="h-8 text-xs px-1"
+                                        onClick={() => toggleDay(d)}
+                                    >
+                                        {t(`day_short.${d.toLowerCase()}`)}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>{t('cancel')}</Button>
+                    <Button onClick={handleSave}>{t('save')}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
 
 const sortBuses = (buses: Bus[]): Bus[] => {
     return [...buses].sort((a, b) => {
@@ -41,27 +129,34 @@ interface TeacherAssignmentDialogProps {
     targetBus: Bus;
     allRoutes: Route[];
     teachers: Teacher[];
-    assignmentType: 'commute' | 'afterSchool';
+    assignmentType: 'commute' | 'afterSchool' | 'saturday';
     onOpenChange: (open: boolean) => void;
 }
   
 const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentType, onOpenChange }: TeacherAssignmentDialogProps) => {
-    const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
+    const [selectedTeachersPerDay, setSelectedTeachersPerDay] = useState<Record<DayOfWeek, string[]>>({} as any);
+    const [activeDay, setActiveDay] = useState<DayOfWeek>('Monday');
     const { toast } = useToast();
     const { t } = useTranslation();
     const weekdays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], []);
+    const afterSchoolDays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday'], []);
 
     const relevantRoutes = useMemo(() => {
         if (assignmentType === 'commute') {
             return allRoutes.filter(r => r.busId === targetBus.id && weekdays.includes(r.dayOfWeek) && r.type === 'Afternoon');
+        } else if (assignmentType === 'afterSchool') {
+            return allRoutes.filter(r => r.busId === targetBus.id && r.type === 'AfterSchool');
+        } else {
+            return allRoutes.filter(r => r.busId === targetBus.id && r.dayOfWeek === 'Saturday');
         }
-        return allRoutes.filter(r => r.busId === targetBus.id && r.type === 'AfterSchool');
     }, [allRoutes, targetBus, assignmentType, weekdays]);
 
     useEffect(() => {
-        if (relevantRoutes.length > 0) {
-            setSelectedTeacherIds(relevantRoutes[0].teacherIds || []);
-        }
+        const initial: any = {};
+        relevantRoutes.forEach(r => {
+            initial[r.dayOfWeek] = r.teacherIds || [];
+        });
+        setSelectedTeachersPerDay(initial);
     }, [relevantRoutes]);
     
     const handleSave = async () => {
@@ -69,10 +164,23 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
         
         try {
             const batch = writeBatch(db);
-            relevantRoutes.forEach(route => {
-                const routeRef = doc(db, 'routes', route.id);
-                batch.update(routeRef, { teacherIds: selectedTeacherIds });
-            });
+            if (assignmentType === 'commute') {
+                const globalCommuteIds = selectedTeachersPerDay['Monday'] || []; // default to Monday for global if needed
+                relevantRoutes.forEach(route => {
+                    batch.update(doc(db, 'routes', route.id), { teacherIds: globalCommuteIds });
+                });
+            } else if (assignmentType === 'afterSchool') {
+                relevantRoutes.forEach(route => {
+                    if (selectedTeachersPerDay[route.dayOfWeek]) {
+                        batch.update(doc(db, 'routes', route.id), { teacherIds: selectedTeachersPerDay[route.dayOfWeek] });
+                    }
+                });
+            } else {
+                const saturdayIds = selectedTeachersPerDay['Saturday'] || [];
+                relevantRoutes.forEach(route => {
+                    batch.update(doc(db, 'routes', route.id), { teacherIds: saturdayIds });
+                });
+            }
             await batch.commit();
             toast({ title: t('success'), description: t('admin.teacher_assignment.change.success') });
             onOpenChange(false);
@@ -81,46 +189,100 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
         }
     };
 
-    const handleCheckboxChange = (teacherId: string, checked: boolean) => {
-        setSelectedTeacherIds(prev =>
-            checked ? [...prev, teacherId] : prev.filter(id => id !== teacherId)
-        );
-    };
-    
-    const handleReset = () => {
-        setSelectedTeacherIds([]);
+    const setTeacherForSlot = (day: DayOfWeek, slot: 0 | 1, teacherId: string) => {
+        setSelectedTeachersPerDay(prev => {
+            const current = [...(prev[day] || [])];
+            if (teacherId === 'none') {
+                 if (slot === 0) { current[0] = ''; }
+                 else { current[1] = ''; }
+            } else {
+                 current[slot] = teacherId;
+            }
+            return { ...prev, [day]: current };
+        });
     }
 
-    const sortedTeachers = useMemo(() => [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [teachers]);
+    const eligibleTeachers = useMemo(() => {
+        if (assignmentType === 'commute') return teachers;
+        return teachers.filter(t => !t.afterSchoolDays || t.afterSchoolDays.includes(activeDay));
+    }, [teachers, activeDay, assignmentType]);
+
+    const sortedTeachers = useMemo(() => [...eligibleTeachers].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [eligibleTeachers]);
     
     return (
-        <DialogContent>
+        <DialogContent className="max-w-lg">
             <DialogHeader>
                 <DialogTitle>{t('admin.teacher_assignment.change.title')} - {targetBus.name}</DialogTitle>
                 <CardDescription>
-                    {assignmentType === 'commute' ? "평일 하교" : "방과후"} 노선에 대한 담당교사를 변경합니다.
+                    {assignmentType === 'commute' ? "평일 하교 노선 담당교사 변경" : 
+                     assignmentType === 'afterSchool' ? "요일별 방과후 담당교사(1-5주, 6-10주) 변경" : 
+                     "토요일 등하교 담당교사 변경"}
                 </CardDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                {sortedTeachers.map(teacher => (
-                    <div key={teacher.id} className="flex items-center space-x-2">
-                        <Checkbox
-                            id={`teacher-${teacher.id}`}
-                            checked={selectedTeacherIds.includes(teacher.id)}
-                            onCheckedChange={(checked) => handleCheckboxChange(teacher.id, checked as boolean)}
-                        />
-                        <Label htmlFor={`teacher-${teacher.id}`}>
-                            {teacher.name}
-                        </Label>
-                    </div>
-                ))}
-            </div>
-            <DialogFooter className="justify-between">
-                <Button variant="destructive" onClick={handleReset}>{t('reset')}</Button>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
-                    <Button onClick={handleSave}>{t('save')}</Button>
+
+            {assignmentType === 'afterSchool' ? (
+                <div className="space-y-6 py-4">
+                    <Tabs value={activeDay} onValueChange={(v) => setActiveDay(v as DayOfWeek)} className="w-full">
+                        <TabsList className="grid grid-cols-4">
+                            {afterSchoolDays.map(day => <TabsTrigger key={day} value={day}>{t(`day_short.${day.toLowerCase()}`)}</TabsTrigger>)}
+                        </TabsList>
+                        {afterSchoolDays.map(day => (
+                            <TabsContent key={day} value={day} className="space-y-4 pt-4 border rounded-md p-4 bg-muted/20">
+                                <div className="space-y-3">
+                                    <div className="grid gap-2">
+                                        <Label className="text-xs font-bold text-primary">1 ~ 5주 담당 교사</Label>
+                                        <Select 
+                                            value={selectedTeachersPerDay[day]?.[0] || 'none'} 
+                                            onValueChange={(v) => setTeacherForSlot(day, 0, v)}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="교사 선택" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">미지정</SelectItem>
+                                                {sortedTeachers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label className="text-xs font-bold text-primary">6 ~ 10주 담당 교사</Label>
+                                        <Select 
+                                            value={selectedTeachersPerDay[day]?.[1] || 'none'} 
+                                            onValueChange={(v) => setTeacherForSlot(day, 1, v)}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="교사 선택" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">미지정</SelectItem>
+                                                {sortedTeachers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </TabsContent>
+                        ))}
+                    </Tabs>
                 </div>
+            ) : (
+                <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                    {sortedTeachers.map(teacher => (
+                        <div key={teacher.id} className="flex items-center space-x-2">
+                            <Checkbox
+                                id={`teacher-${teacher.id}`}
+                                checked={(selectedTeachersPerDay[assignmentType === 'commute' ? 'Monday' : 'Saturday'] || []).includes(teacher.id)}
+                                onCheckedChange={(checked) => {
+                                    const dayKey = assignmentType === 'commute' ? 'Monday' : 'Saturday';
+                                    const current = [...(selectedTeachersPerDay[dayKey] || [])];
+                                    const next = checked ? [...current, teacher.id] : current.filter(id => id !== teacher.id);
+                                    setSelectedTeachersPerDay(prev => ({ ...prev, [dayKey]: next }));
+                                }}
+                            />
+                            <Label htmlFor={`teacher-${teacher.id}`}>{teacher.name}</Label>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <DialogFooter className="justify-end gap-2">
+                 <Button variant="outline" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
+                 <Button onClick={handleSave}>{t('save')}</Button>
             </DialogFooter>
         </DialogContent>
     );
@@ -129,30 +291,43 @@ const TeacherAssignmentDialog = ({ targetBus, allRoutes, teachers, assignmentTyp
 interface TeacherManagementTabProps {
     teachers: Teacher[];
     afterSchoolTeachers: Teacher[];
+    saturdayTeachers: Teacher[];
     buses: Bus[];
     routes: Route[];
     destinations: Destination[];
 }
 
-export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, routes, destinations }: TeacherManagementTabProps) => {
+export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, saturdayTeachers, buses, routes, destinations }: TeacherManagementTabProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     const { t } = useTranslation();
-    const [teacherAssignmentType, setTeacherAssignmentType] = useState<'commute' | 'afterSchool'>('commute');
+    const [teacherAssignmentType, setTeacherAssignmentType] = useState<'commute' | 'afterSchool' | 'saturday'>('commute');
     const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
     const [selectedBusForTeacher, setSelectedBusForTeacher] = useState<Bus | null>(null);
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
     const [previousRouteAssignments, setPreviousRouteAssignments] = useState<Record<string, string[]> | null>(null);
+    const [afterSchoolPoolDayFilter, setAfterSchoolPoolDayFilter] = useState<DayOfWeek | 'All'>('All');
 
-    const currentTeacherPool = teacherAssignmentType === 'commute' ? teachers : afterSchoolTeachers;
+    const currentTeacherPool = useMemo(() => {
+        if (teacherAssignmentType === 'commute') return teachers;
+        if (teacherAssignmentType === 'afterSchool') {
+            if (afterSchoolPoolDayFilter !== 'All') {
+                return afterSchoolTeachers.filter(t => !t.afterSchoolDays || t.afterSchoolDays.length === 0 || t.afterSchoolDays.includes(afterSchoolPoolDayFilter));
+            }
+            return afterSchoolTeachers;
+        }
+        return saturdayTeachers;
+    }, [teacherAssignmentType, teachers, afterSchoolTeachers, saturdayTeachers, afterSchoolPoolDayFilter]);
     const sortedTeachersList = useMemo(() => [...currentTeacherPool].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [currentTeacherPool]);
 
     const isBusOperational = useCallback((busId: string) => {
         let categoryRoutes: Route[] = [];
         if (teacherAssignmentType === 'commute') {
             categoryRoutes = routes.filter(r => r.busId === busId && ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon');
-        } else {
+        } else if (teacherAssignmentType === 'afterSchool') {
             categoryRoutes = routes.filter(r => r.busId === busId && r.type === 'AfterSchool');
+        } else {
+            categoryRoutes = routes.filter(r => r.busId === busId && r.dayOfWeek === 'Saturday');
         }
         // A bus is only "operational" for teacher assignment if it has both stops AND students assigned.
         return categoryRoutes.some(r => (r.stops?.length ?? 0) > 0 && r.seating.some(s => s.studentId !== null));
@@ -162,13 +337,41 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
         const file = event.target.files?.[0];
         if (!file) return;
 
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: async (results) => {
-                const newTeachersData: NewTeacher[] = results.data.map((row: any) => ({
-                    name: (row['선생님 이름'] || row['name'] || '').trim()
-                })).filter(teacher => teacher.name);
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const XLSX = await import('xlsx');
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const results: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                
+                const newTeachersData: NewTeacher[] = results.map((row: any) => {
+                    const nameRaw = (row['선생님 이름'] || row['name'] || row['이름'] || row['Teacher Name'] || row['Teacher'] || row['선생님'] || '').toString().trim();
+                    const daysStr = (row['방과후요일'] || row['days'] || row['Days'] || row['요일'] || '').toString();
+                    
+                    const sanitizeName = (val: string) => {
+                        return val.replace(/\(.*\)/g, '').trim(); 
+                    };
+                    
+                    const name = sanitizeName(nameRaw);
+                    let afterSchoolDays: DayOfWeek[] | undefined = undefined;
+                    if (daysStr && teacherAssignmentType === 'afterSchool') {
+                        const dayTokens = daysStr.split(/[,/|]/).map((s: string) => s.trim());
+                        const mapping: Record<string, DayOfWeek> = { '월': 'Monday', '화': 'Tuesday', '수': 'Wednesday', '목': 'Thursday', '금': 'Friday', '토': 'Saturday' };
+                        const foundDays: DayOfWeek[] = [];
+                        dayTokens.forEach((tk: string) => {
+                            for (const [ko, en] of Object.entries(mapping)) {
+                                if (tk.includes(ko) || tk.toLowerCase().includes(en.toLowerCase())) {
+                                    foundDays.push(en);
+                                }
+                            }
+                        });
+                        if (foundDays.length > 0) afterSchoolDays = Array.from(new Set(foundDays));
+                    }
+                    return { name, afterSchoolDays };
+                }).filter(teacher => teacher.name);
 
                 if (newTeachersData.length === 0) {
                     toast({ title: t('error'), description: t('admin.teacher_management.batch.validation_error'), variant: "destructive" });
@@ -178,8 +381,10 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                 try {
                     if (teacherAssignmentType === 'commute') {
                         await addTeachersInBatch(newTeachersData);
-                    } else {
+                    } else if (teacherAssignmentType === 'afterSchool') {
                         await addAfterSchoolTeachersInBatch(newTeachersData);
+                    } else {
+                        await addSaturdayTeachersInBatch(newTeachersData);
                     }
                     dismiss();
                     toast({ title: t('success'), description: t('admin.teacher_management.batch.success', { count: newTeachersData.length }) });
@@ -187,11 +392,11 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                     dismiss();
                     toast({ title: t('error'), description: t('admin.teacher_management.batch.error'), variant: "destructive" });
                 }
-            },
-            error: (error) => {
-                toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
+            } catch (err: any) {
+                toast({ title: t('admin.file_parse_error'), description: err.message, variant: "destructive" });
             }
-        });
+        };
+        reader.readAsArrayBuffer(file);
 
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
@@ -199,16 +404,24 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
     };
     
     const handleDownloadTemplate = () => {
-        const headers = "선생님 이름";
-        const example = "Hong-Gildong";
-        const csvContent = "\uFEFF" + headers + "\n" + example;
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.body.appendChild(document.createElement("a"));
-        link.setAttribute("href", url);
-        link.setAttribute("download", `teacher_template_${teacherAssignmentType}.csv`);
-        link.click();
-        document.body.removeChild(link);
+        import('xlsx').then(XLSX => {
+            const headers = teacherAssignmentType === 'afterSchool' ? ["선생님 이름", "방과후요일"] : ["선생님 이름"];
+            const examples = teacherAssignmentType === 'afterSchool' ? [
+                ["Hong-Gildong", "월/수/금"],
+                ["Kim-Cheolsu", "화목"],
+                ["Jeong-Jaehyung", "전체"]
+            ] : [
+                ["Hong-Gildong"]
+            ];
+            const wsData = [headers, ...examples];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "교사_등록_템플릿");
+            XLSX.writeFile(wb, `teacher_template_${teacherAssignmentType}.xlsx`);
+        }).catch(err => {
+            console.error(err);
+            toast({ title: t('error'), description: "Excel 다운로드 중 오류가 발생했습니다.", variant: 'destructive' });
+        });
     };
 
     const handleDownloadTeacherList = () => {
@@ -216,24 +429,30 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
             toast({ title: t('notice'), description: "다운로드할 교사 데이터가 없습니다." });
             return;
         }
-        const headers = ["선생님 이름"];
-        const csvRows = currentTeacherPool.map(t => `"${t.name.replace(/"/g, '""')}"`);
-        const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.body.appendChild(document.createElement("a"));
-        link.setAttribute("href", url);
-        link.setAttribute("download", `KIS_Teacher_List_${teacherAssignmentType}_${format(new Date(), 'yyyyMMdd')}.csv`);
-        link.click();
-        document.body.removeChild(link);
+        import('xlsx').then(XLSX => {
+            const headers = ["선생님 이름"];
+            const wsData = [
+                headers,
+                ...currentTeacherPool.map(t => [t.name])
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "교사_목록");
+            XLSX.writeFile(wb, `KIS_Teacher_List_${teacherAssignmentType}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+        }).catch(err => {
+            console.error(err);
+            toast({ title: t('error'), description: "Excel 다운로드 중 오류가 발생했습니다.", variant: 'destructive' });
+        });
     };
 
     const handleClearAllTeachers = async () => {
         try {
             if (teacherAssignmentType === 'commute') {
-                await deleteAllTeachers();
+                await clearTeachers();
+            } else if (teacherAssignmentType === 'afterSchool') {
+                await clearAfterSchoolTeachers();
             } else {
-                await deleteAllAfterSchoolTeachers();
+                await clearSaturdayTeachers();
             }
             setSelectedTeacherIds(new Set());
             toast({ title: t('success'), description: "모든 교사 정보가 삭제되었습니다." });
@@ -267,8 +486,10 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
         try {
             if (teacherAssignmentType === 'commute') {
                 await deleteTeachersInBatch(ids);
-            } else {
+            } else if (teacherAssignmentType === 'afterSchool') {
                 await deleteAfterSchoolTeachersInBatch(ids);
+            } else {
+                await deleteSaturdayTeachersInBatch(ids);
             }
             setSelectedTeacherIds(new Set());
             dismiss();
@@ -279,15 +500,65 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
         }
     };
 
+    const getAssignedTeachers = (busId: string) => {
+        let busRoutes: Route[] = [];
+        if (teacherAssignmentType === 'commute') {
+            busRoutes = routes.filter(r => r.busId === busId && ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon');
+        } else if (teacherAssignmentType === 'afterSchool') {
+            busRoutes = routes.filter(r => r.busId === busId && r.type === 'AfterSchool');
+        } else {
+            busRoutes = routes.filter(r => r.busId === busId && r.dayOfWeek === 'Saturday');
+        }
+
+        const teacherIds = Array.from(new Set(busRoutes.flatMap(r => r.teacherIds || [])));
+        return teacherIds.map(id => {
+            const t = currentTeacherPool.find(tp => tp.id === id);
+            return { id, name: t?.name || 'Unknown' };
+        }).filter(t => t.name !== 'Unknown');
+    };
+
+    const handleUnassignTeacher = async (busId: string, teacherId: string) => {
+        let routesToUpdate: Route[] = [];
+        if (teacherAssignmentType === 'commute') {
+            routesToUpdate = routes.filter(r => r.busId === busId && ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon');
+        } else if (teacherAssignmentType === 'afterSchool') {
+            routesToUpdate = routes.filter(r => r.busId === busId && r.type === 'AfterSchool');
+        } else {
+            routesToUpdate = routes.filter(r => r.busId === busId && r.dayOfWeek === 'Saturday');
+        }
+
+        if (routesToUpdate.length === 0) return;
+
+        try {
+            const batch = writeBatch(db);
+            routesToUpdate.forEach(route => {
+                const newIds = (route.teacherIds || []).filter(id => id !== teacherId);
+                if (newIds.length !== (route.teacherIds || []).length) {
+                    batch.update(doc(db, 'routes', route.id), { teacherIds: newIds });
+                }
+            });
+            await batch.commit();
+            toast({ title: t('success'), description: "교사 배정이 해제되었습니다." });
+        } catch (error) {
+            toast({ title: t('error'), description: "배정 해제 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
+    };
+
     const getTeachersForBus = (busId: string) => {
-        const relevantRouteType = teacherAssignmentType === 'commute' ? 'Afternoon' : 'AfterSchool';
-        const relevantRoute = routes.find(r => r.busId === busId && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
-        if (!relevantRoute || !relevantRoute.teacherIds) return t('unassigned');
-        
-        const names = relevantRoute.teacherIds
-            .map(id => currentTeacherPool.find(t => t.id === id)?.name)
-            .filter(Boolean);
-        return names.length > 0 ? names.join(', ') : t('unassigned');
+        if (teacherAssignmentType === 'afterSchool') {
+            // Summary for after-school: Show Monday as default or 'Assigned'
+            const busAllDays = routes.filter(r => r.busId === busId && r.type === 'AfterSchool');
+            const assignedCount = busAllDays.filter(r => (r.teacherIds || []).length > 0).length;
+            if (assignedCount === 0) return t('unassigned');
+            return `${assignedCount}개 요일 배정됨`;
+        } else {
+            const dayKey = teacherAssignmentType === 'commute' ? 'Monday' : 'Saturday';
+            const relevantRouteType = teacherAssignmentType === 'commute' ? 'Afternoon' : 'Morning'; // Morning for Sat check is fine, or just filter by day
+            const relevantRoute = routes.find(r => r.busId === busId && r.dayOfWeek === dayKey && (teacherAssignmentType === 'commute' ? r.type === 'Afternoon' : true));
+            if (!relevantRoute || !relevantRoute.teacherIds) return t('unassigned');
+            const names = relevantRoute.teacherIds.map(id => currentTeacherPool.find(t => t.id === id)?.name).filter(Boolean);
+            return names.length > 0 ? names.join(', ') : t('unassigned');
+        }
     };
 
     const handleBatchAssignTeachers = async () => {
@@ -296,77 +567,59 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
             return;
         }
 
-        let routesToUpdate: Route[] = [];
-        let relevantDays: DayOfWeek[];
-        if (teacherAssignmentType === 'commute') {
-            relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'Afternoon');
-        } else {
-            relevantDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            routesToUpdate = routes.filter(r => relevantDays.includes(r.dayOfWeek) && r.type === 'AfterSchool');
-        }
-
-        const targetBuses = sortBuses(buses.filter(bus => {
-            const isActive = bus.isActive ?? true;
-            const isExcluded = bus.excludeFromAssignment ?? false;
-            if (!isActive || isExcluded) return false;
-            return isBusOperational(bus.id);
-        }));
-
-        if (targetBuses.length === 0) {
-            toast({ title: t('notice'), description: t('admin.teacher_assignment.assign.no_operational_buses') });
-            return;
-        }
-
-        const busyTeacherIds = new Set<string>();
-        const excludedBusIds = new Set(buses.filter(bus => bus.excludeFromAssignment === true).map(bus => bus.id));
-        routesToUpdate.forEach(r => {
-            if (excludedBusIds.has(r.busId)) {
-                r.teacherIds?.forEach(id => busyTeacherIds.add(id));
-            }
-        });
-        
-        const availableTeachers = currentTeacherPool.filter(t => !busyTeacherIds.has(t.id));
-        const shuffledTeachers = [...availableTeachers].sort(() => Math.random() - 0.5);
-        
-        if (shuffledTeachers.length === 0) {
-            toast({ title: t('error'), description: t('admin.teacher_assignment.assign.not_enough_teachers', { count: 0 }), variant: 'destructive' });
-            return;
-        }
-
+        const batch = writeBatch(db);
         const backup: Record<string, string[]> = {};
-        routesToUpdate.forEach(r => {
-            backup[r.id] = r.teacherIds || [];
-        });
+        const daysToAssign: DayOfWeek[] = teacherAssignmentType === 'commute' 
+            ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] 
+            : ['Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+
+        // Backup current assignments
+        routes.filter(r => daysToAssign.includes(r.dayOfWeek) && r.type === (teacherAssignmentType === 'commute' ? 'Afternoon' : 'AfterSchool'))
+            .forEach(r => { backup[r.id] = r.teacherIds || []; });
         setPreviousRouteAssignments(backup);
 
-        const batch = writeBatch(db);
-        let teacherIndex = 0;
-        const totalBuses = targetBuses.length;
-
-        if (shuffledTeachers.length < totalBuses) {
-            toast({ title: t('notice'), description: t('admin.teacher_assignment.assign.not_enough_teachers', { count: shuffledTeachers.length }) });
-            return;
-        }
-
-        let extraTeachersCount = Math.max(0, shuffledTeachers.length - totalBuses);
-        const buses45 = targetBuses.filter(b => b.capacity === 45);
-        let assignmentCountFor45 = Math.min(extraTeachersCount, buses45.length);
-
-        for (const bus of targetBuses) {
-            const assignedIds: string[] = [];
-            if (teacherIndex < shuffledTeachers.length) {
-                assignedIds.push(shuffledTeachers[teacherIndex++].id);
+        if (teacherAssignmentType === 'commute' || teacherAssignmentType === 'saturday') {
+            const dayKey = teacherAssignmentType === 'commute' ? 'Monday' : 'Saturday';
+            const targetBuses = sortBuses(buses.filter(bus => !bus.excludeFromAssignment && (bus.isActive ?? true) && isBusOperational(bus.id)));
+            if (targetBuses.length === 0) {
+                toast({ title: t('notice'), description: t('admin.teacher_assignment.assign.no_operational_buses') });
+                return;
             }
-            if (bus.capacity === 45 && assignmentCountFor45 > 0 && teacherIndex < shuffledTeachers.length) {
-                assignedIds.push(shuffledTeachers[teacherIndex++].id);
-                assignmentCountFor45--;
+            const availableTeachers = [...currentTeacherPool].sort(() => Math.random() - 0.5);
+            let teacherIndex = 0;
+            for (const bus of targetBuses) {
+                const assignedIds: string[] = [];
+                if (teacherIndex < availableTeachers.length) assignedIds.push(availableTeachers[teacherIndex++].id);
+                // Extra teacher for 45-seaters if available
+                if (bus.capacity === 45 && teacherIndex < availableTeachers.length) assignedIds.push(availableTeachers[teacherIndex++].id);
+                
+                routes.filter(r => r.busId === bus.id && (teacherAssignmentType === 'commute' ? daysToAssign.includes(r.dayOfWeek) && r.type === 'Afternoon' : r.dayOfWeek === 'Saturday'))
+                    .forEach(r => batch.update(doc(db, 'routes', r.id), { teacherIds: assignedIds }));
             }
-
-            const busRoutesToUpdate = routesToUpdate.filter(r => r.busId === bus.id);
-            busRoutesToUpdate.forEach(route => {
-                batch.update(doc(db, 'routes', route.id), { teacherIds: assignedIds });
-            });
+        } else {
+            // After-School logic: Day by Day
+            for (const day of daysToAssign) {
+                const dayRoutes = routes.filter(r => r.dayOfWeek === day && r.type === 'AfterSchool' && (r.stops?.length ?? 0) > 0);
+                const dayBuses = sortBuses(buses.filter(b => !b.excludeFromAssignment && (b.isActive ?? true) && dayRoutes.some(r => r.busId === b.id)));
+                
+                // Available teachers for this specific day
+                const dayPool = afterSchoolTeachers.filter(t => !t.afterSchoolDays || t.afterSchoolDays.includes(day));
+                const shuffledTeachers = [...dayPool].sort(() => Math.random() - 0.5);
+                
+                let teacherIndex = 0;
+                for (const bus of dayBuses) {
+                    const assignedIds: string[] = [];
+                    // Slot 1 (1-5 weeks)
+                    if (teacherIndex < shuffledTeachers.length) assignedIds.push(shuffledTeachers[teacherIndex++].id);
+                    // Slot 2 (6-10 weeks)
+                    if (teacherIndex < shuffledTeachers.length) assignedIds.push(shuffledTeachers[teacherIndex++].id);
+                    
+                    const route = dayRoutes.find(r => r.busId === bus.id);
+                    if (route) {
+                        batch.update(doc(db, 'routes', route.id), { teacherIds: assignedIds });
+                    }
+                }
+            }
         }
 
         try {
@@ -396,8 +649,10 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
         let routesToClear: Route[] = [];
         if (teacherAssignmentType === 'commute') {
             routesToClear = routes.filter(r => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon');
-        } else {
+        } else if (teacherAssignmentType === 'afterSchool') {
             routesToClear = routes.filter(r => r.type === 'AfterSchool');
+        } else {
+            routesToClear = routes.filter(r => r.dayOfWeek === 'Saturday');
         }
         if (routesToClear.length === 0) return;
         const batch = writeBatch(db);
@@ -426,42 +681,43 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
     };
 
     const handleDownloadAssignments = useCallback(() => {
-        const sorted = sortBuses(buses);
-        const headers = ["버스 번호", "타입", "담당 교사", "운행 노선", "상태"];
-        
-        const rows = sorted.map(bus => {
-            const isOperational = isBusOperational(bus.id);
-            const teachersStr = getTeachersForBus(bus.id);
+        import('xlsx').then(XLSX => {
+            const sorted = sortBuses(buses);
+            const headers = ["버스 번호", "타입", "담당 교사", "운행 노선", "상태"];
             
-            const relevantRouteType = teacherAssignmentType === 'commute' ? 'Afternoon' : 'AfterSchool';
-            const route = routes.find(r => r.busId === bus.id && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
-            const routePath = (route?.stops || [])
-                .map(id => destinations.find(d => d.id === id)?.name)
-                .filter(Boolean)
-                .join(' -> ');
+            const rows = sorted.map(bus => {
+                const isOperational = isBusOperational(bus.id);
+                const teachersStr = getTeachersForBus(bus.id);
+                
+                const relevantRouteType = teacherAssignmentType === 'commute' ? 'Afternoon' : 'AfterSchool';
+                const route = routes.find(r => r.busId === bus.id && r.dayOfWeek === 'Monday' && r.type === relevantRouteType);
+                const routePath = (route?.stops || [])
+                    .map(id => destinations.find(d => d.id === id)?.name)
+                    .filter(Boolean)
+                    .join(' -> ');
 
-            const statusStr = !(bus.isActive ?? true) ? "비활성" : (bus.excludeFromAssignment ? "배정제외" : (isOperational ? "운행중" : "운행없음"));
-            
-            const escape = (val: string) => `"${val.toString().replace(/"/g, '""')}"`;
-            return [
-                escape(bus.name),
-                escape(t(`bus_type.${bus.type}`)),
-                escape(teachersStr),
-                escape(routePath || ""),
-                escape(statusStr)
-            ].join(',');
+                const statusStr = !(bus.isActive ?? true) ? "비활성" : (bus.excludeFromAssignment ? "배정제외" : (isOperational ? "운행중" : "운행없음"));
+                
+                return [
+                    bus.name,
+                    t(`bus_type.${bus.type}`),
+                    teachersStr,
+                    routePath || "",
+                    statusStr
+                ];
+            });
+
+            const wsData = [headers, ...rows];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            const categoryName = teacherAssignmentType === 'commute' ? "하교" : "방과후";
+            XLSX.utils.book_append_sheet(wb, ws, "배정현황");
+            XLSX.writeFile(wb, `KIS_Bus_Teacher_Assignments_${categoryName}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+        }).catch(err => {
+            console.error(err);
+            toast({ title: t('error'), description: "Excel 다운로드 중 오류가 발생했습니다.", variant: 'destructive' });
         });
-
-        const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.body.appendChild(document.createElement("a"));
-        const categoryName = teacherAssignmentType === 'commute' ? "하교" : "방과후";
-        link.setAttribute("href", url);
-        link.setAttribute("download", `KIS_Bus_Teacher_Assignments_${categoryName}_${format(new Date(), 'yyyyMMdd')}.csv`);
-        link.click();
-        document.body.removeChild(link);
-    }, [buses, teacherAssignmentType, isBusOperational, t, routes, destinations]);
+    }, [buses, teacherAssignmentType, isBusOperational, t, routes, destinations, getTeachersForBus]);
 
     useEffect(() => {
         setSelectedTeacherIds(new Set());
@@ -479,18 +735,40 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="flex flex-col gap-4">
-                    <Tabs value={teacherAssignmentType} onValueChange={(v) => setTeacherAssignmentType(v as any)} className="w-full">
-                        <TabsList className="grid grid-cols-2 max-w-md">
+                    <Tabs value={teacherAssignmentType} onValueChange={(v) => {
+                        setTeacherAssignmentType(v as any);
+                        setSelectedTeacherIds(new Set());
+                    }} className="w-full">
+                        <TabsList className="grid grid-cols-3 max-w-lg">
                             <TabsTrigger value="commute">{t('route_type.commute')}</TabsTrigger>
                             <TabsTrigger value="afterSchool">{t('route_type.AfterSchool')}</TabsTrigger>
+                            <TabsTrigger value="saturday">토요일</TabsTrigger>
                         </TabsList>
                     </Tabs>
 
                     <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <h3 className="text-lg font-semibold">
-                                {teacherAssignmentType === 'commute' ? "등하교 담당 교사 명단" : "방과후 담당 교사 명단"}
+                                {teacherAssignmentType === 'commute' ? "등하교 담당 교사 명단" : 
+                                 teacherAssignmentType === 'afterSchool' ? "방과후 담당 교사 명단" : 
+                                 "토요일 담당 교사 명단"}
                             </h3>
+                            {teacherAssignmentType === 'afterSchool' && (
+                                <div className="flex items-center gap-2 bg-muted p-1 rounded-md">
+                                    <span className="text-xs font-semibold px-2">요일 필터:</span>
+                                    {(['All', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'] as const).map(d => (
+                                        <Button 
+                                            key={d} 
+                                            variant={afterSchoolPoolDayFilter === d ? "default" : "ghost"} 
+                                            size="sm" 
+                                            className="h-7 text-[10px] px-2"
+                                            onClick={() => setAfterSchoolPoolDayFilter(d)}
+                                        >
+                                            {d === 'All' ? '전체' : t(`day_short.${d.toLowerCase()}`)}
+                                        </Button>
+                                    ))}
+                                </div>
+                            )}
                             <div className="flex flex-wrap gap-2">
                                 <Button variant="outline" size="sm" onClick={handleDownloadTeacherList}><Download className="mr-2 h-4 w-4" /> 목록 다운로드</Button>
                                 <Button variant="outline" size="sm" onClick={handleDownloadTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.teacher_management.template')}</Button>
@@ -531,7 +809,7 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+                                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx" className="hidden" />
                             </div>
                         </div>
 
@@ -546,6 +824,8 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                                             />
                                         </TableHead>
                                         <TableHead>{t('admin.teacher_management.teacher_name')}</TableHead>
+                                        {teacherAssignmentType === 'afterSchool' && <TableHead>담당 가능 요일</TableHead>}
+                                        <TableHead className="text-right">{t('actions')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -559,11 +839,26 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                                                     />
                                                 </TableCell>
                                                 <TableCell className="font-medium">{teacher.name}</TableCell>
+                                                {teacherAssignmentType === 'afterSchool' && (
+                                                    <TableCell>
+                                                        <div className="flex gap-1">
+                                                            {teacher.afterSchoolDays?.map(day => (
+                                                                <Badge key={day} variant="outline" className="text-[10px] py-0">{t(`day_short.${day.toLowerCase()}`)}</Badge>
+                                                            )) || <span className="text-xs text-muted-foreground italic">전체</span>}
+                                                        </div>
+                                                    </TableCell>
+                                                )}
+                                                <TableCell className="text-right">
+                                                    <TeacherEditDialog 
+                                                        teacher={teacher} 
+                                                        type={teacherAssignmentType}
+                                                    />
+                                                </TableCell>
                                             </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
+                                            <TableCell colSpan={teacherAssignmentType === 'afterSchool' ? 4 : 3} className="text-center py-8 text-muted-foreground">
                                                 등록된 교사가 없습니다.
                                             </TableCell>
                                         </TableRow>
@@ -644,11 +939,27 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, buses, rou
                                             <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
                                             <TableCell>
                                                 <div className="flex flex-wrap gap-1">
-                                                    {getTeachersForBus(bus.id).split(', ').map((name, i) => (
-                                                        name === t('unassigned') ? 
-                                                        <span key={i} className="text-muted-foreground italic text-xs">{name}</span> :
-                                                        <Badge key={i} variant="secondary" className="font-normal text-xs">{name}</Badge>
-                                                    ))}
+                                                    {(() => {
+                                                        const assignedTeachers = getAssignedTeachers(bus.id);
+                                                        if (assignedTeachers.length === 0) {
+                                                            return <span className="text-muted-foreground italic text-xs">{t('unassigned')}</span>;
+                                                        }
+                                                        return assignedTeachers.map((teacher, i) => (
+                                                            <Badge key={i} variant="secondary" className="font-normal text-xs flex items-center gap-1 pr-1 group">
+                                                                {teacher.name}
+                                                                <button 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleUnassignTeacher(bus.id, teacher.id);
+                                                                    }}
+                                                                    className="h-3 w-3 hover:bg-muted-foreground/30 rounded-full flex items-center justify-center transition-colors focus:outline-none"
+                                                                    title={t('unassign')}
+                                                                >
+                                                                    <X className="h-2 w-2" />
+                                                                </button>
+                                                            </Badge>
+                                                        ));
+                                                    })()}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right">

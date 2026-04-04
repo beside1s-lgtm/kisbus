@@ -12,7 +12,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import type { Student, Destination, Bus, Route, DayOfWeek, RouteType } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { cn, normalizeString } from '@/lib/utils';
+import { cn, normalizeString, getStudentName } from '@/lib/utils';
 import { updateStudent, addDestination, deleteStudentsInBatch } from '@/lib/firebase-data';
 import { useToast } from '@/hooks/use-toast';
 
@@ -30,6 +30,7 @@ interface StudentGlobalSearchPanelProps {
     globalSearchResults: Student[];
     handleGlobalStudentClick: (student: Student) => void;
     handleDownloadAllStudents: () => void;
+    handleDownloadRouteAssignments: () => void;
     handleDownloadStudentTemplate: () => void;
     fileInputRef: React.RefObject<HTMLInputElement | null>;
     handleStudentFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -45,12 +46,12 @@ interface StudentGlobalSearchPanelProps {
 export const StudentGlobalSearchPanel = ({
     students, destinations, buses, routes, selectedRouteType, dayOrder, selectedGlobalStudent, setSelectedGlobalStudent,
     globalSearchQuery, setGlobalSearchQuery, globalSearchResults, handleGlobalStudentClick,
-    handleDownloadAllStudents, handleDownloadStudentTemplate, fileInputRef, handleStudentFileUpload,
+    handleDownloadAllStudents, handleDownloadRouteAssignments, handleDownloadStudentTemplate, fileInputRef, handleStudentFileUpload,
     handleDeleteAllStudents, handleUnassignAllFromStudent, handleAssignStudentFromSearch,
     handleStudentInfoChange, handleDestinationChange, handleUnassignStudentFromRoute,
     assignedRoutesForSelectedStudent
 }: StudentGlobalSearchPanelProps) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { toast } = useToast();
     const [siblingSearchQuery, setSiblingSearchQuery] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
@@ -65,7 +66,9 @@ export const StudentGlobalSearchPanel = ({
         const lowerQuery = normalizeString(siblingSearchQuery);
         return students.filter(s => 
             s.id !== selectedGlobalStudent.id && 
-            normalizeString(s.name).includes(lowerQuery)
+            (normalizeString(s.nameKo || '').includes(lowerQuery) || 
+             normalizeString(s.nameEn || '').includes(lowerQuery) || 
+             normalizeString(s.name || '').includes(lowerQuery))
         ).slice(0, 5);
     }, [siblingSearchQuery, students, selectedGlobalStudent]);
 
@@ -99,7 +102,11 @@ export const StudentGlobalSearchPanel = ({
 
     const toggleNameEdit = () => {
         if (isEditingName && selectedGlobalStudent) {
-            handleStudentInfoChange(selectedGlobalStudent.id, 'name', selectedGlobalStudent.name);
+            handleStudentInfoChange(selectedGlobalStudent.id, 'name', selectedGlobalStudent.nameEn || selectedGlobalStudent.nameKo || selectedGlobalStudent.name);
+            updateStudent(selectedGlobalStudent.id, { 
+                nameKo: selectedGlobalStudent.nameKo || '', 
+                nameEn: selectedGlobalStudent.nameEn || '' 
+            });
         }
         setIsEditingName(!isEditingName);
     };
@@ -136,6 +143,25 @@ export const StudentGlobalSearchPanel = ({
         }
     };
 
+    const handleRejectStudentDestination = async (studentId: string, type: 'morning' | 'afternoon' | 'satMorning' | 'satAfternoon') => {
+        try {
+            const updates: any = {};
+            if (type === 'morning') updates.suggestedMorningDestination = null;
+            else if (type === 'afternoon') updates.suggestedAfternoonDestination = null;
+            else if (type === 'satMorning') updates.suggestedSatMorningDestination = null;
+            else if (type === 'satAfternoon') updates.suggestedSatAfternoonDestination = null;
+            
+            await updateStudent(studentId, updates);
+            toast({ title: t('success'), description: "신청된 목적지를 거절 처리했습니다." });
+
+            if (selectedGlobalStudent?.id === studentId) {
+                setSelectedGlobalStudent(prev => prev ? { ...prev, ...updates } : null);
+            }
+        } catch (error) {
+            toast({ title: t('error'), description: "처리 중 오류가 발생했습니다.", variant: 'destructive' });
+        }
+    };
+
     const handleDeleteSelectedStudent = async () => {
         if (!selectedGlobalStudent) return;
         try {
@@ -169,8 +195,8 @@ export const StudentGlobalSearchPanel = ({
                                 {globalSearchResults.map(student => (
                                     <div key={student.id} 
                                         className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer flex justify-between items-center"
-                                        onClick={() => handleGlobalStudentClick(student)}>
-                                        <span>{student.name} ({student.grade} {student.class})</span>
+                                        onClick={() => { handleGlobalStudentClick(student); setGlobalSearchQuery(''); }}>
+                                        <span>{getStudentName(student, i18n.language)} ({student.grade} {student.class})</span>
                                         {student.siblingGroupId && <Users className="w-3 h-3 text-primary" />}
                                     </div>
                                 ))}
@@ -180,9 +206,10 @@ export const StudentGlobalSearchPanel = ({
                 </div>
                 <div className="flex justify-end mb-4 gap-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={handleDownloadAllStudents}><Download className="mr-2 h-4 w-4" /> 전체 학생 명단</Button>
+                    <Button size="sm" variant="outline" onClick={handleDownloadRouteAssignments}><Download className="mr-2 h-4 w-4" /> 버스 배차 명단</Button>
                     <Button size="sm" variant="outline" onClick={handleDownloadStudentTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.student_management.student_template')}</Button>
                     <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2" /> {t('batch_upload')}</Button>
-                    <input type="file" ref={fileInputRef as React.RefObject<HTMLInputElement>} onChange={handleStudentFileUpload} accept=".csv" className="hidden" />
+                    <input type="file" ref={fileInputRef as React.RefObject<HTMLInputElement>} onChange={handleStudentFileUpload} accept=".xlsx" className="hidden" />
                 </div>
                 <div className="mb-4">
                     <AlertDialog>
@@ -210,7 +237,7 @@ export const StudentGlobalSearchPanel = ({
                         <div className="flex justify-between items-start">
                             <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
-                                    <h4 className="font-semibold">{selectedGlobalStudent.name}</h4>
+                                    <h4 className="font-semibold">{getStudentName(selectedGlobalStudent, i18n.language)}</h4>
                                     {selectedGlobalStudent.siblingGroupId && <Badge variant="secondary" className="text-[10px] py-0 h-4"><Users className="w-2 h-2 mr-1"/>가족</Badge>}
                                 </div>
                                 <p className="text-xs text-muted-foreground">{selectedGlobalStudent.grade} {selectedGlobalStudent.class}</p>
@@ -260,24 +287,37 @@ export const StudentGlobalSearchPanel = ({
                         
                         <Button size="sm" className="w-full" onClick={handleAssignStudentFromSearch}>이 버스에 배정</Button>
                         
-                        <div className="space-y-2">
+                        <div className="flex justify-between items-center">
                             <Label className="text-xs">{t('student.name')}</Label>
-                            <div className="flex gap-2">
+                            <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-6 text-[10px]"
+                                onClick={toggleNameEdit}
+                            >
+                                {isEditingName ? <><Check className="h-3 w-3 mr-1" /> 저장</> : <><Pencil className="h-3 w-3 mr-1" /> 수정</>}
+                            </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">한글</Label>
                                 <Input
-                                    value={selectedGlobalStudent.name || ''}
-                                    onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, name: e.target.value} : null)}
-                                    placeholder={t('student.name_placeholder')}
+                                    value={selectedGlobalStudent.nameKo || ''}
+                                    onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, nameKo: e.target.value} : null)}
+                                    placeholder="한글 이름"
                                     disabled={!isEditingName}
-                                    className={cn(!isEditingName && "bg-muted cursor-not-allowed")}
+                                    className="h-8 text-xs"
                                 />
-                                <Button 
-                                    size="icon" 
-                                    variant={isEditingName ? "default" : "outline"} 
-                                    onClick={toggleNameEdit}
-                                    title={isEditingName ? "저장" : "수정"}
-                                >
-                                    {isEditingName ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                                </Button>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">English</Label>
+                                <Input
+                                    value={selectedGlobalStudent.nameEn || ''}
+                                    onChange={(e) => setSelectedGlobalStudent(s => s ? {...s, nameEn: e.target.value} : null)}
+                                    placeholder="English Name"
+                                    disabled={!isEditingName}
+                                    className="h-8 text-xs"
+                                />
                             </div>
                         </div>
 
@@ -332,7 +372,7 @@ export const StudentGlobalSearchPanel = ({
                             <div className="space-y-1">
                                 {currentSiblings.map(sib => (
                                     <div key={sib.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md text-xs">
-                                        <span>{sib.name} ({sib.grade} {sib.class})</span>
+                                        <span>{getStudentName(sib, i18n.language)} ({sib.grade} {sib.class})</span>
                                         <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => handleRemoveSibling(sib.id)}>
                                             <X className="w-3 h-3" />
                                         </Button>
@@ -341,7 +381,6 @@ export const StudentGlobalSearchPanel = ({
                                 <div className="relative mt-2">
                                     <Search className="absolute left-2 top-2 h-3 w-3 text-muted-foreground" />
                                     <Input
-                                        size="sm"
                                         placeholder="연결할 형제 검색..."
                                         className="pl-7 h-8 text-xs"
                                         value={siblingSearchQuery}
@@ -354,7 +393,7 @@ export const StudentGlobalSearchPanel = ({
                                                     <div key={s.id} 
                                                         className="p-2 text-xs hover:bg-accent rounded-md cursor-pointer flex justify-between items-center"
                                                         onClick={() => handleAddSibling(s)}>
-                                                        <span>{s.name} ({s.grade} {s.class})</span>
+                                                        <span>{getStudentName(s, i18n.language)} ({s.grade} {s.class})</span>
                                                         <UserPlus className="w-3 h-3 text-primary" />
                                                     </div>
                                                 ))}
@@ -375,14 +414,24 @@ export const StudentGlobalSearchPanel = ({
                                         <span className="text-[10px] text-amber-600 font-bold uppercase">{t('admin.student_management.search.suggested_label')}</span>
                                         <span className="text-xs font-semibold text-amber-900">{selectedGlobalStudent.suggestedMorningDestination}</span>
                                     </div>
-                                    <Button 
-                                        size="sm" 
-                                        variant="outline" 
-                                        className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
-                                        onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedMorningDestination!, 'morning')}
-                                    >
-                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
-                                    </Button>
+                                    <div className="flex gap-1">
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
+                                            onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedMorningDestination!, 'morning')}
+                                        >
+                                            <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
+                                        </Button>
+                                        <Button 
+                                            size="sm" 
+                                            variant="ghost" 
+                                            className="h-7 w-7 p-0 text-amber-600 hover:text-destructive hover:bg-amber-100"
+                                            onClick={() => handleRejectStudentDestination(selectedGlobalStudent.id, 'morning')}
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                             <Select 
@@ -404,14 +453,24 @@ export const StudentGlobalSearchPanel = ({
                                         <span className="text-[10px] text-amber-600 font-bold uppercase">{t('admin.student_management.search.suggested_label')}</span>
                                         <span className="text-xs font-semibold text-amber-900">{selectedGlobalStudent.suggestedAfternoonDestination}</span>
                                     </div>
-                                    <Button 
-                                        size="sm" 
-                                        variant="outline" 
-                                        className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
-                                        onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedAfternoonDestination!, 'afternoon')}
-                                    >
-                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
-                                    </Button>
+                                    <div className="flex gap-1">
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
+                                            onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedAfternoonDestination!, 'afternoon')}
+                                        >
+                                            <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
+                                        </Button>
+                                        <Button 
+                                            size="sm" 
+                                            variant="ghost" 
+                                            className="h-7 w-7 p-0 text-amber-600 hover:text-destructive hover:bg-amber-100"
+                                            onClick={() => handleRejectStudentDestination(selectedGlobalStudent.id, 'afternoon')}
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                             <Select 
@@ -436,14 +495,24 @@ export const StudentGlobalSearchPanel = ({
                                         <span className="text-[10px] text-amber-600 font-bold uppercase">{t('admin.student_management.search.suggested_label')}</span>
                                         <span className="text-xs font-semibold text-amber-900">{selectedGlobalStudent.suggestedSatMorningDestination}</span>
                                     </div>
-                                    <Button 
-                                        size="sm" 
-                                        variant="outline" 
-                                        className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
-                                        onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedSatMorningDestination!, 'satMorning')}
-                                    >
-                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
-                                    </Button>
+                                    <div className="flex gap-1">
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
+                                            onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedSatMorningDestination!, 'satMorning')}
+                                        >
+                                            <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
+                                        </Button>
+                                        <Button 
+                                            size="sm" 
+                                            variant="ghost" 
+                                            className="h-7 w-7 p-0 text-amber-600 hover:text-destructive hover:bg-amber-100"
+                                            onClick={() => handleRejectStudentDestination(selectedGlobalStudent.id, 'satMorning')}
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                             <Select 
@@ -465,14 +534,24 @@ export const StudentGlobalSearchPanel = ({
                                         <span className="text-[10px] text-amber-600 font-bold uppercase">{t('admin.student_management.search.suggested_label')}</span>
                                         <span className="text-xs font-semibold text-amber-900">{selectedGlobalStudent.suggestedSatAfternoonDestination}</span>
                                     </div>
-                                    <Button 
-                                        size="sm" 
-                                        variant="outline" 
-                                        className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
-                                        onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedSatAfternoonDestination!, 'satAfternoon')}
-                                    >
-                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
-                                    </Button>
+                                    <div className="flex gap-1">
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="h-7 text-[10px] bg-white hover:bg-amber-100 border-amber-300 text-amber-700"
+                                            onClick={() => handleApproveStudentDestination(selectedGlobalStudent.id, selectedGlobalStudent.suggestedSatAfternoonDestination!, 'satAfternoon')}
+                                        >
+                                            <CheckCircle2 className="w-3 h-3 mr-1" /> {t('admin.student_management.search.approve_suggestion')}
+                                        </Button>
+                                        <Button 
+                                            size="sm" 
+                                            variant="ghost" 
+                                            className="h-7 w-7 p-0 text-amber-600 hover:text-destructive hover:bg-amber-100"
+                                            onClick={() => handleRejectStudentDestination(selectedGlobalStudent.id, 'satAfternoon')}
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                             <Select 

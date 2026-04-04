@@ -5,7 +5,9 @@ import type { Bus, Route, Destination, DayOfWeek, RouteType } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslation } from '@/hooks/use-translation';
+import { cn } from '@/lib/utils';
 
 interface AdminPageFilterProps {
     buses: Bus[];
@@ -39,7 +41,10 @@ export const AdminPageFilter = ({
     const { t } = useTranslation();
 
     const filteredBuses = useMemo(() => {
-        const activeBuses = buses.filter(bus => bus.isActive !== false);
+        const activeBuses = buses.filter(bus => {
+            if (selectedDay === 'Saturday' && selectedRouteType === 'AfterSchool') return false;
+            return bus.isActive !== false;
+        });
         if (!filterConfiguredBusesOnly) return activeBuses;
 
         const operationalBusIds = new Set<string>();
@@ -70,9 +75,9 @@ export const AdminPageFilter = ({
     const currentRouteStops = useMemo(() => {
         if (!showRouteStops || !selectedBusId || selectedBusId === 'all') return null;
         const route = routes.find(r => r.busId === selectedBusId && r.dayOfWeek === selectedDay && r.type === selectedRouteType);
-        if (!route || route.stops.length === 0) return t('no_route_info');
+        if (!route || !route.stops || route.stops.length === 0) return t('no_route_info');
 
-        const stopNames = route.stops.map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean);
+        const stopNames = route.stops.map(stopId => destinations.find(d => d.id === stopId)?.name).filter(Boolean) as string[];
         
         if (selectedRouteType === 'Afternoon') {
             return [...stopNames].reverse().join(' -> ');
@@ -117,16 +122,13 @@ export const AdminPageFilter = ({
                 </div>
                 <div className="w-full sm:w-auto">
                     <Label className="text-xs">{t('route')}</Label>
-                    <Select value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)}>
-                        <SelectTrigger className="w-full sm:w-[120px]">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Morning">{t('route_type.morning')}</SelectItem>
-                            <SelectItem value="Afternoon">{t('route_type.afternoon')}</SelectItem>
-                            {selectedDay !== 'Saturday' && <SelectItem value="AfterSchool">{t('route_type.after_school')}</SelectItem>}
-                        </SelectContent>
-                    </Select>
+                    <Tabs value={selectedRouteType} onValueChange={(v) => setSelectedRouteType(v as RouteType)} className="w-full sm:w-[300px]">
+                        <TabsList className={cn("grid w-full", selectedDay === 'Saturday' ? "grid-cols-2" : "grid-cols-3")}>
+                            <TabsTrigger value="Morning">{t('route_type.morning')}</TabsTrigger>
+                            <TabsTrigger value="Afternoon">{t('route_type.afternoon')}</TabsTrigger>
+                            {selectedDay !== 'Saturday' && <TabsTrigger value="AfterSchool">{t('route_type.after_school')}</TabsTrigger>}
+                        </TabsList>
+                    </Tabs>
                 </div>
                 {showRouteStops && currentRouteStops && (
                      <div className="flex-1 min-w-full sm:min-w-fit">

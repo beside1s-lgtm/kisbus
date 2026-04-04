@@ -1,10 +1,11 @@
 'use client';
 import React from 'react';
 import { Student, Destination, RouteType, DayOfWeek } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, getStudentName } from '@/lib/utils';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
 import { Armchair, Users } from 'lucide-react';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface StudentCardProps {
   student: Student;
@@ -29,6 +30,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     routeType,
     dayOfWeek,
 }) => {
+  const { i18n } = useTranslation();
   
   let destinationId: string | null | undefined = null;
   let suggestedDestName: string | null | undefined = null;
@@ -49,7 +51,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const formatStudentName = (student: Student) => {
     const grade = student.grade.toUpperCase();
     const studentClass = student.class;
-    return `${grade}${studentClass} ${student.name}`;
+    return `${grade}${studentClass} ${getStudentName(student, i18n.language)}`;
   }
 
   return (

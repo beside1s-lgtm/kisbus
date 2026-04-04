@@ -12,7 +12,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn, getStudentName, normalizeString } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -29,7 +29,7 @@ const sortBuses = (buses: Bus[]): Bus[] => {
 };
 
 export function StudentPageContent() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [buses, setBuses] = useState<Bus[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -89,7 +89,7 @@ export function StudentPageContent() {
     if (!student) return '';
     const grade = student.grade.toUpperCase();
     const studentClass = student.class;
-    return `${grade}${studentClass} ${student.name}`;
+    return `${grade}${studentClass} ${getStudentName(student, i18n.language)}`;
   }
 
    useEffect(() => {
@@ -119,10 +119,10 @@ export function StudentPageContent() {
                 tType = 'Morning';
             }
         } else if (d === 6) {
-            if (h < 11) {
+            if (h < 9) {
                 tType = 'Morning';
             } else if (h < 14) {
-                tType = 'AfterSchool';
+                tType = 'Afternoon';
             } else {
                 tDate.setDate(tDate.getDate() + 2);
                 tType = 'Morning';
@@ -187,21 +187,58 @@ export function StudentPageContent() {
   const handleSeatClick = useCallback((seatNumber: number, studentId: string | null) => {
   }, []);
 
-  useEffect(() => {
+   useEffect(() => {
     if (searchQuery.trim() === '') {
         setSearchResults([]);
         return;
     }
-    const lowerQuery = searchQuery.toLowerCase();
+    const q = normalizeString(searchQuery);
     const queryDigits = searchQuery.replace(/\D/g, '');
     
-    const results = allStudents.filter(s => {
-        const nameMatch = s.name.toLowerCase().includes(lowerQuery);
-        const contactMatch = queryDigits && s.contact && s.contact.replace(/\D/g, '').includes(queryDigits);
-        return nameMatch || contactMatch;
+    const scored = allStudents.map(s => {
+      const grade = (s.grade || '').toLowerCase();
+      const cls = (s.class || '').toLowerCase();
+      // 학년+반 조합 (예: "14" → 1학년 4반, "s14" → S1학년 4반)
+      const gradeClass = normalizeString(grade + cls);
+      const displayName = normalizeString(getStudentName(s, i18n.language));
+
+      let score = 0;
+      // 학년+반 검색
+      if (gradeClass === q) score += 2000;
+      else if (gradeClass.startsWith(q)) score += 1500;
+      // 이름 검색 (한글/영문 모두)
+      if (displayName.startsWith(q)) score += 500;
+      else if (displayName.includes(q)) score += 300;
+      else if (s.nameKo && normalizeString(s.nameKo).includes(q)) score += 200;
+      else if (s.nameEn && normalizeString(s.nameEn).toLowerCase().includes(q)) score += 200;
+      // 연락처 검색
+      if (queryDigits && s.contact && s.contact.replace(/\D/g, '').startsWith(queryDigits)) score += 100;
+      else if (queryDigits && s.contact && s.contact.replace(/\D/g, '').includes(queryDigits)) score += 50;
+
+      return { student: s, score };
     });
-    setSearchResults(results);
-  }, [searchQuery, allStudents]);
+
+    const gradeValue = (grade: string): number => {
+      const g = (grade || '').trim().toUpperCase();
+      if (g === 'S') return -50;
+      if (g.startsWith('S')) { const n = parseInt(g.replace('S', ''), 10); return isNaN(n) ? -50 : -50 + (n / 100); }
+      if (g.startsWith('K')) { const n = parseInt(g.replace('K', ''), 10); return isNaN(n) ? -100 : -100 + n; }
+      const n = parseInt(g.replace(/\D/g, ''), 10); return isNaN(n) ? 999 : n;
+    };
+
+    const results = scored
+      .filter(item => item.score > 0)
+      .sort((a, b) => {
+        const ga = gradeValue(a.student.grade), gb = gradeValue(b.student.grade);
+        if (ga !== gb) return ga - gb;
+        const ca = a.student.class.localeCompare(b.student.class, undefined, { numeric: true });
+        if (ca !== 0) return ca;
+        return getStudentName(a.student, i18n.language).localeCompare(getStudentName(b.student, i18n.language), 'ko');
+      })
+      .map(item => item.student);
+
+    setSearchResults(results.slice(0, 15));
+  }, [searchQuery, allStudents, i18n.language]);
 
   const handleSelectStudentFromSearch = (student: Student) => {
       setSelectedStudent(student);
@@ -310,6 +347,7 @@ export function StudentPageContent() {
                           <div className="flex flex-wrap gap-2">
                             {days.map(day => 
                                   routeTypeOrder.map(type => {
+                                      if (day === 'Saturday' && type === 'AfterSchool') return null;
                                       const route = assignedRoutes.find(r => r.dayOfWeek === day && r.type === type);
                                       if (!route) return null;
                                       return (

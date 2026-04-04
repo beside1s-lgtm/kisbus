@@ -5,10 +5,14 @@ import { useRouter } from 'next/navigation';
 import { 
     onBusesUpdate, onStudentsUpdate, onRoutesUpdate, onDestinationsUpdate, 
     onSuggestedDestinationsUpdate, onTeachersUpdate, onAfterSchoolTeachersUpdate,
+    onSaturdayTeachersUpdate,
+    onAfterSchoolClassesUpdate,
     getBuses, getStudents, getRoutes, getDestinations, getTeachers, getAfterSchoolTeachers,
+    getSaturdayTeachers,
+    getAfterSchoolClasses,
     updateStudentsInBatch, updateStudent, deleteStudentsInBatch
 } from '@/lib/firebase-data';
-import type { Bus, Student, Route, Destination, Teacher, DayOfWeek, RouteType } from '@/lib/types';
+import type { Bus, Student, Route, Destination, Teacher, DayOfWeek, RouteType, AfterSchoolClass } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Trash2, Check, Bell, ChevronDown, UserCog } from 'lucide-react';
@@ -47,6 +51,8 @@ const sortDestinations = (destinations: Destination[]): Destination[] => {
     return destinations.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 };
 
+import { AfterSchoolManagementTab } from './components/after-school-management-tab';
+
 const AdminPageContent: React.FC<{
     buses: Bus[];
     students: Student[];
@@ -55,6 +61,8 @@ const AdminPageContent: React.FC<{
     suggestedDestinations: Destination[];
     teachers: Teacher[];
     afterSchoolTeachers: Teacher[];
+    saturdayTeachers: Teacher[];
+    afterSchoolClasses: AfterSchoolClass[];
     pendingStudents: Student[];
 }> = ({
     buses,
@@ -64,6 +72,8 @@ const AdminPageContent: React.FC<{
     suggestedDestinations,
     teachers,
     afterSchoolTeachers,
+    saturdayTeachers,
+    afterSchoolClasses,
     pendingStudents,
 }) => {
     const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
@@ -98,7 +108,7 @@ const AdminPageContent: React.FC<{
                 tType = 'Morning';
             }
         } else if (d === 6) {
-            if (h < 11) {
+            if (h < 9) {
                 tType = 'Morning';
             } else if (h < 14) {
                 tType = 'Afternoon';
@@ -121,7 +131,7 @@ const AdminPageContent: React.FC<{
         if (pendingStudentIds.length === 0) return;
 
         try {
-            await updateStudentsInBatch(pendingStudentIds.map(id => ({ id, applicationStatus: 'reviewed' })));
+            await updateStudentsInBatch(pendingStudentIds.map(id => ({ id, data: { applicationStatus: 'reviewed' } })));
             toast({ title: t('success'), description: t('admin.new_applications.acknowledge_success') });
         } catch (error) {
             toast({ title: t('error'), description: t('admin.new_applications.acknowledge_error'), variant: "destructive" });
@@ -242,18 +252,19 @@ const AdminPageContent: React.FC<{
                     </Alert>
                 </Collapsible>
             )}
-            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management" id="admin-tabs-root">
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="bus-registration">{t('admin.tabs.bus_registration')}</TabsTrigger>
-                    <TabsTrigger value="teacher-management">{t('admin.tabs.teacher_management')}</TabsTrigger>
-                    <TabsTrigger value="bus-configuration">{t('admin.tabs.bus_configuration')}</TabsTrigger>
-                    <TabsTrigger value="student-management">{t('admin.tabs.student_management')}</TabsTrigger>
+            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="student-management" id="admin-tabs-root" className="w-full">
+                <TabsList className="flex flex-wrap h-auto w-full bg-muted p-1 gap-1 sm:grid sm:grid-cols-5">
+                    <TabsTrigger value="bus-registration" className="flex-1 text-[10px] sm:text-xs md:text-sm px-2 py-1.5 h-auto min-w-[70px] whitespace-normal sm:whitespace-nowrap">{t('admin.tabs.bus_registration')}</TabsTrigger>
+                    <TabsTrigger value="teacher-management" className="flex-1 text-[10px] sm:text-xs md:text-sm px-2 py-1.5 h-auto min-w-[70px] whitespace-normal sm:whitespace-nowrap">{t('admin.tabs.teacher_management')}</TabsTrigger>
+                    <TabsTrigger value="bus-configuration" className="flex-1 text-[10px] sm:text-xs md:text-sm px-2 py-1.5 h-auto min-w-[70px] whitespace-normal sm:whitespace-nowrap">{t('admin.tabs.bus_configuration')}</TabsTrigger>
+                    <TabsTrigger value="student-management" className="flex-1 text-[10px] sm:text-xs md:text-sm px-2 py-1.5 h-auto min-w-[70px] whitespace-normal sm:whitespace-nowrap">{t('admin.tabs.student_management')}</TabsTrigger>
+                    <TabsTrigger value="after-school-management" className="flex-1 text-[10px] sm:text-xs md:text-sm px-2 py-1.5 h-auto min-w-[70px] whitespace-normal sm:whitespace-nowrap">방과후 수업 관리</TabsTrigger>
                 </TabsList>
                 <TabsContent value="bus-registration" className="mt-6">
                     <BusRegistrationTab buses={buses} routes={routes} destinations={destinations} />
                 </TabsContent>
                  <TabsContent value="teacher-management" className="mt-6">
-                    <TeacherManagementTab teachers={teachers} afterSchoolTeachers={afterSchoolTeachers} buses={buses} routes={routes} destinations={destinations} />
+                    <TeacherManagementTab teachers={teachers} afterSchoolTeachers={afterSchoolTeachers} saturdayTeachers={saturdayTeachers} buses={buses} routes={routes} destinations={destinations} />
                 </TabsContent>
                 <TabsContent value="bus-configuration" className="mt-6">
                      <AdminPageFilter
@@ -304,8 +315,23 @@ const AdminPageContent: React.FC<{
                             days={DAYS}
                             selectedGlobalStudent={selectedGlobalStudent}
                             setSelectedGlobalStudent={setSelectedGlobalStudent}
+                            afterSchoolClasses={afterSchoolClasses}
+                            teachers={teachers}
+                            afterSchoolTeachers={afterSchoolTeachers}
+                            saturdayTeachers={saturdayTeachers}
                         />
                     </div>
+                </TabsContent>
+                <TabsContent value="after-school-management" className="mt-6">
+                    <AfterSchoolManagementTab
+                        afterSchoolClasses={afterSchoolClasses}
+                        students={students}
+                        buses={buses}
+                        routes={routes}
+                        teachers={teachers}
+                        afterSchoolTeachers={afterSchoolTeachers}
+                        destinations={destinations}
+                    />
                 </TabsContent>
             </Tabs>
         </>
@@ -320,8 +346,10 @@ export default function AdminPage() {
     const [routes, setRoutes] = useState<Route[]>([]);
     const [destinations, setDestinations] = useState<Destination[]>([]);
     const [suggestedDestinations, setSuggestedDestinations] = useState<Destination[]>([]);
+    const [afterSchoolClasses, setAfterSchoolClasses] = useState<AfterSchoolClass[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [afterSchoolTeachers, setAfterSchoolTeachers] = useState<Teacher[]>([]);
+    const [saturdayTeachers, setSaturdayTeachers] = useState<Teacher[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
     const { t } = useTranslation();
@@ -345,8 +373,10 @@ export default function AdminPage() {
             onRoutesUpdate(setRoutes),
             onDestinationsUpdate(data => setDestinations(sortDestinations(data))),
             onSuggestedDestinationsUpdate(setSuggestedDestinations),
-            onTeachersUpdate(data => setTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
-            onAfterSchoolTeachersUpdate(data => setAfterSchoolTeachers(data.sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
+            onTeachersUpdate(data => setTeachers([...data].sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
+            onAfterSchoolTeachersUpdate(data => setAfterSchoolTeachers([...data].sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
+            onSaturdayTeachersUpdate(data => setSaturdayTeachers([...data].sort((a, b) => a.name.localeCompare(b.name, 'ko')))),
+            onAfterSchoolClassesUpdate(setAfterSchoolClasses),
         ];
 
         Promise.all([
@@ -356,6 +386,7 @@ export default function AdminPage() {
             getDestinations(),
             getTeachers(),
             getAfterSchoolTeachers(),
+            getSaturdayTeachers(),
         ]).then(() => {
             setDataLoading(false);
         }).catch(error => {
@@ -388,7 +419,9 @@ export default function AdminPage() {
                 suggestedDestinations={suggestedDestinations}
                 teachers={teachers}
                 afterSchoolTeachers={afterSchoolTeachers}
+                saturdayTeachers={saturdayTeachers}
                 pendingStudents={pendingStudents}
+                afterSchoolClasses={afterSchoolClasses}
             />
         </MainLayout>
     );

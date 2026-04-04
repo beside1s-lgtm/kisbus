@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { getStudents, getDestinations, addStudent, addSuggestedDestination, updateStudent } from '@/lib/firebase-data';
-import { Destination, NewStudent, Student, DayOfWeek } from '@/lib/types';
+import { Destination, NewStudent, Student } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,8 @@ import { useTranslation } from '@/hooks/use-translation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface SiblingEntry {
-    name: string;
+    nameKo: string;
+    nameEn: string;
     grade: string;
     studentClass: string;
     gender: 'Male' | 'Female';
@@ -29,7 +30,8 @@ export default function ApplyPage() {
     const [allStudents, setAllStudents] = useState<Student[]>([]);
     
     // Main student state
-    const [name, setName] = useState('');
+    const [nameKo, setNameKo] = useState('');
+    const [nameEn, setNameEn] = useState('');
     const [grade, setGrade] = useState('');
     const [studentClass, setStudentClass] = useState('');
     const [gender, setGender] = useState<'Male' | 'Female'>('Male');
@@ -56,6 +58,7 @@ export default function ApplyPage() {
     const [useCustomSatAfternoonDest, setUseCustomSatAfternoonDest] = useState(false);
     const [customSatAfternoonDestName, setCustomSatAfternoonDestName] = useState('');
 
+
     const { toast } = useToast();
 
     useEffect(() => {
@@ -74,7 +77,7 @@ export default function ApplyPage() {
     const destinationOptions = destinations.map(d => ({ value: d.id, label: d.name }));
 
     const handleAddSibling = () => {
-        setSiblings([...siblings, { name: '', grade: '', studentClass: '', gender: 'Male' }]);
+        setSiblings([...siblings, { nameKo: '', nameEn: '', grade: '', studentClass: '', gender: 'Male' }]);
     };
 
     const handleRemoveSibling = (index: number) => {
@@ -88,7 +91,7 @@ export default function ApplyPage() {
     };
 
     const validateAllStudents = () => {
-        if (!name.trim() || !grade.trim() || !studentClass.trim() || !gender) {
+        if (!nameKo.trim() || !nameEn.trim() || !grade.trim() || !studentClass.trim() || !gender) {
             toast({ title: t('error'), description: t('apply.validation.base_info_error'), variant: "destructive" });
             return false;
         }
@@ -96,7 +99,7 @@ export default function ApplyPage() {
         if (hasSiblings) {
             for (let i = 0; i < siblings.length; i++) {
                 const s = siblings[i];
-                if (!s.name.trim() || !s.grade.trim() || !s.studentClass.trim() || !s.gender) {
+                if (!s.nameKo.trim() || !s.nameEn.trim() || !s.grade.trim() || !s.studentClass.trim() || !s.gender) {
                     toast({ title: t('error'), description: t('apply.validation.sibling_info_error', { index: i + 1 }), variant: "destructive" });
                     return false;
                 }
@@ -105,21 +108,23 @@ export default function ApplyPage() {
         return true;
     }
 
-    const findStudentInList = (sName: string, sGrade: string, sClass: string): Student | undefined => {
+    const findStudentInList = (sNameKo: string, sNameEn: string, sGrade: string, sClass: string): Student | undefined => {
         return allStudents.find(s => 
-            s.name === sName.trim() && 
+            (s.nameKo === sNameKo.trim() || s.nameEn === sNameEn.trim() || s.name === sNameEn.trim()) && 
             s.grade === sGrade.trim() && 
             s.class === sClass.trim()
         );
     }
     
-    const processStudentApplication = async (studentData: {name: string, grade: string, studentClass: string, gender: 'Male'|'Female', contact: string, siblingGroupId?: string | null}, appData: Partial<Student>) => {
-        const existingStudent = findStudentInList(studentData.name, studentData.grade, studentData.studentClass);
+    const processStudentApplication = async (studentData: {nameKo: string, nameEn: string, grade: string, studentClass: string, gender: 'Male'|'Female', contact: string, siblingGroupId?: string | null}, appData: Partial<Student>) => {
+        const existingStudent = findStudentInList(studentData.nameKo, studentData.nameEn, studentData.grade, studentData.studentClass);
         
         if (existingStudent) {
             const updatePayload = {
                 ...appData,
-                name: studentData.name.trim(),
+                name: studentData.nameEn.trim(),
+                nameKo: studentData.nameKo.trim(),
+                nameEn: studentData.nameEn.trim(),
                 grade: studentData.grade.trim(),
                 class: studentData.studentClass.trim(),
                 gender: studentData.gender,
@@ -131,7 +136,9 @@ export default function ApplyPage() {
             return existingStudent.id;
         } else {
             const newStudentPayload: NewStudent = {
-                name: studentData.name.trim(),
+                name: studentData.nameEn.trim(), // Primary name field
+                nameKo: studentData.nameKo.trim(),
+                nameEn: studentData.nameEn.trim(),
                 grade: studentData.grade.trim(),
                 class: studentData.studentClass.trim(),
                 gender: studentData.gender,
@@ -183,7 +190,7 @@ export default function ApplyPage() {
                 await addSuggestedDestination({ name: customAfternoonDestName.trim() });
             }
 
-            await processStudentApplication({ name, grade, studentClass, gender, contact, siblingGroupId }, baseAppData);
+            await processStudentApplication({ nameKo, nameEn, grade, studentClass, gender, contact, siblingGroupId }, baseAppData);
 
             if (hasSiblings) {
                 for (const sib of siblings) {
@@ -193,7 +200,7 @@ export default function ApplyPage() {
 
             toast({ 
                 title: t('apply.commute.success_title'), 
-                description: hasSiblings ? t('apply.commute.success_desc_multi') : t('apply.commute.success_desc', { studentName: name }) 
+                description: hasSiblings ? t('apply.commute.success_desc_multi') : t('apply.commute.success_desc', { studentName: nameEn }) 
             });
 
             setMorningDestinationId(null);
@@ -232,7 +239,7 @@ export default function ApplyPage() {
             suggestedSatAfternoonDestination: useCustomSatAfternoonDest ? customSatAfternoonDestName.trim() : null,
         };
 
-        const mainExisting = findStudentInList(name, grade, studentClass);
+        const mainExisting = findStudentInList(nameKo, nameEn, grade, studentClass);
         const siblingGroupId = hasSiblings ? (mainExisting?.siblingGroupId || `group_${Date.now()}`) : null;
     
         try {
@@ -243,7 +250,7 @@ export default function ApplyPage() {
                 await addSuggestedDestination({ name: customSatAfternoonDestName.trim() });
             }
 
-            await processStudentApplication({ name, grade, studentClass, gender, contact, siblingGroupId }, satAppData);
+            await processStudentApplication({ nameKo, nameEn, grade, studentClass, gender, contact, siblingGroupId }, satAppData);
 
             if (hasSiblings) {
                 for (const sib of siblings) {
@@ -253,7 +260,7 @@ export default function ApplyPage() {
 
             toast({ 
                 title: t('apply.sat_after_school.success_title'), 
-                description: hasSiblings ? t('apply.sat_after_school.success_desc_multi') : t('apply.sat_after_school.success_desc', { studentName: name }) 
+                description: hasSiblings ? t('apply.sat_after_school.success_desc_multi') : t('apply.sat_after_school.success_desc', { studentName: nameEn }) 
             });
     
             setSatMorningDestinationId(null);
@@ -271,6 +278,7 @@ export default function ApplyPage() {
         }
     }
 
+
     return (
         <MainLayout>
             <div className="flex flex-col items-center gap-8 max-w-4xl mx-auto">
@@ -287,8 +295,12 @@ export default function ApplyPage() {
                     <CardContent className="space-y-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border">
                             <div className="space-y-2">
-                                <Label htmlFor="name">{t('student.name')}</Label>
-                                <Input id="name" placeholder={t('student.name_placeholder')} required value={name} onChange={e => setName(e.target.value)} />
+                                <Label htmlFor="nameKo">{t('student.name_ko', '성명(한글)')}</Label>
+                                <Input id="nameKo" placeholder="홍길동" required value={nameKo} onChange={e => setNameKo(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="nameEn">{t('student.name_en', '성명(영문)')}</Label>
+                                <Input id="nameEn" placeholder="Hong Gildong" required value={nameEn} onChange={e => setNameEn(e.target.value)} />
                             </div>
                              <div className="space-y-2">
                                 <Label htmlFor="contact">{t('student.contact')}</Label>
@@ -348,9 +360,15 @@ export default function ApplyPage() {
                                             <Users className="h-4 w-4 text-primary" />
                                             <span className="text-sm font-bold text-primary">{t('apply.siblings.entry_title', { index: index + 1 })}</span>
                                         </div>
-                                        <div className="space-y-2 sm:col-span-2">
-                                            <Label>{t('student.name')}</Label>
-                                            <Input value={sib.name} onChange={e => updateSibling(index, 'name', e.target.value)} placeholder={t('student.name_placeholder')} />
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:col-span-2">
+                                            <div className="space-y-2">
+                                                <Label>{t('student.name_ko', '성명(한글)')}</Label>
+                                                <Input value={sib.nameKo} onChange={e => updateSibling(index, 'nameKo', e.target.value)} placeholder="홍길동" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>{t('student.name_en', '성명(영문)')}</Label>
+                                                <Input value={sib.nameEn} onChange={e => updateSibling(index, 'nameEn', e.target.value)} placeholder="Hong Gildong" />
+                                            </div>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 sm:col-span-2">
                                             <div className="space-y-2">

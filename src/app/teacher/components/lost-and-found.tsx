@@ -232,9 +232,9 @@ export function LostAndFound({ lostItems, setLostItems, buses, isReadOnly = fals
                                 </TableCell>
                                 <TableCell className="text-right space-x-1">
                                     {isReadOnly && item.status === 'unclaimed' && (
-                                         <Button variant="outline" size="sm" onClick={() => handleAcknowledge(item)}>
-                                           <CheckCircle className="mr-1 h-3 w-3"/> {t('lost_and_found.action.acknowledge')}
-                                        </Button>
+                                         <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                                           {t('lost_and_found.status.unclaimed')}
+                                        </Badge>
                                     )}
                                     {!isReadOnly && (
                                         <>

@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
-import Papa from 'papaparse';
 import { 
     addDestination, deleteDestination, approveSuggestedDestination, addDestinationsInBatch,
-    updateRouteStops, clearAllSuggestedDestinations, deleteAllDestinations, copyRoutePlan,
+    updateRouteStops, clearAllSuggestedDestinations, clearDestinations,
     deleteSuggestedDestination, updateRoute
 } from '@/lib/firebase-data';
 import type { Bus, Route, Destination, DayOfWeek, RouteType, NewDestination } from '@/lib/types';
@@ -48,8 +47,8 @@ export const BusConfigurationTab = ({
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedRouteStopId, setSelectedRouteStopId] = useState<string | null>(null);
-  const [selectedAllDestId, setSelectedAllDestId] = useState<string | null>(null);
+  const [selectedRouteStopIds, setSelectedRouteStopIds] = useState<string[]>([]);
+  const [selectedAllDestIds, setSelectedAllDestIds] = useState<string[]>([]);
   
   const [isCopyRouteDialogOpen, setCopyRouteDialogOpen] = useState(false);
   const allDays: DayOfWeek[] = useMemo(() => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], []);
@@ -74,9 +73,9 @@ export const BusConfigurationTab = ({
   }, [routes, selectedBusId, selectedDay, selectedRouteType]);
 
   useEffect(() => {
-      setSelectedRouteStopId(null);
-      setSelectedAllDestId(null);
-  }, [currentRoute]);
+      setSelectedRouteStopIds([]);
+      setSelectedAllDestIds([]);
+  }, [currentRoute?.id]);
 
 
   const filteredDestinations = useMemo(() => {
@@ -89,7 +88,7 @@ export const BusConfigurationTab = ({
   }, [destinations, destinationSearchQuery]);
 
   const busesUsingDestination = useMemo(() => {
-    const targetDestId = selectedAllDestId;
+    const targetDestId = selectedAllDestIds.length === 1 ? selectedAllDestIds[0] : null;
     if (!targetDestId) return [];
 
     return routes
@@ -100,7 +99,7 @@ export const BusConfigurationTab = ({
         )
         .map(r => buses.find(b => b.id === r.busId)?.name)
         .filter(Boolean) as string[];
-  }, [selectedAllDestId, routes, selectedDay, selectedRouteType, buses]);
+  }, [selectedAllDestIds, routes, selectedDay, selectedRouteType, buses]);
 
   const getStopsForCurrentRoute = useCallback(() => {
     if (!currentRoute) return [];
@@ -138,7 +137,7 @@ export const BusConfigurationTab = ({
     const handleClearAllDestinations = async () => {
         const { dismiss } = toast({ title: t('processing'), description: t('admin.bus_config.dest.delete_all.processing') });
         try {
-            await deleteAllDestinations();
+            await clearDestinations();
             dismiss();
             toast({ title: t('success'), description: t('admin.bus_config.dest.delete_all.success') });
         } catch (error) {
@@ -148,16 +147,18 @@ export const BusConfigurationTab = ({
     };
   
   const handleDownloadDestinationTemplate = () => {
-    const headers = "목적지 이름";
-    const example = "Gangnam-yeok";
-    const csvContent = "\uFEFF" + headers + "\n" + example;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.body.appendChild(document.createElement("a"));
-    link.setAttribute("href", url);
-    link.setAttribute("download", "destination_template.csv");
-    link.click();
-    document.body.removeChild(link);
+    import('xlsx').then(XLSX => {
+        const headers = ["목적지 이름"];
+        const examples = [["Gangnam-yeok"]];
+        const wsData = [headers, ...examples];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "목적지_템플릿");
+        XLSX.writeFile(wb, "destination_template.xlsx");
+    }).catch(err => {
+        console.error(err);
+        toast({ title: t('error'), description: "Excel 다운로드 중 오류가 발생했습니다.", variant: 'destructive' });
+    });
   };
   
   const handleDownloadDestinationList = useCallback(() => {
@@ -165,28 +166,38 @@ export const BusConfigurationTab = ({
             toast({ title: t('notice'), description: t('admin.bus_config.dest.download.no_data') });
             return;
         }
-        const headers = ["목적지 이름"];
-        const csvRows = destinations.map(d => `"${d.name.replace(/"/g, '""')}"`);
-        const csvContent = "\uFEFF" + headers.join(',') + "\n" + csvRows.join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.body.appendChild(document.createElement("a"));
-        link.setAttribute("href", url);
-        link.setAttribute("download", `destination_list.csv`);
-        link.click();
-        document.body.removeChild(link);
+        import('xlsx').then(XLSX => {
+            const headers = ["목적지 이름"];
+            const wsData = [
+                headers,
+                ...destinations.map(d => [d.name])
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "목적지_목록");
+            XLSX.writeFile(wb, `destination_list.xlsx`);
+        }).catch(err => {
+            console.error(err);
+            toast({ title: t('error'), description: "Excel 다운로드 중 오류가 발생했습니다.", variant: 'destructive' });
+        });
     }, [destinations, toast, t]);
 
   const handleDestinationFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const XLSX = await import('xlsx');
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const results: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
             const normalizedExisting = new Set(destinations.map(d => normalizeString(d.name)));
-            const newDestinationsData: NewDestination[] = results.data.map((row: any) => ({
+            const newDestinationsData: NewDestination[] = results.map((row: any) => ({
                 name: (row['목적지 이름'] || row['name'] || '').toString().trim()
             })).filter(dest => {
                 const normName = normalizeString(dest.name);
@@ -206,11 +217,11 @@ export const BusConfigurationTab = ({
                 dismiss();
                 toast({ title: t('error'), description: t('admin.bus_config.dest.batch.error'), variant: "destructive" });
             }
-        },
-        error: (error) => {
-            toast({ title: t('admin.file_parse_error'), description: error.message, variant: "destructive" });
+        } catch (err: any) {
+            toast({ title: t('admin.file_parse_error'), description: err.message, variant: "destructive" });
         }
-    });
+    };
+    reader.readAsArrayBuffer(file);
 
     if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -257,21 +268,30 @@ export const BusConfigurationTab = ({
     }
   };
 
-    const handleSelectRouteStop = (stopId: string) => {
-        setSelectedRouteStopId(prev => prev === stopId ? null : stopId);
-        setSelectedAllDestId(null);
+    const handleSelectRouteStop = (e: React.MouseEvent, stopId: string) => {
+        if (e.ctrlKey || e.metaKey) {
+            setSelectedRouteStopIds(prev => prev.includes(stopId) ? prev.filter(id => id !== stopId) : [...prev, stopId]);
+        } else {
+            setSelectedRouteStopIds(prev => (prev.length === 1 && prev[0] === stopId) ? [] : [stopId]);
+        }
+        setSelectedAllDestIds([]);
     };
 
-    const handleSelectAllDest = (destId: string) => {
-        setSelectedAllDestId(prev => prev === destId ? null : destId);
-        setSelectedRouteStopId(null);
+    const handleSelectAllDest = (e: React.MouseEvent, destId: string) => {
+        if (e.ctrlKey || e.metaKey) {
+             setSelectedAllDestIds(prev => prev.includes(destId) ? prev.filter(id => id !== destId) : [...prev, destId]);
+        } else {
+             setSelectedAllDestIds(prev => (prev.length === 1 && prev[0] === destId) ? [] : [destId]);
+        }
+        setSelectedRouteStopIds([]);
     };
 
   const handleMoveStop = useCallback(async (direction: 'up' | 'down') => {
-      if (!currentRoute || !selectedRouteStopId) return;
+      if (!currentRoute || selectedRouteStopIds.length !== 1) return;
 
+      const targetId = selectedRouteStopIds[0];
       const currentStopIds = currentRoute.stops || [];
-      const index = currentStopIds.indexOf(selectedRouteStopId);
+      const index = currentStopIds.indexOf(targetId);
 
       if (index === -1) return;
 
@@ -279,32 +299,33 @@ export const BusConfigurationTab = ({
       if (direction === 'up' && index > 0) {
           [newStopIds[index - 1], newStopIds[index]] = [newStopIds[index], newStopIds[index - 1]];
       } else if (direction === 'down' && index < newStopIds.length - 1) {
-          [newStopIds[index], newStopIds[index + 1]] = [newStopIds[index], newStopIds[index + 1]];
+          [newStopIds[index], newStopIds[index + 1]] = [newStopIds[index + 1], newStopIds[index]];
       } else {
           return;
       }
       await updateRouteStops(currentRoute.id, newStopIds);
-  }, [currentRoute, selectedRouteStopId]);
+  }, [currentRoute, selectedRouteStopIds]);
 
     const handleAddStopToRoute = useCallback(async () => {
-        if (!currentRoute || !selectedAllDestId) return;
+        if (!currentRoute || selectedAllDestIds.length === 0) return;
         const currentStopIds = currentRoute.stops || [];
-        if (currentStopIds.includes(selectedAllDestId)) {
+        const newDests = selectedAllDestIds.filter(id => !currentStopIds.includes(id));
+        if (newDests.length === 0) {
             toast({ title: t('error'), description: t('admin.bus_config.route.add_stop_error'), variant: 'destructive' });
             return;
         }
-        const newStopIds = [...currentStopIds, selectedAllDestId];
+        const newStopIds = [...currentStopIds, ...newDests];
         await updateRouteStops(currentRoute.id, newStopIds);
-        setSelectedAllDestId(null);
-    }, [currentRoute, selectedAllDestId, toast, t]);
+        setSelectedAllDestIds([]);
+    }, [currentRoute, selectedAllDestIds, toast, t]);
 
     const handleRemoveStopFromRoute = useCallback(async () => {
-        if (!currentRoute || !selectedRouteStopId) return;
+        if (!currentRoute || selectedRouteStopIds.length === 0) return;
         const currentStopIds = currentRoute.stops || [];
-        const newStopIds = currentStopIds.filter(id => id !== selectedRouteStopId);
+        const newStopIds = currentStopIds.filter(id => !selectedRouteStopIds.includes(id));
         await updateRouteStops(currentRoute.id, newStopIds);
-        setSelectedRouteStopId(null);
-    }, [currentRoute, selectedRouteStopId]);
+        setSelectedRouteStopIds([]);
+    }, [currentRoute, selectedRouteStopIds]);
 
     const handleClearRoute = useCallback(async () => {
         if (!currentRoute) return;
@@ -359,7 +380,7 @@ export const BusConfigurationTab = ({
       }
       
       try {
-          await copyRoutePlan(currentRoute.stops, targetRoutes);
+          await Promise.all(targetRoutes.map(r => updateRouteStops(r.id, currentRoute.stops)));
           toast({ title: t('success'), description: t('admin.bus_config.route.copy.success') });
           setCopyRouteDialogOpen(false);
       } catch (error) {
@@ -452,7 +473,7 @@ export const BusConfigurationTab = ({
                         <Button variant="outline" onClick={handleDownloadDestinationTemplate}><Download className="mr-2 h-4 w-4" /> {t('admin.bus_config.dest.template')}</Button>
                         <Button variant="outline" onClick={handleDownloadDestinationList}><Download className="mr-2 h-4 w-4" /> {t('admin.bus_config.dest.download.button')}</Button>
                         <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> {t('batch_upload')}</Button>
-                        <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".csv" className="hidden" />
+                        <input type="file" ref={fileInputRef} onChange={handleDestinationFileUpload} accept=".xlsx" className="hidden" />
                     </div>
                      <div className="flex justify-end gap-2 mb-4">
                         <Dialog>
@@ -492,7 +513,7 @@ export const BusConfigurationTab = ({
                         />
                     </div>
 
-                    {selectedAllDestId && (
+                    {selectedAllDestIds.length === 1 && (
                         <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-md animate-in fade-in slide-in-from-top-1">
                             <div className="flex items-start gap-2">
                                 <BusIcon className="h-4 w-4 text-primary mt-0.5" />
@@ -523,14 +544,14 @@ export const BusConfigurationTab = ({
                         {filteredDestinations.map((dest) => (
                             <div
                                 key={dest.id}
-                                onClick={() => handleSelectAllDest(dest.id)}
+                                onClick={(e) => handleSelectAllDest(e, dest.id)}
                                 className={cn(
                                     "p-2 flex items-center gap-2 rounded-md cursor-pointer hover:bg-primary/10",
-                                    selectedAllDestId === dest.id && "bg-primary/20 ring-2 ring-primary"
+                                    selectedAllDestIds.includes(dest.id) && "bg-primary/20 ring-2 ring-primary"
                                 )}
                             >
                                 <span className="flex-1 text-sm font-medium">{dest.name}</span>
-                                <AlertDialog onOpenChange={(open) => open && setSelectedAllDestId(null)}>
+                                <AlertDialog onOpenChange={(open) => open && setSelectedAllDestIds([])}>
                                     <AlertDialogTrigger asChild>
                                         <Button variant="ghost" size="icon" className="h-6 w-6">
                                             <X className="w-3 h-3 text-destructive" />
@@ -558,7 +579,7 @@ export const BusConfigurationTab = ({
                     size="icon"
                     className="h-12 w-12"
                     onClick={handleAddStopToRoute}
-                    disabled={!currentRoute || !selectedAllDestId}
+                    disabled={!currentRoute || selectedAllDestIds.length === 0}
                     aria-label="Add stop to route"
                 >
                     <ArrowRight className="h-6 w-6" />
@@ -568,7 +589,7 @@ export const BusConfigurationTab = ({
                     size="icon"
                     className="h-12 w-12"
                     onClick={handleRemoveStopFromRoute}
-                    disabled={!currentRoute || !selectedRouteStopId}
+                    disabled={!currentRoute || selectedRouteStopIds.length === 0}
                     aria-label="Remove stop from route"
                 >
                     <ArrowLeft className="h-6 w-6" />
@@ -686,10 +707,15 @@ export const BusConfigurationTab = ({
                                         }</CardTitle>
                                         <CardDescription>{t('admin.bus_config.route.stops_description')}</CardDescription>
                                     </div>
-                                    <div className="flex gap-1">
-                                        <Button variant="outline" size="icon" onClick={() => handleMoveStop('up')} disabled={!selectedRouteStopId}><ArrowUp className="h-4 w-4"/></Button>
-                                        <Button variant="outline" size="icon" onClick={() => handleMoveStop('down')} disabled={!selectedRouteStopId}><ArrowDown className="h-4 w-4"/></Button>
-                                    </div>
+                                    {(() => {
+                                        const selectedStopIndex = currentRoute && selectedRouteStopIds.length === 1 ? (currentRoute.stops || []).indexOf(selectedRouteStopIds[0]) : -1;
+                                        return (
+                                            <div className="flex gap-1">
+                                                <Button variant="outline" size="icon" onClick={() => handleMoveStop('up')} disabled={selectedStopIndex <= 0}><ArrowUp className="h-4 w-4"/></Button>
+                                                <Button variant="outline" size="icon" onClick={() => handleMoveStop('down')} disabled={selectedStopIndex === -1 || selectedStopIndex >= (currentRoute?.stops?.length || 0) - 1}><ArrowDown className="h-4 w-4"/></Button>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </CardHeader>
                         <CardContent>
@@ -697,11 +723,11 @@ export const BusConfigurationTab = ({
                                 {getStopsForCurrentRoute().map((dest) => (
                                      <div
                                         key={dest.id}
-                                        onClick={() => handleSelectRouteStop(dest.id)}
+                                        onClick={(e) => handleSelectRouteStop(e, dest.id)}
                                         className={cn(
                                             "p-2 flex items-center gap-2 rounded-md cursor-pointer hover:bg-primary/10",
                                             "bg-card/80",
-                                            selectedRouteStopId === dest.id && "bg-primary/20 ring-2 ring-primary"
+                                            selectedRouteStopIds.includes(dest.id) && "bg-primary/20 ring-2 ring-primary"
                                         )}
                                     >
                                         <span className="flex-1 text-sm font-medium">{dest.name}</span>

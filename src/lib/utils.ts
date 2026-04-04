@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { Student } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -48,4 +49,19 @@ export function normalizeString(s: any): string {
   val = val.replace(/,/g, '-');
   // 3. Remove all whitespace and convert to lowercase
   return val.replace(/\s+/g, '').toLowerCase();
+}
+
+/**
+ * Returns the student's name based on the language.
+ * Localizes name display: prioritizing current language.
+ * If current language name is missing, falls back to the other one.
+ */
+export function getStudentName(student: Student | null, lang: string): string {
+  if (!student) return "";
+  
+  if (lang === 'ko') {
+    return student.nameKo || student.nameEn || student.name || "";
+  } else {
+    return student.nameEn || student.nameKo || student.name || "";
+  }
 }

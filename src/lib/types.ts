@@ -1,6 +1,8 @@
 export type Student = {
   id: string;
   name: string;
+  nameKo?: string | null;
+  nameEn?: string | null;
   contact: string | null;
   morningDestinationId: string | null;
   afternoonDestinationId: string | null;
@@ -15,10 +17,20 @@ export type Student = {
   suggestedSatMorningDestination?: string | null;
   suggestedSatAfternoonDestination?: string | null;
   suggestedAfterSchoolDestinations?: Partial<Record<DayOfWeek, string | null>>;
+  afterSchoolClassIds?: Partial<Record<DayOfWeek, string | null>>;
   applicationStatus?: 'pending' | 'reviewed';
   siblingGroupId?: string | null;
 };
 export type NewStudent = Omit<Student, 'id'>;
+
+export type AfterSchoolClass = {
+  id: string;
+  name: string;
+  dayOfWeek: DayOfWeek;
+  teacherId: string | null;
+  teacherName?: string | null;
+};
+export type NewAfterSchoolClass = Omit<AfterSchoolClass, 'id'>;
 
 
 export type Bus = {
@@ -42,6 +54,7 @@ export type NewDestination = Omit<Destination, 'id'>;
 export type Teacher = {
     id: string;
     name: string;
+    afterSchoolDays?: DayOfWeek[];
 };
 export type NewTeacher = Omit<Teacher, 'id'>;
 

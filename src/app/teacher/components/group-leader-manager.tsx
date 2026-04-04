@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Crown, Trash2 } from 'lucide-react';
+import { Crown, Trash2, RotateCcw } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +34,18 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
 
   const handleDeleteRecord = (record: GroupLeaderRecord) => {
     setRecords(prev => prev.filter(r => r.studentId !== record.studentId || r.startDate !== record.startDate));
+  };
+
+  const handleResetVolunteerTime = (record: GroupLeaderRecord) => {
+    if (record.endDate !== null) return;
+    const today = format(new Date(), 'yyyy-MM-dd');
+    setRecords(prev => {
+        // Find current active record and set its endDate to today
+        // And then add a new record starting today
+        return prev.map(r => 
+            (r.studentId === record.studentId && r.endDate === null) ? { ...r, endDate: today } : r
+        ).concat([{ ...record, startDate: today, endDate: null, days: 1 }]);
+    });
   };
 
   const processedRecords = useMemo(() => {
@@ -72,6 +84,7 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
                 <TableHead>{t('teacher_page.group_leader_management.start_date')}</TableHead>
                 <TableHead>{t('teacher_page.group_leader_management.end_date')}</TableHead>
                 <TableHead>{t('teacher_page.group_leader_management.days')}</TableHead>
+                <TableHead>{t('teacher_page.group_leader_management.volunteer_time')}</TableHead>
                 <TableHead className="text-right">{t('actions')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -84,12 +97,25 @@ export function GroupLeaderManager({ records, setRecords }: GroupLeaderManagerPr
                     {record.endDate ? record.endDate : <Badge variant="secondary">{t('teacher_page.group_leader_management.active')}</Badge>}
                   </TableCell>
                   <TableCell>{record.days}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell>{record.days * 20}{t('teacher_page.group_leader_management.minutes_suffix')}</TableCell>
+                  <TableCell className="text-right flex justify-end gap-1">
+                    {record.endDate === null && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => handleResetVolunteerTime(record)}
+                        title={t('reset')}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8"
                       onClick={() => handleDeleteRecord(record)}
+                      title={t('delete')}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>

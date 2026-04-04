@@ -35,9 +35,11 @@ export default function LoginPage() {
   // If user is already logged in, redirect to admin page.
   useEffect(() => {
     if (!authLoading && user) {
-      router.push('/admin');
+      // Use window.location.href instead of router.push to prevent Next.js fetch errors
+      // during local dev server desyncs or cache unavailabilities.
+      window.location.href = '/admin';
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
