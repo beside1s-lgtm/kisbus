@@ -1,5 +1,5 @@
 'use client';
-// Updated by cjwave on 2026-04-06 for UI/UX consistency across roles.
+// Updated by cjwave on 2026-04-06 to unify the role pages design and confirm rollouts.
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
