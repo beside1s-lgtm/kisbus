@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/hooks/use-translation';
+import { Badge } from '@/components/ui/badge';
 
 const sortBuses = (buses: Bus[]): Bus[] => {
     return [...buses].sort((a, b) => {
@@ -318,18 +319,32 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {sortBuses(buses).map(bus => (
-                            <TableRow key={bus.id} className={cn(!(bus.isActive ?? true) && "text-muted-foreground")}>
-                                <TableCell>
-                                    <Switch
-                                        checked={bus.isActive ?? true}
-                                        onCheckedChange={() => handleToggleBusActive(bus)}
-                                        aria-label="Toggle bus active state"
-                                    />
-                                </TableCell>
-                                <TableCell>{bus.name}</TableCell>
-                                <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
-                                <TableCell className="text-right">
+                        {sortBuses(buses).map(bus => {
+                            const hasAnyRoute = routes.some(r => r.busId === bus.id && (r.stops?.length ?? 0) > 0);
+                            const isActive = bus.isActive ?? true;
+                            return (
+                                <TableRow key={bus.id} className={cn(
+                                    !isActive && "text-muted-foreground bg-muted/20 opacity-70",
+                                    !hasAnyRoute && isActive && "bg-red-50/20"
+                                )}>
+                                    <TableCell>
+                                        <Switch
+                                            checked={isActive}
+                                            onCheckedChange={() => handleToggleBusActive(bus)}
+                                            aria-label="Toggle bus active state"
+                                        />
+                                    </TableCell>
+                                    <TableCell className={cn(
+                                        "font-bold",
+                                        !hasAnyRoute && isActive && "text-red-500"
+                                    )}>
+                                        {bus.name}
+                                        {!hasAnyRoute && isActive && (
+                                            <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4 border-red-300 text-red-700 bg-red-50">노선미배정</Badge>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
+                                    <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
                                         <Button variant="ghost" size="icon" onClick={() => handleEditClick(bus)}>
                                             <Pencil className="h-4 w-4" />
@@ -354,9 +369,10 @@ export const BusRegistrationTab = ({ buses, routes, destinations }: BusRegistrat
                                             </AlertDialogContent>
                                         </AlertDialog>
                                     </div>
-                                </TableCell>
-                            </TableRow>
-                        ))}
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
                     </TableBody>
                 </Table>
             </CardContent>

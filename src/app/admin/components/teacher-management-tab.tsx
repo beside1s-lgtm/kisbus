@@ -114,15 +114,29 @@ const TeacherEditDialog = ({ teacher, type }: TeacherEditDialogProps) => {
     );
 };
 
-const sortBuses = (buses: Bus[]): Bus[] => {
+const sortBuses = (buses: Bus[], isOperationalFn?: (id: string) => boolean): Bus[] => {
     return [...buses].sort((a, b) => {
-      const numA = parseInt(a.name.replace(/\D/g, ''), 10);
-      const numB = parseInt(b.name.replace(/\D/g, ''), 10);
-      if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB;
-      }
-      return a.name.localeCompare(b.name, 'ko');
+        const activeA = a.isActive ?? true;
+        const activeB = b.isActive ?? true;
+        if (activeA !== activeB) return activeA ? -1 : 1;
+
+        if (isOperationalFn) {
+            const opA = isOperationalFn(a.id);
+            const opB = isOperationalFn(b.id);
+            if (opA !== opB) return opA ? -1 : 1;
+        }
+
+        const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+        const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return numA - numB;
+        }
+        return a.name.localeCompare(b.name, 'ko');
     });
+};
+
+const sortTeachers = (teachers: Teacher[]): Teacher[] => {
+    return [...teachers].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 };
 
 interface TeacherAssignmentDialogProps {
@@ -319,6 +333,51 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, saturdayTe
         return saturdayTeachers;
     }, [teacherAssignmentType, teachers, afterSchoolTeachers, saturdayTeachers, afterSchoolPoolDayFilter]);
     const sortedTeachersList = useMemo(() => [...currentTeacherPool].sort((a, b) => a.name.localeCompare(b.name, 'ko')), [currentTeacherPool]);
+
+    // Validation logic for teachers
+    const teacherValidation = useMemo(() => {
+        const unassigned: Teacher[] = [];
+        const doubleAssigned: { teacher: Teacher; buses: string[] }[] = [];
+        
+        const assignmentMap: Record<string, string[]> = {}; // teacherId -> busNames
+
+        // Helper to check if a teacher is assigned based on category
+        const checkAssignments = () => {
+            const relevantRoutes = routes.filter(r => {
+                if (teacherAssignmentType === 'commute') {
+                    return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(r.dayOfWeek) && r.type === 'Afternoon';
+                } else if (teacherAssignmentType === 'afterSchool') {
+                    return r.type === 'AfterSchool';
+                } else {
+                    return r.dayOfWeek === 'Saturday';
+                }
+            });
+
+            relevantRoutes.forEach(route => {
+                const bus = buses.find(b => b.id === route.busId);
+                const busName = bus?.name || 'Unknown';
+                (route.teacherIds || []).forEach(tid => {
+                    if (!assignmentMap[tid]) assignmentMap[tid] = [];
+                    if (!assignmentMap[tid].includes(busName)) {
+                        assignmentMap[tid].push(busName);
+                    }
+                });
+            });
+        };
+
+        checkAssignments();
+
+        currentTeacherPool.forEach(teacher => {
+            const assignedBuses = assignmentMap[teacher.id] || [];
+            if (assignedBuses.length === 0) {
+                unassigned.push(teacher);
+            } else if (assignedBuses.length > 1) {
+                doubleAssigned.push({ teacher, buses: assignedBuses });
+            }
+        });
+
+        return { unassigned, doubleAssigned };
+    }, [currentTeacherPool, routes, teacherAssignmentType, buses]);
 
     const isBusOperational = useCallback((busId: string) => {
         let categoryRoutes: Route[] = [];
@@ -816,6 +875,41 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, saturdayTe
                             </div>
                         </div>
 
+                        {/* Alerts for unassigned/double-assigned teachers */}
+                        {(teacherValidation.unassigned.length > 0 || teacherValidation.doubleAssigned.length > 0) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                {teacherValidation.unassigned.length > 0 && (
+                                    <div className="p-3 rounded-md bg-yellow-50 border border-yellow-200">
+                                        <div className="flex items-center gap-2 text-yellow-800 font-semibold mb-1">
+                                            <Badge variant="outline" className="bg-yellow-200 border-none text-yellow-800">미배정</Badge>
+                                            <span className="text-sm">{teacherValidation.unassigned.length}명의 교사가 배정되지 않았습니다.</span>
+                                        </div>
+                                        <p className="text-xs text-yellow-700 overflow-hidden text-ellipsis whitespace-nowrap">
+                                            {teacherValidation.unassigned.map(t => t.name).join(', ')}
+                                        </p>
+                                    </div>
+                                )}
+                                {teacherValidation.doubleAssigned.length > 0 && (
+                                    <div className="p-3 rounded-md bg-red-50 border border-red-200">
+                                        <div className="flex items-center gap-2 text-red-800 font-semibold mb-1">
+                                            <Badge variant="outline" className="bg-red-200 border-none text-red-800">이중배정</Badge>
+                                            <span className="text-sm">{teacherValidation.doubleAssigned.length}명의 교사가 여러 버스에 배정되었습니다.</span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {teacherValidation.doubleAssigned.slice(0, 3).map((item, idx) => (
+                                                <p key={idx} className="text-xs text-red-700">
+                                                    {item.teacher.name}: {item.buses.join(', ')}
+                                                </p>
+                                            ))}
+                                            {teacherValidation.doubleAssigned.length > 3 && (
+                                                <p className="text-[10px] text-red-600 italic">외 {teacherValidation.doubleAssigned.length - 3}명 더 있음</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <div className="border rounded-md max-h-[300px] overflow-y-auto bg-background">
                             <Table>
                                 <TableHeader>
@@ -919,12 +1013,17 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, saturdayTe
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {sortBuses(buses).map(bus => {
+                                {sortBuses(buses, isBusOperational).map(bus => {
                                     const isOperational = isBusOperational(bus.id);
+                                    const assignedTeachers = getAssignedTeachers(bus.id);
+                                    const isUnassigned = isOperational && assignedTeachers.length === 0;
+                                    const isActive = bus.isActive ?? true;
+
                                     return (
                                         <TableRow key={bus.id} className={cn(
-                                            !(bus.isActive ?? true) && "text-muted-foreground bg-muted/20",
-                                            !isOperational && "opacity-60 bg-yellow-50/30"
+                                            !isActive && "text-muted-foreground bg-muted/20 opacity-70",
+                                            isActive && !isOperational && "bg-red-50/20",
+                                            isActive && isOperational && isUnassigned && "bg-orange-50/20"
                                         )}>
                                             <TableCell>
                                                 <Switch
@@ -933,13 +1032,20 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, saturdayTe
                                                     aria-label="Toggle bus assignment exclude state"
                                                 />
                                             </TableCell>
-                                            <TableCell className="font-medium whitespace-nowrap">
+                                            <TableCell className={cn(
+                                                "font-bold whitespace-nowrap",
+                                                !isOperational && isActive && "text-red-500",
+                                                isUnassigned && isActive && "text-red-600"
+                                            )}>
                                                 {bus.name}
-                                                {!isOperational && (bus.isActive ?? true) && (
-                                                    <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4 border-yellow-300 text-yellow-700 bg-yellow-50">운행없음</Badge>
+                                                {isActive && !isOperational && (
+                                                    <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4 border-red-300 text-red-700 bg-red-50">운행없음</Badge>
+                                                )}
+                                                {isActive && isOperational && isUnassigned && (
+                                                    <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4 border-orange-300 text-orange-700 bg-orange-50">교사미배정</Badge>
                                                 )}
                                             </TableCell>
-                                            <TableCell>{t(`bus_type.${bus.type}`)}</TableCell>
+                                            <TableCell className={cn(!isActive && "line-through")}>{t(`bus_type.${bus.type}`)}</TableCell>
                                             <TableCell>
                                                 <div className="flex flex-wrap gap-1">
                                                     {(() => {
