@@ -1,0 +1,23 @@
+﻿{
+  "status": "success",
+  "result": {
+    "name": "projects/studio-8176556433-7698a/locations/us-central1/backends/studio",
+    "createTime": "2025-09-14T06:40:08.097136113Z",
+    "updateTime": "2026-03-20T10:05:42.976810Z",
+    "uri": "studio--studio-8176556433-7698a.us-central1.hosted.app",
+    "managedResources": [
+      {
+        "runService": {
+          "service": "projects/89517826209/locations/us-central1/services/studio"
+        }
+      }
+    ],
+    "displayName": "Studio",
+    "uid": "e728a841-bb87-4066-b6bb-7a6e5a32c3b8",
+    "etag": "6oVPPq2t5s0QIHXFSMlkNjcjkBtOAxAqeqWWEalj70k",
+    "reconciling": false,
+    "servingLocality": "GLOBAL_ACCESS",
+    "serviceAccount": "firebase-app-hosting-compute@studio-8176556433-7698a.iam.gserviceaccount.com",
+    "appId": "1:89517826209:web:37c6d9f5cb30a03e1850e0"
+  }
+}
