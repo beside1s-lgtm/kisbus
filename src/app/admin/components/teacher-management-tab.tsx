@@ -121,7 +121,7 @@ const sortBuses = (buses: Bus[]): Bus[] => {
       if (!isNaN(numA) && !isNaN(numB)) {
         return numA - numB;
       }
-      return a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name, 'ko');
     });
 };
 
@@ -370,7 +370,9 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, saturdayTe
                         });
                         if (foundDays.length > 0) afterSchoolDays = Array.from(new Set(foundDays));
                     }
-                    return { name, afterSchoolDays };
+                    const result: NewTeacher = { name };
+                    if (afterSchoolDays !== undefined) result.afterSchoolDays = afterSchoolDays;
+                    return result;
                 }).filter(teacher => teacher.name);
 
                 if (newTeachersData.length === 0) {
@@ -514,7 +516,8 @@ export const TeacherManagementTab = ({ teachers, afterSchoolTeachers, saturdayTe
         return teacherIds.map(id => {
             const t = currentTeacherPool.find(tp => tp.id === id);
             return { id, name: t?.name || 'Unknown' };
-        }).filter(t => t.name !== 'Unknown');
+        }).filter(t => t.name !== 'Unknown')
+          .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
     };
 
     const handleUnassignTeacher = async (busId: string, teacherId: string) => {

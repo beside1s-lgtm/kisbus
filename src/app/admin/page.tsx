@@ -15,7 +15,8 @@ import {
 import type { Bus, Student, Route, Destination, Teacher, DayOfWeek, RouteType, AfterSchoolClass } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Trash2, Check, Bell, ChevronDown, UserCog } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Trash2, Check, Bell, ChevronDown, UserCog, Bus as BusIcon, Users, GraduationCap, Activity } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useToast } from '@/hooks/use-toast';
@@ -37,13 +38,13 @@ import { AdminPageFilter } from './components/admin-page-filter';
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const sortBuses = (buses: Bus[]): Bus[] => {
-  return buses.sort((a, b) => {
+  return [...buses].sort((a, b) => {
     const numA = parseInt(a.name.replace(/\D/g, ''), 10);
     const numB = parseInt(b.name.replace(/\D/g, ''), 10);
     if (!isNaN(numA) && !isNaN(numB)) {
       return numA - numB;
     }
-    return a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name, 'ko');
   });
 };
 
@@ -180,8 +181,29 @@ const AdminPageContent: React.FC<{
         }, 150);
     };
     
+    const activeBuses = buses.filter(b => b.isActive !== false);
+    const departedBuses = activeBuses.filter(b => b.status === 'departed');
+
     return (
         <>
+            {/* ── 실시간 통계 배너 ── */}
+            <div className="flex flex-wrap gap-3 mb-6">
+                {[
+                    { icon: BusIcon, label: '전체 버스', value: activeBuses.length, iconClass: 'bg-blue-500' },
+                    { icon: Activity, label: '운행 중', value: departedBuses.length, iconClass: 'bg-emerald-500' },
+                    { icon: Users, label: '전체 학생', value: students.length, iconClass: 'bg-sky-500' },
+                    { icon: GraduationCap, label: '교사', value: teachers.length + afterSchoolTeachers.length + saturdayTeachers.length, iconClass: 'bg-violet-500' },
+                ].map(({ icon: Icon, label, value, iconClass }) => (
+                    <div key={label} className="flex items-center gap-3 bg-card border border-border/50 rounded-xl px-4 py-3 shadow-sm">
+                        <div className={cn('p-2 rounded-lg', iconClass)}><Icon className="w-4 h-4 text-white" /></div>
+                        <div className="flex flex-col">
+                            <span className="text-[11px] text-muted-foreground font-medium leading-none mb-1">{label}</span>
+                            <span className="text-base font-bold leading-none">{value}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
             {pendingStudents.length > 0 && (
                  <Collapsible defaultOpen={true} className="mb-6">
                     <Alert>
@@ -402,8 +424,32 @@ export default function AdminPage() {
     if (authLoading || dataLoading) {
         return (
             <MainLayout>
-                <div className="flex justify-center items-center h-64">
-                    <p>{t('loading.data')}</p>
+                <div className="space-y-6">
+                    {/* 통계 배너 Skeleton */}
+                    <div className="flex flex-wrap gap-3">
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="flex items-center gap-3 bg-card border border-border/50 rounded-xl px-4 py-3 shadow-sm">
+                                <Skeleton className="w-9 h-9 rounded-lg" />
+                                <div className="flex flex-col gap-1.5">
+                                    <Skeleton className="h-3 w-14 rounded" />
+                                    <Skeleton className="h-5 w-8 rounded" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {/* 탭 Skeleton */}
+                    <div className="space-y-4">
+                        <Skeleton className="h-10 w-full rounded-lg" />
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className="bg-card border border-border/50 rounded-xl p-5 space-y-3 shadow-sm">
+                                    <Skeleton className="h-4 w-2/3 rounded" />
+                                    <Skeleton className="h-3 w-full rounded" />
+                                    <Skeleton className="h-3 w-4/5 rounded" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </MainLayout>
         );

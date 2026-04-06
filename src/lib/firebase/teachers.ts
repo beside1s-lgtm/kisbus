@@ -65,7 +65,12 @@ export const deleteSaturdayTeacher = (id: string) => deleteDoc(doc(db, 'saturday
 
 export const addTeachersInBatch = async (teachers: Omit<Teacher, 'id'>[]) => {
     const batch = writeBatch(db);
-    teachers.forEach(teacher => batch.set(doc(collection(db, 'teachers')), { ...teacher, name: sanitizeDataForSystem(teacher.name) }));
+    teachers.forEach(teacher => {
+        const { afterSchoolDays, ...rest } = teacher;
+        const data: any = { ...rest, name: sanitizeDataForSystem(teacher.name) };
+        if (afterSchoolDays !== undefined) data.afterSchoolDays = afterSchoolDays;
+        batch.set(doc(collection(db, 'teachers')), data);
+    });
     await batch.commit().catch(async (serverError) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: '/teachers', operation: 'create' } satisfies SecurityRuleContext));
         throw serverError;
@@ -83,7 +88,12 @@ export const deleteTeachersInBatch = async (ids: string[]) => {
 
 export const addAfterSchoolTeachersInBatch = async (teachers: Omit<Teacher, 'id'>[]) => {
     const batch = writeBatch(db);
-    teachers.forEach(teacher => batch.set(doc(collection(db, 'afterSchoolTeachers')), { ...teacher, name: sanitizeDataForSystem(teacher.name) }));
+    teachers.forEach(teacher => {
+        const { afterSchoolDays, ...rest } = teacher;
+        const data: any = { ...rest, name: sanitizeDataForSystem(teacher.name) };
+        if (afterSchoolDays !== undefined) data.afterSchoolDays = afterSchoolDays;
+        batch.set(doc(collection(db, 'afterSchoolTeachers')), data);
+    });
     await batch.commit().catch(async (serverError) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: '/afterSchoolTeachers', operation: 'create' } satisfies SecurityRuleContext));
         throw serverError;
@@ -92,7 +102,12 @@ export const addAfterSchoolTeachersInBatch = async (teachers: Omit<Teacher, 'id'
 
 export const addSaturdayTeachersInBatch = async (teachers: Omit<Teacher, 'id'>[]) => {
     const batch = writeBatch(db);
-    teachers.forEach(teacher => batch.set(doc(collection(db, 'saturdayTeachers')), { ...teacher, name: sanitizeDataForSystem(teacher.name) }));
+    teachers.forEach(teacher => {
+        const { afterSchoolDays, ...rest } = teacher;
+        const data: any = { ...rest, name: sanitizeDataForSystem(teacher.name) };
+        if (afterSchoolDays !== undefined) data.afterSchoolDays = afterSchoolDays;
+        batch.set(doc(collection(db, 'saturdayTeachers')), data);
+    });
     await batch.commit().catch(async (serverError) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: '/saturdayTeachers', operation: 'create' } satisfies SecurityRuleContext));
         throw serverError;

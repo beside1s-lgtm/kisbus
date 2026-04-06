@@ -8,6 +8,7 @@ import {
     onDestinationsUpdate,
     onTeachersUpdate,
     onAfterSchoolTeachersUpdate,
+    onSaturdayTeachersUpdate,
     onAfterSchoolClassesUpdate,
     onLostItemsUpdate,
     getGroupLeaderRecords, 
@@ -22,6 +23,7 @@ import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeade
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Crown, Users, Printer, UserX, AlertCircle, Search, GraduationCap } from 'lucide-react';
 
 import { GroupLeaderManager } from './components/group-leader-manager';
@@ -48,7 +50,7 @@ const sortBuses = (buses: Bus[]): Bus[] => {
     const numA = parseInt(a.name.replace(/\D/g, ''), 10);
     const numB = parseInt(b.name.replace(/\D/g, ''), 10);
     if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-    return a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name, 'ko');
   });
 };
 
@@ -202,11 +204,11 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
     );
 };
 
-const TeacherAssignmentViewDialog = ({ buses, allRoutes, teachers, afterSchoolTeachers, selectedDay, selectedRouteType, t }: { buses: Bus[]; allRoutes: Route[]; teachers: Teacher[]; afterSchoolTeachers: Teacher[]; selectedDay: DayOfWeek; selectedRouteType: RouteType; t: any; }) => {
+const TeacherAssignmentViewDialog = ({ buses, allRoutes, teachers, afterSchoolTeachers, saturdayTeachers, selectedDay, selectedRouteType, t }: { buses: Bus[]; allRoutes: Route[]; teachers: Teacher[]; afterSchoolTeachers: Teacher[]; saturdayTeachers: Teacher[]; selectedDay: DayOfWeek; selectedRouteType: RouteType; t: any; }) => {
     const getNames = (bid: string) => {
         const r = allRoutes.find(x => x.busId === bid && x.dayOfWeek === selectedDay && x.type === selectedRouteType);
         if (!r?.teacherIds?.length) return t('unassigned');
-        const pool = selectedRouteType === 'AfterSchool' ? afterSchoolTeachers : teachers;
+        const pool = selectedDay === 'Saturday' ? saturdayTeachers : (selectedRouteType === 'AfterSchool' ? afterSchoolTeachers : teachers);
         return r.teacherIds.map(id => pool.find(x => x.id === id)?.name).filter(Boolean).join(', ') || t('unassigned');
     };
     
@@ -259,6 +261,7 @@ export default function TeacherPage() {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [afterSchoolTeachers, setAfterSchoolTeachers] = useState<Teacher[]>([]);
+  const [saturdayTeachers, setSaturdayTeachers] = useState<Teacher[]>([]);
   const [afterSchoolClasses, setAfterSchoolClasses] = useState<AfterSchoolClass[]>([]);
   const [lostItems, setLostItems] = useState<LostItem[]>([]);
 
@@ -303,6 +306,7 @@ export default function TeacherPage() {
     onDestinationsUpdate(setDestinations); 
     onTeachersUpdate(setTeachers); 
     onAfterSchoolTeachersUpdate(setAfterSchoolTeachers); 
+    onSaturdayTeachersUpdate(setSaturdayTeachers);
     onAfterSchoolClassesUpdate(setAfterSchoolClasses);
     onLostItemsUpdate(setLostItems);
     setLoading(false);
@@ -599,8 +603,51 @@ export default function TeacherPage() {
   if (loading) {
     return (
       <MainLayout headerContent={headerContent}>
-        <div className="flex justify-center items-center h-64">
-          <p>{t('loading.data')}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 좌석 목록 Skeleton */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <Skeleton className="h-5 w-32 rounded" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="flex justify-between items-center py-2 border-b border-border/30 last:border-0">
+                    <Skeleton className="h-4 w-28 rounded" />
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            {/* 좌석 배치도 Skeleton */}
+            <Card>
+              <CardHeader className="pb-3">
+                <Skeleton className="h-5 w-24 rounded" />
+                <Skeleton className="h-3 w-40 rounded mt-1" />
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-5 gap-2">
+                  {[...Array(45)].map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full rounded-lg" />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          {/* 사이드 패널 Skeleton */}
+          <div className="hidden lg:flex flex-col gap-6">
+            <Card>
+              <CardHeader><Skeleton className="h-5 w-24 rounded" /></CardHeader>
+              <CardContent className="space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex justify-between">
+                    <Skeleton className="h-4 w-20 rounded" />
+                    <Skeleton className="h-4 w-12 rounded" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </MainLayout>
     );
@@ -636,6 +683,7 @@ export default function TeacherPage() {
           allRoutes={allRoutes} 
           teachers={teachers} 
           afterSchoolTeachers={afterSchoolTeachers} 
+          saturdayTeachers={saturdayTeachers}
           selectedDay={selectedDay} 
           selectedRouteType={selectedRouteType} 
           t={t}

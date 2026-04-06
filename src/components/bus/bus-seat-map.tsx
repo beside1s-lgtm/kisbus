@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 import { Bus, Student, Destination, RouteType, DayOfWeek, GroupLeaderRecord } from '@/lib/types';
 import { cn, getStudentName } from '@/lib/utils';
 import { Crown, User as UserIcon, XCircle } from 'lucide-react';
@@ -76,7 +76,8 @@ export const getLayoutInfo = (capacity: number) => {
 };
 
 
-export function BusSeatMap({
+
+const BusSeatMapComponent = ({
   bus,
   seating,
   students,
@@ -90,7 +91,7 @@ export function BusSeatMap({
   routeType = 'Morning',
   dayOfWeek = 'Monday',
   groupLeaderRecords = [],
-}: BusSeatMapProps) {
+}: BusSeatMapProps) => {
   const { i18n, t } = useTranslation();
   const highlightedRef = useRef<HTMLDivElement>(null);
 
@@ -134,8 +135,6 @@ export function BusSeatMap({
 
             let seat = seating.find(s => s.seatNumber === seatNumber);
             if (!seat) {
-                // For backward compatibility (if an existing route doesn't have the newly added jump seat)
-                // render an empty faked seat so teachers/admins can still manually assign a student to it.
                 seat = { seatNumber, studentId: null };
             }
 
@@ -207,7 +206,6 @@ export function BusSeatMap({
           })}
         </div>
 
-        {/* Overflow / Standby Students section */}
         {(() => {
           const seatNumbersInMap = new Set(seatMap.filter(n => n !== null) as number[]);
           const overflowStudents = seating.filter(s => s.studentId && !seatNumbersInMap.has(s.seatNumber));
@@ -239,14 +237,37 @@ export function BusSeatMap({
                   );
                 })}
               </div>
-              <p className="text-[10px] text-amber-600/70 mt-2.5 leading-relaxed bg-amber-50/50 p-2 rounded border border-dashed border-amber-200">
-                * 버스 종류 변경 등으로 인해 기존 좌석 번호가 현재 레이아웃에 맞지 않는 학생들입니다.<br/>
-                * <b>성함 또는 아이콘을 클릭</b>하면 해당 학생이 선택되며, 이후 좌석표의 <b>빈자리를 클릭</b>하여 정상적으로 재배정할 수 있습니다.
-              </p>
             </div>
           );
         })()}
       </div>
     </TooltipProvider>
   );
-}
+};
+
+export const BusSeatMap = memo(BusSeatMapComponent, (prevProps: BusSeatMapProps, nextProps: BusSeatMapProps) => {
+  if (prevProps.bus.id !== nextProps.bus.id) return false;
+  if (prevProps.routeType !== nextProps.routeType) return false;
+  if (prevProps.dayOfWeek !== nextProps.dayOfWeek) return false;
+  if (prevProps.highlightedSeatNumber !== nextProps.highlightedSeatNumber) return false;
+  if (prevProps.highlightedStudentId !== nextProps.highlightedStudentId) return false;
+  if (prevProps.boardedStudentIds !== nextProps.boardedStudentIds) return false;
+  if (prevProps.notBoardingStudentIds !== nextProps.notBoardingStudentIds) return false;
+  
+  // seating 배열이 실제로 변경되었는지 확인 (깊은 비교 보다는 JSON stringify가 간편하지만 성능상 유리한지 판단)
+  // 여기서는 구조가 단순하므로 JSON.stringify 사용
+  if (JSON.stringify(prevProps.seating) !== JSON.stringify(nextProps.seating)) return false;
+
+  // 관련 학생들의 데이터가 변경되었는지 확인
+  const relevantStudentIds = new Set(prevProps.seating.map(s => s.studentId).filter((id): id is string => id !== null));
+  for (const id of Array.from(relevantStudentIds)) {
+    const prevStudent = prevProps.students.find(s => s.id === id);
+    const nextStudent = nextProps.students.find(s => s.id === id);
+    if (prevStudent !== nextStudent) return false;
+  }
+
+  // 1,100명의 전체 학생 중 이 버스에 배정되지 않은 학생이 변경된 경우에는 리렌더링하지 않음
+  return true;
+});
+
+
