@@ -24,7 +24,8 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Crown, Users, Printer, UserX, AlertCircle, Search, GraduationCap } from 'lucide-react';
+import { Crown, Users, Printer, UserX, AlertCircle, Search, GraduationCap, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -171,10 +172,85 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
         return (!isNaN(numA) && !isNaN(numB)) ? numA - numB : a.busName.localeCompare(b.busName); 
     }), [relevantRoutes, buses, leadersMap, t]);
 
+    const handleExportExcel = () => {
+        // 배정된 조장들만 평탄화하여 추출
+        const allLeaders = sorted.flatMap(item => 
+            item.leaderNames
+                .filter(name => name && name !== t('unassigned'))
+                .map(name => ({ 
+                    name, 
+                    busName: item.busName 
+                }))
+        );
+
+        const COL_SIZE = 25; // 이미지 양식처럼 한 열에 25명씩 배치
+        const displayRowCount = Math.max(COL_SIZE, Math.ceil(allLeaders.length / 2));
+        
+        const year = format(new Date(), 'yyyy');
+        const month = parseInt(format(new Date(), 'M'), 10);
+        const semester = (month >= 1 && month <= 7) ? '1' : '2';
+        
+        const aoa: any[][] = [
+            ['', '', `${year}학년도 ${semester}학기 학생 차량 안전 도우미(차장) 명단`, '', '', ''],
+            ['', '', '', '', '', ''],
+            ['', '', '', '', '', '호치민시한국국제학교'],
+            ['', '', '', '', '', '자 치 생 활 부'],
+            ['순', '차장', '비고', '순', '차장', '비고']
+        ];
+        
+        // 데이터 행 생성
+        for (let i = 0; i < displayRowCount; i++) {
+            const leftIdx = i;
+            const rightIdx = i + displayRowCount;
+            
+            const left = allLeaders[leftIdx];
+            const right = allLeaders[rightIdx];
+            
+            const row = [
+                leftIdx + 1, 
+                left ? left.name : '', 
+                left ? left.busName : '', // 비고란에 버스 번호 기입
+                rightIdx + 1, 
+                right ? right.name : '', 
+                right ? right.busName : ''
+            ];
+            aoa.push(row);
+        }
+        
+        // 하단 비고 추가
+        aoa.push(['*특이사항 없는 차장의 경우 8시간 봉사 시간(영역: 이웃돕기활동) 부여', '', '', '', '', '']);
+        
+        const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+        
+        // 셀 병합 설정
+        worksheet['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // 제목
+            { s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 5 } } // 하단 안내문
+        ];
+        
+        // 열 너비 설정
+        worksheet['!cols'] = [
+            { wch: 6 }, { wch: 22 }, { wch: 15 },
+            { wch: 6 }, { wch: 22 }, { wch: 15 }
+        ];
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "조장명단");
+        
+        const fileName = `KIS_Group_Leaders_${year}_${semester}th_${format(new Date(), 'MMdd')}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+    };
+
     return (
         <Card className="border-none shadow-none lg:border lg:shadow-sm w-full h-full">
             <CardHeader className="px-2 py-3 sm:px-4">
-                <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
+                <div className="flex justify-between items-center">
+                    <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
+                    <Button variant="outline" size="sm" onClick={handleExportExcel} className="h-8">
+                        <Download className="mr-2 h-4 w-4" />
+                        <span className="hidden sm:inline">{t('export')}</span>
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent className="px-1 sm:px-2 max-h-[70vh] overflow-y-auto">
                 <Table className="w-full">
@@ -391,12 +467,14 @@ export default function TeacherPage() {
       setSelectedBusId(route.busId);
       setLastClickedStudentId(s.id);
     } else {
+      // 선택된 요일/노선에 없는 경우 요일을 변경하지 않고 현재 상태에서 안내만 표시
       const anyRoute = allRoutes.find(r => r.seating.some(seat => seat.studentId === s.id));
       if (anyRoute) {
-          toast({ title: t('notice'), description: `학생(${getStudentName(s, i18n.language)})이 ${t(`day.${anyRoute.dayOfWeek.toLowerCase()}`)} ${t(`route_type.${anyRoute.type.toLowerCase()}`)} 노선에 배정되어 있습니다.` });
-          setSelectedDay(anyRoute.dayOfWeek);
-          setSelectedRouteType(anyRoute.type);
-          setSelectedBusId(anyRoute.busId);
+          toast({ 
+            title: t('notice'), 
+            description: `이 학생은 현재 선택된 ${t(`day.${selectedDay.toLowerCase()}`)} ${t(`route_type.${selectedRouteType.toLowerCase()}`)} 노선에 배정되어 있지 않습니다.` 
+          });
+          // 요일/노선은 변경하지 않고 학생 정보만 조회하도록 클릭 ID 설정
           setLastClickedStudentId(s.id);
       } else {
           toast({ title: t('notice'), description: "이 학생은 현재 어떤 노선에도 배정되어 있지 않습니다." });
