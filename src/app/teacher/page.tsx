@@ -24,7 +24,7 @@ import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Crown, Users, Printer, UserX, AlertCircle, Search, GraduationCap, Download } from 'lucide-react';
+import { Crown, Users, Printer, UserX, AlertCircle, Search, GraduationCap, Download, MapPin, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 import { GroupLeaderManager } from './components/group-leader-manager';
@@ -572,6 +572,28 @@ export default function TeacherPage() {
     toast({ title: t('teacher_page.not_boarding_updated') });
   }, [selectedStudent, currentRoute, notBoardingStudentIds, boardedStudentIds, disembarkedStudentIds, completedDestinations, selectedDate, t, toast]);
 
+    const handleMarkDestinationArrival = useCallback(async (destinationId: string) => {
+        if (!currentRoute || !selectedDate) return;
+        const newCompleted = completedDestinations.includes(destinationId)
+            ? completedDestinations.filter(id => id !== destinationId)
+            : [...completedDestinations, destinationId];
+        
+        try {
+            await updateAttendance(currentRoute.id, selectedDate, {
+                boarded: boardedStudentIds,
+                notBoarding: notBoardingStudentIds,
+                disembarked: disembarkedStudentIds,
+                completedDestinations: newCompleted
+            });
+            toast({
+                title: newCompleted.includes(destinationId) ? "도착 확인 완료" : "도착 확인 취소",
+                description: "목적지 도착 정보가 업데이트되었습니다."
+            });
+        } catch (error) {
+            toast({ title: t("error"), variant: "destructive" });
+        }
+    }, [currentRoute, selectedDate, completedDestinations, boardedStudentIds, notBoardingStudentIds, disembarkedStudentIds, t, toast]);
+
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
       const sIds = new Set<string>(); 
@@ -783,6 +805,42 @@ export default function TeacherPage() {
                 <div className="lg:col-span-2 flex flex-col gap-6">
                     <Card className="no-print">
                         <CardHeader className="pb-3"><CardTitle>{t('teacher_page.boarding_list_title')}</CardTitle></CardHeader>
+                        
+                        {/* 목적지 도착 확인 섹션 */}
+                        {selectedBus && selectedBus.status === 'departed' && currentRoute && currentRoute.stops && currentRoute.stops.length > 0 && (
+                            <div className="bg-slate-50 border-y p-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <MapPin className="w-3.5 h-3.5 text-primary" />
+                                    <h3 className="text-xs font-bold text-slate-700">목적지 도착 확인</h3>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 font-sans">
+                                    {currentRoute.stops.map((stopId) => {
+                                        const dest = destinations.find(d => d.id === stopId);
+                                        if (!dest) return null;
+                                        const isCompleted = completedDestinations.includes(stopId);
+                                        return (
+                                            <Button
+                                                key={stopId}
+                                                variant={isCompleted ? "outline" : "default"}
+                                                size="sm"
+                                                onClick={(e) => { e.stopPropagation(); handleMarkDestinationArrival(stopId); }}
+                                                className={cn(
+                                                    "h-7 px-2 text-[10px] transition-all",
+                                                    isCompleted 
+                                                        ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100" 
+                                                        : "bg-primary hover:bg-primary/90"
+                                                )}
+                                            >
+                                                {isCompleted && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                                                {dest.name}
+                                                {!isCompleted && <span className="ml-1 opacity-70">도착</span>}
+                                            </Button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         <CardContent className='max-h-[40vh] overflow-y-auto'>
                             <Table>
                                 <TableBody>

@@ -9,7 +9,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { format, getDay, isSunday } from 'date-fns';
 import { LostAndFound } from '@/app/teacher/components/lost-and-found';
 import { useTranslation } from '@/hooks/use-translation';
-import { Search } from 'lucide-react';
+import { Search, MapPin, Bell } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn, getStudentName, normalizeString } from '@/lib/utils';
@@ -256,6 +256,17 @@ export function StudentPageContent() {
       return t(`route_type.${routeType.toLowerCase()}`);
   }
   
+  const studentDestinationId = useMemo(() => {
+    if (!selectedStudent || !viewingDay || !viewingRouteType) return null;
+    return viewingDay === 'Saturday' 
+      ? (viewingRouteType === 'Morning' ? selectedStudent.satMorningDestinationId : selectedStudent.satAfternoonDestinationId)
+      : (viewingRouteType === 'Morning' ? selectedStudent.morningDestinationId : viewingRouteType === 'Afternoon' ? selectedStudent.afternoonDestinationId : selectedStudent.afterSchoolDestinations?.[viewingDay]);
+  }, [selectedStudent, viewingDay, viewingRouteType]);
+
+  const isDestinationReached = useMemo(() => {
+    return !!(studentDestinationId && attendance?.completedDestinations?.includes(studentDestinationId));
+  }, [studentDestinationId, attendance]);
+  
   const studentStatus = useMemo(() => {
     if (!selectedStudent || !selectedBus) return null;
 
@@ -342,6 +353,17 @@ export function StudentPageContent() {
                           <AlertTitle>{t('student_page.select_student_prompt')}</AlertTitle>
                       )}
                   </Alert>
+
+                  {/* 목적지 도착 알림 */}
+                  {selectedStudent && isDestinationReached && !disembarkedStudentIds.includes(selectedStudent.id) && (
+                      <Alert className="mb-4 bg-emerald-50 border-emerald-200 text-emerald-800 border-2 shadow-md animate-in fade-in zoom-in duration-500">
+                          <Bell className="h-4 w-4 text-emerald-600 animate-ring" />
+                          <AlertTitle className="font-bold">목적지 도착 알림</AlertTitle>
+                          <AlertDescription className="text-emerald-700 font-medium">
+                              버스가 <strong>{destinations.find(d => d.id === studentDestinationId)?.name}</strong>에 도착하였습니다.
+                          </AlertDescription>
+                      </Alert>
+                  )}
                   {selectedStudent && assignedRoutes.length > 0 && (
                       <div className="mb-4">
                           <div className="flex flex-wrap gap-2">
