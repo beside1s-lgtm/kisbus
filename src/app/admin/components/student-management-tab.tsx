@@ -975,9 +975,9 @@ export const StudentManagementTab: React.FC<StudentManagementTabProps> = ({
                         </Alert>
                     )}
                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>{t('admin.student_management.seat.title')} {currentRoute && `(${assignedStudentsCount}명)`}</CardTitle>
-                            <div className="flex gap-2">
+                        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <CardTitle className="shrink-0">{t('admin.student_management.seat.title')} {currentRoute && `(${assignedStudentsCount}명)`}</CardTitle>
+                            <div className="flex flex-wrap gap-2 items-center">
                                 <Dialog open={isAfterSchoolDialogOpen} onOpenChange={setIsAfterSchoolDialogOpen}>
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="sm">

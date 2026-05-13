@@ -1,0 +1,43 @@
+node_modules
+.next
+.git
+.agents
+.vscode
+.idx
+.genkit
+coverage
+out
+build
+
+# Mobile apps (대용량 폴더 제외)
+teacher-app/
+parent-app/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files
+.env*
+*.pem
+
+# misc
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+
+# firebase
+firebase-debug.log
+firestore-debug.log
+*-firebase-adminsdk-*.json
+
+# functions (별도 배포)
+functions/node_modules
+
+# temp
+build_log.txt
+result*.txt
+tmp_*.txt
+SESSION_HANDOVER.md

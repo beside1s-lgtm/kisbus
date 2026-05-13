@@ -88,14 +88,14 @@ export const AdminPageFilter = ({
     
     return (
         <Card className="mb-6">
-            <CardContent className="flex flex-wrap items-end gap-4 p-4">
+            <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:flex-wrap sm:items-end">
                 <div className="w-full sm:w-auto">
                     <Label className="text-xs">{t('bus')}</Label>
                     <Select value={selectedBusId || 'all'} onValueChange={setSelectedBusId}>
                         <SelectTrigger className="w-full sm:w-[180px]">
                             <SelectValue placeholder={t('select_bus')} />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent position="popper" side="bottom" sideOffset={4} className="max-h-[40vh] overflow-y-auto">
                             <SelectItem value="all">전체 (All)</SelectItem>
                             {filteredBuses.map((bus) => (
                                 <SelectItem key={bus.id} value={bus.id}>
@@ -111,7 +111,7 @@ export const AdminPageFilter = ({
                         <SelectTrigger className="w-full sm:w-[120px]">
                             <SelectValue placeholder={t('select_day')} />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent position="popper" side="bottom" sideOffset={4}>
                             {days.map((day) => (
                                 <SelectItem key={day} value={day}>
                                     {t(`day.${day.toLowerCase()}`)}

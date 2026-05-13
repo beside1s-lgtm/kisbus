@@ -51,11 +51,11 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent, title
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-       <header className="sticky top-0 z-10 flex flex-col gap-2 border-b bg-card/80 px-4 py-2 backdrop-blur-sm sm:gap-4 md:px-6">
-          <div className="flex w-full items-center justify-between">
-              <div className="flex items-center gap-4">
+       <header className="sticky top-0 z-10 flex flex-col gap-2 border-b bg-card/80 px-3 py-2 backdrop-blur-sm sm:gap-4 sm:px-4 md:px-6">
+          <div className="flex w-full items-center justify-between gap-2 overflow-hidden">
+              <div className="flex items-center gap-2 min-w-0 flex-shrink overflow-hidden">
                   {showHomeButton && (
-                    <Button asChild variant="outline" size="icon" className="h-8 w-8">
+                    <Button asChild variant="outline" size="icon" className="h-8 w-8 flex-shrink-0">
                       <Link href="/">
                         <Home className="h-4 w-4" />
                         <span className="sr-only">Home</span>
@@ -63,25 +63,26 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, headerContent, title
                     </Button>
                   )}
                   {showParentBackButton && (
-                     <Button asChild variant="outline" size="icon" className="h-8 w-8">
+                     <Button asChild variant="outline" size="icon" className="h-8 w-8 flex-shrink-0">
                       <Link href="/parents">
                         <ArrowLeft className="h-4 w-4" />
                         <span className="sr-only">Back</span>
                       </Link>
                     </Button>
                   )}
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-semibold md:text-xl font-headline">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h1 className="text-base font-semibold sm:text-lg md:text-xl font-headline truncate">
                         {getPageTitle()}
                     </h1>
                     {titleActions}
                   </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-shrink-0 sm:gap-2">
                   <LanguageSwitcher />
                   {user && pathname.startsWith('/admin') && (
-                      <Button variant="outline" size="sm" onClick={handleLogout}>
-                      <LogOut className="mr-2" /> {t('logout.button')}
+                      <Button variant="outline" size="sm" onClick={handleLogout} className="h-8 px-2 sm:px-3">
+                        <LogOut className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">{t('logout.button')}</span>
                       </Button>
                   )}
               </div>

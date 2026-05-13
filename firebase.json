@@ -1,7 +1,7 @@
 {
   "apphosting": [
     {
-      "backendId": "studio",
+      "backendId": "kisbus",
       "rootDir": "./",
       "ignore": [
         "node_modules",
@@ -9,8 +9,7 @@
         ".agents",
         ".idx",
         "firebase-debug.log",
-        "firebase-debug.*.log",
-        "functions"
+        "firebase-debug.*.log"
       ],
       "alwaysDeployFromSource": true
     }
