@@ -19,13 +19,15 @@ import {
     updateRouteSeating,
     getAfterSchoolClasses
 } from '@/lib/firebase-data';
+import { arrayUnion, arrayRemove } from 'firebase/firestore';
 import type { Bus, Student, Route, Destination, DayOfWeek, RouteType, GroupLeaderRecord, Teacher, LostItem, AttendanceRecord, AfterSchoolClass } from '@/lib/types';
 import { BusSeatMap } from '@/components/bus/bus-seat-map';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Crown, Users, Printer, UserX, AlertCircle, Search, GraduationCap, Download, MapPin, CheckCircle2 } from 'lucide-react';
+import { Crown, Users, Printer, UserX, AlertCircle, Search, GraduationCap, Download, MapPin, CheckCircle2, FileDown, Upload, Pencil, Check, UserMinus, Phone, Bell, Clock } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 import { GroupLeaderManager } from './components/group-leader-manager';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -37,6 +39,7 @@ import { format, differenceInDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { LostAndFound } from './components/lost-and-found';
 import { AfterSchoolInquiryDialog } from './components/after-school-inquiry-dialog';
 import { useTranslation } from '@/hooks/use-translation';
@@ -140,40 +143,229 @@ const AllStudentsBoardingStatus = ({ relevantRoutes, students, buses, allAttenda
 
 const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentName, t }: { relevantRoutes: Route[]; students: Student[]; buses: Bus[]; formatStudentName: (student: Student) => string; t: any; }) => {
     const [leadersMap, setLeadersMap] = useState<Record<string, { names: string[]; days: number } | null>>({});
+    const [selectedBusIds, setSelectedBusIds] = useState<Set<string>>(new Set());
+    const [editingBusId, setEditingBusId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [editingBusRecords, setEditingBusRecords] = useState<GroupLeaderRecord[]>([]);
     
+    // 현재 선택된 노선 타입 확인 (방과후 제외용)
+    const isAfterSchool = relevantRoutes.length > 0 && relevantRoutes[0].type === 'AfterSchool';
+
+    const { toast } = useToast();
+
+    const fetchAll = useCallback(async () => {
+        if (isAfterSchool) {
+            setLeadersMap({});
+            return;
+        }
+
+        const results: any = {};
+        // 버스 ID별로 고유하게 처리
+        const busIds = Array.from(new Set(relevantRoutes.map(r => r.busId)));
+        
+        await Promise.all(busIds.map(async (busId) => {
+            const recs = await getGroupLeaderRecords("", busId, "Morning");
+            const active = recs.filter(x => x.endDate === null);
+            if (active.length > 0) {
+                const minDate = Math.min(...active.map(l => new Date(l.startDate).getTime()));
+                const days = differenceInDays(new Date(), new Date(minDate)) + 1;
+                results[busId] = { names: active.map(l => {
+                    const student = students.find(s => s.id === l.studentId);
+                    return student ? formatStudentName(student) : (l.name || "알 수 없음");
+                }), days };
+            } else results[busId] = null;
+        }));
+        setLeadersMap(results);
+    }, [isAfterSchool, relevantRoutes, students, formatStudentName]);
+
     useEffect(() => {
-        const fetchAll = async () => {
-            const results: any = {};
-            await Promise.all(relevantRoutes.map(async (r) => {
-                const recs = await getGroupLeaderRecords(r.id);
-                const active = recs.filter(x => x.endDate === null);
-                if (active.length > 0) {
-                    const minDate = Math.min(...active.map(l => new Date(l.startDate).getTime()));
-                    const days = differenceInDays(new Date(), new Date(minDate)) + 1;
-                    results[r.id] = { names: active.map(l => {
-                        const student = students.find(s => s.id === l.studentId);
-                        return student ? formatStudentName(student) : (l.name || "알 수 없음");
-                    }), days };
-                } else results[r.id] = null;
-            }));
-            setLeadersMap(results);
-        };
         if (relevantRoutes.length > 0) fetchAll();
-    }, [relevantRoutes, students, formatStudentName, t]);
+    }, [relevantRoutes, fetchAll]);
 
-    const sorted = useMemo(() => relevantRoutes.map(r => ({ 
-        routeId: r.id, 
-        busName: buses.find(b => b.id === r.busId)?.name || '?', 
-        leaderNames: leadersMap[r.id]?.names || [t('unassigned')], 
-        days: leadersMap[r.id]?.days || 0 
-    })).sort((a,b) => { 
-        const numA = parseInt(a.busName.replace(/\D/g, ''), 10); 
-        const numB = parseInt(b.busName.replace(/\D/g, ''), 10); 
-        return (!isNaN(numA) && !isNaN(numB)) ? numA - numB : a.busName.localeCompare(b.busName); 
-    }), [relevantRoutes, buses, leadersMap, t]);
+    const handleDownloadTemplate = () => {
+        const aoa = [
+            ['버스번호', '학년', '반', '이름', '(주의: 버스번호는 숫자만 써도 됩니다. 예: 1, 2)'],
+            ['1', '7', '1', '홍길동'],
+            ['2', 'S1', 'A', '김철수']
+        ];
+        const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "조장일괄입력_양식");
+        XLSX.writeFile(workbook, "KIS_Leader_Batch_Template.xlsx");
+    };
 
-    const handleExportExcel = () => {
-        // 배정된 조장들만 평탄화하여 추출
+    const handleBatchUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const data = evt.target?.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+            const dataRows = rows.slice(1);
+            const busUpdates: Record<string, GroupLeaderRecord[]> = {};
+            let matchCount = 0;
+
+            for (const row of dataRows) {
+                if (!row[0] || !row[3]) continue;
+                const busInput = String(row[0]).trim().toUpperCase();
+                const grade = String(row[1]).trim();
+                const klass = String(row[2]).trim();
+                const name = String(row[3]).trim();
+
+                // 버스 이름 매칭 고도화: BUS 접두사 제거 후 비교
+                const targetBus = buses.find(b => {
+                    const bName = b.name.trim().toUpperCase();
+                    const bNameWithoutBus = bName.replace(/^BUS\s*/, '').trim();
+                    const busInputWithoutBus = busInput.replace(/^BUS\s*/, '').trim();
+                    
+                    return (
+                        bName === busInput || 
+                        bNameWithoutBus === busInput || 
+                        bNameWithoutBus === busInputWithoutBus
+                    );
+                });
+
+                if (!targetBus) continue;
+
+                const targetStudent = students.find(s => 
+                    normalizeString(getStudentName(s, 'ko')) === normalizeString(name) &&
+                    String(s.grade).toUpperCase() === grade.toUpperCase() &&
+                    String(s.class).toUpperCase() === klass.toUpperCase()
+                );
+
+                if (!targetStudent) continue;
+
+                if (!busUpdates[targetBus.id]) {
+                    busUpdates[targetBus.id] = await getGroupLeaderRecords("", targetBus.id, "Morning");
+                }
+
+                if (!busUpdates[targetBus.id].some(r => r.studentId === targetStudent.id && r.endDate === null)) {
+                    busUpdates[targetBus.id].push({
+                        studentId: targetStudent.id,
+                        name: `${targetStudent.grade.toUpperCase()}${targetStudent.class} ${getStudentName(targetStudent, 'ko')}`,
+                        startDate: format(new Date(), 'yyyy-MM-dd'),
+                        endDate: null,
+                        days: 1
+                    });
+                    matchCount++;
+                }
+            }
+
+            if (matchCount > 0) {
+                await Promise.all(Object.entries(busUpdates).map(([bid, recs]) => saveGroupLeaderRecords("", recs, bid, "Morning")));
+                toast({ title: "일괄 처리 완료", description: `${matchCount}명의 학생이 새 조장으로 임명되었습니다.` });
+                fetchAll();
+            } else {
+                toast({ title: "처리 실패", description: "매칭된 학생이 없거나 이미 모두 조장입니다.", variant: "destructive" });
+            }
+        };
+        reader.readAsBinaryString(file);
+        e.target.value = ''; // Reset input
+    };
+
+    const handleDemoteAll = async (busId: string, silent = false) => {
+        if (!silent && !confirm(t('teacher_page.group_leader_management.delete_confirm.description'))) return;
+        const current = await getGroupLeaderRecords("", busId, "Morning");
+        const updated = current.map(r => r.endDate === null ? { ...r, endDate: format(new Date(), 'yyyy-MM-dd') } : r);
+        await saveGroupLeaderRecords("", updated, busId, "Morning");
+        if (!silent) {
+            toast({ title: t('teacher_page.demote_leader') });
+            fetchAll();
+        }
+        return true;
+    };
+
+    const handleBulkDemote = async () => {
+        if (selectedBusIds.size === 0) return;
+        if (!confirm(`${selectedBusIds.size}개 버스의 모든 조장을 해제하시겠습니까?`)) return;
+        
+        await Promise.all(Array.from(selectedBusIds).map(bid => handleDemoteAll(bid, true)));
+        toast({ title: "일괄 해제 완료" });
+        setSelectedBusIds(new Set());
+        fetchAll();
+    };
+
+    const startEditing = async (busId: string) => {
+        const recs = await getGroupLeaderRecords("", busId, "Morning");
+        setEditingBusRecords(recs);
+        setEditingBusId(busId);
+        setSearchQuery("");
+    };
+
+    const toggleLeaderInDialog = (student: Student) => {
+        const active = editingBusRecords.filter(r => r.endDate === null);
+        const isCurrentlyLeader = active.some(r => r.studentId === student.id);
+        
+        let next: GroupLeaderRecord[];
+        if (isCurrentlyLeader) {
+            next = editingBusRecords.map(r => (r.studentId === student.id && r.endDate === null) ? { ...r, endDate: format(new Date(), 'yyyy-MM-dd') } : r);
+        } else {
+            if (active.length >= 3) { toast({ title: "실패", description: "조장은 최대 3명입니다.", variant: "destructive" }); return; }
+            next = [...editingBusRecords, {
+                studentId: student.id,
+                name: formatStudentName(student),
+                startDate: format(new Date(), 'yyyy-MM-dd'),
+                endDate: null,
+                days: 1
+            }];
+        }
+        setEditingBusRecords(next);
+    };
+
+    const saveEditing = async () => {
+        if (!editingBusId) return;
+        await saveGroupLeaderRecords("", editingBusRecords, editingBusId, "Morning");
+        toast({ title: "수정 완료" });
+        setEditingBusId(null);
+        fetchAll();
+    };
+
+    const filteredStudents = useMemo(() => {
+        if (!searchQuery.trim()) return [];
+        const norm = normalizeString(searchQuery);
+        return students.filter(s => 
+            normalizeString(getStudentName(s, 'ko')).includes(norm) || 
+            normalizeString(getStudentName(s, 'en')).includes(norm)
+        ).slice(0, 10);
+    }, [students, searchQuery]);
+
+    // 버스 이름 순으로 정렬된 목록 생성
+    const sorted = useMemo(() => {
+        if (isAfterSchool) return [];
+        
+        const busIds = Array.from(new Set(relevantRoutes.map(r => r.busId)));
+        return busIds.map(busId => {
+            const bus = buses.find(b => b.id === busId);
+            return {
+                busId,
+                busName: bus?.name || '?',
+                leaderNames: leadersMap[busId]?.names || [t('unassigned')],
+                days: leadersMap[busId]?.days || 0
+            };
+        }).sort((a,b) => { 
+            const numA = parseInt(a.busName.replace(/\D/g, ''), 10); 
+            const numB = parseInt(b.busName.replace(/\D/g, ''), 10); 
+            return (!isNaN(numA) && !isNaN(numB)) ? numA - numB : a.busName.localeCompare(b.busName); 
+        });
+    }, [relevantRoutes, buses, leadersMap, t, isAfterSchool]);
+
+    const handleToggleAll = (checked: boolean) => {
+        if (checked) setSelectedBusIds(new Set(sorted.map(s => s.busId)));
+        else setSelectedBusIds(new Set());
+    };
+
+    const handleToggleOne = (busId: string, checked: boolean) => {
+        const next = new Set(selectedBusIds);
+        if (checked) next.add(busId);
+        else next.delete(busId);
+        setSelectedBusIds(next);
+    };
+
+    const handleExportExcel = async () => {
         const allLeaders = sorted.flatMap(item => 
             item.leaderNames
                 .filter(name => name && name !== t('unassigned'))
@@ -183,99 +375,274 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
                 }))
         );
 
-        const COL_SIZE = 25; // 이미지 양식처럼 한 열에 25명씩 배치
+        if (allLeaders.length === 0) return;
+
+        const COL_SIZE = 25;
         const displayRowCount = Math.max(COL_SIZE, Math.ceil(allLeaders.length / 2));
-        
         const year = format(new Date(), 'yyyy');
         const month = parseInt(format(new Date(), 'M'), 10);
         const semester = (month >= 1 && month <= 7) ? '1' : '2';
-        
-        const aoa: any[][] = [
-            ['', '', `${year}학년도 ${semester}학기 학생 차량 안전 도우미(차장) 명단`, '', '', ''],
-            ['', '', '', '', '', ''],
-            ['', '', '', '', '', '호치민시한국국제학교'],
-            ['', '', '', '', '', '자 치 생 활 부'],
-            ['순', '차장', '비고', '순', '차장', '비고']
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('조장명단');
+
+        // Column widths
+        worksheet.columns = [
+            { width: 6 },  // 순
+            { width: 22 }, // 차장
+            { width: 15 }, // 비고
+            { width: 6 },  // 순
+            { width: 22 }, // 차장
+            { width: 15 }  // 비고
         ];
-        
-        // 데이터 행 생성
+
+        // 1. Title
+        const titleRow = worksheet.getRow(1);
+        titleRow.height = 40;
+        const titleCell = worksheet.getCell('A1');
+        titleCell.value = `${year}학년도 ${semester}학기 학생 차량 안전 도우미(차장) 명단`;
+        titleCell.font = { name: '돋움', size: 20, bold: true };
+        titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        worksheet.mergeCells('A1:F1');
+
+        // 2. School Info (Right aligned)
+        worksheet.getCell('E3').value = '호치민시한국국제학교';
+        worksheet.getCell('E3').font = { name: '돋움', size: 11, bold: true };
+        worksheet.getCell('E3').alignment = { horizontal: 'right' };
+        worksheet.mergeCells('E3:F3');
+
+        worksheet.getCell('E4').value = '자치생활부';
+        worksheet.getCell('E4').font = { name: '돋움', size: 11, bold: true };
+        worksheet.getCell('E4').alignment = { horizontal: 'right' };
+        worksheet.mergeCells('E4:F4');
+
+        // 3. Table Headers
+        const headerRow = worksheet.getRow(5);
+        headerRow.height = 25;
+        const headers = ['순', '차장', '비고', '순', '차장', '비고'];
+        headers.forEach((h, i) => {
+            const cell = headerRow.getCell(i + 1);
+            cell.value = h;
+            cell.font = { name: '돋움', size: 10, bold: true };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE9ECEF' }
+            };
+            cell.border = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+            };
+        });
+
+        // 4. Content
         for (let i = 0; i < displayRowCount; i++) {
             const leftIdx = i;
             const rightIdx = i + displayRowCount;
-            
             const left = allLeaders[leftIdx];
             const right = allLeaders[rightIdx];
             
-            const row = [
-                leftIdx + 1, 
-                left ? left.name : '', 
-                left ? left.busName : '', // 비고란에 버스 번호 기입
-                rightIdx + 1, 
-                right ? right.name : '', 
+            const rowIndex = 6 + i;
+            const row = worksheet.getRow(rowIndex);
+            row.height = 22;
+
+            const values = [
+                leftIdx + 1,
+                left ? left.name : '',
+                left ? left.busName : '',
+                rightIdx + 1,
+                right ? right.name : '',
                 right ? right.busName : ''
             ];
-            aoa.push(row);
-        }
-        
-        // 하단 비고 추가
-        aoa.push(['*특이사항 없는 차장의 경우 8시간 봉사 시간(영역: 이웃돕기활동) 부여', '', '', '', '', '']);
-        
-        const worksheet = XLSX.utils.aoa_to_sheet(aoa);
-        
-        // 셀 병합 설정
-        worksheet['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // 제목
-            { s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 5 } } // 하단 안내문
-        ];
-        
-        // 열 너비 설정
-        worksheet['!cols'] = [
-            { wch: 6 }, { wch: 22 }, { wch: 15 },
-            { wch: 6 }, { wch: 22 }, { wch: 15 }
-        ];
 
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "조장명단");
-        
+            values.forEach((v, colIdx) => {
+                const cell = row.getCell(colIdx + 1);
+                cell.value = v;
+                cell.font = { name: '돋움', size: 10 };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
+            });
+        }
+
+        // 5. Footer
+        const finalRowIndex = 6 + displayRowCount + 1;
+        const footerRow = worksheet.getRow(finalRowIndex);
+        footerRow.height = 25;
+        const footerCell = worksheet.getCell(`A${finalRowIndex}`);
+        footerCell.value = '*특이사항 없는 차장의 경우 8시간 봉사 시간(봉사 내용: 학생 차량 안전 도우미, 영역: 이웃돕기활동) 부여';
+        footerCell.font = { name: '돋움', size: 10, italic: true };
+        footerCell.alignment = { vertical: 'middle', horizontal: 'left' };
+        worksheet.mergeCells(`A${finalRowIndex}:F${finalRowIndex}`);
+
+        // Generate and Save
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
         const fileName = `KIS_Group_Leaders_${year}_${semester}th_${format(new Date(), 'MMdd')}.xlsx`;
-        XLSX.writeFile(workbook, fileName);
+        anchor.download = fileName;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
     };
+
+    if (isAfterSchool) {
+        return (
+            <Card className="border-none shadow-none lg:border lg:shadow-sm w-full h-full">
+                <CardHeader className="px-2 py-3 sm:px-4">
+                    <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
+                </CardHeader>
+                <CardContent className="px-1 sm:px-2 py-8 text-center text-muted-foreground text-sm">
+                    방과후 노선은 조장(차장)을 운영하지 않습니다.
+                </CardContent>
+            </Card>
+        );
+    }
 
     return (
         <Card className="border-none shadow-none lg:border lg:shadow-sm w-full h-full">
             <CardHeader className="px-2 py-3 sm:px-4">
                 <div className="flex justify-between items-center">
                     <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
-                    <Button variant="outline" size="sm" onClick={handleExportExcel} className="h-8">
-                        <Download className="mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">{t('export')}</span>
-                    </Button>
+                    <div className="flex gap-1.5 sm:gap-2">
+                        {selectedBusIds.size > 0 && (
+                            <Button variant="destructive" size="sm" onClick={handleBulkDemote} className="h-8 px-2 animate-in fade-in slide-in-from-right-2">
+                                <UserMinus className="sm:mr-2 h-4 w-4" />
+                                <span className="hidden sm:inline">선택 해제 ({selectedBusIds.size})</span>
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="h-8 px-2">
+                            <FileDown className="sm:mr-2 h-4 w-4" />
+                            <span className="hidden sm:inline">템플릿</span>
+                        </Button>
+                        <Label htmlFor="batch-leader-upload" className="cursor-pointer">
+                            <div className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-2">
+                                <Upload className="sm:mr-2 h-4 w-4" />
+                                <span className="hidden sm:inline">일괄입력</span>
+                            </div>
+                            <Input id="batch-leader-upload" type="file" className="hidden" accept=".xlsx, .xls" onChange={handleBatchUpload} />
+                        </Label>
+                        <Button variant="outline" size="sm" onClick={handleExportExcel} className="h-8 px-2">
+                            <Download className="sm:mr-2 h-4 w-4" />
+                            <span className="hidden sm:inline">{t('export')}</span>
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="px-1 sm:px-2 max-h-[70vh] overflow-y-auto">
                 <Table className="w-full">
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-px">
+                                <Checkbox 
+                                    checked={selectedBusIds.size > 0 && selectedBusIds.size === sorted.length}
+                                    onCheckedChange={(c) => handleToggleAll(!!c)}
+                                />
+                            </TableHead>
                             <TableHead className="whitespace-nowrap w-px">{t('bus')}</TableHead>
                             <TableHead className="whitespace-nowrap">{t('teacher_page.group_leader_management.name')}</TableHead>
                             <TableHead className="whitespace-nowrap w-px">{t('teacher_page.group_leader_management.days')}</TableHead>
+                            <TableHead className="whitespace-nowrap w-px text-right">관리</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {sorted.map((item, idx) => (
                             <TableRow key={idx}>
+                                <TableCell>
+                                    <Checkbox 
+                                        checked={selectedBusIds.has(item.busId)}
+                                        onCheckedChange={(c) => handleToggleOne(item.busId, !!c)}
+                                    />
+                                </TableCell>
                                 <TableCell className="font-medium whitespace-nowrap text-xs">{item.busName}</TableCell>
                                 <TableCell className="whitespace-nowrap text-xs">
                                     <div className="flex flex-col gap-0.5">
-                                        {item.leaderNames.map((n, i) => <span key={i} className="truncate max-w-[100px] sm:max-w-none">{n}</span>)}
+                                        {item.leaderNames.map((n, i) => (
+                                            <span key={i} className="flex items-center gap-1 truncate max-w-[100px] sm:max-w-none">
+                                                {n !== t('unassigned') && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
+                                                {n}
+                                            </span>
+                                        ))}
                                     </div>
                                 </TableCell>
-                                <TableCell className="whitespace-nowrap text-xs">{item.days > 0 ? `${item.days}${t('teacher_page.group_leader_days_suffix')}` : '-'}</TableCell>
+                                <TableCell className="whitespace-nowrap text-xs text-center">{item.days > 0 ? `${item.days}${t('teacher_page.group_leader_days_suffix')}` : '-'}</TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex justify-end gap-1">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditing(item.busId)}>
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDemoteAll(item.busId)}>
+                                            <UserMinus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
             </CardContent>
+
+            <Dialog open={!!editingBusId} onOpenChange={(o) => !o && setEditingBusId(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>조장 수정 - {buses.find(b => b.id === editingBusId)?.name}</DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>기존 활동 조장</Label>
+                            <div className="flex flex-wrap gap-2">
+                                {editingBusRecords.filter(r => r.endDate === null).map(r => (
+                                    <Badge key={r.studentId} variant="secondary" className="pl-1 pr-2 py-1 gap-1">
+                                        <Button variant="ghost" size="icon" className="h-4 w-4 p-0 rounded-full" onClick={() => toggleLeaderInDialog(students.find(s => s.id === r.studentId)!)}>
+                                            <UserMinus className="h-3 w-3" />
+                                        </Button>
+                                        {r.name}
+                                    </Badge>
+                                ))}
+                                {editingBusRecords.filter(r => r.endDate === null).length === 0 && (
+                                    <span className="text-xs text-muted-foreground italic">임명된 조장 없음</span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>신규 조장 검색</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="학생 이름 검색..." className="pl-9" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                            </div>
+                            
+                            {filteredStudents.length > 0 && (
+                                <div className="border rounded-md divide-y overflow-hidden bg-background">
+                                    {filteredStudents.map(s => {
+                                        const isLeader = editingBusRecords.some(r => r.studentId === s.id && r.endDate === null);
+                                        return (
+                                            <Button key={s.id} variant="ghost" className="w-full justify-between font-normal h-10 px-3 rounded-none" onClick={() => toggleLeaderInDialog(s)}>
+                                                <span className="text-sm">{formatStudentName(s)}</span>
+                                                {isLeader ? <Check className="h-4 w-4 text-primary" /> : <Crown className="h-4 w-4 text-muted-foreground opacity-30" />}
+                                            </Button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-4">
+                        <Button variant="outline" onClick={() => setEditingBusId(null)}>취소</Button>
+                        <Button onClick={saveEditing}>변경내용 저장</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </Card>
     );
 };
@@ -354,10 +721,12 @@ export default function TeacherPage() {
   const [swapSourceSeat, setSwapSourceSeat] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Student[]>([]);
+  const [isManualMode, setIsManualMode] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     const calculateDate = () => {
+        if (isManualMode) return;
         const now = new Date();
         const vTime = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
         const h = vTime.getHours(), d = vTime.getDay();
@@ -373,7 +742,7 @@ export default function TeacherPage() {
     
     calculateDate();
     const intervalId = setInterval(calculateDate, 60000);
-    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') calculateDate(); };
+    const handleVisibilityChange = () => { if (document.visibilityState === 'visible' && !isManualMode) calculateDate(); };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     onBusesUpdate(data => setBuses(sortBuses(data))); 
@@ -394,22 +763,21 @@ export default function TeacherPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedDate) {
-        const targetDate = new Date(selectedDate), dayIdx = targetDate.getDay();
-        setSelectedDay(dayIdx === 0 ? 'Monday' : DAYS[dayIdx - 1]);
-        const isToday = format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-        if (isToday) {
-            const vTime = new Date(new Date().getTime() + (new Date().getTimezoneOffset() + 420) * 60000);
-            const vh = vTime.getHours();
-            if (dayIdx === 6) {
-                if (vh < 9) setSelectedRouteType('Morning');
-                else if (vh < 14) setSelectedRouteType('Afternoon');
-                else setSelectedRouteType('Morning'); // Will be Monday morning due to date shift logic
-            }
-            else setSelectedRouteType(vh < 9 ? 'Morning' : (vh < 16 ? 'Afternoon' : 'AfterSchool'));
+    if (isManualMode || !selectedDate) return;
+    const targetDate = new Date(selectedDate), dayIdx = targetDate.getDay();
+    setSelectedDay(dayIdx === 0 ? 'Monday' : DAYS[dayIdx - 1]);
+    const isToday = format(targetDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+    if (isToday) {
+        const vTime = new Date(new Date().getTime() + (new Date().getTimezoneOffset() + 420) * 60000);
+        const vh = vTime.getHours();
+        if (dayIdx === 6) {
+            if (vh < 9) setSelectedRouteType('Morning');
+            else if (vh < 14) setSelectedRouteType('Afternoon');
+            else setSelectedRouteType('Morning'); // Will be Monday morning due to date shift logic
         }
+        else setSelectedRouteType(vh < 9 ? 'Morning' : (vh < 16 ? 'Afternoon' : 'AfterSchool'));
     }
-  }, [selectedDate]);
+  }, [selectedDate, isManualMode]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -532,7 +900,7 @@ export default function TeacherPage() {
 
   useEffect(() => {
     if (currentRoute) {
-        getGroupLeaderRecords(currentRoute.id).then(setGroupLeaderRecords).catch(() => setGroupLeaderRecords([]));
+        getGroupLeaderRecords(currentRoute.id, currentRoute.busId, currentRoute.type).then(setGroupLeaderRecords).catch(() => setGroupLeaderRecords([]));
     } else { setGroupLeaderRecords([]); }
   }, [currentRoute]);
 
@@ -550,49 +918,84 @@ export default function TeacherPage() {
         toast({ title: t('teacher_page.promote_leader'), description: `${getStudentName(selectedStudent, i18n.language)} 학생이 조장으로 임명되었습니다.` });
     }
     setGroupLeaderRecords(newRecords);
-    saveGroupLeaderRecords(currentRoute.id, newRecords).catch(console.error);
+    if (currentRoute) {
+        saveGroupLeaderRecords(currentRoute.id, newRecords, currentRoute.busId, currentRoute.type).catch(console.error);
+    }
   }, [selectedStudent, currentRoute, groupLeaderRecords, t, toast]);
 
   const toggleStudentAttendance = useCallback(async (sid: string) => {
     if (!currentRoute) return;
     const isB = boardedStudentIds.includes(sid), isD = disembarkedStudentIds.includes(sid);
-    let newB = [...boardedStudentIds], newD = [...disembarkedStudentIds], newNB = notBoardingStudentIds.filter(id => id !== sid);
-    if (isD) newD = newD.filter(id => id !== sid);
-    else if (isB) { newB = newB.filter(id => id !== sid); newD.push(sid); }
-    else newB.push(sid);
-    await updateAttendance(currentRoute.id, selectedDate, { boarded: newB, notBoarding: newNB, disembarked: newD, completedDestinations }).then(() => setLastClickedStudentId(sid)).catch(() => toast({ title: t("error"), variant: "destructive" }));
-  }, [currentRoute, boardedStudentIds, disembarkedStudentIds, notBoardingStudentIds, completedDestinations, selectedDate, t, toast]);
+    
+    // 원자적 연산을 위한 데이터 구성
+    const updates: any = {};
+    
+    if (isD) {
+      // 하차 -> 미탑승 상태로 복귀 (또는 제거)
+      updates.disembarked = arrayRemove(sid);
+    } else if (isB) {
+      // 탑승 -> 하차 상태로 변경
+      updates.boarded = arrayRemove(sid);
+      updates.disembarked = arrayUnion(sid);
+    } else {
+      // 미탑승 -> 탑승 상태로 변경
+      updates.boarded = arrayUnion(sid);
+      updates.notBoarding = arrayRemove(sid); // '오늘 안 탐'에 있었다면 제거
+    }
+    
+    await updateAttendance(currentRoute.id, selectedDate, updates)
+      .then(() => setLastClickedStudentId(sid))
+      .catch(() => toast({ title: t("error"), variant: "destructive" }));
+  }, [currentRoute, boardedStudentIds, disembarkedStudentIds, selectedDate, t, toast]);
 
   const handleMarkNotBoarding = useCallback(async () => {
     if (!selectedStudent || !currentRoute) return;
-    const newNB = [...new Set([...notBoardingStudentIds, selectedStudent.id])];
-    const newB = boardedStudentIds.filter(id => id !== selectedStudent.id);
-    const newD = disembarkedStudentIds.filter(id => id !== selectedStudent.id);
-    await updateAttendance(currentRoute.id, selectedDate, { boarded: newB, notBoarding: newNB, disembarked: newD, completedDestinations });
-    toast({ title: t('teacher_page.not_boarding_updated') });
-  }, [selectedStudent, currentRoute, notBoardingStudentIds, boardedStudentIds, disembarkedStudentIds, completedDestinations, selectedDate, t, toast]);
+    const isAlreadyNotBoarding = notBoardingStudentIds.includes(selectedStudent.id);
+    
+    const updates: any = {
+      notBoarding: isAlreadyNotBoarding ? arrayRemove(selectedStudent.id) : arrayUnion(selectedStudent.id),
+      boarded: arrayRemove(selectedStudent.id),
+      disembarked: arrayRemove(selectedStudent.id)
+    };
+
+    try {
+      await updateAttendance(currentRoute.id, selectedDate, updates);
+      
+      // 등교 노선일 때 오늘 안 탐 처리 시 하교/방과후 자동 전송
+      if (selectedRouteType === 'Morning' && !isAlreadyNotBoarding) {
+          const otherRoutes = allRoutes.filter(r => 
+              r.dayOfWeek === selectedDay && 
+              (r.type === 'Afternoon' || r.type === 'AfterSchool') && 
+              r.seating.some(se => se.studentId === selectedStudent.id)
+          );
+          
+          await Promise.all(otherRoutes.map(or => 
+              updateAttendance(or.id, selectedDate, { notBoarding: arrayUnion(selectedStudent.id) })
+          ));
+      }
+      
+      toast({ title: isAlreadyNotBoarding ? "상태 복구 완료" : t('teacher_page.not_boarding_updated') });
+    } catch (error) {
+      toast({ title: t('error'), variant: "destructive" });
+    }
+  }, [selectedStudent, currentRoute, notBoardingStudentIds, selectedDate, selectedRouteType, allRoutes, selectedDay, t, toast]);
 
     const handleMarkDestinationArrival = useCallback(async (destinationId: string) => {
         if (!currentRoute || !selectedDate) return;
-        const newCompleted = completedDestinations.includes(destinationId)
-            ? completedDestinations.filter(id => id !== destinationId)
-            : [...completedDestinations, destinationId];
+        const isCompleted = completedDestinations.includes(destinationId);
         
         try {
             await updateAttendance(currentRoute.id, selectedDate, {
-                boarded: boardedStudentIds,
-                notBoarding: notBoardingStudentIds,
-                disembarked: disembarkedStudentIds,
-                completedDestinations: newCompleted
+                completedDestinations: isCompleted ? arrayRemove(destinationId) : arrayUnion(destinationId)
             });
             toast({
-                title: newCompleted.includes(destinationId) ? "도착 확인 완료" : "도착 확인 취소",
+                title: !isCompleted ? "도착 확인 완료" : "도착 확인 취소",
                 description: "목적지 도착 정보가 업데이트되었습니다."
             });
         } catch (error) {
             toast({ title: t("error"), variant: "destructive" });
         }
-    }, [currentRoute, selectedDate, completedDestinations, boardedStudentIds, notBoardingStudentIds, disembarkedStudentIds, t, toast]);
+    }, [currentRoute, selectedDate, completedDestinations, t, toast]);
 
   const studentsOnCurrentRoute = useMemo(() => {
       if (!currentRoute) return [];
@@ -669,8 +1072,19 @@ export default function TeacherPage() {
                     <CardContent className="p-2">
                         {searchResults.map(student => (
                             <div key={student.id} className="p-2 text-sm hover:bg-accent rounded-md cursor-pointer flex justify-between items-center" onClick={() => handleSelectStudentFromSearch(student)}>
-                                <span>{formatStudentName(student)}</span>
-                                {student.contact && <span className="text-[10px] text-muted-foreground">{student.contact}</span>}
+                                <div className="flex flex-col">
+                                    <span className="font-medium text-slate-900">{formatStudentName(student)}</span>
+                                    {student.contact && (
+                                        <a 
+                                            href={`tel:${student.contact}`} 
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 mt-0.5"
+                                        >
+                                            <Phone className="w-2.5 h-2.5" />
+                                            {student.contact}
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </CardContent>
@@ -682,21 +1096,28 @@ export default function TeacherPage() {
             <Select value={selectedDay} onValueChange={(v: DayOfWeek) => { 
                 const today = new Date(), currentDayIdx = (today.getDay() + 6) % 7, targetDayIdx = DAYS.indexOf(v), diff = targetDayIdx - currentDayIdx, target = new Date(today);
                 target.setDate(today.getDate() + diff); setSelectedDate(format(target, 'yyyy-MM-dd')); 
+                setIsManualMode(true);
             }}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectTrigger className={cn(isManualMode && "border-blue-500")}><SelectValue/></SelectTrigger>
                 <SelectContent>{DAYS.map(d => <SelectItem key={d} value={d}>{t(`day.${d.toLowerCase()}`)}</SelectItem>)}</SelectContent>
             </Select>
         </div>
         <div className="flex-1 min-w-[180px]">
             <Label className="text-xs">{t('route')}</Label>
-            <Tabs value={selectedRouteType} onValueChange={(v: any) => setSelectedRouteType(v)} className="w-full">
-                <TabsList className={cn("grid w-full", selectedDay === 'Saturday' ? "grid-cols-2" : "grid-cols-3")}>
+            <Tabs value={selectedRouteType} onValueChange={(v: any) => { setSelectedRouteType(v); setIsManualMode(true); }} className="w-full">
+                <TabsList className={cn("grid w-full", selectedDay === 'Saturday' ? "grid-cols-2" : "grid-cols-3", isManualMode && "bg-blue-50")}>
                     <TabsTrigger value="Morning">{t('route_type.morning')}</TabsTrigger>
                     <TabsTrigger value="Afternoon">{t('route_type.afternoon')}</TabsTrigger>
                     {selectedDay !== 'Saturday' && <TabsTrigger value="AfterSchool">{t('route_type.AfterSchool')}</TabsTrigger>}
                 </TabsList>
             </Tabs>
         </div>
+        {isManualMode && (
+          <Button variant="outline" size="sm" className="h-10 border-blue-500 text-blue-600 gap-1.5" onClick={() => setIsManualMode(false)}>
+            <Clock className="w-4 h-4" />
+            {t('teacher_page.back_to_auto') || '자동'}
+          </Button>
+        )}
     </div>
   );
 
@@ -906,6 +1327,18 @@ export default function TeacherPage() {
                             </CardHeader>
                             <CardContent className="pb-3 space-y-2">
                                 <p className="text-sm text-muted-foreground">학년/반: {selectedStudent.grade}학년 {selectedStudent.class}반</p>
+                                {selectedStudent.contact && (
+                                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                        <Phone className="w-3.5 h-3.5 text-primary shrink-0" />
+                                        <span>연락처:</span>
+                                        <a 
+                                            href={`tel:${selectedStudent.contact}`} 
+                                            className="font-medium text-blue-600 hover:underline"
+                                        >
+                                            {selectedStudent.contact}
+                                        </a>
+                                    </p>
+                                )}
                                 <p className="text-sm text-muted-foreground">목적지: {destinations.find(d => d.id === (selectedDay === 'Saturday' ? (selectedRouteType === 'Morning' ? selectedStudent.satMorningDestinationId : selectedStudent.satAfternoonDestinationId) : (selectedRouteType === 'Morning' ? selectedStudent.morningDestinationId : selectedRouteType === 'Afternoon' ? selectedStudent.afternoonDestinationId : selectedStudent.afterSchoolDestinations?.[selectedDay])))?.name || t('unassigned')}</p>
                                 {(() => {
                                     // afterSchoolClassIds에서 해당 요일의 수업 ID를 가져옴
@@ -953,15 +1386,39 @@ export default function TeacherPage() {
                                         </Button>
                                     );
                                 })()}
-                                <Button variant={selectedStudent.isGroupLeader ? "destructive" : "default"} size="sm" onClick={toggleGroupLeader} className="w-full">{selectedStudent.isGroupLeader ? <><UserX className="mr-2 h-4 w-4"/> {t('teacher_page.demote_leader')}</> : <><Crown className="mr-2 h-4 w-4"/> {t('teacher_page.promote_leader')}</>}</Button>
+                                {selectedRouteType !== 'AfterSchool' && (
+                                    <Button variant={selectedStudent.isGroupLeader ? "destructive" : "default"} size="sm" onClick={toggleGroupLeader} className="w-full">
+                                        {selectedStudent.isGroupLeader ? <><UserX className="mr-2 h-4 w-4"/> {t('teacher_page.demote_leader')}</> : <><Crown className="mr-2 h-4 w-4"/> {t('teacher_page.promote_leader')}</>}
+                                    </Button>
+                                )}
                             </CardFooter>
                         </Card>
                     )}
-                    <div className="lg:hidden"><GroupLeaderManager records={groupLeaderRecords} setRecords={(next) => { const updated = typeof next === 'function' ? next(groupLeaderRecords) : next; setGroupLeaderRecords(updated); if (currentRoute) saveGroupLeaderRecords(currentRoute.id, updated).catch(console.error); }}/></div>
+                    {selectedRouteType !== 'AfterSchool' && (
+                        <div className="lg:hidden">
+                            <GroupLeaderManager 
+                                records={groupLeaderRecords} 
+                                setRecords={(next) => { 
+                                    const updated = typeof next === 'function' ? next(groupLeaderRecords) : next; 
+                                    setGroupLeaderRecords(updated); 
+                                    if (currentRoute) saveGroupLeaderRecords(currentRoute.id, updated, currentRoute.busId, currentRoute.type).catch(console.error); 
+                                }}
+                            />
+                        </div>
+                    )}
                     <div className="lg:hidden"><LostAndFound lostItems={lostItems} setLostItems={setLostItems} buses={buses}/></div>
                 </div>
-                <div className="flex flex-col gap-6 no-print hidden lg:flex">
-                    <GroupLeaderManager records={groupLeaderRecords} setRecords={(next) => { const updated = typeof next === 'function' ? next(groupLeaderRecords) : next; setGroupLeaderRecords(updated); if (currentRoute) saveGroupLeaderRecords(currentRoute.id, updated).catch(console.error); }}/>
+                <div className="hidden lg:flex flex-col gap-6 no-print">
+                    {selectedRouteType !== 'AfterSchool' && (
+                        <GroupLeaderManager 
+                            records={groupLeaderRecords} 
+                            setRecords={(next) => { 
+                                const updated = typeof next === 'function' ? next(groupLeaderRecords) : next; 
+                                setGroupLeaderRecords(updated); 
+                                if (currentRoute) saveGroupLeaderRecords(currentRoute.id, updated, currentRoute.busId, currentRoute.type).catch(console.error); 
+                            }}
+                        />
+                    )}
                     <LostAndFound lostItems={lostItems} setLostItems={setLostItems} buses={buses}/>
                 </div>
             </div>

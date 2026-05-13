@@ -1,10 +1,14 @@
 import { db } from '../firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, FieldValue } from 'firebase/firestore';
 import type { AttendanceRecord } from '../types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
-export const updateAttendance = async (routeId: string, date: string, data: Partial<Omit<AttendanceRecord, 'id' | 'routeId'>>) => {
+export const updateAttendance = async (
+  routeId: string, 
+  date: string, 
+  data: Partial<Record<keyof Omit<AttendanceRecord, 'id' | 'routeId'>, any>>
+) => {
   const docRef = doc(db, 'routes', routeId, 'attendance', date);
   await setDoc(docRef, data, { merge: true }).catch(async (serverError) => {
     const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data } satisfies SecurityRuleContext);
