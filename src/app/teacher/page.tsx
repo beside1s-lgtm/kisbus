@@ -148,20 +148,15 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
     const [searchQuery, setSearchQuery] = useState("");
     const [editingBusRecords, setEditingBusRecords] = useState<GroupLeaderRecord[]>([]);
     
-    // 현재 선택된 노선 타입 확인 (방과후 제외용)
     const isAfterSchool = relevantRoutes.length > 0 && relevantRoutes[0].type === 'AfterSchool';
 
     const { toast } = useToast();
 
     const fetchAll = useCallback(async () => {
-        if (isAfterSchool) {
-            setLeadersMap({});
-            return;
-        }
-
         const results: any = {};
-        // 버스 ID별로 고유하게 처리
-        const busIds = Array.from(new Set(relevantRoutes.map(r => r.busId)));
+        // 요일/노선에 상관없이 모든 활성 버스를 대상으로 조장 정보를 가져옵니다.
+        const activeBuses = buses.filter(b => b.isActive !== false);
+        const busIds = activeBuses.map(b => b.id);
         
         await Promise.all(busIds.map(async (busId) => {
             const recs = await getGroupLeaderRecords("", busId, "Morning");
@@ -171,16 +166,17 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
                 const days = differenceInDays(new Date(), new Date(minDate)) + 1;
                 results[busId] = { names: active.map(l => {
                     const student = students.find(s => s.id === l.studentId);
+                    // 학생 데이터를 찾지 못하더라도 기록된 이름을 최대한 표시합니다.
                     return student ? formatStudentName(student) : (l.name || "알 수 없음");
                 }), days };
             } else results[busId] = null;
         }));
         setLeadersMap(results);
-    }, [isAfterSchool, relevantRoutes, students, formatStudentName]);
+    }, [buses, students, formatStudentName]);
 
     useEffect(() => {
-        if (relevantRoutes.length > 0) fetchAll();
-    }, [relevantRoutes, fetchAll]);
+        fetchAll();
+    }, [fetchAll]);
 
     const handleDownloadTemplate = () => {
         const aoa = [
@@ -335,23 +331,20 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
 
     // 버스 이름 순으로 정렬된 목록 생성
     const sorted = useMemo(() => {
-        if (isAfterSchool) return [];
-        
-        const busIds = Array.from(new Set(relevantRoutes.map(r => r.busId)));
-        return busIds.map(busId => {
-            const bus = buses.find(b => b.id === busId);
+        const activeBuses = buses.filter(b => b.isActive !== false);
+        return activeBuses.map(bus => {
             return {
-                busId,
-                busName: bus?.name || '?',
-                leaderNames: leadersMap[busId]?.names || [t('unassigned')],
-                days: leadersMap[busId]?.days || 0
+                busId: bus.id,
+                busName: bus.name,
+                leaderNames: leadersMap[bus.id]?.names || [t('unassigned')],
+                days: leadersMap[bus.id]?.days || 0
             };
         }).sort((a,b) => { 
             const numA = parseInt(a.busName.replace(/\D/g, ''), 10); 
             const numB = parseInt(b.busName.replace(/\D/g, ''), 10); 
             return (!isNaN(numA) && !isNaN(numB)) ? numA - numB : a.busName.localeCompare(b.busName); 
         });
-    }, [relevantRoutes, buses, leadersMap, t, isAfterSchool]);
+    }, [buses, leadersMap, t]);
 
     const handleToggleAll = (checked: boolean) => {
         if (checked) setSelectedBusIds(new Set(sorted.map(s => s.busId)));
@@ -494,18 +487,6 @@ const AllGroupLeadersStatus = ({ relevantRoutes, students, buses, formatStudentN
         window.URL.revokeObjectURL(url);
     };
 
-    if (isAfterSchool) {
-        return (
-            <Card className="border-none shadow-none lg:border lg:shadow-sm w-full h-full">
-                <CardHeader className="px-2 py-3 sm:px-4">
-                    <CardTitle className="text-base sm:text-lg">{t('teacher_page.all_group_leaders_view.title')}</CardTitle>
-                </CardHeader>
-                <CardContent className="px-1 sm:px-2 py-8 text-center text-muted-foreground text-sm">
-                    방과후 노선은 조장(차장)을 운영하지 않습니다.
-                </CardContent>
-            </Card>
-        );
-    }
 
     return (
         <Card className="border-none shadow-none lg:border lg:shadow-sm w-full h-full">
