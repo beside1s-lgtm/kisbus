@@ -39,6 +39,7 @@
     "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.6.0",
     "events": "^3.3.0",
+    "exceljs": "^4.4.0",
     "firebase": "^10.12.2",
     "firebase-admin": "^12.1.1",
     "lucide-react": "^0.475.0",
